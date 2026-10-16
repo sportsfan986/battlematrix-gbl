@@ -6,7 +6,7 @@
 
 ---
 
-![BattleMatrix GBL Real Gameplay HUD Overlay — Dialga Origin vs Mewtwo](./docs/screenshots/featured_real_gameplay_hud.svg)
+![BattleMatrix GBL Full Color Real Gameplay HUD Overlay — Dialga Origin vs Mewtwo](./docs/screenshots/featured_real_gameplay.svg)
 
 **BattleMatrix GBL** is a standalone Android application and client-side web battle simulator for **Pokémon GO Battle League (GBL)**. Built with Kotlin, WindowManager `TYPE_APPLICATION_OVERLAY`, in-memory `MediaProjection` frame analysis (zero disk writes), PvPoke `gamemaster.json` stats, offline Google ML Kit Text Recognition, and an interactive React web dashboard.
 
