@@ -33,6 +33,7 @@ export interface TeamMember {
   fastMove: string;
   chargedMove1: string;
   chargedMove2: string;
+  ivs?: string;
 }
 
 export interface TeamPreset {
@@ -1324,6 +1325,246 @@ export function calculateChargedDamage(
   };
 }
 
+/**
+ * Parses user IV string (e.g. "0/15/15", "15-15-15") or returns PvPoke default IVs for the league.
+ */
+export function parseIvTriplet(
+  ivStr: string | undefined,
+  league: string = "MASTER LEAGUE"
+): [number, number, number] {
+  if (ivStr && ivStr.trim().length > 0) {
+    const parts = ivStr
+      .trim()
+      .split(/[/\-,;\s]+/)
+      .map((s) => parseInt(s, 10))
+      .filter((n) => !Number.isNaN(n));
+    if (parts.length >= 3) {
+      return [
+        Math.max(0, Math.min(15, parts[0])),
+        Math.max(0, Math.min(15, parts[1])),
+        Math.max(0, Math.min(15, parts[2]))
+      ];
+    }
+  }
+  const upper = league.toUpperCase();
+  if (upper.includes("GREAT") || upper.includes("ULTRA")) {
+    return [1, 15, 15];
+  }
+  return [15, 15, 15];
+}
+
+/**
+ * Computes League CP-scaled and IV-adjusted effective PokemonStats for a target league, custom CP, and optional IVs.
+ */
+export function computeEffectiveStatsForLeague(
+  pokemon: PokemonStats,
+  league: string = "MASTER LEAGUE",
+  customCp?: number,
+  customIvs?: string
+): PokemonStats & { resolvedCp: number } {
+  const upper = league.toUpperCase();
+  const isGreat = upper.includes("GREAT");
+  const isUltra = upper.includes("ULTRA");
+  const leagueCap = isGreat ? 1500 : isUltra ? 2500 : 5500;
+
+  const refStatCp = Math.max(
+    100,
+    Math.floor(
+      (pokemon.baseStats.atk *
+        Math.sqrt(pokemon.baseStats.def) *
+        Math.sqrt(pokemon.baseStats.hp)) /
+        10
+    )
+  );
+  const refCpm = refStatCp > 2500 ? 0.8403 : refStatCp > 1550 ? 0.7903 : 0.7317;
+  const refIvs: [number, number, number] = refStatCp > 2500 ? [15, 15, 15] : [1, 15, 15];
+  const actualIvs = parseIvTriplet(customIvs, league);
+
+  const adjAtkAtRef = Math.max(20, pokemon.baseStats.atk + (actualIvs[0] - refIvs[0]) * refCpm);
+  const adjDefAtRef = Math.max(20, pokemon.baseStats.def + (actualIvs[1] - refIvs[1]) * refCpm);
+  const adjHpAtRef = Math.max(20, pokemon.baseStats.hp + (actualIvs[2] - refIvs[2]) * refCpm);
+
+  const refProd = Math.max(1, pokemon.baseStats.atk * Math.sqrt(pokemon.baseStats.def * pokemon.baseStats.hp));
+  const adjProd = Math.max(1, adjAtkAtRef * Math.sqrt(adjDefAtRef * adjHpAtRef));
+  const ivCpRatio = adjProd / refProd;
+
+  const defaultLeagueCp = isGreat
+    ? refStatCp <= 1500
+      ? refStatCp
+      : 1498
+    : isUltra
+    ? refStatCp >= 1501 && refStatCp <= 2500
+      ? refStatCp
+      : refStatCp > 2500
+      ? 2496
+      : Math.min(2500, Math.round(refStatCp * 1.65))
+    : refStatCp > 2500
+    ? refStatCp
+    : Math.min(4720, Math.round(refStatCp * 1.45));
+
+  const targetCp =
+    customCp && customCp >= 100 && customCp <= leagueCap + 100
+      ? customCp
+      : !isGreat && !isUltra
+      ? Math.max(100, Math.round(defaultLeagueCp * ivCpRatio))
+      : defaultLeagueCp;
+
+  const effectiveRefCp = Math.max(100, refStatCp * ivCpRatio);
+  const cpmScale = Math.max(0.35, Math.min(1.45, Math.sqrt(targetCp / effectiveRefCp)));
+
+  return {
+    ...pokemon,
+    resolvedCp: targetCp,
+    baseStats: {
+      atk: Number((adjAtkAtRef * cpmScale).toFixed(2)),
+      def: Number((adjDefAtRef * cpmScale).toFixed(2)),
+      hp: Math.max(10, Math.round(adjHpAtRef * cpmScale))
+    }
+  };
+}
+
+/**
+ * Resolves PvPoke recommended Fast Move, Charged Move 1, Charged Move 2, and default CP for a Pokémon name.
+ */
+export function getRecommendedMovesForPokemon(
+  rawName: string,
+  league: string = "GREAT LEAGUE",
+  customIvs?: string
+): {
+  name: string;
+  cp: number;
+  fastMove: string;
+  chargedMove1: string;
+  chargedMove2: string;
+  defaultIvs: string;
+} | null {
+  const trimmed = (rawName || "").trim();
+  if (!trimmed) return null;
+  const cleanName = trimmed.replace(/^Shadow\s+/i, "").trim();
+  const entries = Object.values(POKEMON_DATABASE);
+
+  const exact =
+    POKEMON_DATABASE[trimmed] ||
+    POKEMON_DATABASE[cleanName] ||
+    entries.find(
+      (p) =>
+        p.name.toLowerCase() === trimmed.toLowerCase() ||
+        p.name.toLowerCase() === cleanName.toLowerCase() ||
+        p.speciesId.toLowerCase() === cleanName.toLowerCase().replace(/\s+/g, "_")
+    );
+
+  const partial =
+    exact ||
+    entries.find(
+      (p) =>
+        p.name.toLowerCase().includes(cleanName.toLowerCase()) ||
+        (p.baseSpecies && cleanName.toLowerCase().includes(p.baseSpecies.toLowerCase()))
+    );
+
+  if (!partial) return null;
+
+  const scaled = computeEffectiveStatsForLeague(partial, league, undefined, customIvs);
+  const ivTuple = parseIvTriplet(customIvs, league);
+  return {
+    name: partial.name,
+    cp: scaled.resolvedCp,
+    fastMove: partial.defaultFastMove?.name || "Fast Move",
+    chargedMove1: partial.chargedMoves[0]?.name || "Charged 1",
+    chargedMove2: partial.chargedMoves[1]?.name || partial.chargedMoves[0]?.name || "Charged 2",
+    defaultIvs: `${ivTuple[0]}/${ivTuple[1]}/${ivTuple[2]}`
+  };
+}
+
+/**
+ * Returns the PvPoke Top 3 rated Pokémon template for a given league.
+ */
+export function getLeagueTop3Template(
+  league: "MASTER LEAGUE" | "ULTRA LEAGUE" | "GREAT LEAGUE"
+): TeamMember[] {
+  if (league === "GREAT LEAGUE") {
+    return [
+      {
+        id: "g1",
+        name: "Clodsire",
+        cp: 1494,
+        fastMove: "Poison Sting",
+        chargedMove1: "Earthquake",
+        chargedMove2: "Stone Edge"
+      },
+      {
+        id: "g2",
+        name: "Feraligatr",
+        cp: 1498,
+        fastMove: "Shadow Claw",
+        chargedMove1: "Hydro Cannon",
+        chargedMove2: "Ice Beam"
+      },
+      {
+        id: "g3",
+        name: "Mandibuzz",
+        cp: 1496,
+        fastMove: "Snarl",
+        chargedMove1: "Dark Pulse",
+        chargedMove2: "Aerial Ace"
+      }
+    ];
+  }
+  if (league === "ULTRA LEAGUE") {
+    return [
+      {
+        id: "u1",
+        name: "Zygarde",
+        cp: 2472,
+        fastMove: "Dragon Tail",
+        chargedMove1: "Crunch",
+        chargedMove2: "Earthquake"
+      },
+      {
+        id: "u2",
+        name: "Feraligatr",
+        cp: 2488,
+        fastMove: "Shadow Claw",
+        chargedMove1: "Hydro Cannon",
+        chargedMove2: "Ice Beam"
+      },
+      {
+        id: "u3",
+        name: "Giratina (Altered)",
+        cp: 2497,
+        fastMove: "Shadow Claw",
+        chargedMove1: "Dragon Claw",
+        chargedMove2: "Ancient Power"
+      }
+    ];
+  }
+  return [
+    {
+      id: "p1",
+      name: "Palkia (Origin)",
+      cp: 4683,
+      fastMove: "Dragon Breath",
+      chargedMove1: "Spacial Rend",
+      chargedMove2: "Aqua Tail"
+    },
+    {
+      id: "p2",
+      name: "Zacian (Crowned)",
+      cp: 4658,
+      fastMove: "Metal Claw",
+      chargedMove1: "Behemoth Blade",
+      chargedMove2: "Close Combat"
+    },
+    {
+      id: "p3",
+      name: "Dialga (Origin)",
+      cp: 4624,
+      fastMove: "Dragon Breath",
+      chargedMove1: "Roar of Time",
+      chargedMove2: "Iron Head"
+    }
+  ];
+}
+
 export type OppCountMode = "my_fasts" | "opp_fasts";
 
 export interface TapNodeInfo {
@@ -1461,21 +1702,26 @@ export function computeSharedHorizonTurns(
  * and 3-column team threat rows.
  */
 export function calculateOpponentMoveTimingRows(
-  oppStats: PokemonStats,
+  oppStatsRaw: PokemonStats,
   userLeadName: string,
   teamNames: string[],
   isOppShadow: boolean = false,
   userFastTurnsOverride?: number,
   userFastMoveNameOverride?: string,
   userCustomChargedMoves?: string[],
-  oppCountMode: OppCountMode = "my_fasts"
+  oppCountMode: OppCountMode = "my_fasts",
+  league: string = "MASTER LEAGUE",
+  teamMembers?: TeamMember[]
 ): { rows: OpponentMoveTimingRow[]; winsCmp: boolean; userFastTurns: number; maxHorizonTurns: number } {
+  const oppStats = computeEffectiveStatsForLeague(oppStatsRaw, league);
   const cleanUserName = userLeadName.replace(/^Shadow\s+/i, "").trim();
-  const userStats =
+  const rawUserStats =
     POKEMON_DATABASE[userLeadName] ||
     POKEMON_DATABASE[cleanUserName] ||
     Object.values(POKEMON_DATABASE).find((p) => p.name.toLowerCase() === cleanUserName.toLowerCase()) ||
     Object.values(POKEMON_DATABASE)[0];
+  const activeMember = teamMembers?.find((m) => m.name.toLowerCase() === userLeadName.toLowerCase());
+  const userStats = computeEffectiveStatsForLeague(rawUserStats, league, activeMember?.cp, activeMember?.ivs);
 
   const isUserShadow = userLeadName.toLowerCase().startsWith("shadow ");
   const resolvedUserFast = resolveFastMove(userStats, userFastMoveNameOverride);
@@ -1572,11 +1818,13 @@ export function calculateOpponentMoveTimingRows(
         };
       }
       const cleanT = tName.replace(/^Shadow\s+/i, "").trim();
-      const tStats =
+      const rawTStats =
         POKEMON_DATABASE[tName] ||
         POKEMON_DATABASE[cleanT] ||
         Object.values(POKEMON_DATABASE).find((p) => p.name.toLowerCase() === cleanT.toLowerCase()) ||
         Object.values(POKEMON_DATABASE)[0];
+      const slotMember = teamMembers?.[slotIdx];
+      const tStats = computeEffectiveStatsForLeague(rawTStats, league, slotMember?.cp, slotMember?.ivs);
       const isTShadow = tName.toLowerCase().startsWith("shadow ");
       const tDmg = calculateChargedDamage(oppStats, tStats, cm, isOppShadow, isTShadow);
       const tier: "resist" | "neutral" | "weak" =
@@ -1594,11 +1842,13 @@ export function calculateOpponentMoveTimingRows(
 
     const bench: BenchThreatInfo[] = benchNames.map((bName) => {
       const cleanB = bName.replace(/^Shadow\s+/i, "").trim();
-      const bStats =
+      const rawBStats =
         POKEMON_DATABASE[bName] ||
         POKEMON_DATABASE[cleanB] ||
         Object.values(POKEMON_DATABASE).find((p) => p.name.toLowerCase() === cleanB.toLowerCase()) ||
         Object.values(POKEMON_DATABASE)[0];
+      const benchMember = teamMembers?.find((m) => m.name.toLowerCase() === bName.toLowerCase());
+      const bStats = computeEffectiveStatsForLeague(rawBStats, league, benchMember?.cp, benchMember?.ivs);
       const isBShadow = bName.toLowerCase().startsWith("shadow ");
       const bDmg = calculateChargedDamage(oppStats, bStats, cm, isOppShadow, isBShadow);
       const tier: "resist" | "neutral" | "weak" =
@@ -1666,21 +1916,30 @@ export function calculateOpponentMoveTimingRows(
  */
 export function calculateMyMoveTimingRows(
   userLeadName: string,
-  oppStats: PokemonStats,
+  oppStatsRaw: PokemonStats,
   customMoves: string[],
   oppReadyTaps: number[],
   isOppShadow: boolean = false,
   userFastTurnsOverride?: number,
   userFastMoveNameOverride?: string,
   scannedOpponentNames: string[] = [],
-  sharedHorizonTurnsOverride?: number
+  sharedHorizonTurnsOverride?: number,
+  league: string = "MASTER LEAGUE",
+  activeUserMember?: TeamMember
 ): MyMoveTimingRow[] {
+  const oppStats = computeEffectiveStatsForLeague(oppStatsRaw, league);
   const cleanUserName = userLeadName.replace(/^Shadow\s+/i, "").trim();
-  const userStats =
+  const rawUserStats =
     POKEMON_DATABASE[userLeadName] ||
     POKEMON_DATABASE[cleanUserName] ||
     Object.values(POKEMON_DATABASE).find((p) => p.name.toLowerCase() === cleanUserName.toLowerCase()) ||
     Object.values(POKEMON_DATABASE)[0];
+  const userStats = computeEffectiveStatsForLeague(
+    rawUserStats,
+    league,
+    activeUserMember?.cp,
+    activeUserMember?.ivs
+  );
 
   const isUserShadow = userLeadName.toLowerCase().startsWith("shadow ");
   const resolvedUserFast = resolveFastMove(userStats, userFastMoveNameOverride);
@@ -1813,11 +2072,12 @@ export function calculateMyMoveTimingRows(
         };
       }
       const cleanO = oName.replace(/^Shadow\s+/i, "").trim();
-      const oStats =
+      const rawOStats =
         POKEMON_DATABASE[oName] ||
         POKEMON_DATABASE[cleanO] ||
         Object.values(POKEMON_DATABASE).find((p) => p.name.toLowerCase() === cleanO.toLowerCase()) ||
         oppStats;
+      const oStats = computeEffectiveStatsForLeague(rawOStats, league);
       const isOShadow = (slotIdx === 0 && isOppShadow) || oName.toLowerCase().startsWith("shadow ");
       const oDmg = calculateChargedDamage(userStats, oStats, existing, isUserShadow, isOShadow);
       const tier: "resist" | "neutral" | "weak" =
@@ -1959,97 +2219,22 @@ export function calculateShieldMatrix(
 export const INITIAL_PRESETS: TeamPreset[] = [
   {
     id: "preset-ml-1",
-    name: "Master: Dialga-O / Lugia / Kyogre",
+    name: "Master: Palkia-O / Zacian-C / Dialga-O",
     league: "MASTER LEAGUE",
     isSelected: true,
-    pokemon: [
-      {
-        id: "p1",
-        name: "Dialga (Origin)",
-        cp: 4624,
-        fastMove: "Dragon Breath",
-        chargedMove1: "Roar of Time",
-        chargedMove2: "Iron Head"
-      },
-      {
-        id: "p2",
-        name: "Lugia",
-        cp: 4179,
-        fastMove: "Dragon Tail",
-        chargedMove1: "Aeroblast",
-        chargedMove2: "Earth Power"
-      },
-      {
-        id: "p3",
-        name: "Kyogre",
-        cp: 4652,
-        fastMove: "Waterfall",
-        chargedMove1: "Origin Pulse",
-        chargedMove2: "Avalanche"
-      }
-    ]
+    pokemon: getLeagueTop3Template("MASTER LEAGUE")
   },
   {
     id: "preset-ul-1",
-    name: "Ultra: Zygarde / Corviknight / Mimikyu",
+    name: "Ultra: Zygarde / Feraligatr / Giratina-A",
     league: "ULTRA LEAGUE",
-    pokemon: [
-      {
-        id: "u1",
-        name: "Zygarde",
-        cp: 2472,
-        fastMove: "Dragon Tail",
-        chargedMove1: "Crunch",
-        chargedMove2: "Earthquake"
-      },
-      {
-        id: "u2",
-        name: "Corviknight",
-        cp: 2499,
-        fastMove: "Sand Attack",
-        chargedMove1: "Air Cutter",
-        chargedMove2: "Iron Head"
-      },
-      {
-        id: "u3",
-        name: "Mimikyu",
-        cp: 2497,
-        fastMove: "Shadow Claw",
-        chargedMove1: "Play Rough",
-        chargedMove2: "Shadow Sneak"
-      }
-    ]
+    pokemon: getLeagueTop3Template("ULTRA LEAGUE")
   },
   {
     id: "preset-gl-1",
-    name: "Great: Kanto Ninetales / Fearow / S-Pidgeot",
+    name: "Great: Clodsire / Feraligatr / Mandibuzz",
     league: "GREAT LEAGUE",
-    pokemon: [
-      {
-        id: "g1",
-        name: "Kanto Ninetales",
-        cp: 1498,
-        fastMove: "Ember",
-        chargedMove1: "Weather Ball",
-        chargedMove2: "Energy Ball"
-      },
-      {
-        id: "g2",
-        name: "Fearow",
-        cp: 1500,
-        fastMove: "Peck",
-        chargedMove1: "Drill Run",
-        chargedMove2: "Drill Peck"
-      },
-      {
-        id: "g3",
-        name: "Shadow Pidgeot",
-        cp: 1490,
-        fastMove: "Gust",
-        chargedMove1: "Twister",
-        chargedMove2: "Brave Bird"
-      }
-    ]
+    pokemon: getLeagueTop3Template("GREAT LEAGUE")
   }
 ];
 

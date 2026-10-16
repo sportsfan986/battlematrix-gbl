@@ -1,4 +1,4 @@
-# GBL Battle Matrix - Real-Time Overlay for Pokémon GO (v1.10)
+# GBL Battle Matrix - Real-Time Overlay for Pokémon GO (v1.11)
 
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Support%20the%20Project-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/sportsfan986)
 [![Latest Release](https://img.shields.io/github/v/release/sportsfan986/gbl-matrix-realtime?style=for-the-badge&color=0284c7&label=Latest%20APK)](https://github.com/sportsfan986/gbl-matrix-realtime/releases)
@@ -18,7 +18,7 @@ If **GBL Battle Matrix** helps you climb Elo and count moves in GO Battle League
 ## 📥 Download & Install Official Release APK
 
 1. Visit the **[Official GitHub Releases Page](https://github.com/sportsfan986/gbl-matrix-realtime/releases)**.
-2. Under the latest release (**`v1.10`**), download **`gbl-battle-matrix-v1.10.apk`** (or `app-release.apk`) directly to your Android phone.
+2. Under the latest release (**`v1.11`**), download **`gbl-battle-matrix-v1.11.apk`** (or `app-release.apk`) directly to your Android phone.
 3. Tap the downloaded APK to install (allow *"Install unknown apps"* if prompted).
 4. Open **GBL Battle Matrix**:
    - Configure your **GBL Team Presets**, **Opponent Move Count Basis** (`My Fasts` default vs. `Their Fasts`), and **Overlay Size** (`50%–100%` of screen width, defaulting to `78%`).
@@ -27,24 +27,24 @@ If **GBL Battle Matrix** helps you climb Elo and count moves in GO Battle League
 
 ---
 
-## ✨ Key Features in v1.10
+## ✨ Key Features in v1.11
 
-- **3v3 Shield Matchup Matrix**: Instant 2-shield, 1-shield, and 0-shield PvPoke ratings across all 3 scanned opponents vs. your 3 team Pokémon.
-- **Turn-Aligned Proportional Move Bars & Multi-Cycle Throws**:
-  - Universal segmented range bars across all fast move durations (`1t–5t`), scaled proportionally along a shared turn horizon so move ready turns align vertically between **Opponent Attacks** and **My Attacks**.
-  - Automatic 2nd/3rd throw cycles using true PvPoke residual energy when a fast-charging move can fire multiple times before the slowest nuke move is ready.
-  - Zero-sneak leak-free throw indicators (`Safe 1,3,5`) on **My Attacks** bars.
-- **3-Column Team & Opponent Damage Matrices**:
-  - **Opponent Attacks**: Incoming charged move `%` against all 3 of your team Pokémon in fixed team order, with a vertical highlight column tracking your active Pokémon.
-  - **My Attacks**: Outgoing charged move `%` (or `KO!`) against all 3 scanned opponents, with a vertical highlight column on the active opponent (`#1`).
-- **Customizable Overlay Size (50%–100% Screen Width)**:
-  - Main-app slider with a **78% Default** tick marker that scales the overlay window width and all internal fonts, bars, and spacing proportionally.
+- **Persistent User Teams & Settings Across App Updates**:
+  - Programmed teams, selected preset, opponent count mode, and overlay scale are persisted to a permanent version-independent store (`gbl_user_teams_persistent`) with automatic migration from legacy keys so updates never overwrite your teams.
+- **PvPoke Top 3 League Defaults & Custom Templates**:
+  - Default teams (if no teams are saved) and custom team templates pre-populate with the **PvPoke Top 3 rated Pokémon** for each league (**Great League**: Clodsire, Shadow Feraligatr, Gastrodon; **Ultra League**: Zygarde Complete, Feraligatr, Giratina Altered; **Master League**: Palkia Origin, Zacian Crowned, Dialga Origin).
+- **Auto-Filled Recommended Fast & Charged Moves**:
+  - Entering a Pokémon name in the preset editor automatically fills in its #1 PvPoke recommended Fast Move, Charged Move 1, Charged Move 2, and default CP whenever move/CP fields are left blank.
+- **League CP-Scaled Stats & Optional Custom IVs**:
+  - Scales Attack, Defense, and HP to the exact active League CP cap (`1500` GL, `2500` UL, uncapped ML) using your entered CP and optional `Atk/Def/HP` IVs (auto-defaulting to PvPoke's optimal league IVs when left blank) for accurate damage `%`, KO thresholds, and CMP tie calculations.
+- **3v3 Shield Matchup Matrix & Turn-Aligned Multi-Cycle Move Bars**:
+  - Universal segmented range bars across all fast move durations (`1t–5t`), 2nd/3rd throw cycles using true PvPoke residual energy, and 3-column incoming/outgoing team damage matrices.
 
 ---
 
 ## 🚀 Automated CI/CD APK & Release Publishing
 
-Every push to `main` automatically runs `.github/workflows/android.yml`, which compiles the signed release APK and publishes an official GitHub Release using the version in `VERSION` (`v1.10`).
+Every push to `main` automatically runs `.github/workflows/android.yml`, which compiles the signed release APK and publishes an official GitHub Release using the version in `VERSION` (`v1.11`).
 
 To bump the version on future updates (defaults to incrementing the sub-version by `+0.01`, e.g., `v1.10` → `v1.11`, or accepts an explicit version):
 ```bash

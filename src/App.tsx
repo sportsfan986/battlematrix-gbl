@@ -38,7 +38,10 @@ import {
   OppCountMode,
   PokemonStats,
   PVPOKE_TOP_OPPONENTS,
-  TopOpponentInfo
+  TopOpponentInfo,
+  computeEffectiveStatsForLeague,
+  getRecommendedMovesForPokemon,
+  getLeagueTop3Template
 } from './data/gblData';
 import { ANDROID_FILES, downloadAndroidProjectZip, AndroidProjectFile } from './data/androidFiles';
 
@@ -189,15 +192,34 @@ export default function App() {
     setIsDragging(false);
   };
 
-  // Team Presets State (stored in localStorage v5 with updated Lugia, Kyogre & Fearow movesets)
+  // Team Presets State (persisted in version-independent 'gbl_user_teams_persistent' with automatic migration from legacy keys)
   const [presets, setPresets] = useState<TeamPreset[]>(() => {
-    const saved = localStorage.getItem('gbl_team_presets_v6');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error(e);
+    try {
+      const persistent = localStorage.getItem('gbl_user_teams_persistent');
+      if (persistent) {
+        const parsed = JSON.parse(persistent);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
+      const legacyKeys = [
+        'gbl_team_presets_v6',
+        'gbl_team_presets_v5',
+        'gbl_team_presets_v4',
+        'gbl_team_presets_v3',
+        'gbl_team_presets_v2',
+        'gbl_team_presets'
+      ];
+      for (const key of legacyKeys) {
+        const legacy = localStorage.getItem(key);
+        if (legacy) {
+          const parsed = JSON.parse(legacy);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            localStorage.setItem('gbl_user_teams_persistent', JSON.stringify(parsed));
+            return parsed;
+          }
+        }
+      }
+    } catch (e) {
+      console.error(e);
     }
     return INITIAL_PRESETS;
   });
@@ -206,13 +228,17 @@ export default function App() {
     return localStorage.getItem('gbl_selected_preset_id') || 'preset-ml-1';
   });
 
-  // Save presets whenever updated
+  // Save presets whenever updated to version-independent key
   useEffect(() => {
-    localStorage.setItem('gbl_team_presets_v6', JSON.stringify(presets));
+    try {
+      localStorage.setItem('gbl_user_teams_persistent', JSON.stringify(presets));
+    } catch {}
   }, [presets]);
 
   useEffect(() => {
-    localStorage.setItem('gbl_selected_preset_id', selectedPresetId);
+    try {
+      localStorage.setItem('gbl_selected_preset_id', selectedPresetId);
+    } catch {}
   }, [selectedPresetId]);
 
   const activePreset = useMemo(() => {
@@ -241,23 +267,26 @@ export default function App() {
   const [editingPresetId, setEditingPresetId] = useState<string | null>(null);
   const [newPresetName, setNewPresetName] = useState('');
   const [newPresetLeague, setNewPresetLeague] = useState<'MASTER LEAGUE' | 'ULTRA LEAGUE' | 'GREAT LEAGUE'>('GREAT LEAGUE');
-  const [p1Name, setP1Name] = useState('Kanto Ninetales');
-  const [p1Cp, setP1Cp] = useState(1498);
-  const [p1Fast, setP1Fast] = useState('Ember');
-  const [p1C1, setP1C1] = useState('Weather Ball');
-  const [p1C2, setP1C2] = useState('Energy Ball');
+  const [p1Name, setP1Name] = useState('Clodsire');
+  const [p1Cp, setP1Cp] = useState(1494);
+  const [p1Ivs, setP1Ivs] = useState('');
+  const [p1Fast, setP1Fast] = useState('Poison Sting');
+  const [p1C1, setP1C1] = useState('Earthquake');
+  const [p1C2, setP1C2] = useState('Stone Edge');
 
-  const [p2Name, setP2Name] = useState('Fearow');
-  const [p2Cp, setP2Cp] = useState(1500);
-  const [p2Fast, setP2Fast] = useState('Peck');
-  const [p2C1, setP2C1] = useState('Drill Run');
-  const [p2C2, setP2C2] = useState('Drill Peck');
+  const [p2Name, setP2Name] = useState('Feraligatr');
+  const [p2Cp, setP2Cp] = useState(1498);
+  const [p2Ivs, setP2Ivs] = useState('');
+  const [p2Fast, setP2Fast] = useState('Shadow Claw');
+  const [p2C1, setP2C1] = useState('Hydro Cannon');
+  const [p2C2, setP2C2] = useState('Ice Beam');
 
-  const [p3Name, setP3Name] = useState('Shadow Pidgeot');
-  const [p3Cp, setP3Cp] = useState(1490);
-  const [p3Fast, setP3Fast] = useState('Gust');
-  const [p3C1, setP3C1] = useState('Twister');
-  const [p3C2, setP3C2] = useState('Brave Bird');
+  const [p3Name, setP3Name] = useState('Mandibuzz');
+  const [p3Cp, setP3Cp] = useState(1496);
+  const [p3Ivs, setP3Ivs] = useState('');
+  const [p3Fast, setP3Fast] = useState('Snarl');
+  const [p3C1, setP3C1] = useState('Dark Pulse');
+  const [p3C2, setP3C2] = useState('Aerial Ace');
 
   // Code Viewer State
   const [selectedFileIndex, setSelectedFileIndex] = useState<number>(0);
@@ -315,14 +344,29 @@ export default function App() {
     setScannedOpponents([nextLead, ...remaining]);
   };
 
-  // Active Pokémon stats (synchronized with front of scannedOpponents during battle)
+  const activeOpponentLeague = selectedOpponentLeague === 'AUTO' ? (activePreset?.league || 'MASTER LEAGUE') : selectedOpponentLeague;
+  const currentTopOpponents: TopOpponentInfo[] = PVPOKE_TOP_OPPONENTS[activeOpponentLeague] || PVPOKE_TOP_OPPONENTS['MASTER LEAGUE'] || [];
+
+  // Active Pokémon stats scaled for the active League CP and user IVs (auto-defaulting to PvPoke IVs if blank)
   const activeOpponentName = (!isWaitingOpponent && scannedOpponents.length > 0)
     ? scannedOpponents[0]
     : activeOpponentKey;
-  const activeOpponent = POKEMON_DATABASE[activeOpponentName] || POKEMON_DATABASE[activeOpponentKey] || POKEMON_DATABASE['Zacian (Crowned)'];
+  const rawActiveOpponent = POKEMON_DATABASE[activeOpponentName] || POKEMON_DATABASE[activeOpponentKey] || POKEMON_DATABASE['Zacian (Crowned)'];
+  const activeOpponent = useMemo(() => {
+    return computeEffectiveStatsForLeague(rawActiveOpponent, activeOpponentLeague);
+  }, [rawActiveOpponent, activeOpponentLeague]);
+
   const activeUserSlot = activePreset?.pokemon[activeUserSlotIndex] || activePreset?.pokemon[0];
-  const userLeadName = activeUserSlot?.name || 'Dialga (Origin)';
-  const userActivePokemon = POKEMON_DATABASE[userLeadName] || POKEMON_DATABASE['Lugia'] || POKEMON_DATABASE['Dialga (Origin)'];
+  const userLeadName = activeUserSlot?.name || 'Palkia (Origin)';
+  const rawUserActivePokemon = POKEMON_DATABASE[userLeadName] || POKEMON_DATABASE['Palkia (Origin)'] || POKEMON_DATABASE['Dialga (Origin)'];
+  const userActivePokemon = useMemo(() => {
+    return computeEffectiveStatsForLeague(
+      rawUserActivePokemon,
+      activePreset?.league || activeOpponentLeague,
+      activeUserSlot?.cp,
+      activeUserSlot?.ivs
+    );
+  }, [rawUserActivePokemon, activePreset?.league, activeOpponentLeague, activeUserSlot?.cp, activeUserSlot?.ivs]);
   const isUserShadow = userLeadName.toLowerCase().includes('shadow');
 
   const availableForms = useMemo(() => {
@@ -335,9 +379,6 @@ export default function App() {
     const nextForm = availableForms[(idx + 1) % availableForms.length];
     handleSelectOpponent(nextForm);
   };
-
-  const activeOpponentLeague = selectedOpponentLeague === 'AUTO' ? (activePreset?.league || 'MASTER LEAGUE') : selectedOpponentLeague;
-  const currentTopOpponents: TopOpponentInfo[] = PVPOKE_TOP_OPPONENTS[activeOpponentLeague] || PVPOKE_TOP_OPPONENTS['MASTER LEAGUE'] || [];
 
   // Calculations (respecting custom fast move turns if edited)
   const FAST_MOVE_TURN_LOOKUP: Record<string, number> = {
@@ -409,9 +450,11 @@ export default function App() {
       userFastTurns,
       userFastMoveName,
       myCustomChargedMoves,
-      oppCountMode
+      oppCountMode,
+      activePreset?.league || activeOpponentLeague,
+      activePreset.pokemon
     );
-  }, [activeOpponent, userLeadName, activePreset, isOpponentShadow, userFastTurns, userFastMoveName, myCustomChargedMoves, oppCountMode]);
+  }, [activeOpponent, userLeadName, activePreset, isOpponentShadow, userFastTurns, userFastMoveName, myCustomChargedMoves, oppCountMode, activeOpponentLeague]);
 
   const oppReadyTaps = useMemo(() => {
     return oppMoveTimingInfo.rows.map(r => r.myTapAtReady);
@@ -427,9 +470,11 @@ export default function App() {
       userFastTurns,
       userFastMoveName,
       scannedOpponents,
-      oppMoveTimingInfo.maxHorizonTurns
+      oppMoveTimingInfo.maxHorizonTurns,
+      activePreset?.league || activeOpponentLeague,
+      activeUserSlot
     );
-  }, [userLeadName, activeOpponent, myCustomChargedMoves, oppReadyTaps, isOpponentShadow, userFastTurns, userFastMoveName, scannedOpponents, oppMoveTimingInfo.maxHorizonTurns]);
+  }, [userLeadName, activeOpponent, myCustomChargedMoves, oppReadyTaps, isOpponentShadow, userFastTurns, userFastMoveName, scannedOpponents, oppMoveTimingInfo.maxHorizonTurns, activePreset?.league, activeOpponentLeague, activeUserSlot]);
 
   const abbrPoke3 = (name: string, isShad: boolean = false) => {
     const clean = name
@@ -513,25 +558,62 @@ export default function App() {
     setOppEnergy(prev => Math.min(100, prev + (activeOpponent.defaultFastMove.energyGain || 8)));
   };
 
+  const applyLeagueTop3TemplateToForm = (league: 'MASTER LEAGUE' | 'ULTRA LEAGUE' | 'GREAT LEAGUE') => {
+    const top3 = getLeagueTop3Template(league);
+    setP1Name(top3[0].name);
+    setP1Cp(top3[0].cp);
+    setP1Ivs('');
+    setP1Fast(top3[0].fastMove);
+    setP1C1(top3[0].chargedMove1);
+    setP1C2(top3[0].chargedMove2);
+
+    setP2Name(top3[1].name);
+    setP2Cp(top3[1].cp);
+    setP2Ivs('');
+    setP2Fast(top3[1].fastMove);
+    setP2C1(top3[1].chargedMove1);
+    setP2C2(top3[1].chargedMove2);
+
+    setP3Name(top3[2].name);
+    setP3Cp(top3[2].cp);
+    setP3Ivs('');
+    setP3Fast(top3[2].fastMove);
+    setP3C1(top3[2].chargedMove1);
+    setP3C2(top3[2].chargedMove2);
+  };
+
+  const handleAutoFillSlotMoves = (
+    slotIdx: 1 | 2 | 3,
+    rawName: string,
+    league: 'MASTER LEAGUE' | 'ULTRA LEAGUE' | 'GREAT LEAGUE',
+    customIvs?: string
+  ) => {
+    const rec = getRecommendedMovesForPokemon(rawName, league, customIvs);
+    if (!rec) return;
+    if (slotIdx === 1) {
+      if (!p1Fast.trim()) setP1Fast(rec.fastMove);
+      if (!p1C1.trim()) setP1C1(rec.chargedMove1);
+      if (!p1C2.trim()) setP1C2(rec.chargedMove2);
+      if (!p1Cp || p1Cp <= 0) setP1Cp(rec.cp);
+    } else if (slotIdx === 2) {
+      if (!p2Fast.trim()) setP2Fast(rec.fastMove);
+      if (!p2C1.trim()) setP2C1(rec.chargedMove1);
+      if (!p2C2.trim()) setP2C2(rec.chargedMove2);
+      if (!p2Cp || p2Cp <= 0) setP2Cp(rec.cp);
+    } else {
+      if (!p3Fast.trim()) setP3Fast(rec.fastMove);
+      if (!p3C1.trim()) setP3C1(rec.chargedMove1);
+      if (!p3C2.trim()) setP3C2(rec.chargedMove2);
+      if (!p3Cp || p3Cp <= 0) setP3Cp(rec.cp);
+    }
+  };
+
   const openCreatePresetModal = () => {
+    const defaultLeague = activePreset?.league || 'GREAT LEAGUE';
     setEditingPresetId(null);
     setNewPresetName('');
-    setNewPresetLeague('GREAT LEAGUE');
-    setP1Name('Kanto Ninetales');
-    setP1Cp(1498);
-    setP1Fast('Ember');
-    setP1C1('Weather Ball');
-    setP1C2('Energy Ball');
-    setP2Name('Fearow');
-    setP2Cp(1500);
-    setP2Fast('Peck');
-    setP2C1('Drill Run');
-    setP2C2('Drill Peck');
-    setP3Name('Shadow Pidgeot');
-    setP3Cp(1490);
-    setP3Fast('Gust');
-    setP3C1('Twister');
-    setP3C2('Brave Bird');
+    setNewPresetLeague(defaultLeague);
+    applyLeagueTop3TemplateToForm(defaultLeague);
     setIsNewPresetOpen(true);
   };
 
@@ -545,6 +627,7 @@ export default function App() {
     if (s1) {
       setP1Name(s1.name);
       setP1Cp(s1.cp);
+      setP1Ivs(s1.ivs || '');
       setP1Fast(s1.fastMove);
       setP1C1(s1.chargedMove1);
       setP1C2(s1.chargedMove2);
@@ -552,6 +635,7 @@ export default function App() {
     if (s2) {
       setP2Name(s2.name);
       setP2Cp(s2.cp);
+      setP2Ivs(s2.ivs || '');
       setP2Fast(s2.fastMove);
       setP2C1(s2.chargedMove1);
       setP2C2(s2.chargedMove2);
@@ -559,6 +643,7 @@ export default function App() {
     if (s3) {
       setP3Name(s3.name);
       setP3Cp(s3.cp);
+      setP3Ivs(s3.ivs || '');
       setP3Fast(s3.fastMove);
       setP3C1(s3.chargedMove1);
       setP3C2(s3.chargedMove2);
@@ -566,39 +651,44 @@ export default function App() {
     setIsNewPresetOpen(true);
   };
 
-  // Handle Preset Creation or Editing
+  // Handle Preset Creation or Editing (auto-fills any blank moves or CP from PvPoke recommendations)
   const handleCreatePreset = (e: React.FormEvent) => {
     e.preventDefault();
     const targetId = editingPresetId || `preset-${Date.now()}`;
+    const top3 = getLeagueTop3Template(newPresetLeague);
+
+    const resolveSlot = (
+      id: string,
+      rawName: string,
+      rawCp: number,
+      rawFast: string,
+      rawC1: string,
+      rawC2: string,
+      rawIvs: string,
+      fallback: TeamMember
+    ): TeamMember => {
+      const finalName = rawName.trim() || fallback.name;
+      const cleanIvs = rawIvs.trim() || undefined;
+      const rec = getRecommendedMovesForPokemon(finalName, newPresetLeague, cleanIvs);
+      return {
+        id,
+        name: finalName,
+        cp: rawCp > 0 ? rawCp : rec?.cp || fallback.cp,
+        fastMove: rawFast.trim() || rec?.fastMove || fallback.fastMove,
+        chargedMove1: rawC1.trim() || rec?.chargedMove1 || fallback.chargedMove1,
+        chargedMove2: rawC2.trim() || rec?.chargedMove2 || fallback.chargedMove2,
+        ivs: cleanIvs
+      };
+    };
+
     const savedPreset: TeamPreset = {
       id: targetId,
       name: newPresetName.trim() || `${newPresetLeague} Custom`,
       league: newPresetLeague,
       pokemon: [
-        {
-          id: 'p1',
-          name: p1Name.trim() || 'Kanto Ninetales',
-          cp: p1Cp || 1498,
-          fastMove: p1Fast.trim() || 'Fire Spin',
-          chargedMove1: p1C1.trim() || 'Weather Ball',
-          chargedMove2: p1C2.trim() || 'Scorching Sands'
-        },
-        {
-          id: 'p2',
-          name: p2Name.trim() || 'Fearow',
-          cp: p2Cp || 1500,
-          fastMove: p2Fast.trim() || 'Peck',
-          chargedMove1: p2C1.trim() || 'Sky Attack',
-          chargedMove2: p2C2.trim() || 'Drill Run'
-        },
-        {
-          id: 'p3',
-          name: p3Name.trim() || 'Shadow Pidgeot',
-          cp: p3Cp || 1490,
-          fastMove: p3Fast.trim() || 'Gust',
-          chargedMove1: p3C1.trim() || 'Twister',
-          chargedMove2: p3C2.trim() || 'Brave Bird'
-        }
+        resolveSlot('p1', p1Name, p1Cp, p1Fast, p1C1, p1C2, p1Ivs, top3[0]),
+        resolveSlot('p2', p2Name, p2Cp, p2Fast, p2C1, p2C2, p2Ivs, top3[1]),
+        resolveSlot('p3', p3Name, p3Cp, p3Fast, p3C1, p3C2, p3Ivs, top3[2])
       ]
     };
 
@@ -1994,9 +2084,16 @@ export default function App() {
                                 </span>
                                 <span className="font-semibold text-slate-100">{member.name}</span>
                               </div>
-                              <span className="text-[11px] font-mono font-bold text-sky-400">
-                                CP {member.cp}
-                              </span>
+                              <div className="flex items-center gap-1.5">
+                                {member.ivs && (
+                                  <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                                    IV {member.ivs}
+                                  </span>
+                                )}
+                                <span className="text-[11px] font-mono font-bold text-sky-400">
+                                  CP {member.cp}
+                                </span>
+                              </div>
                             </div>
                             <div className="text-[10.5px] text-slate-400 pl-5 flex items-center justify-between">
                               <span>Fast: <strong className="text-slate-200">{member.fastMove}</strong></span>
@@ -2027,10 +2124,10 @@ export default function App() {
             {isNewPresetOpen && (
               <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
                 <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl animate-in fade-in zoom-in-95 my-8">
-                  <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-3">
                     <h3 className="font-bold text-base text-white flex items-center gap-2">
                       <Plus className="w-4 h-4 text-emerald-400" />
-                      <span>{editingPresetId ? 'Edit Team & Moves' : 'Create Custom GBL Team Preset'}</span>
+                      <span>{editingPresetId ? 'Edit Team, Moves & IVs' : 'Create Custom GBL Team Preset'}</span>
                     </h3>
                     <button
                       onClick={() => {
@@ -2043,6 +2140,10 @@ export default function App() {
                     </button>
                   </div>
 
+                  <p className="text-[11px] text-slate-400 mb-3">
+                    Leave moves or IVs blank to auto-fill PvPoke #1 recommended moves &amp; league-optimal IVs on name entry or save.
+                  </p>
+
                   <form onSubmit={handleCreatePreset} className="space-y-3.5">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
@@ -2054,7 +2155,6 @@ export default function App() {
                           value={newPresetName}
                           onChange={(e) => setNewPresetName(e.target.value)}
                           placeholder="e.g. Great League Team"
-                          required
                           className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-400"
                         />
                       </div>
@@ -2065,7 +2165,13 @@ export default function App() {
                         </label>
                         <select
                           value={newPresetLeague}
-                          onChange={(e) => setNewPresetLeague(e.target.value as any)}
+                          onChange={(e) => {
+                            const nextL = e.target.value as 'MASTER LEAGUE' | 'ULTRA LEAGUE' | 'GREAT LEAGUE';
+                            setNewPresetLeague(nextL);
+                            if (!editingPresetId) {
+                              applyLeagueTop3TemplateToForm(nextL);
+                            }
+                          }}
                           className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-400"
                         >
                           <option value="GREAT LEAGUE">GREAT LEAGUE (Max 1500 CP)</option>
@@ -2077,23 +2183,58 @@ export default function App() {
 
                     {/* Slot 1 */}
                     <div className="p-3 bg-slate-950/70 border border-slate-800 rounded-xl space-y-2">
-                      <span className="text-xs font-bold text-sky-400 block">Slot 1 (Lead Pokémon & Moveset)</span>
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-sky-400">Slot 1 (Lead Pokémon, IVs &amp; Moveset)</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const rec = getRecommendedMovesForPokemon(p1Name, newPresetLeague, p1Ivs);
+                            if (rec) {
+                              setP1Fast(rec.fastMove);
+                              setP1C1(rec.chargedMove1);
+                              setP1C2(rec.chargedMove2);
+                              setP1Cp(rec.cp);
+                            }
+                          }}
+                          className="text-[10px] text-sky-400 hover:text-sky-300 font-semibold"
+                        >
+                          Auto-Fill PvPoke Moves
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-4 gap-2">
                         <input
                           type="text"
                           value={p1Name}
-                          onChange={(e) => setP1Name(e.target.value)}
-                          placeholder="Name (e.g. Kanto Ninetales)"
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setP1Name(val);
+                            const rec = getRecommendedMovesForPokemon(val, newPresetLeague, p1Ivs);
+                            if (rec) {
+                              if (!p1Fast.trim()) setP1Fast(rec.fastMove);
+                              if (!p1C1.trim()) setP1C1(rec.chargedMove1);
+                              if (!p1C2.trim()) setP1C2(rec.chargedMove2);
+                              if (!p1Cp || p1Cp <= 0) setP1Cp(rec.cp);
+                            }
+                          }}
+                          onBlur={() => handleAutoFillSlotMoves(1, p1Name, newPresetLeague, p1Ivs)}
+                          placeholder="Name (e.g. Clodsire)"
                           className="col-span-2 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white"
                           required
                         />
                         <input
                           type="number"
-                          value={p1Cp}
+                          value={p1Cp || ''}
                           onChange={(e) => setP1Cp(parseInt(e.target.value) || 0)}
-                          placeholder="CP"
+                          placeholder="CP (Auto)"
                           className="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white"
-                          required
+                        />
+                        <input
+                          type="text"
+                          value={p1Ivs}
+                          onChange={(e) => setP1Ivs(e.target.value)}
+                          placeholder="IVs (opt)"
+                          title="Optional Atk/Def/HP IVs (e.g. 0/15/15). Defaults to PvPoke IVs if blank."
+                          className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white"
                         />
                       </div>
                       <div className="grid grid-cols-3 gap-2">
@@ -2101,21 +2242,21 @@ export default function App() {
                           type="text"
                           value={p1Fast}
                           onChange={(e) => setP1Fast(e.target.value)}
-                          placeholder="Fast Move"
+                          placeholder="Fast Move (Auto)"
                           className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white"
                         />
                         <input
                           type="text"
                           value={p1C1}
                           onChange={(e) => setP1C1(e.target.value)}
-                          placeholder="Charged Move 1"
+                          placeholder="Charged 1 (Auto)"
                           className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white"
                         />
                         <input
                           type="text"
                           value={p1C2}
                           onChange={(e) => setP1C2(e.target.value)}
-                          placeholder="Charged Move 2"
+                          placeholder="Charged 2 (Auto)"
                           className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white"
                         />
                       </div>
@@ -2123,23 +2264,58 @@ export default function App() {
 
                     {/* Slot 2 */}
                     <div className="p-3 bg-slate-950/70 border border-slate-800 rounded-xl space-y-2">
-                      <span className="text-xs font-bold text-purple-400 block">Slot 2 (Safe Swap & Moveset)</span>
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-purple-400">Slot 2 (Safe Swap, IVs &amp; Moveset)</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const rec = getRecommendedMovesForPokemon(p2Name, newPresetLeague, p2Ivs);
+                            if (rec) {
+                              setP2Fast(rec.fastMove);
+                              setP2C1(rec.chargedMove1);
+                              setP2C2(rec.chargedMove2);
+                              setP2Cp(rec.cp);
+                            }
+                          }}
+                          className="text-[10px] text-purple-400 hover:text-purple-300 font-semibold"
+                        >
+                          Auto-Fill PvPoke Moves
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-4 gap-2">
                         <input
                           type="text"
                           value={p2Name}
-                          onChange={(e) => setP2Name(e.target.value)}
-                          placeholder="Name (e.g. Fearow)"
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setP2Name(val);
+                            const rec = getRecommendedMovesForPokemon(val, newPresetLeague, p2Ivs);
+                            if (rec) {
+                              if (!p2Fast.trim()) setP2Fast(rec.fastMove);
+                              if (!p2C1.trim()) setP2C1(rec.chargedMove1);
+                              if (!p2C2.trim()) setP2C2(rec.chargedMove2);
+                              if (!p2Cp || p2Cp <= 0) setP2Cp(rec.cp);
+                            }
+                          }}
+                          onBlur={() => handleAutoFillSlotMoves(2, p2Name, newPresetLeague, p2Ivs)}
+                          placeholder="Name (e.g. Feraligatr)"
                           className="col-span-2 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white"
                           required
                         />
                         <input
                           type="number"
-                          value={p2Cp}
+                          value={p2Cp || ''}
                           onChange={(e) => setP2Cp(parseInt(e.target.value) || 0)}
-                          placeholder="CP"
+                          placeholder="CP (Auto)"
                           className="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white"
-                          required
+                        />
+                        <input
+                          type="text"
+                          value={p2Ivs}
+                          onChange={(e) => setP2Ivs(e.target.value)}
+                          placeholder="IVs (opt)"
+                          title="Optional Atk/Def/HP IVs (e.g. 0/15/15). Defaults to PvPoke IVs if blank."
+                          className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white"
                         />
                       </div>
                       <div className="grid grid-cols-3 gap-2">
@@ -2147,21 +2323,21 @@ export default function App() {
                           type="text"
                           value={p2Fast}
                           onChange={(e) => setP2Fast(e.target.value)}
-                          placeholder="Fast Move"
+                          placeholder="Fast Move (Auto)"
                           className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white"
                         />
                         <input
                           type="text"
                           value={p2C1}
                           onChange={(e) => setP2C1(e.target.value)}
-                          placeholder="Charged Move 1"
+                          placeholder="Charged 1 (Auto)"
                           className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white"
                         />
                         <input
                           type="text"
                           value={p2C2}
                           onChange={(e) => setP2C2(e.target.value)}
-                          placeholder="Charged Move 2"
+                          placeholder="Charged 2 (Auto)"
                           className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white"
                         />
                       </div>
@@ -2169,23 +2345,58 @@ export default function App() {
 
                     {/* Slot 3 */}
                     <div className="p-3 bg-slate-950/70 border border-slate-800 rounded-xl space-y-2">
-                      <span className="text-xs font-bold text-amber-400 block">Slot 3 (Closer & Moveset)</span>
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-amber-400">Slot 3 (Closer, IVs &amp; Moveset)</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const rec = getRecommendedMovesForPokemon(p3Name, newPresetLeague, p3Ivs);
+                            if (rec) {
+                              setP3Fast(rec.fastMove);
+                              setP3C1(rec.chargedMove1);
+                              setP3C2(rec.chargedMove2);
+                              setP3Cp(rec.cp);
+                            }
+                          }}
+                          className="text-[10px] text-amber-400 hover:text-amber-300 font-semibold"
+                        >
+                          Auto-Fill PvPoke Moves
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-4 gap-2">
                         <input
                           type="text"
                           value={p3Name}
-                          onChange={(e) => setP3Name(e.target.value)}
-                          placeholder="Name (e.g. Shadow Pidgeot)"
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setP3Name(val);
+                            const rec = getRecommendedMovesForPokemon(val, newPresetLeague, p3Ivs);
+                            if (rec) {
+                              if (!p3Fast.trim()) setP3Fast(rec.fastMove);
+                              if (!p3C1.trim()) setP3C1(rec.chargedMove1);
+                              if (!p3C2.trim()) setP3C2(rec.chargedMove2);
+                              if (!p3Cp || p3Cp <= 0) setP3Cp(rec.cp);
+                            }
+                          }}
+                          onBlur={() => handleAutoFillSlotMoves(3, p3Name, newPresetLeague, p3Ivs)}
+                          placeholder="Name (e.g. Mandibuzz)"
                           className="col-span-2 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white"
                           required
                         />
                         <input
                           type="number"
-                          value={p3Cp}
+                          value={p3Cp || ''}
                           onChange={(e) => setP3Cp(parseInt(e.target.value) || 0)}
-                          placeholder="CP"
+                          placeholder="CP (Auto)"
                           className="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white"
-                          required
+                        />
+                        <input
+                          type="text"
+                          value={p3Ivs}
+                          onChange={(e) => setP3Ivs(e.target.value)}
+                          placeholder="IVs (opt)"
+                          title="Optional Atk/Def/HP IVs (e.g. 0/15/15). Defaults to PvPoke IVs if blank."
+                          className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white"
                         />
                       </div>
                       <div className="grid grid-cols-3 gap-2">
@@ -2193,21 +2404,21 @@ export default function App() {
                           type="text"
                           value={p3Fast}
                           onChange={(e) => setP3Fast(e.target.value)}
-                          placeholder="Fast Move (e.g. Gust)"
+                          placeholder="Fast Move (Auto)"
                           className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white"
                         />
                         <input
                           type="text"
                           value={p3C1}
                           onChange={(e) => setP3C1(e.target.value)}
-                          placeholder="Charged 1 (e.g. Twister)"
+                          placeholder="Charged 1 (Auto)"
                           className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white"
                         />
                         <input
                           type="text"
                           value={p3C2}
                           onChange={(e) => setP3C2(e.target.value)}
-                          placeholder="Charged 2 (e.g. Brave Bird)"
+                          placeholder="Charged 2 (Auto)"
                           className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white"
                         />
                       </div>

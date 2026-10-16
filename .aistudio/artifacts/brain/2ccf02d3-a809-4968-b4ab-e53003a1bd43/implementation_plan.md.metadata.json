@@ -1,6 +1,6 @@
 {
-  "summary": "Implementation plan for v1.10: Custom App Icon, Android 15 Status Bar / Clock Inset Fix, Buy Me a Coffee Donation Link (Main App + GitHub README), and Proportional Overlay Screen-Width Scale Slider (50%–100% with default tick at 78%).",
-  "updatedAt": "2026-10-16T19:18:45.586950982Z",
+  "summary": "Updated implementation plan for v1.11: Persistent user teams & settings across updates, PvPoke Top 3 default teams & custom templates, auto-filled recommended Fast/Charged moves on Pokémon name entry, and League CP-scaled Stat Product + optional IVs (auto-defaulting to PvPoke Rank/Default IVs when blank) for exact Pokémon GO damage & HP% calculations.",
+  "updatedAt": "2026-10-16T20:02:18.112843553Z",
   "requestFeedback": true,
   "userFacing": true
 }

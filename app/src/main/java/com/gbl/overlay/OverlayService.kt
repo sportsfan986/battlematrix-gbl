@@ -90,6 +90,16 @@ class OverlayService : LifecycleService() {
         private const val NOTIFICATION_CHANNEL_ID = "gbl_battle_overlay_channel"
         private const val NOTIFICATION_ID = 2001
 
+        const val PREFS_KEY_PERSISTENT_TEAMS = "gbl_user_teams_persistent"
+        val LEGACY_PRESET_KEYS = listOf(
+            "gbl_team_presets_v6",
+            "gbl_team_presets_v5",
+            "gbl_team_presets_v4",
+            "gbl_team_presets_v3",
+            "gbl_team_presets_v2",
+            "gbl_team_presets"
+        )
+
         data class MoveStats(
             val name: String,
             val type: String,
@@ -116,7 +126,10 @@ class OverlayService : LifecycleService() {
             val glRank: Int = 500,
             val ulRank: Int = 500,
             val mlRank: Int = 500,
-            val chargedMove3: String = ""
+            val chargedMove3: String = "",
+            val isRawBaseStats: Boolean = false,
+            val defaultIvsGl: String = "1/15/15",
+            val defaultIvsUl: String = "1/15/15"
         )
 
         val RECOMMENDED_CHARGED_MOVES: Map<String, Triple<String, String, String>> = mapOf(
@@ -1056,6 +1069,300 @@ class OverlayService : LifecycleService() {
                 return cleaned.split(" ").firstOrNull()?.takeIf { it.isNotBlank() } ?: name.lowercase()
             }
         }
+
+        /**
+         * Resolves PvPoke recommended Fast Move, Charged Move 1, Charged Move 2, and default CP for a Pokémon name.
+         */
+        fun resolveRecommendedMovesForSpecies(rawName: String, league: String = "GREAT LEAGUE"): PokemonMeta? {
+            val trimmed = rawName.trim()
+            if (trimmed.isEmpty()) return null
+            val cleanNoShadow = trimmed.replace(Regex("^Shadow\\s+", RegexOption.IGNORE_CASE), "").trim()
+            val allMeta = getAllPokemonMeta()
+
+            val exact = allMeta.find {
+                it.name.equals(trimmed, ignoreCase = true) ||
+                    it.name.equals(cleanNoShadow, ignoreCase = true) ||
+                    it.speciesId.equals(trimmed.replace(" ", "_"), ignoreCase = true)
+            }
+            if (exact != null) {
+                return computeEffectiveCombatStats(applyRecommendedMoves(exact), league)
+            }
+
+            val base = FormResolver.extractBaseSpecies(cleanNoShadow)
+            val variants = FormResolver.getVariantsForSpecies(base, league)
+            if (variants.isNotEmpty()) {
+                val chosen = FormResolver.resolveBestDefaultVariant(variants.first(), trimmed, league)
+                return computeEffectiveCombatStats(applyRecommendedMoves(chosen), league)
+            }
+
+            val partial = allMeta.firstOrNull {
+                it.name.lowercase().contains(cleanNoShadow.lowercase()) ||
+                    cleanNoShadow.lowercase().contains(it.baseSpecies.lowercase())
+            }
+            return partial?.let { computeEffectiveCombatStats(applyRecommendedMoves(it), league) }
+        }
+
+        /**
+         * Parses user IV string (e.g. "0/15/15", "15-15-15", "15 15 15") or returns PvPoke default IVs for the league.
+         */
+        fun parseIvTriplet(ivStr: String?, league: String, meta: PokemonMeta): Triple<Int, Int, Int> {
+            if (!ivStr.isNullOrBlank()) {
+                val parts = ivStr.trim().split(Regex("[/\\-,\\s]+")).mapNotNull { it.toIntOrNull() }
+                if (parts.size >= 3) {
+                    return Triple(
+                        parts[0].coerceIn(0, 15),
+                        parts[1].coerceIn(0, 15),
+                        parts[2].coerceIn(0, 15)
+                    )
+                }
+            }
+            return when {
+                league.contains("GREAT", ignoreCase = true) -> {
+                    val glParts = meta.defaultIvsGl.split("/").mapNotNull { it.toIntOrNull() }
+                    if (glParts.size >= 3) Triple(glParts[0], glParts[1], glParts[2]) else Triple(1, 15, 15)
+                }
+                league.contains("ULTRA", ignoreCase = true) -> {
+                    val ulParts = meta.defaultIvsUl.split("/").mapNotNull { it.toIntOrNull() }
+                    if (ulParts.size >= 3) Triple(ulParts[0], ulParts[1], ulParts[2]) else Triple(1, 15, 15)
+                }
+                else -> Triple(15, 15, 15)
+            }
+        }
+
+        /**
+         * Computes League CP-scaled and IV-adjusted effective combat stats (Atk, Def, HP, and CP).
+         * Automatically defaults to PvPoke standard IVs when customIvs is blank.
+         */
+        fun computeEffectiveCombatStats(
+            meta: PokemonMeta,
+            league: String,
+            customCp: Int? = null,
+            customIvs: String? = null
+        ): PokemonMeta {
+            val isGreat = league.contains("GREAT", ignoreCase = true)
+            val isUltra = league.contains("ULTRA", ignoreCase = true)
+            val leagueCap = when {
+                isGreat -> 1500
+                isUltra -> 2500
+                else -> 5500
+            }
+
+            val actualIvs = parseIvTriplet(customIvs, league, meta)
+
+            if (meta.isRawBaseStats) {
+                val uAtk = (meta.atk + actualIvs.first).coerceAtLeast(20.0)
+                val uDef = (meta.def + actualIvs.second).coerceAtLeast(20.0)
+                val uHp = (meta.hp.toDouble() + actualIvs.third).coerceAtLeast(20.0)
+                val maxCp50 = floor(uAtk * kotlin.math.sqrt(uDef * uHp) * 0.8403 * 0.8403 / 10.0).toInt().coerceAtLeast(10)
+                val targetCp = if (customCp != null && customCp in 100..(leagueCap + 100)) {
+                    customCp
+                } else {
+                    min(maxCp50, leagueCap)
+                }
+                val cpm = kotlin.math.sqrt((targetCp * 10.0) / (uAtk * kotlin.math.sqrt(uDef * uHp))).coerceIn(0.094, 0.8453)
+                return meta.copy(
+                    defaultCp = targetCp,
+                    atk = uAtk * cpm,
+                    def = uDef * cpm,
+                    hp = floor(uHp * cpm).toInt().coerceAtLeast(10),
+                    isRawBaseStats = false
+                )
+            }
+
+            // Static POKEMON_META_DATABASE entries have effective stats at meta.defaultCp
+            val refCpm = when {
+                meta.defaultCp > 2500 -> 0.8403
+                meta.defaultCp > 1500 -> 0.7903
+                else -> 0.7317
+            }
+            val refIvs = when {
+                meta.defaultCp > 2500 -> Triple(15, 15, 15)
+                else -> Triple(1, 15, 15)
+            }
+
+            val adjAtkAtRef = (meta.atk + (actualIvs.first - refIvs.first) * refCpm).coerceAtLeast(20.0)
+            val adjDefAtRef = (meta.def + (actualIvs.second - refIvs.second) * refCpm).coerceAtLeast(20.0)
+            val adjHpAtRef = (meta.hp.toDouble() + (actualIvs.third - refIvs.third) * refCpm).coerceAtLeast(20.0)
+
+            val refProd = (meta.atk * kotlin.math.sqrt(meta.def * meta.hp.toDouble())).coerceAtLeast(1.0)
+            val adjProd = (adjAtkAtRef * kotlin.math.sqrt(adjDefAtRef * adjHpAtRef)).coerceAtLeast(1.0)
+            val ivCpRatio = adjProd / refProd
+
+            val defaultLeagueCp = when {
+                isGreat -> if (meta.defaultCp <= 1500) meta.defaultCp else 1498
+                isUltra -> when {
+                    meta.defaultCp in 1501..2500 -> meta.defaultCp
+                    meta.defaultCp > 2500 -> 2496
+                    else -> min(2500, (meta.defaultCp * 1.65).roundToInt())
+                }
+                else -> if (meta.defaultCp > 2500) meta.defaultCp else (meta.defaultCp * 1.45).roundToInt().coerceAtMost(4720)
+            }
+
+            val targetCp = if (customCp != null && customCp in 100..(leagueCap + 100)) {
+                customCp
+            } else if (!isGreat && !isUltra) {
+                (defaultLeagueCp * ivCpRatio).roundToInt().coerceAtLeast(100)
+            } else {
+                defaultLeagueCp
+            }
+
+            val effectiveRefCp = (meta.defaultCp.toDouble() * ivCpRatio).coerceAtLeast(100.0)
+            val cpmScale = kotlin.math.sqrt(targetCp.toDouble() / effectiveRefCp).coerceIn(0.35, 1.45)
+
+            return meta.copy(
+                defaultCp = targetCp,
+                atk = adjAtkAtRef * cpmScale,
+                def = adjDefAtRef * cpmScale,
+                hp = (adjHpAtRef * cpmScale).roundToInt().coerceAtLeast(10)
+            )
+        }
+
+        fun parseGamemasterJsonStatic(jsonStr: String) {
+            try {
+                val root = JsonParser.parseString(jsonStr).asJsonObject
+                val movesArr: JsonArray? = root.getAsJsonArray("moves")
+                val fastMoveNames = HashMap<String, String>()
+                if (movesArr != null) {
+                    for (el in movesArr) {
+                        val obj = el.asJsonObject
+                        val moveId = obj.get("moveId")?.asString ?: continue
+                        val name = obj.get("name")?.asString ?: moveId
+                        val type = obj.get("type")?.asString?.lowercase() ?: "normal"
+                        val power = obj.get("power")?.asInt ?: 50
+                        val energyGain = obj.get("energyGain")?.asInt ?: 0
+                        val energyCost = obj.get("energy")?.asInt ?: 50
+                        val turns = ((obj.get("cooldown")?.asInt ?: 1000) / 500).coerceIn(1, 5)
+                        if (energyGain > 0) {
+                            fastMoveNames[moveId] = name
+                            DYNAMIC_FAST_TURNS[name.lowercase()] = turns
+                            DYNAMIC_FAST_TURNS[moveId.lowercase()] = turns
+                            DYNAMIC_FAST_ENERGY[name.lowercase()] = energyGain
+                            DYNAMIC_FAST_ENERGY[moveId.lowercase()] = energyGain
+                        } else {
+                            DYNAMIC_MOVE_DATABASE[name] = MoveStats(name, type, power, energyCost)
+                        }
+                    }
+                }
+
+                val pokemonArr: JsonArray? = root.getAsJsonArray("pokemon")
+                if (pokemonArr != null) {
+                    val existingIds = POKEMON_META_DATABASE.map { it.speciesId.lowercase() }.toSet()
+                    val parsedList = mutableListOf<PokemonMeta>()
+                    for (el in pokemonArr) {
+                        val obj = el.asJsonObject
+                        val speciesId = obj.get("speciesId")?.asString ?: continue
+                        if (speciesId.contains("_mega") || speciesId.contains("_primal")) continue
+                        if (existingIds.contains(speciesId.lowercase())) continue
+
+                        val speciesName = obj.get("speciesName")?.asString ?: continue
+                        val baseSpecies = speciesName.lowercase()
+                            .replace(Regex("\\(.*?\\)"), " ")
+                            .replace(Regex("\\b(?:shadow|purified|alolan|galarian|hisuian|paldean)\\b"), " ")
+                            .replace(Regex("\\s+"), " ")
+                            .trim()
+                            .let { if (it.startsWith("tapu ")) it else it.split(" ").firstOrNull() ?: speciesName.lowercase() }
+
+                        val formLabel = Regex("\\((.*?)\\)").find(speciesName)?.groupValues?.getOrNull(1) ?: "Base"
+
+                        val alreadyDefinedForm = POKEMON_META_DATABASE.any {
+                            it.baseSpecies.equals(baseSpecies, ignoreCase = true) &&
+                                (it.formLabel.equals(formLabel, ignoreCase = true) ||
+                                    formLabel.lowercase().startsWith(it.formLabel.lowercase()) ||
+                                    it.formLabel.lowercase().startsWith(formLabel.lowercase()))
+                        }
+                        if (alreadyDefinedForm) continue
+
+                        val typesArr = obj.getAsJsonArray("types")
+                        val types = mutableListOf<String>()
+                        if (typesArr != null) {
+                            for (t in typesArr) {
+                                val ts = t.asString
+                                if (ts != "none") types.add(ts.lowercase())
+                            }
+                        }
+                        if (types.isEmpty()) types.add("normal")
+
+                        val baseStats = obj.getAsJsonObject("baseStats")
+                        val atk = baseStats?.get("atk")?.asDouble ?: 180.0
+                        val def = baseStats?.get("def")?.asDouble ?: 170.0
+                        val hp = baseStats?.get("hp")?.asInt ?: 160
+
+                        var defaultIvsGl = "1/15/15"
+                        var defaultIvsUl = "1/15/15"
+                        val defaultIvsObj = obj.getAsJsonObject("defaultIVs")
+                        if (defaultIvsObj != null) {
+                            val cp1500 = defaultIvsObj.getAsJsonArray("cp1500")
+                            if (cp1500 != null && cp1500.size() >= 4) {
+                                defaultIvsGl = "${cp1500.get(1).asInt}/${cp1500.get(2).asInt}/${cp1500.get(3).asInt}"
+                            }
+                            val cp2500 = defaultIvsObj.getAsJsonArray("cp2500")
+                            if (cp2500 != null && cp2500.size() >= 4) {
+                                defaultIvsUl = "${cp2500.get(1).asInt}/${cp2500.get(2).asInt}/${cp2500.get(3).asInt}"
+                            }
+                        }
+
+                        val fastMovesArr = obj.getAsJsonArray("fastMoves")
+                        val firstFastId = if (fastMovesArr != null && fastMovesArr.size() > 0) fastMovesArr.get(0).asString else "TACKLE"
+                        val fastMoveName = fastMoveNames[firstFastId]
+                            ?: firstFastId.lowercase().split("_").joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
+                        val fastTurns = DYNAMIC_FAST_TURNS[fastMoveName.lowercase()]
+                            ?: FAST_MOVE_TURNS[fastMoveName.lowercase()] ?: 2
+
+                        val chargedArr = obj.getAsJsonArray("chargedMoves")
+                        val eliteArr = obj.getAsJsonArray("eliteMoves")
+                        val orderedChargedIds = mutableListOf<String>()
+                        if (eliteArr != null) {
+                            for (em in eliteArr) {
+                                val emId = em.asString
+                                if (!fastMoveNames.containsKey(emId) && !orderedChargedIds.contains(emId)) {
+                                    orderedChargedIds.add(emId)
+                                }
+                            }
+                        }
+                        if (chargedArr != null) {
+                            for (cm in chargedArr) {
+                                val cmId = cm.asString
+                                if (!orderedChargedIds.contains(cmId)) {
+                                    orderedChargedIds.add(cmId)
+                                }
+                            }
+                        }
+
+                        val c1Id = orderedChargedIds.getOrNull(0) ?: "BODY_SLAM"
+                        val c2Id = orderedChargedIds.getOrNull(1) ?: c1Id
+                        val c3Id = orderedChargedIds.getOrNull(2) ?: ""
+                        val c1Name = c1Id.lowercase().split("_").joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
+                        val c2Name = c2Id.lowercase().split("_").joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
+                        val c3Name = if (c3Id.isNotBlank()) {
+                            c3Id.lowercase().split("_").joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
+                        } else ""
+
+                        val baseMeta = PokemonMeta(
+                            name = speciesName,
+                            speciesId = speciesId,
+                            baseSpecies = baseSpecies,
+                            formLabel = formLabel,
+                            types = types,
+                            defaultCp = 2500,
+                            defaultFastMove = fastMoveName,
+                            fastTurns = fastTurns,
+                            chargedMove1 = c1Name,
+                            chargedMove2 = c2Name,
+                            atk = atk,
+                            def = def,
+                            hp = hp,
+                            chargedMove3 = c3Name,
+                            isRawBaseStats = true,
+                            defaultIvsGl = defaultIvsGl,
+                            defaultIvsUl = defaultIvsUl
+                        )
+                        parsedList.add(applyRecommendedMoves(baseMeta))
+                    }
+                    DYNAMIC_POKEMON_DATABASE.clear()
+                    DYNAMIC_POKEMON_DATABASE.addAll(parsedList)
+                }
+            } catch (_: Exception) {}
+        }
     }
 
     private lateinit var windowManager: WindowManager
@@ -1097,7 +1404,14 @@ class OverlayService : LifecycleService() {
     private var cachedScreenBitmap: Bitmap? = null
     private val captureLock = Any()
 
-    data class TeamMember(val name: String, val cp: Int, val fastMove: String, val chargedMove1: String, val chargedMove2: String)
+    data class TeamMember(
+        val name: String,
+        val cp: Int,
+        val fastMove: String,
+        val chargedMove1: String,
+        val chargedMove2: String,
+        val ivs: String? = null
+    )
     data class TeamPreset(val id: String, val name: String, val league: String, val pokemon: List<TeamMember>, var isSelected: Boolean = false)
 
     override fun onCreate() {
@@ -1150,167 +1464,37 @@ class OverlayService : LifecycleService() {
     }
 
     private fun parseGamemasterJson(jsonStr: String) {
-        try {
-            val root = JsonParser.parseString(jsonStr).asJsonObject
-            val movesArr: JsonArray? = root.getAsJsonArray("moves")
-            val fastMoveNames = HashMap<String, String>()
-            if (movesArr != null) {
-                for (el in movesArr) {
-                    val obj = el.asJsonObject
-                    val moveId = obj.get("moveId")?.asString ?: continue
-                    val name = obj.get("name")?.asString ?: moveId
-                    val type = obj.get("type")?.asString?.lowercase() ?: "normal"
-                    val power = obj.get("power")?.asInt ?: 50
-                    val energyGain = obj.get("energyGain")?.asInt ?: 0
-                    val energyCost = obj.get("energy")?.asInt ?: 50
-                    val turns = ((obj.get("cooldown")?.asInt ?: 1000) / 500).coerceIn(1, 5)
-                    if (energyGain > 0) {
-                        fastMoveNames[moveId] = name
-                        DYNAMIC_FAST_TURNS[name.lowercase()] = turns
-                        DYNAMIC_FAST_TURNS[moveId.lowercase()] = turns
-                        DYNAMIC_FAST_ENERGY[name.lowercase()] = energyGain
-                        DYNAMIC_FAST_ENERGY[moveId.lowercase()] = energyGain
-                    } else {
-                        DYNAMIC_MOVE_DATABASE[name] = MoveStats(name, type, power, energyCost)
-                    }
-                }
-            }
-
-            val pokemonArr: JsonArray? = root.getAsJsonArray("pokemon")
-            if (pokemonArr != null) {
-                val existingIds = POKEMON_META_DATABASE.map { it.speciesId.lowercase() }.toSet()
-                val parsedList = mutableListOf<PokemonMeta>()
-                for (el in pokemonArr) {
-                    val obj = el.asJsonObject
-                    val speciesId = obj.get("speciesId")?.asString ?: continue
-                    if (speciesId.contains("_mega") || speciesId.contains("_primal")) continue
-                    if (existingIds.contains(speciesId.lowercase())) continue
-
-                    val speciesName = obj.get("speciesName")?.asString ?: continue
-                    val baseSpecies = speciesName.lowercase()
-                        .replace(Regex("\\(.*?\\)"), " ")
-                        .replace(Regex("\\b(?:shadow|purified|alolan|galarian|hisuian|paldean)\\b"), " ")
-                        .replace(Regex("\\s+"), " ")
-                        .trim()
-                        .let { if (it.startsWith("tapu ")) it else it.split(" ").firstOrNull() ?: speciesName.lowercase() }
-
-                    val formLabel = Regex("\\((.*?)\\)").find(speciesName)?.groupValues?.getOrNull(1) ?: "Base"
-
-                    // Skip if POKEMON_META_DATABASE already defines this species & form (e.g. "Crowned Sword" vs "Crowned")
-                    val alreadyDefinedForm = POKEMON_META_DATABASE.any {
-                        it.baseSpecies.equals(baseSpecies, ignoreCase = true) &&
-                            (it.formLabel.equals(formLabel, ignoreCase = true) ||
-                                formLabel.lowercase().startsWith(it.formLabel.lowercase()) ||
-                                it.formLabel.lowercase().startsWith(formLabel.lowercase()))
-                    }
-                    if (alreadyDefinedForm) continue
-
-                    val typesArr = obj.getAsJsonArray("types")
-                    val types = mutableListOf<String>()
-                    if (typesArr != null) {
-                        for (t in typesArr) {
-                            val ts = t.asString
-                            if (ts != "none") types.add(ts.lowercase())
-                        }
-                    }
-                    if (types.isEmpty()) types.add("normal")
-
-                    val baseStats = obj.getAsJsonObject("baseStats")
-                    val atk = baseStats?.get("atk")?.asDouble ?: 180.0
-                    val def = baseStats?.get("def")?.asDouble ?: 170.0
-                    val hp = baseStats?.get("hp")?.asInt ?: 160
-
-                    val fastMovesArr = obj.getAsJsonArray("fastMoves")
-                    val firstFastId = fastMovesArr?.firstOrNull()?.asString ?: "TACKLE"
-                    val fastMoveName = fastMoveNames[firstFastId]
-                        ?: firstFastId.lowercase().split("_").joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
-                    val fastTurns = DYNAMIC_FAST_TURNS[fastMoveName.lowercase()]
-                        ?: FAST_MOVE_TURNS[fastMoveName.lowercase()] ?: 2
-
-                    val chargedArr = obj.getAsJsonArray("chargedMoves")
-                    val eliteArr = obj.getAsJsonArray("eliteMoves")
-                    val orderedChargedIds = mutableListOf<String>()
-                    // Prioritize elite/signature charged moves first if present
-                    if (eliteArr != null) {
-                        for (em in eliteArr) {
-                            val emId = em.asString
-                            if (!fastMoveNames.containsKey(emId) && !orderedChargedIds.contains(emId)) {
-                                orderedChargedIds.add(emId)
-                            }
-                        }
-                    }
-                    if (chargedArr != null) {
-                        for (cm in chargedArr) {
-                            val cmId = cm.asString
-                            if (!orderedChargedIds.contains(cmId)) {
-                                orderedChargedIds.add(cmId)
-                            }
-                        }
-                    }
-
-                    val c1Id = orderedChargedIds.getOrNull(0) ?: "BODY_SLAM"
-                    val c2Id = orderedChargedIds.getOrNull(1) ?: c1Id
-                    val c3Id = orderedChargedIds.getOrNull(2) ?: ""
-                    val c1Name = c1Id.lowercase().split("_").joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
-                    val c2Name = c2Id.lowercase().split("_").joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
-                    val c3Name = if (c3Id.isNotBlank()) {
-                        c3Id.lowercase().split("_").joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
-                    } else ""
-
-                    val baseMeta = PokemonMeta(
-                            name = speciesName,
-                            speciesId = speciesId,
-                            baseSpecies = baseSpecies,
-                            formLabel = formLabel,
-                            types = types,
-                            defaultCp = 2500,
-                            defaultFastMove = fastMoveName,
-                            fastTurns = fastTurns,
-                            chargedMove1 = c1Name,
-                            chargedMove2 = c2Name,
-                            atk = atk,
-                            def = def,
-                            hp = hp,
-                            chargedMove3 = c3Name
-                        )
-                    parsedList.add(applyRecommendedMoves(baseMeta))
-                }
-                DYNAMIC_POKEMON_DATABASE.clear()
-                DYNAMIC_POKEMON_DATABASE.addAll(parsedList)
-            }
-        } catch (_: Exception) {}
+        parseGamemasterJsonStatic(jsonStr)
     }
-
-    private fun JsonArray.getOrNull(index: Int) = if (index in 0 until size()) get(index) else null
 
     private fun setupDefaultPresetsIfNeeded() {
         val existing = loadPresets()
         if (existing.isEmpty()) {
             val defaults = listOf(
                 TeamPreset(
-                    "preset-ml-1", "Master: Dialga-O / Lugia / Kyogre", "MASTER LEAGUE", listOf(
-                        TeamMember("Dialga (Origin)", 4624, "Dragon Breath", "Roar of Time", "Iron Head"),
-                        TeamMember("Lugia", 4179, "Dragon Tail", "Aeroblast", "Earth Power"),
-                        TeamMember("Kyogre", 4652, "Waterfall", "Origin Pulse", "Avalanche")
+                    "preset-ml-1", "Master: Palkia-O / Zacian-C / Dialga-O", "MASTER LEAGUE", listOf(
+                        TeamMember("Palkia (Origin)", 4683, "Dragon Breath", "Spacial Rend", "Aqua Tail"),
+                        TeamMember("Zacian (Crowned)", 4658, "Metal Claw", "Behemoth Blade", "Close Combat"),
+                        TeamMember("Dialga (Origin)", 4624, "Dragon Breath", "Roar of Time", "Iron Head")
                     ), true
                 ),
                 TeamPreset(
-                    "preset-ul-1", "Ultra: Zygarde / Corviknight / Mimikyu", "ULTRA LEAGUE", listOf(
+                    "preset-ul-1", "Ultra: Zygarde / Feraligatr / Giratina-A", "ULTRA LEAGUE", listOf(
                         TeamMember("Zygarde", 2472, "Dragon Tail", "Crunch", "Earthquake"),
-                        TeamMember("Corviknight", 2499, "Sand Attack", "Air Cutter", "Iron Head"),
-                        TeamMember("Mimikyu", 2497, "Shadow Claw", "Play Rough", "Shadow Sneak")
+                        TeamMember("Feraligatr", 2488, "Shadow Claw", "Hydro Cannon", "Ice Beam"),
+                        TeamMember("Giratina (Altered)", 2497, "Shadow Claw", "Dragon Claw", "Ancient Power")
                     ), false
                 ),
                 TeamPreset(
-                    "preset-gl-1", "Great: Kanto Ninetales / Fearow / S-Pidgeot", "GREAT LEAGUE", listOf(
-                        TeamMember("Kanto Ninetales", 1498, "Ember", "Weather Ball", "Energy Ball"),
-                        TeamMember("Fearow", 1500, "Peck", "Drill Run", "Drill Peck"),
-                        TeamMember("Shadow Pidgeot", 1490, "Gust", "Twister", "Brave Bird")
+                    "preset-gl-1", "Great: Clodsire / Feraligatr / Mandibuzz", "GREAT LEAGUE", listOf(
+                        TeamMember("Clodsire", 1494, "Poison Sting", "Earthquake", "Stone Edge"),
+                        TeamMember("Feraligatr", 1498, "Shadow Claw", "Hydro Cannon", "Ice Beam"),
+                        TeamMember("Mandibuzz", 1496, "Snarl", "Dark Pulse", "Aerial Ace")
                     ), false
                 )
             )
             val json = gson.toJson(defaults)
-            prefs.edit().putString("gbl_team_presets_v6", json).apply()
+            prefs.edit().putString(PREFS_KEY_PERSISTENT_TEAMS, json).apply()
             currentPreset = defaults[0]
             activeUserPokemonName = defaults[0].pokemon[0].name
         } else {
@@ -2753,12 +2937,18 @@ class OverlayService : LifecycleService() {
             return
         }
 
-        val oppMeta = getPokemonMeta(activeOpponentName)
-        val userMeta = getPokemonMeta(activePlayerName)
+        val activeLeague = currentPreset?.league ?: "MASTER LEAGUE"
+        val oppMeta = computeEffectiveCombatStats(getPokemonMeta(activeOpponentName), activeLeague)
+        val userMeta = computeEffectiveCombatStats(
+            getPokemonMeta(activePlayerName),
+            activeLeague,
+            activeSlot?.cp,
+            activeSlot?.ivs
+        )
         val isUserShadow = activePlayerName.contains("Shadow", ignoreCase = true)
 
-        val userMove1Name = activeSlot?.chargedMove1 ?: userMeta.chargedMove1
-        val userMove2Name = activeSlot?.chargedMove2 ?: userMeta.chargedMove2
+        val userMove1Name = activeSlot?.chargedMove1?.takeIf { it.isNotBlank() } ?: userMeta.chargedMove1
+        val userMove2Name = activeSlot?.chargedMove2?.takeIf { it.isNotBlank() } ?: userMeta.chargedMove2
 
         val myMove1Pct = calculateChargedMoveDamagePercent(
             attacker = userMeta,
@@ -2836,7 +3026,7 @@ class OverlayService : LifecycleService() {
         }
 
         val scannedOpponentsData = displayList.mapIndexed { idx, opp ->
-            val meta = getPokemonMeta(opp)
+            val meta = computeEffectiveCombatStats(getPokemonMeta(opp), activeLeague)
             val baseKey = meta.baseSpecies.lowercase()
             val isThisOppShadow = manualShadowOverrides[baseKey] ?: (if (idx == 0) isOpponentShadow else false)
             val oppC1Pct = calculateChargedMoveDamagePercent(
@@ -2894,7 +3084,6 @@ class OverlayService : LifecycleService() {
             )
         }
 
-        val activeLeague = currentPreset?.league ?: "MASTER LEAGUE"
         if (availableOpponentForms.isEmpty()) {
             availableOpponentForms = FormResolver.getVariantsForSpecies(oppMeta.baseSpecies, activeLeague)
         }
@@ -3028,8 +3217,15 @@ class OverlayService : LifecycleService() {
             val activeEff = getTypeEffectiveness(mStats.type, userMeta.types)
 
             // All 3 team Pokémon damage percentages in fixed team slot order [0, 1, 2]
+            val teamSlots = listOf(p1, p2, p3)
             val teamDamages = teamNames.mapIndexed { tIdx, tName ->
-                val tMeta = getPokemonMeta(tName)
+                val tSlot = teamSlots.getOrNull(tIdx)
+                val tMeta = computeEffectiveCombatStats(
+                    getPokemonMeta(tName),
+                    activeLeague,
+                    tSlot?.cp,
+                    tSlot?.ivs
+                )
                 val tDmgPct = calculateChargedMoveDamagePercent(
                     attacker = oppMeta,
                     defender = tMeta,
@@ -3171,7 +3367,7 @@ class OverlayService : LifecycleService() {
             val oppDamages = (0..2).map { slotIdx ->
                 if (slotIdx < displayList.size) {
                     val oppNameSlot = displayList[slotIdx]
-                    val oppMetaSlot = getPokemonMeta(oppNameSlot)
+                    val oppMetaSlot = computeEffectiveCombatStats(getPokemonMeta(oppNameSlot), activeLeague)
                     val baseKeySlot = oppMetaSlot.baseSpecies.lowercase()
                     val isSlotShadow = manualShadowOverrides[baseKeySlot] ?: (if (slotIdx == 0) isOpponentShadow else false)
                     val oDmgPct = calculateChargedMoveDamagePercent(
@@ -3284,8 +3480,14 @@ class OverlayService : LifecycleService() {
         p3: TeamMember?
     ): Map<String, String> {
         fun evaluateSlot(slot: TeamMember?, fallbackName: String): String {
+            val activeLeague = currentPreset?.league ?: "MASTER LEAGUE"
             val userName = slot?.name ?: fallbackName
-            val userMeta = getPokemonMeta(userName)
+            val userMeta = computeEffectiveCombatStats(
+                getPokemonMeta(userName),
+                activeLeague,
+                slot?.cp,
+                slot?.ivs
+            )
             val isUserShad = userName.contains("Shadow", ignoreCase = true)
 
             val uMove1 = slot?.chargedMove1?.takeIf { it.isNotBlank() } ?: userMeta.chargedMove1
@@ -3323,9 +3525,9 @@ class OverlayService : LifecycleService() {
         }
 
         return mapOf(
-            "p1" to evaluateSlot(p1, "Dialga (Origin)"),
-            "p2" to evaluateSlot(p2, "Lugia"),
-            "p3" to evaluateSlot(p3, "Kyogre")
+            "p1" to evaluateSlot(p1, "Palkia (Origin)"),
+            "p2" to evaluateSlot(p2, "Zacian (Crowned)"),
+            "p3" to evaluateSlot(p3, "Dialga (Origin)")
         )
     }
 
@@ -3339,11 +3541,24 @@ class OverlayService : LifecycleService() {
     }
 
     private fun loadPresets(): List<TeamPreset> {
-        val json = prefs.getString("gbl_team_presets_v6", null)
-            ?: prefs.getString("gbl_team_presets_v5", null)
-            ?: return emptyList()
-        val type = object : TypeToken<List<TeamPreset>>() {}.type
-        return gson.fromJson(json, type) ?: emptyList()
+        val persistentJson = prefs.getString(PREFS_KEY_PERSISTENT_TEAMS, null)
+        if (!persistentJson.isNullOrBlank()) {
+            val type = object : TypeToken<List<TeamPreset>>() {}.type
+            val parsed: List<TeamPreset>? = try { gson.fromJson(persistentJson, type) } catch (_: Exception) { null }
+            if (!parsed.isNullOrEmpty()) return parsed
+        }
+        for (legacyKey in LEGACY_PRESET_KEYS) {
+            val legacyJson = prefs.getString(legacyKey, null)
+            if (!legacyJson.isNullOrBlank()) {
+                val type = object : TypeToken<List<TeamPreset>>() {}.type
+                val parsed: List<TeamPreset>? = try { gson.fromJson(legacyJson, type) } catch (_: Exception) { null }
+                if (!parsed.isNullOrEmpty()) {
+                    prefs.edit().putString(PREFS_KEY_PERSISTENT_TEAMS, legacyJson).apply()
+                    return parsed
+                }
+            }
+        }
+        return emptyList()
     }
 
     override fun onDestroy() {

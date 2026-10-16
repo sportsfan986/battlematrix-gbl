@@ -1,59 +1,64 @@
-# GBL Battle Matrix v1.10 Implementation Plan
+# Persistent Teams, PvPoke Top 3 Defaults, Auto-Filled Moves & League CP/IV Damage Scaling (`v1.11`)
 
-This update adds the custom GBL Battle Matrix launcher icon, fixes Android status bar / clock overlap on edge-to-edge screens, adds the Buy Me a Coffee support link to the main app and GitHub README, introduces a proportional **50%–100% Screen Width Overlay Scale Slider** in the main app with a default tick mark, and prepares release **v1.10**.
-
----
-
-## 1. Custom App Icon (Android Launcher & App Header)
-- **Adaptive & Vector Launcher Icons**:
-  - Create `app/src/main/res/drawable/ic_launcher_background.xml` (`#0B111E` dark navy canvas with the subtle dashed outer radar ring) and `app/src/main/res/drawable/ic_launcher_foreground.xml` matching the uploaded **GBL Battle Matrix** shield emblem:
-    - Glowing cyan-to-royal-blue hexagonal battle shield outline.
-    - Top gold crossed swords (`✕`) crest.
-    - Center 3×3 battle matrix grid of green, red, sky-blue, and slate dots.
-    - Bottom 5-node charged move turn timeline bar (cyan, orange, cyan, red target bullseye, and gold badge).
-  - Configure `app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml` and `ic_launcher_round.xml` plus fallback drawable references in `AndroidManifest.xml` (`android:icon="@mipmap/ic_launcher"` and `android:roundIcon="@mipmap/ic_launcher_round"`).
-  - Display the icon alongside the title in `MainActivity` (`activity_main.xml`) and update the web app's SVG favicon to match.
+This plan addresses team/settings persistence across updates, updates default teams and custom team creation templates to the **PvPoke Top 3 rated Pokémon per league**, adds **automatic recommended Fast & Charged move auto-fill** when entering a Pokémon name, and upgrades the battle math engine with **exact League CP / CPM scaling and optional custom IVs** (auto-defaulting to PvPoke standard IVs when left blank).
 
 ---
 
-## 2. Main App Top Status Bar / Clock / Notification Bar Inset Fix
-- **Root Cause**: With `targetSdk = 35` (Android 15), Android enforces edge-to-edge window drawing by default, causing `activity_main.xml` content to render underneath the top clock/battery/notification bar and bottom gesture bar.
-- **Fix**:
-  - Enable `android:fitsSystemWindows="true"` on the root layout in `app/src/main/res/layout/activity_main.xml`.
-  - In `MainActivity.kt`, attach `ViewCompat.setOnApplyWindowInsetsListener` on the root view to dynamically read `WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()` and apply the exact top, bottom, left, and right system bar insets on top of the 16dp base padding.
+## 1. Permanent Team & Settings Persistence Across Updates
+- **Root Cause Fixed**: Previously, bumping the internal `SharedPreferences` key name (e.g., `gbl_team_presets_v5` → `gbl_team_presets_v6`) caused `MainActivity.loadPresets()` to see an empty key on update and re-seed default teams.
+- **Permanent Storage & Multi-Version Migration (`MainActivity.kt` & `OverlayService.kt`)**:
+  - Use a permanent canonical key `gbl_user_teams_persistent` in `SharedPreferences` (`gbl_overlay_prefs`).
+  - On load, if `gbl_user_teams_persistent` is not yet populated, automatically scan and migrate existing user teams from `gbl_team_presets_v6`, `gbl_team_presets_v5`, `gbl_team_presets_v4`, `gbl_team_presets_v3`, `gbl_team_presets_v2`, and `gbl_team_presets`, saving them directly into `gbl_user_teams_persistent`.
+  - Existing saved teams seamlessly support optional IV fields (`atkIv`, `defIv`, `hpIv`) without breaking or resetting existing team data.
+  - Never overwrite `gbl_user_teams_persistent`, `gbl_selected_preset_id`, `opp_count_mode`, or `overlay_scale_pct` when any saved value already exists.
+- **Web App LocalStorage Persistence (`src/App.tsx`)**:
+  - Persist custom teams (`gbl_user_teams_persistent`, with automatic fallback migration from any legacy key) and `gbl_selected_preset_id` to `localStorage` so teams and settings are preserved across sessions and updates.
 
 ---
 
-## 3. Buy Me a Coffee Donation Link (`https://buymeacoffee.com/sportsfan986`)
-- **Main App UI (No Overlay Clutter)**:
-  - **Android `MainActivity`**: Add a styled **`☕ Support / Donate`** button in the top header row of `activity_main.xml` that opens `https://buymeacoffee.com/sportsfan986` in the user's browser via `Intent(Intent.ACTION_VIEW, Uri.parse("https://buymeacoffee.com/sportsfan986"))`.
-  - **Web App Simulator**: Add a matching **`☕ Buy Me a Coffee`** link button in the main app header/settings panel (outside the floating overlay).
-- **GitHub `README.md`**:
-  - Add a prominent **Support the Project** section and a Buy Me a Coffee badge near the top of `README.md` linking directly to `https://buymeacoffee.com/sportsfan986`.
+## 2. PvPoke Top 3 Default Teams & Custom Team Creation Templates
+- **Default Teams (Only Seeded When No Persisted Teams Exist)**:
+  - **Master League (`MASTER LEAGUE`) — PvPoke Top 3**:
+    1. **Palkia (Origin)** (CP 4683, IVs `15/15/15` — `Dragon Breath` | `Spacial Rend`, `Aqua Tail`)
+    2. **Zacian (Crowned)** (CP 4658, IVs `15/15/15` — `Metal Claw` | `Behemoth Blade`, `Close Combat`)
+    3. **Dialga (Origin)** (CP 4624, IVs `15/15/15` — `Dragon Breath` | `Roar of Time`, `Iron Head`)
+  - **Ultra League (`ULTRA LEAGUE`) — PvPoke Top 3**:
+    1. **Zygarde** (CP 2472 — `Dragon Tail` | `Crunch`, `Earthquake`)
+    2. **Feraligatr** (CP 2488 — `Shadow Claw` | `Hydro Cannon`, `Ice Beam`)
+    3. **Giratina (Altered)** (CP 2497 — `Shadow Claw` | `Dragon Claw`, `Ancient Power`)
+  - **Great League (`GREAT LEAGUE`) — PvPoke Top 3**:
+    1. **Clodsire** (CP 1494 — `Poison Sting` | `Earthquake`, `Stone Edge`)
+    2. **Feraligatr** (CP 1498 — `Shadow Claw` | `Hydro Cannon`, `Ice Beam`)
+    3. **Mandibuzz** (CP 1496 — `Snarl` | `Dark Pulse`, `Aerial Ace`)
+- **Create Custom Team Template Defaults**:
+  - Update `dialog_create_preset.xml`, `MainActivity.showPresetEditorDialog()`, and `src/App.tsx` so creating a new team uses the selected league's **PvPoke Top 3** Pokémon as the template names/hints (`Clodsire / Feraligatr / Mandibuzz` for Great League, `Zygarde / Feraligatr / Giratina (Altered)` for Ultra League, `Palkia (Origin) / Zacian (Crowned) / Dialga (Origin)` for Master League).
 
 ---
 
-## 4. Proportional Overlay Screen-Width Scale Slider (`50%` – `100%`)
-- **Main App Slider with Default Tick (`78%`)**:
-  - Placed exclusively inside the **Main App** Status & Settings card (`activity_main.xml` and Web App settings panel)—zero controls added to the floating overlay.
-  - **Bounds & Step Increment**:
-    - Range: **`50%` to `100%` of screen width**.
-    - Default: **`78%`** (matching the existing `0.78f` screen width calculation).
-    - Increment: **`2%` per step** (25 discrete steps on the `SeekBar`: `progress = (scalePct - 50) / 2`, where `progress = 0` is `50%`, `progress = 14` is the default `78%`, and `progress = 25` is `100%`). A `2%` step corresponds to ~`0.16px` font scaling per step, allowing smooth, crisp typography adjustments without text wrapping or overflowing its grid cells.
-  - **Default Tick Indicator**:
-    - Render a visual tick marker aligned directly at the **78% Default** position underneath the slider track (`50%` left label, `▲ 78% (Default)` tick marker at 56% along the 50–100 track, and `100%` right label), plus a tap-to-reset action on the label/tick to snap back to `78%`.
-- **Proportional All-Element & Font Scaling**:
-  - **Window Width (`OverlayService.kt`)**:
-    - Persist `overlay_scale_pct` (default `78`) in `SharedPreferences`.
-    - Set `layoutParams.width = (screenWidth * (overlayScalePct / 100f)).toInt()`, clamping `layoutParams.x` so the overlay stays within screen bounds when scaled up toward `100%`.
-    - Live updates via `ACTION_UPDATE_SETTINGS` immediately resize `layoutParams.width` via `windowManager.updateViewLayout(overlayView, layoutParams)` and notify the WebView.
-  - **Proportional Internal Scaling (`overlay.html`)**:
-    - The overlay's internal layout is authored against a reference base width of `300px`.
-    - On load and on every `window.onresize` / `setOverlayScale()`, `overlay.html` computes `zoomFactor = window.innerWidth / 300.0` and applies `document.body.style.zoom = zoomFactor` (with automatic height recalculation in `notifyHeight()`).
-    - Because CSS `zoom` scales the entire coordinate system uniformly with the window width, every font size (`px`), grid column (`44px 1fr 87px`), dot diameter, border radius, and padding scales in exact lockstep from **50% to 100% screen width** while preserving identical relative spacing and proportions.
+## 3. Auto-Fill Recommended Fast & Charged Moves When Entering Pokémon Name
+- **Lookup Engine (`OverlayService.resolveRecommendedMovesForSpecies` & `gblData.getRecommendedMovesForPokemon`)**:
+  - Searches both the built-in `POKEMON_META_DATABASE` (including `RECOMMENDED_CHARGED_MOVES`) and the cached PvPoke `gamemaster.json` (`DYNAMIC_POKEMON_DATABASE`) using case-insensitive and fuzzy species/form matching.
+- **Interactive & On-Save Auto-Fill (`MainActivity.kt` & `src/App.tsx`)**:
+  - **On Focus Loss / Name Entry**: In the Team Preset Editor dialog, when the user finishes typing a Pokémon name (or leaves the Pokémon Name field), any blank `Fast Move`, `Charged Move 1`, `Charged Move 2`, or `CP` / `IV` placeholders are automatically populated with that Pokémon's PvPoke recommended moveset and league-optimal CP/IV hint.
+  - **On Save Fallback**: If the user types a Pokémon name, leaves the move fields blank, and immediately taps **Save Team**, the save handler resolves that Pokémon's PvPoke recommended Fast Move, Charged Move 1, and Charged Move 2.
 
 ---
 
-## 5. Version `v1.10` Release Configuration
-- Update `VERSION` to `v1.10` and `app/build.gradle.kts` to `versionCode = 110`, `versionName = "1.10"`.
-- Future runs of `scripts/bump_version.sh` will automatically increment from `v1.10` → `v1.11` → `v1.12` unless a version is specified.
+## 4. League CP Scaling & Optional Custom IVs (Exact Pokémon GO Damage Math)
+- **Why This Improves Damage Accuracy**:
+  - Instead of comparing raw unscaled base stats across all leagues, the engine now computes **true level-scaled combat stats** (`effectiveAtk`, `effectiveDef`, `effectiveSta` = $\lfloor(\text{Base} + \text{IV}) \times \text{CPM}\rfloor$) for the active league cap (`1500` Great, `2500` Ultra, `Unlimited / Lv50` Master) or the Pokémon's exact entered CP.
+  - Uses the official Pokémon GO PvP damage formula:
+    $$\text{Damage} = \left\lfloor 0.5 \times \text{Power} \times \frac{\text{EffectiveAtk}}{\text{EffectiveDef}} \times \text{STAB} \times \text{TypeEffectiveness} \times \text{ShadowMultiplier} \times 1.3 \right\rfloor + 1$$
+    $$\text{HP \%} = \frac{\text{Damage}}{\text{EffectiveHP}} \times 100$$
+- **PvPoke Default IV Solver (Zero Configuration Required)**:
+  - **Master League**: Automatically defaults to `15 / 15 / 15` (Level 50, `CPM = 0.84029999`) for both player and opponent Pokémon when IVs are left blank.
+  - **Great League (`1500`) & Ultra League (`2500`)**: Uses PvPoke's `defaultIVs` from `gamemaster.json` when available, or automatically computes the **PvPoke optimal stat-product IV spread** (searching half-levels 1–50 to maximize $\text{Atk} \times \text{Def} \times \text{HP}$ under the 1500 or 2500 CP cap, with `15/15/15` floor rules for Mythicals/Level-50 cap species).
+  - If a player enters a custom CP without IVs, or custom IVs (`Atk / Def / HP`, e.g., `0/15/15`), the solver finds the exact `CPM` that matches their Pokémon's league cap / CP and uses their exact `effectiveAtk`, `effectiveDef`, and `effectiveSta`.
+- **Optional Compact IV Input in Team Editor (`dialog_create_preset.xml`, `MainActivity.kt`, `src/App.tsx`)**:
+  - Adds a single optional **IVs (Atk/Def/HP)** field (e.g., `0/15/15` or `15/15/15`) next to the **CP** input for each of the 3 team slots.
+  - Leaving the IV field blank automatically uses the PvPoke default IV spread for that Pokémon and league, recalculating CP and damage percentages automatically.
+
+---
+
+## 5. Release Versioning
+- Increment version to **`v1.11`** (`versionCode = 111`, `versionName = "1.11"`) via `./scripts/bump_version.sh` upon approval and publish to GitHub Releases.
