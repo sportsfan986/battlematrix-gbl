@@ -1,6 +1,6 @@
 {
-  "summary": "Updated implementation plan confirming all timing bars use your active Pokémon's fast move counts and adding an explicit green CMP tie win indicator on the opponent's throw/catch turn.",
-  "updatedAt": "2026-10-16T04:22:00.994651076Z",
+  "summary": "Implementation plan for v1.10: Custom App Icon, Android 15 Status Bar / Clock Inset Fix, Buy Me a Coffee Donation Link (Main App + GitHub README), and Proportional Overlay Screen-Width Scale Slider (50%–100% with default tick at 78%).",
+  "updatedAt": "2026-10-16T19:18:45.586950982Z",
   "requestFeedback": true,
   "userFacing": true
 }

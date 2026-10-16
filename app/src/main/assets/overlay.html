@@ -924,6 +924,33 @@
             throwHorizonText: "—"
         };
 
+        let currentZoomFactor = 1.0;
+        const BASE_DESIGN_WIDTH = 300.0;
+
+        function applyProportionalScale() {
+            try {
+                const viewportW = document.documentElement.clientWidth || window.innerWidth || BASE_DESIGN_WIDTH;
+                currentZoomFactor = Math.max(0.45, Math.min(2.2, viewportW / BASE_DESIGN_WIDTH));
+                const skyEl = document.getElementById("mode-sky-trench");
+                const horizEl = document.getElementById("mode-horizon-belt");
+                if (skyEl) {
+                    skyEl.style.width = `${BASE_DESIGN_WIDTH}px`;
+                    skyEl.style.transformOrigin = "top left";
+                    skyEl.style.transform = `scale(${currentZoomFactor.toFixed(4)})`;
+                }
+                if (horizEl) {
+                    horizEl.style.width = `${BASE_DESIGN_WIDTH}px`;
+                    horizEl.style.transformOrigin = "top left";
+                    horizEl.style.transform = `scale(${currentZoomFactor.toFixed(4)})`;
+                }
+            } catch (e) {}
+        }
+
+        function setOverlayScalePct(scalePct) {
+            applyProportionalScale();
+            notifyHeight();
+        }
+
         function setLayoutMode(mode) {
             currentMode = mode;
             const skyEl = document.getElementById("mode-sky-trench");
@@ -936,15 +963,18 @@
                 horizEl.classList.add("hidden");
                 skyEl.classList.remove("hidden");
             }
+            applyProportionalScale();
             notifyHeight();
         }
 
         function notifyHeight() {
             try {
+                applyProportionalScale();
                 const el = document.getElementById(currentMode === "option1" ? "mode-sky-trench" : "mode-horizon-belt");
-                const h = el ? el.offsetHeight + 10 : document.body.scrollHeight;
+                const rectH = el ? el.getBoundingClientRect().height : (document.body.scrollHeight * currentZoomFactor);
+                const h = rectH + 8;
                 if (window.AndroidOverlay && window.AndroidOverlay.updateContentHeight) {
-                    window.AndroidOverlay.updateContentHeight(Math.max(60, Math.ceil(h)));
+                    window.AndroidOverlay.updateContentHeight(Math.max(48, Math.ceil(h)));
                 }
             } catch(e) {}
         }
@@ -1421,7 +1451,13 @@
             setTimeout(notifyHeight, 40);
         }
 
+        window.addEventListener("resize", function() {
+            applyProportionalScale();
+            notifyHeight();
+        });
+
         window.onload = function() {
+            applyProportionalScale();
             render();
             if (window.AndroidOverlay && window.AndroidOverlay.onOverlayReady) {
                 window.AndroidOverlay.onOverlayReady();

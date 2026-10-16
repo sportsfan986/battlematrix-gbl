@@ -15,6 +15,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
@@ -67,13 +69,20 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnToggleOverlay: Button
     private lateinit var btnDownloadDb: Button
     private lateinit var btnAddPreset: Button
+    private lateinit var btnDonate: Button
     private lateinit var btnToggleOppCountBasis: Button
     private lateinit var textOppCountBasisDesc: TextView
+    private lateinit var seekbarOverlayScale: SeekBar
+    private lateinit var textOverlayScaleValue: TextView
+    private lateinit var textOverlayScaleDefaultTick: TextView
     private lateinit var presetsContainer: LinearLayout
 
-    private val PREFS_KEY_PRESETS = "gbl_team_presets_v5"
+    private val PREFS_KEY_PRESETS = "gbl_team_presets_v6"
     private val PREFS_KEY_SELECTED_PRESET = "gbl_selected_preset_id"
     private val PREFS_KEY_OPP_COUNT_MODE = "opp_count_mode"
+    private val PREFS_KEY_OVERLAY_SCALE_PCT = "overlay_scale_pct"
+    private val DEFAULT_OVERLAY_SCALE_PCT = 78
+    private val DONATION_URL = "https://buymeacoffee.com/sportsfan986"
     private val GAMEMASTER_URL = "https://raw.githubusercontent.com/pvpoke/pvpoke/master/src/data/gamemaster.json"
 
     // Android 13+ Notification permission launcher
@@ -100,6 +109,23 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        // Apply system status bar / clock / cutout and navigation bar insets so UI never overlaps top bar
+        val rootLayout = findViewById<LinearLayout>(R.id.root_main_layout)
+        val density = resources.displayMetrics.density
+        val basePad = (16 * density).toInt()
+        ViewCompat.setOnApplyWindowInsetsListener(rootLayout) { view, windowInsets ->
+            val insets = windowInsets.getInsets(
+                WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
+            )
+            view.setPadding(
+                basePad + insets.left,
+                basePad + insets.top,
+                basePad + insets.right,
+                basePad + insets.bottom
+            )
+            WindowInsetsCompat.CONSUMED
+        }
+
         prefs = getSharedPreferences("gbl_overlay_prefs", Context.MODE_PRIVATE)
         projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as? MediaProjectionManager
 
@@ -109,17 +135,43 @@ class MainActivity : AppCompatActivity() {
         checkGamemasterCache()
     }
 
+    private fun scalePctToProgress(scalePct: Int): Int {
+        val clamped = scalePct.coerceIn(50, 100)
+        return ((clamped - 50) / 2).coerceIn(0, 25)
+    }
+
+    private fun progressToScalePct(progress: Int): Int {
+        return (50 + progress.coerceIn(0, 25) * 2).coerceIn(50, 100)
+    }
+
     private fun initViews() {
         statusText = findViewById(R.id.text_status)
         dbStatusText = findViewById(R.id.text_db_status)
         btnToggleOverlay = findViewById(R.id.btn_toggle_overlay)
         btnDownloadDb = findViewById(R.id.btn_download_db)
         btnAddPreset = findViewById(R.id.btn_add_preset)
+        btnDonate = findViewById(R.id.btn_donate)
         btnToggleOppCountBasis = findViewById(R.id.btn_toggle_opp_count_basis)
         textOppCountBasisDesc = findViewById(R.id.text_opp_count_basis_desc)
+        seekbarOverlayScale = findViewById(R.id.seekbar_overlay_scale)
+        textOverlayScaleValue = findViewById(R.id.text_overlay_scale_value)
+        textOverlayScaleDefaultTick = findViewById(R.id.text_overlay_scale_default_tick)
         presetsContainer = findViewById(R.id.layout_presets_list)
 
         updateOppCountBasisUi()
+
+        val savedScalePct = prefs.getInt(PREFS_KEY_OVERLAY_SCALE_PCT, DEFAULT_OVERLAY_SCALE_PCT).coerceIn(50, 100)
+        seekbarOverlayScale.progress = scalePctToProgress(savedScalePct)
+        updateOverlayScaleUi(progressToScalePct(seekbarOverlayScale.progress))
+
+        btnDonate.setOnClickListener {
+            try {
+                val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(DONATION_URL))
+                startActivity(browserIntent)
+            } catch (e: Exception) {
+                Toast.makeText(this, "Support at: $DONATION_URL", Toast.LENGTH_LONG).show()
+            }
+        }
 
         btnToggleOverlay.setOnClickListener {
             if (isOverlayRunning) {
@@ -150,6 +202,39 @@ class MainActivity : AppCompatActivity() {
                 }
                 startService(updateIntent)
             }
+        }
+
+        seekbarOverlayScale.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                val pct = progressToScalePct(progress)
+                updateOverlayScaleUi(pct)
+                prefs.edit().putInt(PREFS_KEY_OVERLAY_SCALE_PCT, pct).apply()
+                if (isOverlayRunning) {
+                    val updateIntent = Intent(this@MainActivity, OverlayService::class.java).apply {
+                        action = OverlayService.ACTION_UPDATE_SETTINGS
+                        putExtra(OverlayService.EXTRA_OVERLAY_SCALE_PCT, pct)
+                    }
+                    startService(updateIntent)
+                }
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
+
+        // Clicking the default tick or value label snaps back to 78% (Default)
+        val resetToDefaultScale = {
+            seekbarOverlayScale.progress = scalePctToProgress(DEFAULT_OVERLAY_SCALE_PCT)
+        }
+        textOverlayScaleDefaultTick.setOnClickListener { resetToDefaultScale() }
+        textOverlayScaleValue.setOnClickListener { resetToDefaultScale() }
+    }
+
+    private fun updateOverlayScaleUi(scalePct: Int) {
+        textOverlayScaleValue.text = if (scalePct == DEFAULT_OVERLAY_SCALE_PCT) {
+            "${scalePct}% (Default)"
+        } else {
+            "${scalePct}%"
         }
     }
 
@@ -211,6 +296,7 @@ class MainActivity : AppCompatActivity() {
             }
             putExtra(OverlayService.EXTRA_PRESET_JSON, gson.toJson(getSelectedPreset()))
             putExtra(OverlayService.EXTRA_OPP_COUNT_MODE, prefs.getString(PREFS_KEY_OPP_COUNT_MODE, "my_fasts") ?: "my_fasts")
+            putExtra(OverlayService.EXTRA_OVERLAY_SCALE_PCT, prefs.getInt(PREFS_KEY_OVERLAY_SCALE_PCT, DEFAULT_OVERLAY_SCALE_PCT))
         }
 
         try {

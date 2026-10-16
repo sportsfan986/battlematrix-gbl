@@ -1,31 +1,64 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/root_main_layout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
+    android:fitsSystemWindows="true"
     android:background="#0f172a"
     android:padding="16dp">
 
-    <!-- Header -->
-    <TextView
-        android:layout_width="wrap_content"
+    <!-- Top Header Row with App Icon, Title & Support/Donate Link -->
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="GBL Battle Matrix"
-        android:textSize="22sp"
-        android:textStyle="bold"
-        android:textColor="#f8fafc" />
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="12dp">
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Real-Time PvP Floating Overlay with In-Memory ML Kit OCR"
-        android:textSize="12sp"
-        android:textColor="#94a3b8"
-        android:layout_marginTop="2dp"
-        android:layout_marginBottom="12dp" />
+        <ImageView
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@drawable/ic_gbl_logo"
+            android:contentDescription="GBL Battle Matrix Icon"
+            android:layout_marginEnd="10dp" />
 
-    <!-- Status Card -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="GBL Battle Matrix"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:textColor="#f8fafc" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Real-Time PvP Floating Overlay • v1.10"
+                android:textSize="11sp"
+                android:textColor="#94a3b8"
+                android:layout_marginTop="1dp" />
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/btn_donate"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:text="☕ Support"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:backgroundTint="#f59e0b"
+            android:textColor="#0f172a" />
+    </LinearLayout>
+
+    <!-- Status & Settings Card -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -120,6 +153,88 @@
                 android:textSize="11sp"
                 android:backgroundTint="#0284c7"
                 android:textColor="#ffffff" />
+        </LinearLayout>
+
+        <!-- Overlay Screen Width Scale Slider (50% - 100%, Default 78%) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginTop="8dp"
+            android:background="#0f172a"
+            android:paddingHorizontal="10dp"
+            android:paddingVertical="8dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Overlay Size (% of Screen Width)"
+                    android:textColor="#e2e8f0"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/text_overlay_scale_value"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="78% (Default)"
+                    android:textColor="#38bdf8"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <SeekBar
+                android:id="@+id/seekbar_overlay_scale"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:max="25"
+                android:progress="14"
+                android:progressTint="#38bdf8"
+                android:thumbTint="#38bdf8" />
+
+            <!-- Scale Bounds & Default Tick Marker (78% is 14/25 = 56% along 50%-100% track) -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingHorizontal="8dp">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="14"
+                    android:text="50%"
+                    android:textColor="#64748b"
+                    android:textSize="10sp" />
+
+                <TextView
+                    android:id="@+id/text_overlay_scale_default_tick"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="▲ 78% Default"
+                    android:textColor="#38bdf8"
+                    android:textSize="10sp"
+                    android:textStyle="bold"
+                    android:paddingHorizontal="4dp" />
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="11"
+                    android:gravity="end"
+                    android:text="100%"
+                    android:textColor="#64748b"
+                    android:textSize="10sp" />
+            </LinearLayout>
         </LinearLayout>
     </LinearLayout>
 

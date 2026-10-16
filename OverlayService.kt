@@ -85,6 +85,7 @@ class OverlayService : LifecycleService() {
         const val EXTRA_RESULT_DATA = "extra_result_data"
         const val EXTRA_PRESET_JSON = "extra_preset_json"
         const val EXTRA_OPP_COUNT_MODE = "extra_opp_count_mode"
+        const val EXTRA_OVERLAY_SCALE_PCT = "extra_overlay_scale_pct"
 
         private const val NOTIFICATION_CHANNEL_ID = "gbl_battle_overlay_channel"
         private const val NOTIFICATION_ID = 2001
@@ -1092,6 +1093,7 @@ class OverlayService : LifecycleService() {
 
     private var currentLayoutMode = "option1"
     private var oppCountMode = "my_fasts"
+    private var overlayScalePct = 78
     private var cachedScreenBitmap: Bitmap? = null
     private val captureLock = Any()
 
@@ -1104,6 +1106,7 @@ class OverlayService : LifecycleService() {
         mediaProjectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         prefs = getSharedPreferences("gbl_overlay_prefs", Context.MODE_PRIVATE)
         oppCountMode = prefs.getString("opp_count_mode", "my_fasts") ?: "my_fasts"
+        overlayScalePct = prefs.getInt("overlay_scale_pct", 78).coerceIn(50, 100)
 
         val metrics = resources.displayMetrics
         screenWidth = metrics.widthPixels
@@ -1354,7 +1357,7 @@ class OverlayService : LifecycleService() {
             gravity = Gravity.TOP or Gravity.START
             x = (8 * density).toInt()
             y = (142 * density).toInt()
-            width = min((screenWidth * 0.78f).toInt(), (310 * density).toInt())
+            width = (screenWidth * (overlayScalePct.coerceIn(50, 100) / 100f)).toInt()
             height = WindowManager.LayoutParams.WRAP_CONTENT
         }
 
@@ -1376,7 +1379,7 @@ class OverlayService : LifecycleService() {
                     val deltaX = (event.rawX - initialTouchX).toInt()
                     val deltaY = (event.rawY - initialTouchY).toInt()
                     if (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10) {
-                        layoutParams.x = max(0, min(initialX + deltaX, screenWidth - 200))
+                        layoutParams.x = max(0, min(initialX + deltaX, max(0, screenWidth - layoutParams.width)))
                         layoutParams.y = max(20, min(initialY + deltaY, screenHeight - 200))
                         try {
                             windowManager.updateViewLayout(overlayView, layoutParams)
@@ -1395,6 +1398,22 @@ class OverlayService : LifecycleService() {
         }
     }
 
+    private fun applyOverlayScale(scalePct: Int) {
+        overlayScalePct = scalePct.coerceIn(50, 100)
+        if (!::layoutParams.isInitialized) return
+        val targetWidth = (screenWidth * (overlayScalePct / 100f)).toInt()
+        layoutParams.width = targetWidth
+        layoutParams.x = max(0, min(layoutParams.x, max(0, screenWidth - targetWidth)))
+        Handler(Looper.getMainLooper()).post {
+            try {
+                if (overlayView != null) {
+                    windowManager.updateViewLayout(overlayView, layoutParams)
+                    overlayView?.evaluateJavascript("if (window.setOverlayScalePct) setOverlayScalePct($overlayScalePct);", null)
+                }
+            } catch (_: Exception) {}
+        }
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
         val action = intent?.action ?: ACTION_START_OVERLAY
@@ -1409,6 +1428,12 @@ class OverlayService : LifecycleService() {
                 } ?: run {
                     oppCountMode = prefs.getString("opp_count_mode", "my_fasts") ?: "my_fasts"
                 }
+                val startScalePct = intent?.getIntExtra(
+                    EXTRA_OVERLAY_SCALE_PCT,
+                    prefs.getInt("overlay_scale_pct", 78)
+                ) ?: prefs.getInt("overlay_scale_pct", 78)
+                applyOverlayScale(startScalePct)
+
                 intent?.getStringExtra(EXTRA_PRESET_JSON)?.let { presetJson ->
                     try {
                         val incoming = gson.fromJson(presetJson, TeamPreset::class.java)
@@ -1447,10 +1472,17 @@ class OverlayService : LifecycleService() {
                 }
             }
             ACTION_UPDATE_SETTINGS -> {
-                val newMode = intent?.getStringExtra(EXTRA_OPP_COUNT_MODE)
-                    ?: prefs.getString("opp_count_mode", "my_fasts")
-                    ?: "my_fasts"
-                oppCountMode = if (newMode == "opp_fasts") "opp_fasts" else "my_fasts"
+                if (intent?.hasExtra(EXTRA_OPP_COUNT_MODE) == true) {
+                    val newMode = intent.getStringExtra(EXTRA_OPP_COUNT_MODE) ?: "my_fasts"
+                    oppCountMode = if (newMode == "opp_fasts") "opp_fasts" else "my_fasts"
+                } else {
+                    oppCountMode = prefs.getString("opp_count_mode", oppCountMode) ?: oppCountMode
+                }
+                val updatedScalePct = intent?.getIntExtra(
+                    EXTRA_OVERLAY_SCALE_PCT,
+                    prefs.getInt("overlay_scale_pct", overlayScalePct)
+                ) ?: prefs.getInt("overlay_scale_pct", overlayScalePct)
+                applyOverlayScale(updatedScalePct)
                 recalculateAndPushBattleData()
             }
             ACTION_START_BATTLE -> startNewBattle()
