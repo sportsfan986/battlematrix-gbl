@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#0f172a"
+    android:padding="16dp">
+
+    <!-- Header -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="GBL Battle Matrix"
+        android:textSize="22sp"
+        android:textStyle="bold"
+        android:textColor="#f8fafc" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Real-Time PvP Floating Overlay with In-Memory ML Kit OCR"
+        android:textSize="12sp"
+        android:textColor="#94a3b8"
+        android:layout_marginTop="2dp"
+        android:layout_marginBottom="12dp" />
+
+    <!-- Status Card -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="#1e293b"
+        android:padding="12dp"
+        android:layout_marginBottom="12dp">
+
+        <TextView
+            android:id="@+id/text_status"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Status: Idle (Ready to launch overlay)"
+            android:textColor="#38bdf8"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/text_db_status"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="PvPoke Database: Cached (Checking...)"
+            android:textColor="#cbd5e1"
+            android:textSize="12sp"
+            android:layout_marginTop="4dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="8dp">
+
+            <Button
+                android:id="@+id/btn_toggle_overlay"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:backgroundTint="#2563eb"
+                android:textColor="#ffffff"
+                android:text="Start Battle Overlay" />
+
+            <Button
+                android:id="@+id/btn_download_db"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:backgroundTint="#334155"
+                android:textColor="#ffffff"
+                android:text="Sync PvPoke" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Team Presets Section -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="8dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="GBL Team Presets"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="#e2e8f0" />
+
+        <Button
+            android:id="@+id/btn_add_preset"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:text="+ New Team"
+            android:textSize="12sp"
+            android:backgroundTint="#059669"
+            android:textColor="#ffffff" />
+    </LinearLayout>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <LinearLayout
+            android:id="@+id/layout_presets_list"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+    </ScrollView>
+
+</LinearLayout>

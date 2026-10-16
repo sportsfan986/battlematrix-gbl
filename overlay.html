@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>GBL Battle Matrix Overlay</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+
+        body {
+            background-color: transparent;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            color: #ffffff;
+            font-size: 11px;
+            overflow: hidden;
+            width: 100%;
+            height: auto;
+        }
+
+        /* Glassmorphism Ultra-High-Contrast Container */
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.88);
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            border-radius: 8px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            padding: 5px 7px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95), 0 0 4px rgba(0, 0, 0, 0.9);
+        }
+
+        /* Header Row */
+        .header-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 4px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+            padding-bottom: 3px;
+        }
+
+        .opp-title {
+            font-weight: 800;
+            font-size: 11px;
+            color: #fef08a;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .opp-move-tag {
+            color: #fdba74;
+            font-weight: 600;
+            font-size: 9.5px;
+        }
+
+        .controls-row {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+        }
+
+        /* Quick Action Toolbar & Active Team Chips */
+        .action-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 4px;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 3px 4px;
+            border-radius: 4px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .team-chips-group {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            overflow-x: auto;
+        }
+
+        .chip-btn {
+            background: rgba(255, 255, 255, 0.12);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #94a3b8;
+            font-size: 8.5px;
+            font-weight: 700;
+            border-radius: 3px;
+            padding: 1.5px 4px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.1s ease;
+        }
+
+        .chip-btn.active {
+            background: rgba(16, 185, 129, 0.35);
+            border-color: rgba(52, 211, 153, 0.8);
+            color: #34d399;
+            box-shadow: 0 0 6px rgba(52, 211, 153, 0.3);
+        }
+
+        .hud-btn {
+            background: rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            color: #ffffff;
+            font-size: 9px;
+            font-weight: 700;
+            border-radius: 3px;
+            padding: 2px 5px;
+            cursor: pointer;
+            outline: none;
+            transition: all 0.1s ease;
+            white-space: nowrap;
+        }
+
+        .hud-btn:active {
+            transform: scale(0.95);
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .hud-btn.btn-battle {
+            background: rgba(239, 68, 68, 0.35);
+            border-color: rgba(248, 113, 113, 0.7);
+            color: #fecaca;
+        }
+
+        .hud-btn.btn-pick {
+            background: rgba(56, 189, 248, 0.3);
+            border-color: rgba(125, 211, 252, 0.6);
+            color: #bae6fd;
+        }
+
+        .preset-select {
+            background: rgba(15, 23, 42, 0.95);
+            color: #34d399;
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            border-radius: 3px;
+            font-size: 9px;
+            font-weight: 700;
+            padding: 2px 4px;
+            outline: none;
+            max-width: 90px;
+            text-overflow: ellipsis;
+        }
+
+        /* 3v3 Matchup Matrix */
+        .matrix-container {
+            background: rgba(0, 0, 0, 0.32);
+            border-radius: 4px;
+            padding: 3px 5px;
+            display: flex;
+            flex-direction: column;
+            gap: 2.5px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 10px;
+        }
+
+        .matrix-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .matrix-opp-name {
+            font-weight: 700;
+            color: #f1f5f9;
+            width: 32px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .matrix-team-block {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            font-size: 9.5px;
+        }
+
+        .team-initial {
+            font-weight: 700;
+            color: #94a3b8;
+            margin-right: 1px;
+        }
+
+        .shield-dots {
+            display: inline-flex;
+            gap: 1.5px;
+            letter-spacing: -1px;
+            font-size: 9px;
+        }
+
+        .divider {
+            color: rgba(255, 255, 255, 0.25);
+            margin: 0 3px;
+        }
+
+        /* Turn Alignment Box */
+        .throw-alignment-box {
+            background: rgba(239, 68, 68, 0.18);
+            border-left: 2px solid #ef4444;
+            padding: 2.5px 6px;
+            border-radius: 2px 4px 4px 2px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-weight: 700;
+            color: #fed7aa;
+            font-size: 10px;
+        }
+
+        .throw-target {
+            color: #ffffff;
+            font-weight: 800;
+        }
+
+        /* Damage Counter Rows */
+        .damage-rows {
+            background: rgba(0, 0, 0, 0.25);
+            border-radius: 4px;
+            padding: 3px 5px;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            font-size: 9.5px;
+        }
+
+        .dmg-line {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            color: #cbd5e1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .dmg-taps {
+            color: #38bdf8;
+            font-weight: 700;
+        }
+
+        .dmg-ready {
+            color: #34d399;
+            font-weight: 800;
+        }
+
+        .scan-indicator {
+            width: 6px;
+            height: 6px;
+            background-color: #34d399;
+            border-radius: 50%;
+            display: inline-block;
+            box-shadow: 0 0 6px #34d399;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.4; transform: scale(0.9); }
+            50% { opacity: 1; transform: scale(1.15); }
+            100% { opacity: 0.4; transform: scale(0.9); }
+        }
+
+        /* Horizon Belt Mode (Bottom Ticker) */
+        .horizon-grid {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 6px;
+        }
+
+        .horizon-matrix {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 10px;
+            font-weight: 700;
+            overflow-x: auto;
+            white-space: nowrap;
+        }
+
+        /* Quick Picker Modal */
+        #picker-modal {
+            position: absolute;
+            top: 4px;
+            left: 4px;
+            right: 4px;
+            background: rgba(15, 23, 42, 0.98);
+            border: 1px solid #38bdf8;
+            border-radius: 6px;
+            padding: 6px;
+            z-index: 100;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.8);
+        }
+
+        #picker-modal input {
+            width: 100%;
+            background: #0f172a;
+            border: 1px solid #334155;
+            color: #fff;
+            padding: 4px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            outline: none;
+            margin-bottom: 4px;
+        }
+
+        #picker-modal .quick-picks {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 3px;
+            max-height: 90px;
+            overflow-y: auto;
+        }
+
+        #picker-modal .quick-btn {
+            background: #1e293b;
+            border: 1px solid #334155;
+            color: #e2e8f0;
+            font-size: 9px;
+            padding: 2px 5px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+
+        #picker-modal .quick-btn:hover {
+            background: #0284c7;
+            color: white;
+        }
+
+        /* Utility classes */
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Quick Opponent Picker Modal -->
+    <div id="picker-modal" class="hidden">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+            <span style="font-weight:bold; color:#38bdf8; font-size:10px;">Select Opponent</span>
+            <button class="hud-btn" onclick="closePicker()" style="padding:1px 4px;">✕</button>
+        </div>
+        <input type="text" id="picker-search" placeholder="Type Pokémon name..." oninput="filterQuickPicks(this.value)">
+        <div class="quick-picks" id="picker-items">
+            <!-- Populated via JS -->
+        </div>
+    </div>
+
+    <!-- OPTION 1: Top-Left Sky Trench (Clean, borderless, no handle bar) -->
+    <div id="mode-sky-trench" class="glass-panel">
+        <!-- Header: Opponent Name & Move -->
+        <div class="header-row">
+            <div class="opp-title" id="sky-title">
+                ⚔️ <span id="sky-opp-name">WAITING FOR OPPONENT...</span> 
+                <span class="opp-move-tag" id="sky-opp-fastmove">(Scanning Header...)</span>
+            </div>
+            <div class="controls-row">
+                <select id="preset-selector-sky" class="preset-select" onchange="onSelectPreset(this.value)">
+                    <option value="preset-1">Master: Dialga-O / Lugia / Kyogre</option>
+                    <option value="preset-2">Ultra: Giratina-A / Cresselia / Cobalion</option>
+                    <option value="preset-3">Great: Clodsire / Feraligatr / Mandibuzz</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Toolbar: Start Battle, Pick Opponent, and Active Team Member Chips -->
+        <div class="action-toolbar">
+            <div style="display:flex; gap:3px;">
+                <button id="btn-start-battle" class="hud-btn btn-battle" onclick="triggerStartBattle()" title="Clear previous opponents and start fresh match">
+                    ⚔️ Start Battle
+                </button>
+                <button class="hud-btn btn-pick" onclick="openPicker()" title="Manually search or select opponent">
+                    🔍 Pick Opp
+                </button>
+            </div>
+            <div id="sky-team-chips" class="team-chips-group">
+                <!-- Dynamically populated via JS: 1-tap active lead switch -->
+            </div>
+        </div>
+
+        <!-- 3v3 Matchup Matrix Dots -->
+        <div class="matrix-container" id="sky-matrix-body">
+            <div style="font-size:9px; color:#94a3b8; text-align:center; padding:3px 0;">
+                ⚔️ Tap "Start Battle" when match starts
+            </div>
+        </div>
+
+        <!-- Turn Alignment Box -->
+        <div class="throw-alignment-box" id="sky-throw-box">
+            <span>🎯 THROW:</span>
+            <span class="throw-target" id="sky-throw-timing">Waiting for Opponent spawn</span>
+            <span style="font-size: 8.5px; opacity: 0.8; margin-left: auto;">(Zero-Sneak)</span>
+        </div>
+
+        <!-- Damage Counter & Energy Taps -->
+        <div class="damage-rows">
+            <div class="dmg-line" id="sky-dmg-active">
+                💥 <strong id="sky-opp-short">Awaiting Opponent</strong> Dmg to <span id="sky-active-pokemon" style="color:#38bdf8; font-weight:bold;">My Lead</span>: 
+                <span class="dmg-taps" id="sky-dmg-values">—</span>
+            </div>
+            <div class="dmg-line" id="sky-dmg-bench" style="opacity: 0.85;">
+                Opponent Bench: Awaiting detection...
+            </div>
+        </div>
+    </div>
+
+    <!-- OPTION 2: Bottom Horizon Belt Fallback -->
+    <div id="mode-horizon-belt" class="glass-panel hidden">
+        <div class="horizon-grid">
+            <div class="horizon-matrix" id="horizon-matrix-line">
+                <span class="scan-indicator"></span>
+                <strong id="horizon-opp-title">[Waiting for Opponent]</strong>
+                <span id="horizon-matrix-dots" style="color: #94a3b8;">Scanning top battle header...</span>
+            </div>
+            <div style="display: flex; gap: 3px; align-items: center; margin-left: auto;">
+                <button class="hud-btn btn-battle" onclick="triggerStartBattle()" style="padding:1px 4px; font-size:8.5px;">⚔️ New</button>
+            </div>
+        </div>
+        <div class="horizon-grid" style="font-size: 9px; color: #fdba74; margin-top:2px;">
+            <div>
+                🎯 <strong style="color: #fff;">THROW ON:</strong> <span id="horizon-throw-timing">—</span>
+                <span class="divider">•</span>
+                💥 <span id="horizon-dmg-summary">Awaiting opponent spawn...</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentMode = "option1"; // "option1" or "option2"
+        let isWaiting = true;
+
+        const QUICK_POKEMON_LIST = [
+            "Raikou", "Entei", "Suicune", "Zapdos", "Moltres", "Articuno", "Rayquaza",
+            "Dialga (Origin)", "Dialga", "Palkia (Origin)", "Lugia", "Kyogre", "Groudon",
+            "Mewtwo", "Zacian (Crowned)", "Zacian", "Xerneas", "Yveltal", "Zygarde",
+            "Giratina (Origin)", "Giratina (Altered)", "Landorus (Therian)", "Ho-Oh",
+            "Solgaleo", "Lunala", "Necrozma (Dusk Mane)", "Necrozma (Dawn Wings)",
+            "Dragonite", "Garchomp", "Tyranitar", "Metagross", "Excadrill", "Rhyperior",
+            "Mamoswine", "Togekiss", "Primarina", "Annihilape", "Heatran", "Florges",
+            "Clodsire", "Feraligatr", "Mandibuzz", "Cresselia", "Cobalion", "Virizion",
+            "Talonflame", "Swampert", "Whiscash", "Skarmory", "Azumarill", "Bastiodon",
+            "Serperior", "Charizard", "Skeledirge", "Poliwrath", "Machamp", "Lanturn"
+        ];
+
+        let battleData = {
+            activeOpponent: "Waiting...",
+            activeOpponentFastMove: "Scanning Header...",
+            activeOpponentTurns: 0,
+            activeOpponentEnergyPerMove: 0,
+            userActivePokemon: "My Lead",
+            userFastMoveTurns: 2,
+            team: [
+                { initial: "P1", name: "Dialga (Origin)" },
+                { initial: "P2", name: "Lugia" },
+                { initial: "P3", name: "Kyogre" }
+            ],
+            scannedOpponents: [],
+            throwAlignmentText: "Waiting for Opponent spawn",
+            throwHorizonText: "—"
+        };
+
+        function toggleLayoutMode() {
+            if (currentMode === "option1") {
+                setLayoutMode("option2");
+            } else {
+                setLayoutMode("option1");
+            }
+            if (window.AndroidOverlay && window.AndroidOverlay.onLayoutSwitched) {
+                window.AndroidOverlay.onLayoutSwitched(currentMode);
+            }
+            notifyHeight();
+        }
+
+        function setLayoutMode(mode) {
+            currentMode = mode;
+            const skyEl = document.getElementById("mode-sky-trench");
+            const horizEl = document.getElementById("mode-horizon-belt");
+
+            if (mode === "option2") {
+                skyEl.classList.add("hidden");
+                horizEl.classList.remove("hidden");
+            } else {
+                horizEl.classList.add("hidden");
+                skyEl.classList.remove("hidden");
+            }
+            notifyHeight();
+        }
+
+        function notifyHeight() {
+            try {
+                const el = document.getElementById(currentMode === "option1" ? "mode-sky-trench" : "mode-horizon-belt");
+                const h = el ? el.offsetHeight + 10 : document.body.scrollHeight;
+                if (window.AndroidOverlay && window.AndroidOverlay.updateContentHeight) {
+                    window.AndroidOverlay.updateContentHeight(Math.max(60, Math.ceil(h)));
+                }
+            } catch(e) {}
+        }
+
+        // TRIGGER START BATTLE ACTION (Clears opponents)
+        function triggerStartBattle() {
+            const btn = document.getElementById("btn-start-battle");
+            if (btn) {
+                btn.textContent = "⚔️ Ready!";
+                setTimeout(() => {
+                    btn.textContent = "⚔️ Start Battle";
+                }, 1800);
+            }
+
+            isWaiting = true;
+            battleData.activeOpponent = "Waiting...";
+            battleData.activeOpponentFastMove = "Scanning Header...";
+            battleData.activeOpponentTurns = 0;
+            battleData.scannedOpponents = [];
+            battleData.throwAlignmentText = "Waiting for Opponent spawn";
+            battleData.throwHorizonText = "—";
+            render();
+
+            if (window.AndroidOverlay && window.AndroidOverlay.startNewBattle) {
+                window.AndroidOverlay.startNewBattle();
+            }
+        }
+
+        function selectUserPokemon(pokemonName) {
+            battleData.userActivePokemon = pokemonName;
+            render();
+            if (window.AndroidOverlay && window.AndroidOverlay.selectActiveUserPokemon) {
+                window.AndroidOverlay.selectActiveUserPokemon(pokemonName);
+            }
+        }
+
+        function onSelectPreset(presetId) {
+            if (window.AndroidOverlay && window.AndroidOverlay.onSelectPreset) {
+                window.AndroidOverlay.onSelectPreset(presetId);
+            }
+        }
+
+        // Bridge function called by Android Service
+        function updateBattleData(dataJson) {
+            try {
+                const data = typeof dataJson === "string" ? JSON.parse(dataJson) : dataJson;
+                battleData = data;
+                isWaiting = (battleData.activeOpponent === "Waiting..." || !battleData.activeOpponent);
+                render();
+            } catch (e) {
+                console.error("Error parsing battle data in overlay", e);
+            }
+        }
+
+        // Bridge function to update presets in dropdown
+        function updatePresets(presetsJson) {
+            try {
+                const presets = typeof presetsJson === "string" ? JSON.parse(presetsJson) : presetsJson;
+                const selector = document.getElementById("preset-selector-sky");
+                selector.innerHTML = "";
+                presets.forEach(p => {
+                    const opt = document.createElement("option");
+                    opt.value = p.id;
+                    const summary = (p.pokemon || []).map(m => m.name.substring(0, 4)).join("/");
+                    opt.textContent = (p.name || "Preset") + (summary ? " (" + summary + ")" : "");
+                    if (p.isSelected) opt.selected = true;
+                    selector.appendChild(opt);
+                });
+                notifyHeight();
+            } catch (e) {
+                console.error("Error updating presets dropdown", e);
+            }
+        }
+
+        // Manual Opponent Picker logic
+        function openPicker() {
+            const modal = document.getElementById("picker-modal");
+            modal.classList.remove("hidden");
+            filterQuickPicks("");
+            document.getElementById("picker-search").focus();
+        }
+
+        function closePicker() {
+            document.getElementById("picker-modal").classList.add("hidden");
+        }
+
+        function filterQuickPicks(query) {
+            const container = document.getElementById("picker-items");
+            container.innerHTML = "";
+            const filtered = QUICK_POKEMON_LIST.filter(name => 
+                name.toLowerCase().includes(query.toLowerCase())
+            );
+            filtered.forEach(name => {
+                const btn = document.createElement("button");
+                btn.className = "quick-btn";
+                btn.textContent = name;
+                btn.onclick = () => selectManualOpponent(name);
+                container.appendChild(btn);
+            });
+        }
+
+        function selectManualOpponent(name) {
+            closePicker();
+            if (window.AndroidOverlay && window.AndroidOverlay.setOpponentManually) {
+                window.AndroidOverlay.setOpponentManually(name);
+            }
+        }
+
+        function render() {
+            const isWaitingState = (battleData.activeOpponent === "Waiting..." || !battleData.activeOpponent);
+
+            // Render active team chips for 1-tap player switches
+            const teamChipsContainer = document.getElementById("sky-team-chips");
+            if (teamChipsContainer && battleData.team) {
+                teamChipsContainer.innerHTML = battleData.team.map(member => {
+                    const fullName = member.name || "Pokemon";
+                    const shortName = fullName.split(" ")[0].substring(0, 7);
+                    const isActive = (fullName.toLowerCase() === (battleData.userActivePokemon || "").toLowerCase());
+                    return `<button class="chip-btn ${isActive ? 'active' : ''}" onclick="selectUserPokemon('${fullName}')" title="Switch active lead to ${fullName}">${shortName}</button>`;
+                }).join("");
+            }
+
+            // Render Option 1 (Sky Trench)
+            const oppNameEl = document.getElementById("sky-opp-name");
+            const oppMoveEl = document.getElementById("sky-opp-fastmove");
+            const throwTimingEl = document.getElementById("sky-throw-timing");
+            const userPokeEl = document.getElementById("sky-active-pokemon");
+            const oppShortEl = document.getElementById("sky-opp-short");
+            const dmgValuesEl = document.getElementById("sky-dmg-values");
+            const benchDmgEl = document.getElementById("sky-dmg-bench");
+            const matrixBody = document.getElementById("sky-matrix-body");
+
+            userPokeEl.textContent = battleData.userActivePokemon || "My Lead";
+
+            if (isWaitingState) {
+                oppNameEl.textContent = "WAITING FOR OPPONENT...";
+                oppMoveEl.textContent = "(Scanning Header...)";
+                throwTimingEl.textContent = "Waiting for Opponent spawn";
+                oppShortEl.textContent = "Opponent";
+                dmgValuesEl.textContent = "Awaiting spawn...";
+                benchDmgEl.textContent = "Opponent Bench: Awaiting detection...";
+
+                matrixBody.innerHTML = `
+                    <div style="display:flex; align-items:center; gap:6px; color:#cbd5e1; font-size:9.5px; padding:3px 0;">
+                        <span class="scan-indicator"></span>
+                        <span>Scanner active! Spawn opponent in battle or tap <strong>Pick Opp</strong></span>
+                    </div>
+                `;
+            } else {
+                oppNameEl.textContent = "VS " + battleData.activeOpponent.toUpperCase();
+                oppMoveEl.textContent = `(${battleData.activeOpponentTurns || 2}t ${battleData.activeOpponentFastMove || "Fast Attack"})`;
+                throwTimingEl.textContent = battleData.throwAlignmentText || "3rd, 5th, or 7th Attack";
+                oppShortEl.textContent = battleData.activeOpponent;
+
+                // Render Active Opponent Dmg & Bench
+                if (battleData.scannedOpponents && battleData.scannedOpponents.length > 0) {
+                    const activeOpp = battleData.scannedOpponents[0];
+                    dmgValuesEl.innerHTML = `<span class="dmg-ready">${activeOpp.c1 || "C1 (30%)"}</span> | <span class="dmg-taps">${activeOpp.c2 || "C2 (50%)"}</span>`;
+                    
+                    if (battleData.scannedOpponents.length > 1) {
+                        const bench = battleData.scannedOpponents.slice(1);
+                        benchDmgEl.innerHTML = "💥 Bench: " + bench.map(b => `${b.code}: ${b.c1 || ''} | ${b.c2 || ''}`).join(" • ");
+                    } else {
+                        benchDmgEl.innerHTML = "Opponent Bench: Awaiting switch...";
+                    }
+
+                    // Render 3v3 Matchup Matrix
+                    const teamInitials = (battleData.team && battleData.team.length >= 3) 
+                        ? battleData.team 
+                        : [{ initial: "P1" }, { initial: "P2" }, { initial: "P3" }];
+
+                    matrixBody.innerHTML = battleData.scannedOpponents.map(opp => `
+                        <div class="matrix-row">
+                            <span class="matrix-opp-name">${opp.code || opp.name.substring(0, 3)}</span>
+                            <div class="matrix-team-block">
+                                <span class="team-initial">${teamInitials[0].initial}:</span><span class="shield-dots">${opp.matrix ? (opp.matrix.p1 || opp.matrix.d || '🟢🟡🔴') : '🟢🟡🔴'}</span>
+                                <span class="divider">|</span>
+                                <span class="team-initial">${teamInitials[1].initial}:</span><span class="shield-dots">${opp.matrix ? (opp.matrix.p2 || opp.matrix.l || '🔴🔴🔴') : '🔴🔴🔴'}</span>
+                                <span class="divider">|</span>
+                                <span class="team-initial">${teamInitials[2].initial}:</span><span class="shield-dots">${opp.matrix ? (opp.matrix.p3 || opp.matrix.k || '🟢🟢🟢') : '🟢🟢🟢'}</span>
+                            </div>
+                        </div>
+                    `).join("");
+                }
+            }
+
+            // Render Option 2 (Horizon Belt)
+            const horizonTitle = document.getElementById("horizon-opp-title");
+            const horizonDots = document.getElementById("horizon-matrix-dots");
+            const horizonThrow = document.getElementById("horizon-throw-timing");
+            const horizonDmg = document.getElementById("horizon-dmg-summary");
+
+            if (isWaitingState) {
+                horizonTitle.textContent = "[Waiting for Opponent]";
+                horizonDots.textContent = "Scanning top battle header...";
+                horizonThrow.textContent = "—";
+                horizonDmg.textContent = "Awaiting opponent spawn...";
+            } else {
+                horizonTitle.textContent = `[${battleData.activeOpponent}: ${battleData.activeOpponentTurns}t]`;
+                horizonThrow.textContent = battleData.throwHorizonText || "3, 5, 7";
+                if (battleData.scannedOpponents && battleData.scannedOpponents.length > 0) {
+                    horizonDots.innerHTML = battleData.scannedOpponents.map((opp, idx) => `
+                        <strong>${opp.code}</strong> ${opp.matrix ? (opp.matrix.p1 || opp.matrix.d || '🟢🟡🔴') : '🟢🟡🔴'}
+                        ${idx < battleData.scannedOpponents.length - 1 ? ' • ' : ''}
+                    `).join("");
+                    horizonDmg.textContent = `Dmg: ${battleData.scannedOpponents.map(o => `${o.code} [${o.c1}]`).join(" • ")}`;
+                }
+            }
+
+            setTimeout(notifyHeight, 50);
+        }
+
+        // Initial setup
+        window.onload = function() {
+            render();
+            if (window.AndroidOverlay && window.AndroidOverlay.onOverlayReady) {
+                window.AndroidOverlay.onOverlayReady();
+            }
+            notifyHeight();
+        };
+    </script>
+</body>
+</html>

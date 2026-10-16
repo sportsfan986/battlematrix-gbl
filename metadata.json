@@ -1,0 +1,6 @@
+{
+  "name": "GBL Battle Matrix - Real-Time Pokémon GO Overlay",
+  "description": "Real-time floating battle analysis overlay for Pokémon GO Battle League with ML Kit OCR, PvPoke gamemaster stats, turn alignment, and 3v3 matchup matrix.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
