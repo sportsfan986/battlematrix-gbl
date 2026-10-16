@@ -83,11 +83,11 @@ export const POKEMON_DATABASE: Record<string, PokemonStats> = {
     formLabel: "Crowned",
     types: ["fairy", "steel"],
     baseStats: { atk: 264, def: 216, hp: 173 },
-    defaultFastMove: { name: "Quick Attack", type: "normal", turns: 1, power: 5, energyGain: 7 },
+    defaultFastMove: { name: "Metal Claw", type: "steel", turns: 2, power: 5, energyGain: 7 },
     chargedMoves: [
+      { name: "Behemoth Blade", code: "BBl", type: "steel", power: 100, energyCost: 55 },
       { name: "Close Combat", code: "CC", type: "fighting", power: 100, energyCost: 45 },
-      { name: "Brave Bird", code: "BB", type: "flying", power: 130, energyCost: 55 },
-      { name: "Wild Charge", code: "WC", type: "electric", power: 100, energyCost: 45 }
+      { name: "Play Rough", code: "PR", type: "fairy", power: 90, energyCost: 60 }
     ],
     color: "#ec4899"
   },
@@ -105,6 +105,66 @@ export const POKEMON_DATABASE: Record<string, PokemonStats> = {
       { name: "Wild Charge", code: "WC", type: "electric", power: 100, energyCost: 45 }
     ],
     color: "#f472b6"
+  },
+  "Zamazenta (Crowned)": {
+    speciesId: "zamazenta_crowned",
+    name: "Zamazenta (Crowned)",
+    baseSpecies: "zamazenta",
+    formLabel: "Crowned",
+    types: ["fighting", "steel"],
+    baseStats: { atk: 225, def: 260, hp: 173 },
+    defaultFastMove: { name: "Metal Claw", type: "steel", turns: 2, power: 5, energyGain: 7 },
+    chargedMoves: [
+      { name: "Behemoth Bash", code: "BBs", type: "steel", power: 80, energyCost: 45 },
+      { name: "Close Combat", code: "CC", type: "fighting", power: 100, energyCost: 45 },
+      { name: "Moonblast", code: "MB", type: "fairy", power: 110, energyCost: 60 }
+    ],
+    color: "#ef4444"
+  },
+  "Zamazenta (Hero)": {
+    speciesId: "zamazenta_hero",
+    name: "Zamazenta (Hero)",
+    baseSpecies: "zamazenta",
+    formLabel: "Hero",
+    types: ["fighting"],
+    baseStats: { atk: 232, def: 215, hp: 173 },
+    defaultFastMove: { name: "Snarl", type: "dark", turns: 3, power: 5, energyGain: 13 },
+    chargedMoves: [
+      { name: "Close Combat", code: "CC", type: "fighting", power: 100, energyCost: 45 },
+      { name: "Crunch", code: "Cr", type: "dark", power: 70, energyCost: 45 },
+      { name: "Moonblast", code: "MB", type: "fairy", power: 110, energyCost: 60 }
+    ],
+    color: "#f87171"
+  },
+  "Keldeo (Resolute)": {
+    speciesId: "keldeo_resolute",
+    name: "Keldeo (Resolute)",
+    baseSpecies: "keldeo",
+    formLabel: "Resolute",
+    types: ["water", "fighting"],
+    baseStats: { atk: 234, def: 171, hp: 188 },
+    defaultFastMove: { name: "Low Kick", type: "fighting", turns: 2, power: 4, energyGain: 7 },
+    chargedMoves: [
+      { name: "Secret Sword", code: "SS", type: "fighting", power: 70, energyCost: 35 },
+      { name: "Aqua Jet", code: "AJ", type: "water", power: 70, energyCost: 40 },
+      { name: "Hydro Pump", code: "HP", type: "water", power: 130, energyCost: 75 }
+    ],
+    color: "#0ea5e9"
+  },
+  "Keldeo (Ordinary)": {
+    speciesId: "keldeo_ordinary",
+    name: "Keldeo (Ordinary)",
+    baseSpecies: "keldeo",
+    formLabel: "Ordinary",
+    types: ["water", "fighting"],
+    baseStats: { atk: 234, def: 171, hp: 188 },
+    defaultFastMove: { name: "Low Kick", type: "fighting", turns: 2, power: 4, energyGain: 7 },
+    chargedMoves: [
+      { name: "Sacred Sword", code: "ScS", type: "fighting", power: 60, energyCost: 35 },
+      { name: "Aqua Jet", code: "AJ", type: "water", power: 70, energyCost: 40 },
+      { name: "Hydro Pump", code: "HP", type: "water", power: 130, energyCost: 75 }
+    ],
+    color: "#38bdf8"
   },
   "Dialga (Origin)": {
     speciesId: "dialga_origin",
@@ -395,6 +455,8 @@ export const POKEMON_DATABASE: Record<string, PokemonStats> = {
 
 export const SPECIES_VARIANTS: Record<string, string[]> = {
   zacian: ["Zacian (Crowned)", "Zacian (Hero)"],
+  zamazenta: ["Zamazenta (Crowned)", "Zamazenta (Hero)"],
+  keldeo: ["Keldeo (Resolute)", "Keldeo (Ordinary)"],
   giratina: ["Giratina (Origin)", "Giratina (Altered)"],
   ninetales: ["Ninetales (Alolan)", "Kanto Ninetales"],
   dialga: ["Dialga (Origin)"],

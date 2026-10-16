@@ -120,8 +120,12 @@ class OverlayService : LifecycleService() {
             "Dialga" to "Thunder",
             "Palkia (Origin)" to "Hydro Pump",
             "Palkia" to "Hydro Pump",
-            "Zacian (Crowned)" to "Wild Charge",
+            "Zacian (Crowned)" to "Play Rough",
             "Zacian (Hero)" to "Wild Charge",
+            "Zamazenta (Crowned)" to "Moonblast",
+            "Zamazenta (Hero)" to "Moonblast",
+            "Keldeo (Resolute)" to "Hydro Pump",
+            "Keldeo (Ordinary)" to "Hydro Pump",
             "Zygarde" to "Outrage",
             "Lugia" to "Sky Attack",
             "Kyogre" to "Surf",
@@ -261,6 +265,14 @@ class OverlayService : LifecycleService() {
         )
 
         val MOVE_DATABASE: Map<String, MoveStats> = mapOf(
+            "Behemoth Blade" to MoveStats("Behemoth Blade", "steel", 100),
+            "Behemoth Bash" to MoveStats("Behemoth Bash", "steel", 80),
+            "Secret Sword" to MoveStats("Secret Sword", "fighting", 70),
+            "Aqua Jet" to MoveStats("Aqua Jet", "water", 70),
+            "Double Iron Bash" to MoveStats("Double Iron Bash", "steel", 70),
+            "Bleakwind Storm" to MoveStats("Bleakwind Storm", "flying", 60),
+            "Wildbolt Storm" to MoveStats("Wildbolt Storm", "electric", 60),
+            "Springtide Storm" to MoveStats("Springtide Storm", "fairy", 60),
             "Roar of Time" to MoveStats("Roar of Time", "dragon", 150),
             "Iron Head" to MoveStats("Iron Head", "steel", 70),
             "Draco Meteor" to MoveStats("Draco Meteor", "dragon", 150),
@@ -416,6 +428,8 @@ class OverlayService : LifecycleService() {
             "fire fang" to 2,
             "vine whip" to 2,
             "karate chop" to 2,
+            "low kick" to 2,
+            "ice fang" to 2,
             "metal claw" to 2,
             "sucker punch" to 2,
             "poison jab" to 2,
@@ -450,10 +464,12 @@ class OverlayService : LifecycleService() {
 
         val POKEMON_META_DATABASE = listOf(
             // --- Multi-Form & Regional Variants ---
-            PokemonMeta("Zacian (Crowned)", "zacian_crowned", "zacian", "Crowned", listOf("fairy", "steel"), 4620, "Metal Claw", 2, "Close Combat", "Play Rough", 48, 52, atk = 264.0, def = 216.0, hp = 173, glRank = 400, ulRank = 300, mlRank = 2),
-            PokemonMeta("Zacian (Hero)", "zacian_hero", "zacian", "Hero", listOf("fairy"), 4329, "Quick Attack", 1, "Close Combat", "Play Rough", 44, 42, atk = 232.0, def = 215.0, hp = 173, glRank = 420, ulRank = 310, mlRank = 18),
-            PokemonMeta("Zamazenta (Crowned)", "zamazenta_crowned", "zamazenta", "Crowned", listOf("fighting", "steel"), 4620, "Metal Claw", 2, "Close Combat", "Iron Head", 48, 42, atk = 225.0, def = 260.0, hp = 173, glRank = 390, ulRank = 280, mlRank = 12),
-            PokemonMeta("Zamazenta (Hero)", "zamazenta_hero", "zamazenta", "Hero", listOf("fighting"), 4329, "Snarl", 3, "Close Combat", "Crunch", 46, 32, atk = 232.0, def = 215.0, hp = 173, glRank = 410, ulRank = 290, mlRank = 20),
+            PokemonMeta("Zacian (Crowned)", "zacian_crowned", "zacian", "Crowned", listOf("fairy", "steel"), 4620, "Metal Claw", 2, "Behemoth Blade", "Close Combat", 52, 48, atk = 264.0, def = 216.0, hp = 173, glRank = 400, ulRank = 300, mlRank = 2, chargedMove3 = "Play Rough"),
+            PokemonMeta("Zacian (Hero)", "zacian_hero", "zacian", "Hero", listOf("fairy"), 4329, "Quick Attack", 1, "Close Combat", "Play Rough", 44, 42, atk = 232.0, def = 215.0, hp = 173, glRank = 420, ulRank = 310, mlRank = 18, chargedMove3 = "Wild Charge"),
+            PokemonMeta("Zamazenta (Crowned)", "zamazenta_crowned", "zamazenta", "Crowned", listOf("fighting", "steel"), 4620, "Metal Claw", 2, "Behemoth Bash", "Close Combat", 46, 48, atk = 225.0, def = 260.0, hp = 173, glRank = 390, ulRank = 280, mlRank = 12, chargedMove3 = "Moonblast"),
+            PokemonMeta("Zamazenta (Hero)", "zamazenta_hero", "zamazenta", "Hero", listOf("fighting"), 4329, "Snarl", 3, "Close Combat", "Crunch", 46, 32, atk = 232.0, def = 215.0, hp = 173, glRank = 410, ulRank = 290, mlRank = 20, chargedMove3 = "Moonblast"),
+            PokemonMeta("Keldeo (Resolute)", "keldeo_resolute", "keldeo", "Resolute", listOf("water", "fighting"), 4181, "Low Kick", 2, "Secret Sword", "Aqua Jet", 42, 38, atk = 234.0, def = 171.0, hp = 188, glRank = 140, ulRank = 65, mlRank = 14, chargedMove3 = "Hydro Pump"),
+            PokemonMeta("Keldeo (Ordinary)", "keldeo_ordinary", "keldeo", "Ordinary", listOf("water", "fighting"), 4181, "Low Kick", 2, "Sacred Sword", "Aqua Jet", 38, 38, atk = 234.0, def = 171.0, hp = 188, glRank = 150, ulRank = 70, mlRank = 19, chargedMove3 = "Hydro Pump"),
             PokemonMeta("Giratina (Origin)", "giratina_origin", "giratina", "Origin", listOf("ghost", "dragon"), 4164, "Shadow Claw", 2, "Shadow Ball", "Ominous Wind", 46, 22, atk = 206.0, def = 172.0, hp = 247, glRank = 180, ulRank = 35, mlRank = 9),
             PokemonMeta("Giratina (Altered)", "giratina_altered", "giratina", "Altered", listOf("ghost", "dragon"), 3820, "Shadow Claw", 2, "Dragon Claw", "Ancient Power", 28, 26, atk = 171.0, def = 206.0, hp = 247, glRank = 190, ulRank = 3, mlRank = 26),
             PokemonMeta("Ninetales (Alolan)", "ninetales_alolan", "ninetales", "Alolan", listOf("ice", "fairy"), 2610, "Powder Snow", 2, "Weather Ball", "Dazzling Gleam", 34, 46, atk = 116.0, def = 138.0, hp = 126, glRank = 16, ulRank = 32, mlRank = 320),
@@ -804,6 +820,24 @@ class OverlayService : LifecycleService() {
                     if (existingIds.contains(speciesId.lowercase())) continue
 
                     val speciesName = obj.get("speciesName")?.asString ?: continue
+                    val baseSpecies = speciesName.lowercase()
+                        .replace(Regex("\\(.*?\\)"), " ")
+                        .replace(Regex("\\b(?:shadow|purified|alolan|galarian|hisuian|paldean)\\b"), " ")
+                        .replace(Regex("\\s+"), " ")
+                        .trim()
+                        .let { if (it.startsWith("tapu ")) it else it.split(" ").firstOrNull() ?: speciesName.lowercase() }
+
+                    val formLabel = Regex("\\((.*?)\\)").find(speciesName)?.groupValues?.getOrNull(1) ?: "Base"
+
+                    // Skip if POKEMON_META_DATABASE already defines this species & form (e.g. "Crowned Sword" vs "Crowned")
+                    val alreadyDefinedForm = POKEMON_META_DATABASE.any {
+                        it.baseSpecies.equals(baseSpecies, ignoreCase = true) &&
+                            (it.formLabel.equals(formLabel, ignoreCase = true) ||
+                                formLabel.lowercase().startsWith(it.formLabel.lowercase()) ||
+                                it.formLabel.lowercase().startsWith(formLabel.lowercase()))
+                    }
+                    if (alreadyDefinedForm) continue
+
                     val typesArr = obj.getAsJsonArray("types")
                     val types = mutableListOf<String>()
                     if (typesArr != null) {
@@ -827,23 +861,34 @@ class OverlayService : LifecycleService() {
                         ?: FAST_MOVE_TURNS[fastMoveName.lowercase()] ?: 2
 
                     val chargedArr = obj.getAsJsonArray("chargedMoves")
-                    val c1Id = chargedArr?.getOrNull(0)?.asString ?: "BODY_SLAM"
-                    val c2Id = chargedArr?.getOrNull(1)?.asString ?: c1Id
-                    val c3Id = chargedArr?.getOrNull(2)?.asString ?: ""
+                    val eliteArr = obj.getAsJsonArray("eliteMoves")
+                    val orderedChargedIds = mutableListOf<String>()
+                    // Prioritize elite/signature charged moves first if present
+                    if (eliteArr != null) {
+                        for (em in eliteArr) {
+                            val emId = em.asString
+                            if (!fastMoveNames.containsKey(emId) && !orderedChargedIds.contains(emId)) {
+                                orderedChargedIds.add(emId)
+                            }
+                        }
+                    }
+                    if (chargedArr != null) {
+                        for (cm in chargedArr) {
+                            val cmId = cm.asString
+                            if (!orderedChargedIds.contains(cmId)) {
+                                orderedChargedIds.add(cmId)
+                            }
+                        }
+                    }
+
+                    val c1Id = orderedChargedIds.getOrNull(0) ?: "BODY_SLAM"
+                    val c2Id = orderedChargedIds.getOrNull(1) ?: c1Id
+                    val c3Id = orderedChargedIds.getOrNull(2) ?: ""
                     val c1Name = c1Id.lowercase().split("_").joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
                     val c2Name = c2Id.lowercase().split("_").joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
                     val c3Name = if (c3Id.isNotBlank()) {
                         c3Id.lowercase().split("_").joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
                     } else ""
-
-                    val baseSpecies = speciesName.lowercase()
-                        .replace(Regex("\\(.*?\\)"), " ")
-                        .replace(Regex("\\b(?:shadow|purified|alolan|galarian|hisuian|paldean)\\b"), " ")
-                        .replace(Regex("\\s+"), " ")
-                        .trim()
-                        .let { if (it.startsWith("tapu ")) it else it.split(" ").firstOrNull() ?: speciesName.lowercase() }
-
-                    val formLabel = Regex("\\((.*?)\\)").find(speciesName)?.groupValues?.getOrNull(1) ?: "Base"
 
                     parsedList.add(
                         PokemonMeta(
