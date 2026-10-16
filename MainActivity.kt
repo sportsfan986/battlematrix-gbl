@@ -69,7 +69,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnAddPreset: Button
     private lateinit var presetsContainer: LinearLayout
 
-    private val PREFS_KEY_PRESETS = "gbl_team_presets_v4"
+    private val PREFS_KEY_PRESETS = "gbl_team_presets_v5"
     private val PREFS_KEY_SELECTED_PRESET = "gbl_selected_preset_id"
     private val GAMEMASTER_URL = "https://raw.githubusercontent.com/pvpoke/pvpoke/master/src/data/gamemaster.json"
 
@@ -245,8 +245,8 @@ class MainActivity : AppCompatActivity() {
                     league = "MASTER LEAGUE",
                     pokemon = listOf(
                         PokemonSlot("Dialga (Origin)", 4624, "Dragon Breath", "Roar of Time", "Iron Head"),
-                        PokemonSlot("Lugia", 4179, "Dragon Tail", "Aeroblast", "Sky Attack"),
-                        PokemonSlot("Kyogre", 4652, "Waterfall", "Surf", "Origin Pulse")
+                        PokemonSlot("Lugia", 4179, "Dragon Tail", "Aeroblast", "Earth Power"),
+                        PokemonSlot("Kyogre", 4652, "Waterfall", "Origin Pulse", "Avalanche")
                     ),
                     isSelected = true
                 ),
@@ -266,7 +266,7 @@ class MainActivity : AppCompatActivity() {
                     league = "GREAT LEAGUE",
                     pokemon = listOf(
                         PokemonSlot("Kanto Ninetales", 1498, "Fire Spin", "Weather Ball", "Scorching Sands"),
-                        PokemonSlot("Fearow", 1500, "Peck", "Sky Attack", "Drill Run"),
+                        PokemonSlot("Fearow", 1500, "Peck", "Drill Run", "Drill Peck"),
                         PokemonSlot("Shadow Pidgeot", 1490, "Gust", "Twister", "Brave Bird")
                     )
                 )

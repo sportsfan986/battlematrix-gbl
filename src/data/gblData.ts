@@ -86,7 +86,8 @@ export const POKEMON_DATABASE: Record<string, PokemonStats> = {
     defaultFastMove: { name: "Quick Attack", type: "normal", turns: 1, power: 5, energyGain: 7 },
     chargedMoves: [
       { name: "Close Combat", code: "CC", type: "fighting", power: 100, energyCost: 45 },
-      { name: "Brave Bird", code: "BB", type: "flying", power: 130, energyCost: 55 }
+      { name: "Brave Bird", code: "BB", type: "flying", power: 130, energyCost: 55 },
+      { name: "Wild Charge", code: "WC", type: "electric", power: 100, energyCost: 45 }
     ],
     color: "#ec4899"
   },
@@ -100,7 +101,8 @@ export const POKEMON_DATABASE: Record<string, PokemonStats> = {
     defaultFastMove: { name: "Quick Attack", type: "normal", turns: 1, power: 5, energyGain: 7 },
     chargedMoves: [
       { name: "Close Combat", code: "CC", type: "fighting", power: 100, energyCost: 45 },
-      { name: "Play Rough", code: "PR", type: "fairy", power: 90, energyCost: 60 }
+      { name: "Play Rough", code: "PR", type: "fairy", power: 90, energyCost: 60 },
+      { name: "Wild Charge", code: "WC", type: "electric", power: 100, energyCost: 45 }
     ],
     color: "#f472b6"
   },
@@ -114,7 +116,8 @@ export const POKEMON_DATABASE: Record<string, PokemonStats> = {
     defaultFastMove: { name: "Dragon Breath", type: "dragon", turns: 1, power: 4, energyGain: 3 },
     chargedMoves: [
       { name: "Roar of Time", code: "RoT", type: "dragon", power: 150, energyCost: 65 },
-      { name: "Iron Head", code: "IH", type: "steel", power: 70, energyCost: 50 }
+      { name: "Iron Head", code: "IH", type: "steel", power: 70, energyCost: 50 },
+      { name: "Thunder", code: "Th", type: "electric", power: 100, energyCost: 60 }
     ],
     color: "#3b82f6"
   },
@@ -128,6 +131,7 @@ export const POKEMON_DATABASE: Record<string, PokemonStats> = {
     defaultFastMove: { name: "Dragon Tail", type: "dragon", turns: 3, power: 13, energyGain: 9 },
     chargedMoves: [
       { name: "Aeroblast", code: "AB", type: "flying", power: 170, energyCost: 75 },
+      { name: "Earth Power", code: "EP", type: "ground", power: 90, energyCost: 55 },
       { name: "Sky Attack", code: "SA", type: "flying", power: 75, energyCost: 50 }
     ],
     color: "#c084fc"
@@ -141,8 +145,9 @@ export const POKEMON_DATABASE: Record<string, PokemonStats> = {
     baseStats: { atk: 243, def: 204, hp: 184 },
     defaultFastMove: { name: "Waterfall", type: "water", turns: 3, power: 12, energyGain: 8 },
     chargedMoves: [
-      { name: "Surf", code: "Surf", type: "water", power: 65, energyCost: 40 },
-      { name: "Origin Pulse", code: "OP", type: "water", power: 130, energyCost: 60 }
+      { name: "Origin Pulse", code: "OP", type: "water", power: 130, energyCost: 60 },
+      { name: "Avalanche", code: "Av", type: "ice", power: 90, energyCost: 45 },
+      { name: "Surf", code: "Surf", type: "water", power: 65, energyCost: 40 }
     ],
     color: "#0284c7"
   },
@@ -156,7 +161,8 @@ export const POKEMON_DATABASE: Record<string, PokemonStats> = {
     defaultFastMove: { name: "Shadow Claw", type: "ghost", turns: 2, power: 6, energyGain: 8 },
     chargedMoves: [
       { name: "Shadow Ball", code: "SB", type: "ghost", power: 100, energyCost: 55 },
-      { name: "Ominous Wind", code: "OW", type: "ghost", power: 45, energyCost: 40 }
+      { name: "Ominous Wind", code: "OW", type: "ghost", power: 45, energyCost: 40 },
+      { name: "Dragon Pulse", code: "DP", type: "dragon", power: 90, energyCost: 60 }
     ],
     color: "#9333ea"
   },
@@ -170,7 +176,8 @@ export const POKEMON_DATABASE: Record<string, PokemonStats> = {
     defaultFastMove: { name: "Shadow Claw", type: "ghost", turns: 2, power: 6, energyGain: 8 },
     chargedMoves: [
       { name: "Dragon Claw", code: "DC", type: "dragon", power: 50, energyCost: 35 },
-      { name: "Ancient Power", code: "AP", type: "rock", power: 60, energyCost: 45 }
+      { name: "Ancient Power", code: "AP", type: "rock", power: 60, energyCost: 45 },
+      { name: "Shadow Sneak", code: "SS", type: "ghost", power: 50, energyCost: 45 }
     ],
     color: "#a855f7"
   },
@@ -184,7 +191,8 @@ export const POKEMON_DATABASE: Record<string, PokemonStats> = {
     defaultFastMove: { name: "Dragon Tail", type: "dragon", turns: 3, power: 13, energyGain: 9 },
     chargedMoves: [
       { name: "Crunch", code: "Cr", type: "dark", power: 70, energyCost: 45 },
-      { name: "Earthquake", code: "EQ", type: "ground", power: 110, energyCost: 65 }
+      { name: "Earthquake", code: "EQ", type: "ground", power: 110, energyCost: 65 },
+      { name: "Outrage", code: "OR", type: "dragon", power: 110, energyCost: 60 }
     ],
     color: "#10b981"
   },
@@ -198,7 +206,8 @@ export const POKEMON_DATABASE: Record<string, PokemonStats> = {
     defaultFastMove: { name: "Sand Attack", type: "ground", turns: 1, power: 2, energyGain: 4 },
     chargedMoves: [
       { name: "Sky Attack", code: "SA", type: "flying", power: 75, energyCost: 50 },
-      { name: "Iron Head", code: "IH", type: "steel", power: 70, energyCost: 50 }
+      { name: "Iron Head", code: "IH", type: "steel", power: 70, energyCost: 50 },
+      { name: "Payback", code: "PB", type: "dark", power: 110, energyCost: 60 }
     ],
     color: "#64748b"
   },
@@ -212,7 +221,8 @@ export const POKEMON_DATABASE: Record<string, PokemonStats> = {
     defaultFastMove: { name: "Shadow Claw", type: "ghost", turns: 2, power: 6, energyGain: 8 },
     chargedMoves: [
       { name: "Play Rough", code: "PR", type: "fairy", power: 90, energyCost: 60 },
-      { name: "Shadow Sneak", code: "SS", type: "ghost", power: 50, energyCost: 45 }
+      { name: "Shadow Sneak", code: "SS", type: "ghost", power: 50, energyCost: 45 },
+      { name: "Shadow Ball", code: "SB", type: "ghost", power: 100, energyCost: 55 }
     ],
     color: "#facc15"
   },
@@ -226,7 +236,8 @@ export const POKEMON_DATABASE: Record<string, PokemonStats> = {
     defaultFastMove: { name: "Fire Spin", type: "fire", turns: 3, power: 10, energyGain: 10 },
     chargedMoves: [
       { name: "Weather Ball", code: "WB", type: "fire", power: 55, energyCost: 35 },
-      { name: "Scorching Sands", code: "SS", type: "ground", power: 80, energyCost: 50 }
+      { name: "Scorching Sands", code: "SS", type: "ground", power: 80, energyCost: 50 },
+      { name: "Overheat", code: "OH", type: "fire", power: 130, energyCost: 55 }
     ],
     color: "#f97316"
   },
@@ -240,7 +251,8 @@ export const POKEMON_DATABASE: Record<string, PokemonStats> = {
     defaultFastMove: { name: "Powder Snow", type: "ice", turns: 2, power: 5, energyGain: 8 },
     chargedMoves: [
       { name: "Weather Ball", code: "WB", type: "ice", power: 55, energyCost: 35 },
-      { name: "Dazzling Gleam", code: "DG", type: "fairy", power: 100, energyCost: 70 }
+      { name: "Dazzling Gleam", code: "DG", type: "fairy", power: 100, energyCost: 70 },
+      { name: "Psyshock", code: "PS", type: "psychic", power: 70, energyCost: 45 }
     ],
     color: "#38bdf8"
   },
@@ -253,8 +265,9 @@ export const POKEMON_DATABASE: Record<string, PokemonStats> = {
     baseStats: { atk: 131, def: 96, hp: 120 },
     defaultFastMove: { name: "Peck", type: "flying", turns: 2, power: 6, energyGain: 7 },
     chargedMoves: [
-      { name: "Sky Attack", code: "SA", type: "flying", power: 75, energyCost: 50 },
-      { name: "Drill Run", code: "DR", type: "ground", power: 80, energyCost: 45 }
+      { name: "Drill Run", code: "DR", type: "ground", power: 80, energyCost: 45 },
+      { name: "Drill Peck", code: "DP", type: "flying", power: 65, energyCost: 40 },
+      { name: "Sky Attack", code: "SA", type: "flying", power: 75, energyCost: 50 }
     ],
     color: "#d97706"
   },
@@ -268,7 +281,8 @@ export const POKEMON_DATABASE: Record<string, PokemonStats> = {
     defaultFastMove: { name: "Gust", type: "flying", turns: 4, power: 16, energyGain: 12 },
     chargedMoves: [
       { name: "Twister", code: "Tw", type: "dragon", power: 50, energyCost: 45 },
-      { name: "Brave Bird", code: "BB", type: "flying", power: 130, energyCost: 55 }
+      { name: "Brave Bird", code: "BB", type: "flying", power: 130, energyCost: 55 },
+      { name: "Feather Dance", code: "FD", type: "flying", power: 35, energyCost: 50 }
     ],
     color: "#a855f7"
   },
@@ -282,7 +296,8 @@ export const POKEMON_DATABASE: Record<string, PokemonStats> = {
     defaultFastMove: { name: "Thunder Shock", type: "electric", turns: 2, power: 3, energyGain: 9 },
     chargedMoves: [
       { name: "Wild Charge", code: "WC", type: "electric", power: 100, energyCost: 45 },
-      { name: "Shadow Ball", code: "SB", type: "ghost", power: 100, energyCost: 55 }
+      { name: "Shadow Ball", code: "SB", type: "ghost", power: 100, energyCost: 55 },
+      { name: "Thunderbolt", code: "TB", type: "electric", power: 90, energyCost: 55 }
     ],
     color: "#eab308"
   },
@@ -296,7 +311,8 @@ export const POKEMON_DATABASE: Record<string, PokemonStats> = {
     defaultFastMove: { name: "Fire Fang", type: "fire", turns: 2, power: 8, energyGain: 8 },
     chargedMoves: [
       { name: "Flame Charge", code: "FC", type: "fire", power: 65, energyCost: 50 },
-      { name: "Overheat", code: "OH", type: "fire", power: 130, energyCost: 55 }
+      { name: "Overheat", code: "OH", type: "fire", power: 130, energyCost: 55 },
+      { name: "Scorching Sands", code: "SS", type: "ground", power: 80, energyCost: 50 }
     ],
     color: "#f97316"
   },
@@ -310,7 +326,8 @@ export const POKEMON_DATABASE: Record<string, PokemonStats> = {
     defaultFastMove: { name: "Snarl", type: "dark", turns: 3, power: 5, energyGain: 13 },
     chargedMoves: [
       { name: "Ice Beam", code: "IB", type: "ice", power: 90, energyCost: 55 },
-      { name: "Hydro Pump", code: "HP", type: "water", power: 130, energyCost: 75 }
+      { name: "Hydro Pump", code: "HP", type: "water", power: 130, energyCost: 75 },
+      { name: "Scald", code: "Sc", type: "water", power: 85, energyCost: 55 }
     ],
     color: "#38bdf8"
   },
@@ -324,7 +341,8 @@ export const POKEMON_DATABASE: Record<string, PokemonStats> = {
     defaultFastMove: { name: "Snarl", type: "dark", turns: 3, power: 5, energyGain: 13 },
     chargedMoves: [
       { name: "Dark Pulse", code: "DP", type: "dark", power: 80, energyCost: 50 },
-      { name: "Oblivion Wing", code: "OW", type: "flying", power: 85, energyCost: 50 }
+      { name: "Oblivion Wing", code: "OW", type: "flying", power: 85, energyCost: 50 },
+      { name: "Focus Blast", code: "FB", type: "fighting", power: 150, energyCost: 75 }
     ],
     color: "#dc2626"
   }
@@ -421,42 +439,77 @@ export function calculateChargedDamage(
 }
 
 /**
- * Computes 3v3 matchup dots (0s, 1s, 2s shields)
+ * Computes 3v3 matchup tiers (0s, 1s, 2s shields)
+ * Returns comma-separated 5-tier codes per shield scenario:
+ *  - "SW": Strong Win (Dominant type/stat advantage)
+ *  - "W":  Win
+ *  - "N":  Neutral (Grey)
+ *  - "L":  Loss
+ *  - "SL": Strong Loss (Hard walled or double super-effective against)
  */
 export function calculateShieldMatrix(
   oppName: string,
-  teamMembers: string[]
+  teamMembers: string[],
+  isOppShadow: boolean = false
 ): Record<string, string> {
   const result: Record<string, string> = {};
+  const oppStats = POKEMON_DATABASE[oppName] || Object.values(POKEMON_DATABASE)[0];
 
   teamMembers.forEach((member, idx) => {
-    const opp = oppName.toLowerCase();
-    const tm = member.toLowerCase();
     const key = `p${idx + 1}`;
+    const isMyShadow = member.toLowerCase().startsWith("shadow ");
+    const cleanMyName = member.replace(/^Shadow\s+/i, "").trim();
+    const myStats =
+      POKEMON_DATABASE[member] ||
+      POKEMON_DATABASE[cleanMyName] ||
+      Object.values(POKEMON_DATABASE).find((p) => p.name.toLowerCase() === cleanMyName.toLowerCase()) ||
+      Object.values(POKEMON_DATABASE)[0];
 
-    if (opp.includes("raikou")) {
-      if (tm.includes("dialga") || tm.includes("zygarde")) result[key] = "🟢🟢🟡";
-      else if (tm.includes("groudon") || tm.includes("clodsire") || tm.includes("excadrill")) result[key] = "🟢🟢🟢";
-      else if (tm.includes("lugia") || tm.includes("kyogre") || tm.includes("fearow") || tm.includes("pidgeot") || tm.includes("corviknight")) result[key] = "🔴🔴🔴";
-      else result[key] = "🟡🟢🔴";
-    } else if (opp.includes("entei")) {
-      if (tm.includes("dialga") || tm.includes("zygarde")) result[key] = "🟢🟡🔴";
-      else if (tm.includes("lugia") || tm.includes("corviknight")) result[key] = "🔴🔴🔴";
-      else if (tm.includes("kyogre")) result[key] = "🟢🟢🟢";
-      else result[key] = "🟡🟢🔴";
-    } else if (opp.includes("yveltal")) {
-      if (tm.includes("dialga") || tm.includes("mimikyu")) result[key] = "🟢🟢🔴";
-      else if (tm.includes("lugia") || tm.includes("giratina")) result[key] = "🔴🔴🔴";
-      else if (tm.includes("kyogre")) result[key] = "🔴🔴🔴";
-      else result[key] = "🟢🟡🔴";
-    } else if (opp.includes("zacian")) {
-      if (tm.includes("dialga") || tm.includes("zygarde")) result[key] = opp.includes("crowned") ? "🟡🔴🔴" : "🔴🔴🔴";
-      else if (tm.includes("lugia")) result[key] = "🟡🟡🔴";
-      else if (tm.includes("kyogre") || tm.includes("ninetales") || tm.includes("corviknight")) result[key] = "🟢🟢🟡";
-      else result[key] = "🟡🔴🟢";
-    } else {
-      result[key] = "🟢🟡🔴";
-    }
+    const myFastEff = getTypeMultiplier(myStats.defaultFastMove.type, oppStats.types);
+    const myFastStab = myStats.types.includes(myStats.defaultFastMove.type) ? 1.2 : 1.0;
+    const myFastScore = myFastEff * myFastStab * (isMyShadow ? 1.12 : 1.0);
+
+    const oppFastEff = getTypeMultiplier(oppStats.defaultFastMove.type, myStats.types);
+    const oppFastStab = oppStats.types.includes(oppStats.defaultFastMove.type) ? 1.2 : 1.0;
+    const oppFastScore = oppFastEff * oppFastStab * (isOppShadow ? 1.12 : 1.0);
+
+    const myChargedDamages = myStats.chargedMoves.map(
+      (cm) => calculateDamage(myStats, oppStats, cm, isMyShadow, isOppShadow).percentage
+    );
+    const myMaxCharged = myChargedDamages.length ? Math.max(...myChargedDamages) : 45;
+    const myMinEnergy = myStats.chargedMoves.length
+      ? Math.min(...myStats.chargedMoves.map((c) => c.energyCost))
+      : 45;
+
+    const oppChargedDamages = oppStats.chargedMoves.map(
+      (cm) => calculateDamage(oppStats, myStats, cm, isOppShadow, isMyShadow).percentage
+    );
+    const oppMaxCharged = oppChargedDamages.length ? Math.max(...oppChargedDamages) : 45;
+    const oppMinEnergy = oppStats.chargedMoves.length
+      ? Math.min(...oppStats.chargedMoves.map((c) => c.energyCost))
+      : 45;
+
+    const myBulk = myStats.baseStats.def * myStats.baseStats.hp * (isMyShadow ? 0.833 : 1.0);
+    const oppBulk = oppStats.baseStats.def * oppStats.baseStats.hp * (isOppShadow ? 0.833 : 1.0);
+    const bulkRatio = oppBulk > 0 ? Math.min(1.35, Math.max(0.7, myBulk / oppBulk)) : 1.0;
+
+    const fastRatio = oppFastScore > 0 ? myFastScore / oppFastScore : 1.0;
+    const chargedRatio = oppMaxCharged > 0 ? myMaxCharged / oppMaxCharged : 1.0;
+    const paceAdvantage = (oppMinEnergy - myMinEnergy) / 100.0;
+
+    const score0s = fastRatio * 0.4 + chargedRatio * 0.45 + bulkRatio * 0.15 + paceAdvantage * 0.5;
+    const score1s = fastRatio * 0.52 + chargedRatio * 0.28 + bulkRatio * 0.2 + paceAdvantage * 0.8;
+    const score2s = fastRatio * 0.68 + chargedRatio * 0.14 + bulkRatio * 0.18 + paceAdvantage * 0.45;
+
+    const toTier = (score: number): string => {
+      if (score >= 1.28) return "SW";
+      if (score >= 1.07) return "W";
+      if (score >= 0.93) return "N";
+      if (score >= 0.76) return "L";
+      return "SL";
+    };
+
+    result[key] = `${toTier(score0s)},${toTier(score1s)},${toTier(score2s)}`;
   });
 
   return result;
@@ -483,15 +536,15 @@ export const INITIAL_PRESETS: TeamPreset[] = [
         cp: 4179,
         fastMove: "Dragon Tail",
         chargedMove1: "Aeroblast",
-        chargedMove2: "Sky Attack"
+        chargedMove2: "Earth Power"
       },
       {
         id: "p3",
         name: "Kyogre",
         cp: 4652,
         fastMove: "Waterfall",
-        chargedMove1: "Surf",
-        chargedMove2: "Origin Pulse"
+        chargedMove1: "Origin Pulse",
+        chargedMove2: "Avalanche"
       }
     ]
   },
@@ -544,8 +597,8 @@ export const INITIAL_PRESETS: TeamPreset[] = [
         name: "Fearow",
         cp: 1500,
         fastMove: "Peck",
-        chargedMove1: "Sky Attack",
-        chargedMove2: "Drill Run"
+        chargedMove1: "Drill Run",
+        chargedMove2: "Drill Peck"
       },
       {
         id: "g3",

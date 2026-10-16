@@ -208,9 +208,55 @@
 
         .shield-dots {
             display: inline-flex;
-            gap: 1px;
-            letter-spacing: -1.5px;
-            font-size: 8.5px;
+            align-items: center;
+            gap: 1.5px;
+        }
+
+        .tier-dot {
+            width: 9.5px;
+            height: 9.5px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 7.5px;
+            font-weight: 900;
+            line-height: 1;
+            color: #ffffff;
+            text-shadow: none;
+            box-sizing: border-box;
+        }
+
+        /* Strong Win: Vibrant Emerald with '+' and bright border */
+        .tier-sw {
+            background: #059669;
+            border: 1.2px solid #6ee7b7;
+            box-shadow: 0 0 4px rgba(16, 185, 129, 0.7);
+        }
+
+        /* Win: Standard Green */
+        .tier-w {
+            background: #22c55e;
+            border: 1px solid rgba(134, 239, 172, 0.7);
+        }
+
+        /* Neutral: Slate Grey (replaces yellow) */
+        .tier-n {
+            background: #64748b;
+            border: 1px solid rgba(203, 213, 225, 0.65);
+        }
+
+        /* Loss: Soft Red / Coral */
+        .tier-l {
+            background: #f87171;
+            border: 1px solid rgba(254, 202, 202, 0.7);
+        }
+
+        /* Strong Loss: Deep Crimson with '×' and bright border */
+        .tier-sl {
+            background: #b91c1c;
+            border: 1.2px solid #fca5a5;
+            box-shadow: 0 0 4px rgba(220, 38, 38, 0.7);
         }
 
         .divider {
@@ -461,7 +507,31 @@
             "Feather Dance": "Fth.Dnc",
             "Shadow Sneak": "Shd.Snk",
             "Air Cutter": "Air.Cut",
-            "Twister": "Twister"
+            "Twister": "Twister",
+            "Focus Blast": "Foc.Blst",
+            "Solar Beam": "Sol.Beam",
+            "Dragon Pulse": "Drg.Pls",
+            "Megahorn": "Mghrn",
+            "Hurricane": "Hrrcn",
+            "Psychic": "Psychic",
+            "Psyshock": "Psyshk",
+            "Flash Cannon": "Flsh.Can",
+            "Sludge Wave": "Sldg.Wv",
+            "Sludge Bomb": "Sldg.Bmb",
+            "Gunk Shot": "Gnk.Sht",
+            "Foul Play": "Fl.Play",
+            "Payback": "Payback",
+            "Dynamic Punch": "Dyn.Pnch",
+            "Power Gem": "Pwr.Gem",
+            "Water Pulse": "Wtr.Pls",
+            "Petal Blizzard": "Ptl.Blz",
+            "Energy Ball": "Enr.Ball",
+            "Power Whip": "Pwr.Whp",
+            "Heavy Slam": "Hvy.Slm",
+            "Hyper Beam": "Hyp.Beam",
+            "Night Slash": "Nght.Sl",
+            "Sand Tomb": "Snd.Tmb",
+            "Swift": "Swift"
         };
 
         function abbrPoke(name, isShadow) {
@@ -534,13 +604,37 @@
             } catch(e) {}
         }
 
+        function renderTierDots(codeStr) {
+            if (!codeStr) codeStr = "W,N,L";
+            let tokens = [];
+            if (codeStr.includes(",")) {
+                tokens = codeStr.split(",").map(s => s.trim());
+            } else {
+                const chars = Array.from(codeStr);
+                tokens = chars.map(c => {
+                    if (c === "🟢") return "W";
+                    if (c === "🔴") return "L";
+                    return "N";
+                });
+            }
+            while (tokens.length < 3) tokens.push("N");
+            return tokens.slice(0, 3).map(t => {
+                if (t === "SW") return `<span class="tier-dot tier-sw" title="Strong Win">+</span>`;
+                if (t === "W")  return `<span class="tier-dot tier-w" title="Win"></span>`;
+                if (t === "N")  return `<span class="tier-dot tier-n" title="Neutral"></span>`;
+                if (t === "L")  return `<span class="tier-dot tier-l" title="Loss"></span>`;
+                if (t === "SL") return `<span class="tier-dot tier-sl" title="Strong Loss">×</span>`;
+                return `<span class="tier-dot tier-n" title="Neutral"></span>`;
+            }).join("");
+        }
+
         function triggerStartBattle() {
             const btn = document.getElementById("btn-start-battle");
             if (btn) {
-                btn.textContent = "⚔️ Ready!";
+                btn.textContent = "↺ Reset!";
                 setTimeout(() => {
-                    btn.textContent = "⚔️ Start";
-                }, 1000);
+                    btn.textContent = "↺ Reset Opp";
+                }, 900);
             }
 
             battleData.activeOpponent = "Waiting...";
@@ -698,13 +792,15 @@
                     const activeOpp = battleData.scannedOpponents[0];
                     const oppM1 = abbrMoveSummary(activeOpp.c1 || "C1 (30%)");
                     const oppM2 = abbrMoveSummary(activeOpp.c2 || "C2 (50%)");
-                    dmgValuesEl.innerHTML = `<span class="dmg-ready">${oppM1}</span> | <span class="dmg-taps">${oppM2}</span>`;
+                    const oppM3 = activeOpp.c3 ? abbrMoveSummary(activeOpp.c3) : "";
+                    dmgValuesEl.innerHTML = `<span class="dmg-ready">${oppM1}</span> | <span class="dmg-taps">${oppM2}</span>` + (oppM3 ? ` | <span class="dmg-taps">${oppM3}</span>` : "");
                     
                     if (battleData.scannedOpponents.length > 1) {
                         const bench = battleData.scannedOpponents.slice(1);
                         benchDmgEl.innerHTML = "💥 Bench: " + bench.map(b => {
                             const bCode = abbrPoke(b.name || b.code, false);
-                            return `${bCode}: ${abbrMoveSummary(b.c1 || '')} | ${abbrMoveSummary(b.c2 || '')}`;
+                            const b3 = b.c3 ? ` | ${abbrMoveSummary(b.c3)}` : "";
+                            return `${bCode}: ${abbrMoveSummary(b.c1 || '')} | ${abbrMoveSummary(b.c2 || '')}${b3}`;
                         }).join(" • ");
                     } else {
                         benchDmgEl.innerHTML = "Bench: Awaiting opponent switch...";
@@ -714,18 +810,21 @@
                         ? battleData.team 
                         : [{ initial: "P1" }, { initial: "P2" }, { initial: "P3" }];
 
-                    // Show FULL Pokémon Name in the 3v3 Battle Matrix
+                    // Show FULL Pokémon Name & 5-Tier Shield Matrix Dots in the 3v3 Battle Matrix
                     matrixBody.innerHTML = battleData.scannedOpponents.map((opp, idx) => {
                         const fullOppDisplay = (idx === 0 && battleData.isOpponentShadow ? "S-" : "") + (opp.name || opp.code);
+                        const p1Dots = renderTierDots(opp.matrix ? opp.matrix.p1 : "W,N,L");
+                        const p2Dots = renderTierDots(opp.matrix ? opp.matrix.p2 : "N,N,N");
+                        const p3Dots = renderTierDots(opp.matrix ? opp.matrix.p3 : "SW,W,W");
                         return `
                         <div class="matrix-row">
                             <span class="matrix-opp-name" title="${fullOppDisplay}">${fullOppDisplay}</span>
                             <div class="matrix-team-block">
-                                <span class="team-initial">${teamInitials[0].initial}:</span><span class="shield-dots">${opp.matrix ? (opp.matrix.p1 || '🟢🟡🔴') : '🟢🟡🔴'}</span>
+                                <span class="team-initial">${teamInitials[0].initial}:</span><span class="shield-dots">${p1Dots}</span>
                                 <span class="divider">|</span>
-                                <span class="team-initial">${teamInitials[1].initial}:</span><span class="shield-dots">${opp.matrix ? (opp.matrix.p2 || '🔴🔴🔴') : '🔴🔴🔴'}</span>
+                                <span class="team-initial">${teamInitials[1].initial}:</span><span class="shield-dots">${p2Dots}</span>
                                 <span class="divider">|</span>
-                                <span class="team-initial">${teamInitials[2].initial}:</span><span class="shield-dots">${opp.matrix ? (opp.matrix.p3 || '🟢🟢🟢') : '🟢🟢🟢'}</span>
+                                <span class="team-initial">${teamInitials[2].initial}:</span><span class="shield-dots">${p3Dots}</span>
                             </div>
                         </div>
                         `;
@@ -749,7 +848,7 @@
                 horizonThrow.textContent = battleData.throwHorizonText || "1st, 3rd, 5th";
                 if (battleData.scannedOpponents && battleData.scannedOpponents.length > 0) {
                     horizonDots.innerHTML = battleData.scannedOpponents.map((opp, idx) => `
-                        <strong>${opp.name}</strong> ${opp.matrix ? (opp.matrix.p1 || '🟢🟡🔴') : '🟢🟡🔴'}
+                        <strong>${opp.name}</strong> <span class="shield-dots">${renderTierDots(opp.matrix ? opp.matrix.p1 : "W,N,L")}</span>
                         ${idx < battleData.scannedOpponents.length - 1 ? ' • ' : ''}
                     `).join("");
                     horizonDmg.textContent = `Opp: ${abbrMoveSummary(battleData.scannedOpponents[0].c1)} • My: ${abbrMoveSummary(battleData.myMove1Summary || '—')}`;

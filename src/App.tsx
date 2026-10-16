@@ -34,6 +34,68 @@ import {
 } from './data/gblData';
 import { ANDROID_FILES, downloadAndroidProjectZip, AndroidProjectFile } from './data/androidFiles';
 
+function renderTierDots(tierStr: string) {
+  const raw = tierStr || 'W,N,L';
+  const tokens = raw.includes(',')
+    ? raw.split(',')
+    : Array.from(raw).map((ch) => (ch === '🟢' ? 'W' : ch === '🔴' ? 'L' : 'N'));
+
+  return (
+    <span className="inline-flex items-center gap-[1.5px]">
+      {tokens.slice(0, 3).map((tok, i) => {
+        const t = tok.trim().toUpperCase();
+        if (t === 'SW') {
+          return (
+            <span
+              key={i}
+              title="Strong Win"
+              className="w-[9.5px] h-[9.5px] rounded-full inline-flex items-center justify-center text-[7px] font-black leading-none text-white bg-gradient-to-br from-emerald-400 to-emerald-600 border border-emerald-200 shadow-[0_0_4px_rgba(16,185,129,0.9)]"
+            >
+              +
+            </span>
+          );
+        }
+        if (t === 'W') {
+          return (
+            <span
+              key={i}
+              title="Win"
+              className="w-[8.5px] h-[8.5px] rounded-full inline-block bg-green-500 border border-green-300/80"
+            />
+          );
+        }
+        if (t === 'SL') {
+          return (
+            <span
+              key={i}
+              title="Strong Loss"
+              className="w-[9.5px] h-[9.5px] rounded-full inline-flex items-center justify-center text-[7px] font-black leading-none text-white bg-gradient-to-br from-red-500 to-red-800 border border-red-200 shadow-[0_0_4px_rgba(239,68,68,0.9)]"
+            >
+              ×
+            </span>
+          );
+        }
+        if (t === 'L') {
+          return (
+            <span
+              key={i}
+              title="Loss"
+              className="w-[8.5px] h-[8.5px] rounded-full inline-block bg-red-500 border border-red-300/80"
+            />
+          );
+        }
+        return (
+          <span
+            key={i}
+            title="Neutral"
+            className="w-[8.5px] h-[8.5px] rounded-full inline-block bg-slate-400 border border-slate-300/80"
+          />
+        );
+      })}
+    </span>
+  );
+}
+
 export default function App() {
   // Navigation tabs
   const [activeTab, setActiveTab] = useState<'simulator' | 'presets' | 'turn_matrix' | 'android_code'>('simulator');
@@ -83,9 +145,9 @@ export default function App() {
     setIsDragging(false);
   };
 
-  // Team Presets State (stored in localStorage v4 with updated Great & Ultra League defaults)
+  // Team Presets State (stored in localStorage v5 with updated Lugia, Kyogre & Fearow movesets)
   const [presets, setPresets] = useState<TeamPreset[]>(() => {
-    const saved = localStorage.getItem('gbl_team_presets_v4');
+    const saved = localStorage.getItem('gbl_team_presets_v5');
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -102,7 +164,7 @@ export default function App() {
 
   // Save presets whenever updated
   useEffect(() => {
-    localStorage.setItem('gbl_team_presets_v4', JSON.stringify(presets));
+    localStorage.setItem('gbl_team_presets_v5', JSON.stringify(presets));
   }, [presets]);
 
   useEffect(() => {
@@ -918,7 +980,8 @@ export default function App() {
                           scannedOpponents.map((oppName, idx) => {
                             const matrix = calculateShieldMatrix(
                               oppName,
-                              activePreset.pokemon.map(p => p.name)
+                              activePreset.pokemon.map(p => p.name),
+                              idx === 0 && isOpponentShadow
                             );
                             const fullOppDisplay = (idx === 0 && isOpponentShadow ? 'S-' : '') + oppName;
                             const p1Init = activePreset.pokemon[0]?.name.charAt(0) || 'D';
@@ -932,18 +995,27 @@ export default function App() {
                                 </span>
                                 <div className="flex items-center gap-0.5 text-[9px] font-mono shrink-0">
                                   <span className="font-bold text-slate-300">{p1Init}:</span>
-                                  <span className="tracking-tighter">{matrix.p1 || '🟢🟡🔴'}</span>
+                                  {renderTierDots(matrix.p1)}
                                   <span className="text-white/25 mx-0.5">|</span>
                                   <span className="font-bold text-slate-300">{p2Init}:</span>
-                                  <span className="tracking-tighter">{matrix.p2 || '🔴🔴🔴'}</span>
+                                  {renderTierDots(matrix.p2)}
                                   <span className="text-white/25 mx-0.5">|</span>
                                   <span className="font-bold text-slate-300">{p3Init}:</span>
-                                  <span className="tracking-tighter">{matrix.p3 || '🟢🟢🟢'}</span>
+                                  {renderTierDots(matrix.p3)}
                                 </div>
                               </div>
                             );
                           })
                         )}
+                      </div>
+
+                      {/* 5-Tier Dot Legend */}
+                      <div className="flex items-center justify-between px-1 pb-0.5 text-[7.5px] text-slate-300/90">
+                        <span className="inline-flex items-center gap-0.5">{renderTierDots('SW').props.children[0]} Strong Win</span>
+                        <span className="inline-flex items-center gap-0.5">{renderTierDots('W').props.children[0]} Win</span>
+                        <span className="inline-flex items-center gap-0.5">{renderTierDots('N').props.children[0]} Neutral</span>
+                        <span className="inline-flex items-center gap-0.5">{renderTierDots('L').props.children[0]} Loss</span>
+                        <span className="inline-flex items-center gap-0.5">{renderTierDots('SL').props.children[0]} Strong Loss</span>
                       </div>
 
                       {/* Static Visual Turn Reminder Box */}
@@ -972,13 +1044,13 @@ export default function App() {
                           {isWaitingOpponent || scannedOpponents.length === 0 ? (
                             <span className="text-slate-400">—</span>
                           ) : (
-                            oppDamageData.slice(0, 2).map((dmg, idx) => (
+                            oppDamageData.slice(0, 3).map((dmg, idx, arr) => (
                               <span 
                                 key={dmg.move.name}
                                 className={idx === 0 ? 'text-emerald-300 font-bold' : 'text-sky-300 font-semibold'}
                               >
                                 {abbrMoveName(dmg.move.name)} ({dmg.percentage}%)
-                                {idx === 0 && oppDamageData.length > 1 ? ' | ' : ''}
+                                {idx < arr.length - 1 ? ' | ' : ''}
                               </span>
                             ))
                           )}
@@ -1034,7 +1106,9 @@ export default function App() {
                           ) : (
                             <>
                               <strong>[{activeOpponent.name}: {oppFastTurns}t]</strong>
-                              <span>D: 🟢🟡🔴 | L: 🔴🔴🔴 | K: 🟢🟢🟢</span>
+                              <span className="inline-flex items-center gap-1">
+                                D:{renderTierDots('W,N,L')} | L:{renderTierDots('SL,L,L')} | K:{renderTierDots('SW,W,W')}
+                              </span>
                             </>
                           )}
                         </div>
