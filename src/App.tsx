@@ -41,8 +41,8 @@ export default function App() {
   const [layoutMode, setLayoutMode] = useState<'option1' | 'option2'>('option1');
   const [isOverlayVisible, setIsOverlayVisible] = useState(true);
 
-  // Overlay Custom Position (Optimized higher default: y=38px, x=8px so it never interferes with opponent HP bar)
-  const [overlayPos, setOverlayPos] = useState<{ x: number; y: number }>({ x: 8, y: 38 });
+  // Overlay Custom Position (Positioned below top header: y=118px, x=8px so it never obscures top opponent HP bar)
+  const [overlayPos, setOverlayPos] = useState<{ x: number; y: number }>({ x: 8, y: 118 });
 
   // Mouse & Touch drag handling for moving overlay in simulator
   const [isDragging, setIsDragging] = useState(false);
@@ -50,7 +50,7 @@ export default function App() {
     x: 0,
     y: 0,
     initialOverlayX: 8,
-    initialOverlayY: 38
+    initialOverlayY: 118
   });
 
   const onDragStart = (e: React.MouseEvent | React.TouchEvent) => {
@@ -564,9 +564,9 @@ export default function App() {
                       ►
                     </button>
                     <button
-                      onClick={() => setOverlayPos({ x: 8, y: 38 })}
+                      onClick={() => setOverlayPos({ x: 8, y: 118 })}
                       className="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-sky-600 text-[10px] text-slate-300 hover:text-white font-semibold transition ml-0.5"
-                      title="Reset to Top-Left Default"
+                      title="Reset to Default Position"
                     >
                       Reset
                     </button>
