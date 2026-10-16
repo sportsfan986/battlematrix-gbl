@@ -19,7 +19,8 @@ import {
   Scan,
   Sparkles,
   Info,
-  ChevronDown
+  ChevronDown,
+  Swords
 } from 'lucide-react';
 import {
   POKEMON_DATABASE,
@@ -32,7 +33,9 @@ import {
   calculateOpponentMoveTimingRows,
   calculateMyMoveTimingRows,
   getAvailableFormsForPokemon,
-  PokemonStats
+  PokemonStats,
+  PVPOKE_TOP_OPPONENTS,
+  TopOpponentInfo
 } from './data/gblData';
 import { ANDROID_FILES, downloadAndroidProjectZip, AndroidProjectFile } from './data/androidFiles';
 
@@ -192,6 +195,7 @@ export default function App() {
   const [scannedOpponents, setScannedOpponents] = useState<string[]>(['Zacian (Crowned)', 'Yveltal', 'Entei']);
   const [isWaitingOpponent, setIsWaitingOpponent] = useState<boolean>(false);
   const [showOpponentPicker, setShowOpponentPicker] = useState<boolean>(false);
+  const [selectedOpponentLeague, setSelectedOpponentLeague] = useState<'AUTO' | 'MASTER LEAGUE' | 'ULTRA LEAGUE' | 'GREAT LEAGUE'>('AUTO');
 
   // Preset Create / Edit Dialog State
   const [isNewPresetOpen, setIsNewPresetOpen] = useState(false);
@@ -244,24 +248,39 @@ export default function App() {
     setOppEnergy(0);
   };
 
-  const handleSelectOpponent = (name: string) => {
+  const handleSwapActiveOpponent = (name: string) => {
     setActiveOpponentKey(name);
     setIsWaitingOpponent(false);
     setShowOpponentPicker(false);
+    setOppTurnsElapsed(0);
+    setOppEnergy(0);
     const targetBase = getBaseSpeciesKey(name);
     setScannedOpponents(prev => {
-      const existingIdx = prev.findIndex(n => getBaseSpeciesKey(n) === targetBase);
-      if (existingIdx >= 0) {
-        const updated = [...prev];
-        updated[existingIdx] = name;
-        return updated;
-      }
-      return [name, ...prev.slice(0, 2)];
+      const filtered = prev.filter(n => getBaseSpeciesKey(n) !== targetBase);
+      return [name, ...filtered].slice(0, 3);
     });
   };
 
-  // Active Pokémon stats
-  const activeOpponent = POKEMON_DATABASE[activeOpponentKey] || POKEMON_DATABASE['Zacian (Crowned)'];
+  const handleSelectOpponent = (name: string) => {
+    handleSwapActiveOpponent(name);
+  };
+
+  const handleSwapNextBenchOpponent = () => {
+    if (scannedOpponents.length <= 1) return;
+    const nextLead = scannedOpponents[1];
+    const remaining = [scannedOpponents[0], ...scannedOpponents.slice(2)];
+    setActiveOpponentKey(nextLead);
+    setIsWaitingOpponent(false);
+    setOppTurnsElapsed(0);
+    setOppEnergy(0);
+    setScannedOpponents([nextLead, ...remaining]);
+  };
+
+  // Active Pokémon stats (synchronized with front of scannedOpponents during battle)
+  const activeOpponentName = (!isWaitingOpponent && scannedOpponents.length > 0)
+    ? scannedOpponents[0]
+    : activeOpponentKey;
+  const activeOpponent = POKEMON_DATABASE[activeOpponentName] || POKEMON_DATABASE[activeOpponentKey] || POKEMON_DATABASE['Zacian (Crowned)'];
   const activeUserSlot = activePreset?.pokemon[activeUserSlotIndex] || activePreset?.pokemon[0];
   const userLeadName = activeUserSlot?.name || 'Dialga (Origin)';
   const userActivePokemon = POKEMON_DATABASE[userLeadName] || POKEMON_DATABASE['Lugia'] || POKEMON_DATABASE['Dialga (Origin)'];
@@ -277,6 +296,9 @@ export default function App() {
     const nextForm = availableForms[(idx + 1) % availableForms.length];
     handleSelectOpponent(nextForm);
   };
+
+  const activeOpponentLeague = selectedOpponentLeague === 'AUTO' ? (activePreset?.league || 'MASTER LEAGUE') : selectedOpponentLeague;
+  const currentTopOpponents: TopOpponentInfo[] = PVPOKE_TOP_OPPONENTS[activeOpponentLeague] || PVPOKE_TOP_OPPONENTS['MASTER LEAGUE'] || [];
 
   // Calculations (respecting custom fast move turns if edited)
   const FAST_MOVE_TURN_LOOKUP: Record<string, number> = {
@@ -973,7 +995,7 @@ export default function App() {
                         </div>
                       </div>
 
-                      {/* Action Toolbar: Reset Opp, Shadow Toggle, Form Cycler, and Active Lead Switch */}
+                      {/* Action Toolbar: Reset Opp, Swap Opponent, Shadow Toggle, Form Cycler, and Active Lead Switch */}
                       <div className="flex items-center justify-between gap-1 bg-black/20 p-1 rounded border border-white/10 my-1">
                         <div className="flex items-center gap-1">
                           <button
@@ -981,7 +1003,18 @@ export default function App() {
                             className="bg-red-500/35 hover:bg-red-500/50 active:scale-95 text-red-100 border border-red-400/60 font-bold text-[8px] px-1.5 py-0.5 rounded transition"
                             title="Reset opponent team & manual overrides (1 Hz OCR remains active)"
                           >
-                            ↺ Reset Opp
+                            ↺ Reset
+                          </button>
+                          <button
+                            onClick={() => setShowOpponentPicker(!showOpponentPicker)}
+                            className={`font-bold text-[8px] px-1.5 py-0.5 rounded border transition active:scale-95 ${
+                              showOpponentPicker
+                                ? 'bg-amber-500/60 text-white border-amber-300 shadow-[0_0_5px_rgba(245,158,11,0.5)]'
+                                : 'bg-emerald-500/30 text-emerald-200 border-emerald-400/50 hover:bg-emerald-500/45'
+                            }`}
+                            title="Swap opponent from PvPoke Top 10 Meta"
+                          >
+                            ⚔️ Swap ▾
                           </button>
                           <button
                             onClick={() => setIsOpponentShadow(!isOpponentShadow)}
@@ -1024,15 +1057,52 @@ export default function App() {
                         </div>
                       </div>
 
-                      {/* 3v3 Matchup Matrix Dots (Full Pokémon Names, 1 per species) */}
+                      {/* Floating PvPoke Top 10 Opponent Swap Popover in Overlay */}
+                      {showOpponentPicker && (
+                        <div className="bg-slate-950/95 border border-sky-400/50 rounded-lg p-2 my-1 shadow-2xl backdrop-blur-md z-40 text-[8px]">
+                          <div className="flex items-center justify-between pb-1 border-b border-white/10 mb-1.5">
+                            <span className="font-bold text-amber-200">
+                              Top 10 Opponents ({activeOpponentLeague.split(' ')[0]}):
+                            </span>
+                            <button
+                              onClick={() => setShowOpponentPicker(false)}
+                              className="text-slate-400 hover:text-white px-1 text-[9px] font-bold"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                          <div className="grid grid-cols-2 gap-1 max-h-[140px] overflow-y-auto scrollbar-none">
+                            {currentTopOpponents.map((topMon) => (
+                              <button
+                                key={topMon.name}
+                                onClick={() => handleSelectOpponent(topMon.name)}
+                                className={`px-1.5 py-1 rounded text-left font-semibold border flex items-center justify-between transition ${
+                                  activeOpponent.name === topMon.name
+                                    ? 'bg-sky-500/35 border-sky-400 text-sky-100 font-bold'
+                                    : 'bg-slate-900/80 border-slate-700/60 text-slate-200 hover:bg-slate-800'
+                                }`}
+                              >
+                                <span className="truncate">#{topMon.rank} {topMon.name.split(' ')[0]}</span>
+                                <span className="text-[7px] text-amber-300 shrink-0 ml-1 font-mono">{topMon.fastTurns}t</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 3v3 Matchup Matrix Dots (Full Pokémon Names, 1 per species, click to swap active lead) */}
                       <div className="my-1 py-1 px-1.5 bg-black/20 rounded flex flex-col gap-0.5 text-[9.5px]">
                         {isWaitingOpponent || scannedOpponents.length === 0 ? (
-                          <div className="text-[9px] text-slate-200 flex items-center gap-1.5 py-0.5">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                            <span>1 Hz OCR scanning opponent & active lead...</span>
+                          <div className="text-[9px] text-slate-200 flex items-center justify-between py-1 px-1.5 bg-black/35 rounded border border-white/10">
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                              <span>1 Hz OCR scanning opponent & active lead...</span>
+                            </div>
+                            <span className="text-[8px] text-amber-300 font-mono">Standby</span>
                           </div>
                         ) : (
                           scannedOpponents.map((oppName, idx) => {
+                            const isLead = idx === 0;
                             const matrix = calculateShieldMatrix(
                               oppName,
                               activePreset.pokemon.map(p => p.name),
@@ -1044,10 +1114,30 @@ export default function App() {
                             const p3Init = activePreset.pokemon[2]?.name.charAt(0) || 'K';
 
                             return (
-                              <div key={oppName} className="flex items-center justify-between gap-1">
-                                <span className="font-bold text-slate-100 truncate max-w-[115px] text-[9.5px]" title={fullOppDisplay}>
-                                  {fullOppDisplay}
-                                </span>
+                              <div
+                                key={oppName}
+                                onClick={() => handleSwapActiveOpponent(oppName)}
+                                className={`flex items-center justify-between gap-1 px-1.5 py-0.5 rounded cursor-pointer transition ${
+                                  isLead
+                                    ? 'bg-sky-500/25 border border-sky-400/50 shadow-[0_0_8px_rgba(56,189,248,0.25)]'
+                                    : 'hover:bg-white/10 border border-transparent'
+                                }`}
+                                title={isLead ? `${oppName} (Active on field)` : `Click to swap in ${oppName} as active opponent`}
+                              >
+                                <div className="flex items-center gap-1 min-w-0">
+                                  {isLead ? (
+                                    <span className="text-[7px] font-black bg-sky-400 text-slate-950 px-1 py-0.2 rounded uppercase shrink-0">
+                                      LEAD
+                                    </span>
+                                  ) : (
+                                    <span className="text-[7.5px] font-bold text-slate-400 shrink-0">
+                                      #{idx + 1}
+                                    </span>
+                                  )}
+                                  <span className="font-bold text-slate-100 truncate max-w-[105px] text-[9.5px]" title={fullOppDisplay}>
+                                    {fullOppDisplay}
+                                  </span>
+                                </div>
                                 <div className="flex items-center gap-0.5 text-[9px] font-mono shrink-0">
                                   <span className="font-bold text-slate-300">{p1Init}:</span>
                                   {renderTierDots(matrix.p1)}
@@ -1471,30 +1561,128 @@ export default function App() {
                   </button>
                 </div>
 
-                {/* Opponent Selection (Simulating ML Kit OCR detection) */}
-                <div className="pt-3 border-t border-slate-800">
-                  <label className="block text-xs font-semibold text-slate-300 mb-2">
-                    Opponent Pokémon Detected via OCR (1.4s Loop):
-                  </label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {['Kyurem (Black)', 'Zacian (Crowned)', 'Yveltal', 'Kyogre', 'Dialga (Origin)', 'Giratina (Altered)'].map((opp) => (
+                {/* Swap In Opponent Pokémon (PvPoke Top 10 Meta & OCR Switch Simulator) */}
+                <div className="pt-4 border-t border-slate-800 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Swords className="w-4 h-4 text-amber-400" />
+                      <div>
+                        <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                          Swap In Opponent (PvPoke Top 10)
+                        </h4>
+                        <p className="text-[10px] text-slate-400">
+                          Simulate in-battle swaps or OCR detection to test battle matrix & move timing updates.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* League Switcher Tabs */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-[11px] scrollbar-none">
+                    <button
+                      onClick={() => setSelectedOpponentLeague('AUTO')}
+                      className={`px-2.5 py-1 rounded-lg font-bold border transition shrink-0 ${
+                        selectedOpponentLeague === 'AUTO'
+                          ? 'bg-sky-500/20 border-sky-400 text-sky-200 shadow-[0_0_8px_rgba(56,189,248,0.25)]'
+                          : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      Auto ({activePreset.league.split(' ')[0]})
+                    </button>
+                    {(['MASTER LEAGUE', 'ULTRA LEAGUE', 'GREAT LEAGUE'] as const).map((lg) => (
                       <button
-                        key={opp}
-                        onClick={() => {
-                          setActiveOpponentKey(opp);
-                          if (!scannedOpponents.includes(opp)) {
-                            setScannedOpponents(prev => [opp, ...prev.slice(0, 2)]);
-                          }
-                        }}
-                        className={`p-2 rounded-lg text-xs font-semibold border transition text-left truncate ${
-                          activeOpponentKey === opp
-                            ? 'bg-sky-500/20 border-sky-400 text-sky-200'
-                            : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800'
+                        key={lg}
+                        onClick={() => setSelectedOpponentLeague(lg)}
+                        className={`px-2.5 py-1 rounded-lg font-bold border transition shrink-0 ${
+                          selectedOpponentLeague === lg
+                            ? 'bg-sky-500/20 border-sky-400 text-sky-200 shadow-[0_0_8px_rgba(56,189,248,0.25)]'
+                            : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-slate-200'
                         }`}
                       >
-                        {opp.split(' ')[0]}
+                        {lg.split(' ')[0]}
                       </button>
                     ))}
+                  </div>
+
+                  {/* Quick Action Simulation Buttons */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleStartBattle}
+                      className="flex-1 py-1.5 px-2 rounded-lg bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 text-red-200 text-xs font-bold flex items-center justify-center gap-1.5 transition active:scale-[0.98]"
+                      title="Reset opponent team to test 1 Hz OCR scanning standby"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Reset Opp (Test 1 Hz OCR)</span>
+                    </button>
+                    <button
+                      onClick={handleSwapNextBenchOpponent}
+                      disabled={scannedOpponents.length <= 1}
+                      className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition active:scale-[0.98] ${
+                        scannedOpponents.length > 1
+                          ? 'bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-200'
+                          : 'bg-slate-800/40 border border-slate-700/40 text-slate-500 opacity-50 cursor-not-allowed'
+                      }`}
+                      title={scannedOpponents.length > 1 ? `Swap to bench: ${scannedOpponents[1]}` : 'Need >=2 scanned opponents to rotate'}
+                    >
+                      <Swords className="w-3.5 h-3.5" />
+                      <span>Swap Bench Opponent</span>
+                    </button>
+                  </div>
+
+                  {/* Top 10 PvPoke Opponents Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[310px] overflow-y-auto pr-1">
+                    {currentTopOpponents.map((mon) => {
+                      const isActiveLead = !isWaitingOpponent && scannedOpponents[0] === mon.name;
+                      const benchIdx = !isWaitingOpponent ? scannedOpponents.indexOf(mon.name) : -1;
+                      const isBench = benchIdx > 0;
+
+                      return (
+                        <button
+                          key={mon.name}
+                          onClick={() => handleSwapActiveOpponent(mon.name)}
+                          className={`p-2.5 rounded-xl border text-left transition flex flex-col justify-between gap-1.5 relative group ${
+                            isActiveLead
+                              ? 'bg-sky-500/20 border-sky-400 shadow-[0_0_12px_rgba(56,189,248,0.25)] ring-1 ring-sky-400/50'
+                              : isBench
+                              ? 'bg-amber-500/15 border-amber-400/50 hover:bg-amber-500/25'
+                              : 'bg-slate-950/60 border-slate-800/90 hover:border-slate-700 hover:bg-slate-900/80'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between w-full gap-1">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-slate-800 text-amber-400 font-mono">
+                                #{mon.rank}
+                              </span>
+                              <span className="font-bold text-xs text-white truncate">
+                                {mon.name}
+                              </span>
+                            </div>
+                            {isActiveLead ? (
+                              <span className="text-[9px] font-extrabold bg-sky-400 text-slate-950 px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0 animate-pulse">
+                                Active Lead
+                              </span>
+                            ) : isBench ? (
+                              <span className="text-[9px] font-bold bg-amber-400/30 text-amber-200 border border-amber-400/50 px-1.5 py-0.5 rounded shrink-0">
+                                Bench #{benchIdx + 1}
+                              </span>
+                            ) : (
+                              <span className="text-[9px] font-semibold text-slate-400 group-hover:text-sky-300 transition shrink-0">
+                                Swap In ▾
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center justify-between text-[10px] text-slate-300 w-full pt-1 border-t border-white/5">
+                            <span className="font-semibold text-amber-300">
+                              ⚡ {mon.fastTurns}t {mon.fastMove}
+                            </span>
+                            <span className="text-slate-400 truncate max-w-[125px] font-mono text-[9px]">
+                              {mon.chargedMoves.join(' + ')}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               </div>

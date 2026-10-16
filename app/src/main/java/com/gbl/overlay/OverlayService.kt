@@ -2030,6 +2030,7 @@ class OverlayService : LifecycleService() {
 
     fun cycleActiveOpponentForm() {
         if (availableOpponentForms.size <= 1) return
+        isWaitingForOpponent = false
         currentFormIndex = (currentFormIndex + 1) % availableOpponentForms.size
         val nextVariant = availableOpponentForms[currentFormIndex]
         val baseKey = nextVariant.baseSpecies.lowercase()
@@ -2046,6 +2047,23 @@ class OverlayService : LifecycleService() {
             upsertDetectedOpponentBySpecies(nextVariant.name, baseKey)
         }
         recalculateAndPushBattleData()
+    }
+
+    fun swapActiveOpponent(pokemonName: String) {
+        val matched = getPokemonMeta(pokemonName)
+        val newBaseSpecies = matched.baseSpecies.lowercase()
+        isWaitingForOpponent = false
+        activeOpponentSpecies = newBaseSpecies
+        val activeLeague = currentPreset?.league ?: "MASTER LEAGUE"
+        availableOpponentForms = FormResolver.getVariantsForSpecies(newBaseSpecies, activeLeague)
+        currentFormIndex = availableOpponentForms.indexOfFirst { it.name == matched.name }.coerceAtLeast(0)
+        activeOpponentName = matched.name
+        isOpponentShadow = manualShadowOverrides[newBaseSpecies] ?: false
+        upsertDetectedOpponentBySpecies(matched.name, newBaseSpecies)
+        recalculateAndPushBattleData()
+        Handler(Looper.getMainLooper()).post {
+            Toast.makeText(this, "⚔️ Opponent Swap: ${matched.name}", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun normalizeOcrToken(input: String, oneAsL: Boolean = false, rnAsM: Boolean = false, vAsY: Boolean = false): String {
@@ -2784,6 +2802,13 @@ class OverlayService : LifecycleService() {
         fun cycleOpponentForm() {
             Handler(Looper.getMainLooper()).post {
                 this@OverlayService.cycleActiveOpponentForm()
+            }
+        }
+
+        @JavascriptInterface
+        fun swapActiveOpponent(pokemonName: String) {
+            Handler(Looper.getMainLooper()).post {
+                this@OverlayService.swapActiveOpponent(pokemonName)
             }
         }
 

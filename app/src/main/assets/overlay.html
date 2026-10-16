@@ -177,6 +177,18 @@
             align-items: center;
             justify-content: space-between;
             gap: 4px;
+            padding: 1px 3px;
+            border-radius: 3px;
+            transition: background 0.15s ease;
+        }
+
+        .matrix-row.active-lead {
+            background: rgba(56, 189, 248, 0.18);
+            box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.35);
+        }
+
+        .matrix-row:hover {
+            background: rgba(255, 255, 255, 0.08);
         }
 
         .matrix-opp-name {
@@ -902,6 +914,12 @@
             }
         }
 
+        function swapOpponent(pokemonName) {
+            if (window.AndroidOverlay && window.AndroidOverlay.swapActiveOpponent) {
+                window.AndroidOverlay.swapActiveOpponent(pokemonName);
+            }
+        }
+
         function updateBattleData(dataJson) {
             try {
                 const data = typeof dataJson === "string" ? JSON.parse(dataJson) : dataJson;
@@ -1126,13 +1144,17 @@
 
                     // Show FULL Pokémon Name & 5-Tier Shield Matrix Dots in the 3v3 Battle Matrix
                     matrixBody.innerHTML = battleData.scannedOpponents.map((opp, idx) => {
+                        const isLead = (idx === 0);
                         const fullOppDisplay = (idx === 0 && battleData.isOpponentShadow ? "S-" : "") + (opp.name || opp.code);
                         const p1Dots = renderTierDots(opp.matrix ? opp.matrix.p1 : "W,N,L");
                         const p2Dots = renderTierDots(opp.matrix ? opp.matrix.p2 : "N,N,N");
                         const p3Dots = renderTierDots(opp.matrix ? opp.matrix.p3 : "SW,W,W");
                         return `
-                        <div class="matrix-row">
-                            <span class="matrix-opp-name" title="${fullOppDisplay}">${fullOppDisplay}</span>
+                        <div class="matrix-row ${isLead ? 'active-lead' : ''}" onclick="swapOpponent('${opp.name || opp.code}')" style="cursor:pointer;" title="${isLead ? 'Active Opponent' : 'Tap to swap to lead'}">
+                            <span class="matrix-opp-name" title="${fullOppDisplay}">
+                                ${isLead ? '<span style="color:#38bdf8; font-weight:800; margin-right:3px;">▶</span>' : '<span style="color:#64748b; font-size:7.5px; margin-right:3px;">#' + (idx + 1) + '</span>'}
+                                ${fullOppDisplay}
+                            </span>
                             <div class="matrix-team-block">
                                 <span class="team-initial">${teamInitials[0].initial}:</span><span class="shield-dots">${p1Dots}</span>
                                 <span class="divider">|</span>

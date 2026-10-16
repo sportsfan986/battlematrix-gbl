@@ -480,8 +480,432 @@ export const POKEMON_DATABASE: Record<string, PokemonStats> = {
       { name: "Blizzard", code: "Blz", type: "ice", power: 140, energyCost: 75 }
     ],
     color: "#60a5fa"
+  },
+  "Palkia (Origin)": {
+    speciesId: "palkia_origin",
+    name: "Palkia (Origin)",
+    baseSpecies: "palkia",
+    formLabel: "Origin",
+    types: ["water", "dragon"],
+    baseStats: { atk: 259, def: 202, hp: 169 },
+    defaultFastMove: { name: "Dragon Breath", type: "dragon", turns: 1, power: 4, energyGain: 3 },
+    chargedMoves: [
+      { name: "Spacial Rend", code: "SR", type: "dragon", power: 100, energyCost: 50 },
+      { name: "Aqua Tail", code: "AT", type: "water", power: 55, energyCost: 35 },
+      { name: "Draco Meteor", code: "DM", type: "dragon", power: 150, energyCost: 65 }
+    ],
+    color: "#38bdf8"
+  },
+  "Necrozma (Dusk Mane)": {
+    speciesId: "necrozma_dusk_mane",
+    name: "Necrozma (Dusk Mane)",
+    baseSpecies: "necrozma",
+    formLabel: "Dusk Mane",
+    types: ["psychic", "steel"],
+    baseStats: { atk: 249, def: 200, hp: 179 },
+    defaultFastMove: { name: "Shadow Claw", type: "ghost", turns: 2, power: 6, energyGain: 8 },
+    chargedMoves: [
+      { name: "Sunsteel Strike", code: "SS", type: "steel", power: 135, energyCost: 65 },
+      { name: "Dark Pulse", code: "DP", type: "dark", power: 80, energyCost: 50 },
+      { name: "Iron Head", code: "IH", type: "steel", power: 70, energyCost: 50 }
+    ],
+    color: "#f59e0b"
+  },
+  "Necrozma (Dawn Wings)": {
+    speciesId: "necrozma_dawn_wings",
+    name: "Necrozma (Dawn Wings)",
+    baseSpecies: "necrozma",
+    formLabel: "Dawn Wings",
+    types: ["psychic", "ghost"],
+    baseStats: { atk: 249, def: 200, hp: 179 },
+    defaultFastMove: { name: "Shadow Claw", type: "ghost", turns: 2, power: 6, energyGain: 8 },
+    chargedMoves: [
+      { name: "Moongeist Beam", code: "MB", type: "ghost", power: 135, energyCost: 65 },
+      { name: "Dark Pulse", code: "DP", type: "dark", power: 80, energyCost: 50 },
+      { name: "Iron Head", code: "IH", type: "steel", power: 70, energyCost: 50 }
+    ],
+    color: "#8b5cf6"
+  },
+  "Landorus (Therian)": {
+    speciesId: "landorus_therian",
+    name: "Landorus (Therian)",
+    baseSpecies: "landorus",
+    formLabel: "Therian",
+    types: ["ground", "flying"],
+    baseStats: { atk: 259, def: 164, hp: 182 },
+    defaultFastMove: { name: "Mud Shot", type: "ground", turns: 2, power: 3, energyGain: 9 },
+    chargedMoves: [
+      { name: "Sandsear Storm", code: "SS", type: "ground", power: 60, energyCost: 45 },
+      { name: "Stone Edge", code: "SE", type: "rock", power: 100, energyCost: 55 },
+      { name: "Superpower", code: "SP", type: "fighting", power: 85, energyCost: 40 }
+    ],
+    color: "#ea580c"
+  },
+  "Ho-Oh": {
+    speciesId: "ho_oh",
+    name: "Ho-Oh",
+    baseSpecies: "ho-oh",
+    formLabel: "Base",
+    types: ["fire", "flying"],
+    baseStats: { atk: 216, def: 219, hp: 193 },
+    defaultFastMove: { name: "Incinerate", type: "fire", turns: 5, power: 20, energyGain: 20 },
+    chargedMoves: [
+      { name: "Sacred Fire", code: "SF", type: "fire", power: 130, energyCost: 65 },
+      { name: "Brave Bird", code: "BB", type: "flying", power: 130, energyCost: 55 },
+      { name: "Earthquake", code: "EQ", type: "ground", power: 110, energyCost: 65 }
+    ],
+    color: "#ef4444"
+  },
+  "Mewtwo": {
+    speciesId: "mewtwo",
+    name: "Mewtwo",
+    baseSpecies: "mewtwo",
+    formLabel: "Base",
+    types: ["psychic"],
+    baseStats: { atk: 266, def: 166, hp: 193 },
+    defaultFastMove: { name: "Psycho Cut", type: "psychic", turns: 2, power: 3, energyGain: 9 },
+    chargedMoves: [
+      { name: "Psystrike", code: "PS", type: "psychic", power: 90, energyCost: 45 },
+      { name: "Shadow Ball", code: "SB", type: "ghost", power: 100, energyCost: 55 },
+      { name: "Focus Blast", code: "FB", type: "fighting", power: 150, energyCost: 75 }
+    ],
+    color: "#c084fc"
+  },
+  "Feraligatr": {
+    speciesId: "feraligatr",
+    name: "Feraligatr",
+    baseSpecies: "feraligatr",
+    formLabel: "Base",
+    types: ["water"],
+    baseStats: { atk: 164, def: 155, hp: 161 },
+    defaultFastMove: { name: "Shadow Claw", type: "ghost", turns: 2, power: 6, energyGain: 8 },
+    chargedMoves: [
+      { name: "Hydro Cannon", code: "HC", type: "water", power: 80, energyCost: 40 },
+      { name: "Ice Beam", code: "IB", type: "ice", power: 90, energyCost: 55 },
+      { name: "Crunch", code: "Cr", type: "dark", power: 70, energyCost: 45 }
+    ],
+    color: "#0284c7"
+  },
+  "Cresselia": {
+    speciesId: "cresselia",
+    name: "Cresselia",
+    baseSpecies: "cresselia",
+    formLabel: "Base",
+    types: ["psychic"],
+    baseStats: { atk: 124, def: 215, hp: 197 },
+    defaultFastMove: { name: "Psycho Cut", type: "psychic", turns: 2, power: 3, energyGain: 9 },
+    chargedMoves: [
+      { name: "Grass Knot", code: "GK", type: "grass", power: 90, energyCost: 50 },
+      { name: "Moonblast", code: "MB", type: "fairy", power: 110, energyCost: 60 },
+      { name: "Future Sight", code: "FS", type: "psychic", power: 120, energyCost: 65 }
+    ],
+    color: "#e879f9"
+  },
+  "Registeel": {
+    speciesId: "registeel",
+    name: "Registeel",
+    baseSpecies: "registeel",
+    formLabel: "Base",
+    types: ["steel"],
+    baseStats: { atk: 118, def: 236, hp: 162 },
+    defaultFastMove: { name: "Lock-On", type: "normal", turns: 1, power: 1, energyGain: 5 },
+    chargedMoves: [
+      { name: "Focus Blast", code: "FB", type: "fighting", power: 150, energyCost: 75 },
+      { name: "Zap Cannon", code: "ZC", type: "electric", power: 150, energyCost: 75 },
+      { name: "Hyper Beam", code: "HB", type: "normal", power: 150, energyCost: 80 }
+    ],
+    color: "#94a3b8"
+  },
+  "Cobalion": {
+    speciesId: "cobalion",
+    name: "Cobalion",
+    baseSpecies: "cobalion",
+    formLabel: "Base",
+    types: ["steel", "fighting"],
+    baseStats: { atk: 152, def: 182, hp: 169 },
+    defaultFastMove: { name: "Double Kick", type: "fighting", turns: 3, power: 8, energyGain: 12 },
+    chargedMoves: [
+      { name: "Sacred Sword", code: "SS", type: "fighting", power: 60, energyCost: 35 },
+      { name: "Stone Edge", code: "SE", type: "rock", power: 100, energyCost: 55 },
+      { name: "Iron Head", code: "IH", type: "steel", power: 70, energyCost: 50 }
+    ],
+    color: "#0284c7"
+  },
+  "Lickilicky": {
+    speciesId: "lickilicky",
+    name: "Lickilicky",
+    baseSpecies: "lickilicky",
+    formLabel: "Base",
+    types: ["normal"],
+    baseStats: { atk: 136, def: 152, hp: 190 },
+    defaultFastMove: { name: "Rollout", type: "rock", turns: 3, power: 8, energyGain: 13 },
+    chargedMoves: [
+      { name: "Body Slam", code: "BS", type: "normal", power: 60, energyCost: 35 },
+      { name: "Shadow Ball", code: "SB", type: "ghost", power: 100, energyCost: 55 },
+      { name: "Earthquake", code: "EQ", type: "ground", power: 110, energyCost: 65 }
+    ],
+    color: "#f472b6"
+  },
+  "Annihilape": {
+    speciesId: "annihilape",
+    name: "Annihilape",
+    baseSpecies: "annihilape",
+    formLabel: "Base",
+    types: ["fighting", "ghost"],
+    baseStats: { atk: 198, def: 162, hp: 215 },
+    defaultFastMove: { name: "Counter", type: "fighting", turns: 2, power: 8, energyGain: 7 },
+    chargedMoves: [
+      { name: "Rage Fist", code: "RF", type: "ghost", power: 50, energyCost: 35 },
+      { name: "Ice Punch", code: "IP", type: "ice", power: 55, energyCost: 40 },
+      { name: "Close Combat", code: "CC", type: "fighting", power: 100, energyCost: 45 }
+    ],
+    color: "#64748b"
+  },
+  "Talonflame": {
+    speciesId: "talonflame",
+    name: "Talonflame",
+    baseSpecies: "talonflame",
+    formLabel: "Base",
+    types: ["fire", "flying"],
+    baseStats: { atk: 159, def: 143, hp: 169 },
+    defaultFastMove: { name: "Incinerate", type: "fire", turns: 5, power: 20, energyGain: 20 },
+    chargedMoves: [
+      { name: "Fly", code: "Fl", type: "flying", power: 80, energyCost: 45 },
+      { name: "Flame Charge", code: "FC", type: "fire", power: 65, energyCost: 50 },
+      { name: "Brave Bird", code: "BB", type: "flying", power: 130, energyCost: 55 }
+    ],
+    color: "#f97316"
+  },
+  "Clodsire": {
+    speciesId: "clodsire",
+    name: "Clodsire",
+    baseSpecies: "clodsire",
+    formLabel: "Base",
+    types: ["poison", "ground"],
+    baseStats: { atk: 89, def: 123, hp: 222 },
+    defaultFastMove: { name: "Poison Sting", type: "poison", turns: 2, power: 3, energyGain: 9 },
+    chargedMoves: [
+      { name: "Earthquake", code: "EQ", type: "ground", power: 110, energyCost: 65 },
+      { name: "Stone Edge", code: "SE", type: "rock", power: 100, energyCost: 55 },
+      { name: "Megahorn", code: "MH", type: "bug", power: 110, energyCost: 55 }
+    ],
+    color: "#78350f"
+  },
+  "Mandibuzz": {
+    speciesId: "mandibuzz",
+    name: "Mandibuzz",
+    baseSpecies: "mandibuzz",
+    formLabel: "Base",
+    types: ["dark", "flying"],
+    baseStats: { atk: 118, def: 191, hp: 208 },
+    defaultFastMove: { name: "Snarl", type: "dark", turns: 3, power: 5, energyGain: 13 },
+    chargedMoves: [
+      { name: "Dark Pulse", code: "DP", type: "dark", power: 80, energyCost: 50 },
+      { name: "Aerial Ace", code: "AA", type: "flying", power: 55, energyCost: 40 },
+      { name: "Shadow Ball", code: "SB", type: "ghost", power: 100, energyCost: 55 }
+    ],
+    color: "#52525b"
+  },
+  "Azumarill": {
+    speciesId: "azumarill",
+    name: "Azumarill",
+    baseSpecies: "azumarill",
+    formLabel: "Base",
+    types: ["water", "fairy"],
+    baseStats: { atk: 94, def: 132, hp: 188 },
+    defaultFastMove: { name: "Bubble", type: "water", turns: 3, power: 7, energyGain: 11 },
+    chargedMoves: [
+      { name: "Ice Beam", code: "IB", type: "ice", power: 90, energyCost: 55 },
+      { name: "Play Rough", code: "PR", type: "fairy", power: 90, energyCost: 60 },
+      { name: "Hydro Pump", code: "HP", type: "water", power: 130, energyCost: 75 }
+    ],
+    color: "#38bdf8"
+  },
+  "Gastrodon": {
+    speciesId: "gastrodon",
+    name: "Gastrodon",
+    baseSpecies: "gastrodon",
+    formLabel: "Base",
+    types: ["water", "ground"],
+    baseStats: { atk: 112, def: 115, hp: 182 },
+    defaultFastMove: { name: "Mud-Slap", type: "ground", turns: 3, power: 11, energyGain: 10 },
+    chargedMoves: [
+      { name: "Body Slam", code: "BS", type: "normal", power: 60, energyCost: 35 },
+      { name: "Earth Power", code: "EP", type: "ground", power: 90, energyCost: 55 },
+      { name: "Water Pulse", code: "WP", type: "water", power: 70, energyCost: 60 }
+    ],
+    color: "#14b8a6"
+  },
+  "Malamar": {
+    speciesId: "malamar",
+    name: "Malamar",
+    baseSpecies: "malamar",
+    formLabel: "Base",
+    types: ["dark", "psychic"],
+    baseStats: { atk: 118, def: 124, hp: 154 },
+    defaultFastMove: { name: "Psywave", type: "psychic", turns: 1, power: 3, energyGain: 4 },
+    chargedMoves: [
+      { name: "Foul Play", code: "FP", type: "dark", power: 70, energyCost: 45 },
+      { name: "Superpower", code: "SP", type: "fighting", power: 85, energyCost: 40 },
+      { name: "Hyper Beam", code: "HB", type: "normal", power: 150, energyCost: 80 }
+    ],
+    color: "#6366f1"
+  },
+  "Dunsparce": {
+    speciesId: "dunsparce",
+    name: "Dunsparce",
+    baseSpecies: "dunsparce",
+    formLabel: "Base",
+    types: ["normal"],
+    baseStats: { atk: 104, def: 108, hp: 178 },
+    defaultFastMove: { name: "Rollout", type: "rock", turns: 3, power: 8, energyGain: 13 },
+    chargedMoves: [
+      { name: "Rock Slide", code: "RS", type: "rock", power: 75, energyCost: 45 },
+      { name: "Drill Run", code: "DR", type: "ground", power: 80, energyCost: 45 },
+      { name: "Dig", code: "Dg", type: "ground", power: 80, energyCost: 50 }
+    ],
+    color: "#eab308"
+  },
+  "Sandslash (Alolan)": {
+    speciesId: "sandslash_alolan",
+    name: "Sandslash (Alolan)",
+    baseSpecies: "sandslash",
+    formLabel: "Alolan",
+    types: ["ice", "steel"],
+    baseStats: { atk: 115, def: 139, hp: 132 },
+    defaultFastMove: { name: "Powder Snow", type: "ice", turns: 2, power: 5, energyGain: 8 },
+    chargedMoves: [
+      { name: "Ice Punch", code: "IP", type: "ice", power: 55, energyCost: 40 },
+      { name: "Drill Run", code: "DR", type: "ground", power: 80, energyCost: 45 },
+      { name: "Blizzard", code: "Blz", type: "ice", power: 140, energyCost: 75 }
+    ],
+    color: "#38bdf8"
+  },
+  "Primeape": {
+    speciesId: "primeape",
+    name: "Primeape",
+    baseSpecies: "primeape",
+    formLabel: "Base",
+    types: ["fighting"],
+    baseStats: { atk: 132, def: 108, hp: 128 },
+    defaultFastMove: { name: "Karate Chop", type: "fighting", turns: 2, power: 7, energyGain: 9 },
+    chargedMoves: [
+      { name: "Rage Fist", code: "RF", type: "ghost", power: 50, energyCost: 35 },
+      { name: "Close Combat", code: "CC", type: "fighting", power: 100, energyCost: 45 },
+      { name: "Ice Punch", code: "IP", type: "ice", power: 55, energyCost: 40 }
+    ],
+    color: "#d97706"
+  },
+  "Morpeko": {
+    speciesId: "morpeko",
+    name: "Morpeko",
+    baseSpecies: "morpeko",
+    formLabel: "Full Belly",
+    types: ["electric", "dark"],
+    baseStats: { atk: 142, def: 96, hp: 114 },
+    defaultFastMove: { name: "Thunder Shock", type: "electric", turns: 2, power: 3, energyGain: 9 },
+    chargedMoves: [
+      { name: "Aura Wheel", code: "AW", type: "electric", power: 100, energyCost: 45 },
+      { name: "Psychic Fangs", code: "PF", type: "psychic", power: 40, energyCost: 35 },
+      { name: "Outrage", code: "OR", type: "dragon", power: 110, energyCost: 60 }
+    ],
+    color: "#eab308"
+  },
+  "Clefable": {
+    speciesId: "clefable",
+    name: "Clefable",
+    baseSpecies: "clefable",
+    formLabel: "Base",
+    types: ["fairy"],
+    baseStats: { atk: 148, def: 144, hp: 176 },
+    defaultFastMove: { name: "Fairy Wind", type: "fairy", turns: 2, power: 3, energyGain: 9 },
+    chargedMoves: [
+      { name: "Meteor Mash", code: "MM", type: "steel", power: 100, energyCost: 50 },
+      { name: "Moonblast", code: "MB", type: "fairy", power: 110, energyCost: 60 },
+      { name: "Swift", code: "Sw", type: "normal", power: 60, energyCost: 40 }
+    ],
+    color: "#f472b6"
+  },
+  "Ampharos": {
+    speciesId: "ampharos",
+    name: "Ampharos",
+    baseSpecies: "ampharos",
+    formLabel: "Base",
+    types: ["electric"],
+    baseStats: { atk: 168, def: 142, hp: 172 },
+    defaultFastMove: { name: "Volt Switch", type: "electric", turns: 4, power: 12, energyGain: 16 },
+    chargedMoves: [
+      { name: "Brutal Swing", code: "BS", type: "dark", power: 65, energyCost: 35 },
+      { name: "Trailblaze", code: "TB", type: "grass", power: 65, energyCost: 50 },
+      { name: "Zap Cannon", code: "ZC", type: "electric", power: 150, energyCost: 75 }
+    ],
+    color: "#eab308"
+  },
+  "Wigglytuff": {
+    speciesId: "wigglytuff",
+    name: "Wigglytuff",
+    baseSpecies: "wigglytuff",
+    formLabel: "Base",
+    types: ["normal", "fairy"],
+    baseStats: { atk: 109, def: 82, hp: 225 },
+    defaultFastMove: { name: "Charm", type: "fairy", turns: 3, power: 15, energyGain: 6 },
+    chargedMoves: [
+      { name: "Icy Wind", code: "IW", type: "ice", power: 60, energyCost: 45 },
+      { name: "Disarming Voice", code: "DV", type: "fairy", power: 70, energyCost: 45 },
+      { name: "Swift", code: "Sw", type: "normal", power: 60, energyCost: 40 }
+    ],
+    color: "#ec4899"
   }
 };
+
+export interface TopOpponentInfo {
+  rank: number;
+  name: string;
+  types: string[];
+  fastMove: string;
+  fastTurns: number;
+  chargedMoves: string[];
+}
+
+export const PVPOKE_TOP_OPPONENTS: Record<string, TopOpponentInfo[]> = {
+  "MASTER LEAGUE": [
+    { rank: 1, name: "Palkia (Origin)", types: ["water", "dragon"], fastMove: "Dragon Breath", fastTurns: 1, chargedMoves: ["Spacial Rend", "Aqua Tail"] },
+    { rank: 2, name: "Zacian (Crowned)", types: ["fairy", "steel"], fastMove: "Metal Claw", fastTurns: 2, chargedMoves: ["Behemoth Blade", "Close Combat"] },
+    { rank: 3, name: "Dialga (Origin)", types: ["steel", "dragon"], fastMove: "Dragon Breath", fastTurns: 1, chargedMoves: ["Roar of Time", "Iron Head"] },
+    { rank: 4, name: "Necrozma (Dusk Mane)", types: ["psychic", "steel"], fastMove: "Shadow Claw", fastTurns: 2, chargedMoves: ["Sunsteel Strike", "Dark Pulse"] },
+    { rank: 5, name: "Landorus (Therian)", types: ["ground", "flying"], fastMove: "Mud Shot", fastTurns: 2, chargedMoves: ["Sandsear Storm", "Stone Edge"] },
+    { rank: 6, name: "Necrozma (Dawn Wings)", types: ["psychic", "ghost"], fastMove: "Shadow Claw", fastTurns: 2, chargedMoves: ["Moongeist Beam", "Dark Pulse"] },
+    { rank: 7, name: "Ho-Oh", types: ["fire", "flying"], fastMove: "Incinerate", fastTurns: 5, chargedMoves: ["Sacred Fire", "Brave Bird"] },
+    { rank: 8, name: "Yveltal", types: ["dark", "flying"], fastMove: "Snarl", fastTurns: 3, chargedMoves: ["Dark Pulse", "Oblivion Wing"] },
+    { rank: 9, name: "Giratina (Origin)", types: ["ghost", "dragon"], fastMove: "Shadow Claw", fastTurns: 2, chargedMoves: ["Shadow Ball", "Ominous Wind"] },
+    { rank: 10, name: "Kyurem (Black)", types: ["dragon", "ice"], fastMove: "Shadow Claw", fastTurns: 2, chargedMoves: ["Freeze Shock", "Fusion Bolt"] }
+  ],
+  "ULTRA LEAGUE": [
+    { rank: 1, name: "Zygarde", types: ["dragon", "ground"], fastMove: "Dragon Tail", fastTurns: 3, chargedMoves: ["Crunch", "Earthquake"] },
+    { rank: 2, name: "Feraligatr", types: ["water"], fastMove: "Shadow Claw", fastTurns: 2, chargedMoves: ["Hydro Cannon", "Ice Beam"] },
+    { rank: 3, name: "Giratina (Altered)", types: ["ghost", "dragon"], fastMove: "Shadow Claw", fastTurns: 2, chargedMoves: ["Dragon Claw", "Ancient Power"] },
+    { rank: 4, name: "Cresselia", types: ["psychic"], fastMove: "Psycho Cut", fastTurns: 2, chargedMoves: ["Grass Knot", "Moonblast"] },
+    { rank: 5, name: "Registeel", types: ["steel"], fastMove: "Lock-On", fastTurns: 1, chargedMoves: ["Focus Blast", "Zap Cannon"] },
+    { rank: 6, name: "Cobalion", types: ["steel", "fighting"], fastMove: "Double Kick", fastTurns: 3, chargedMoves: ["Sacred Sword", "Stone Edge"] },
+    { rank: 7, name: "Corviknight", types: ["flying", "steel"], fastMove: "Sand Attack", fastTurns: 1, chargedMoves: ["Air Cutter", "Iron Head"] },
+    { rank: 8, name: "Lickilicky", types: ["normal"], fastMove: "Rollout", fastTurns: 3, chargedMoves: ["Body Slam", "Shadow Ball"] },
+    { rank: 9, name: "Annihilape", types: ["fighting", "ghost"], fastMove: "Counter", fastTurns: 2, chargedMoves: ["Rage Fist", "Ice Punch"] },
+    { rank: 10, name: "Talonflame", types: ["fire", "flying"], fastMove: "Incinerate", fastTurns: 5, chargedMoves: ["Fly", "Flame Charge"] }
+  ],
+  "GREAT LEAGUE": [
+    { rank: 1, name: "Clodsire", types: ["poison", "ground"], fastMove: "Poison Sting", fastTurns: 2, chargedMoves: ["Earthquake", "Stone Edge"] },
+    { rank: 2, name: "Feraligatr", types: ["water"], fastMove: "Shadow Claw", fastTurns: 2, chargedMoves: ["Hydro Cannon", "Ice Beam"] },
+    { rank: 3, name: "Mandibuzz", types: ["dark", "flying"], fastMove: "Snarl", fastTurns: 3, chargedMoves: ["Dark Pulse", "Aerial Ace"] },
+    { rank: 4, name: "Azumarill", types: ["water", "fairy"], fastMove: "Bubble", fastTurns: 3, chargedMoves: ["Ice Beam", "Play Rough"] },
+    { rank: 5, name: "Gastrodon", types: ["water", "ground"], fastMove: "Mud-Slap", fastTurns: 3, chargedMoves: ["Body Slam", "Earth Power"] },
+    { rank: 6, name: "Malamar", types: ["dark", "psychic"], fastMove: "Psywave", fastTurns: 1, chargedMoves: ["Foul Play", "Superpower"] },
+    { rank: 7, name: "Dunsparce", types: ["normal"], fastMove: "Rollout", fastTurns: 3, chargedMoves: ["Rock Slide", "Drill Run"] },
+    { rank: 8, name: "Annihilape", types: ["fighting", "ghost"], fastMove: "Counter", fastTurns: 2, chargedMoves: ["Rage Fist", "Ice Punch"] },
+    { rank: 9, name: "Sandslash (Alolan)", types: ["ice", "steel"], fastMove: "Powder Snow", fastTurns: 2, chargedMoves: ["Ice Punch", "Drill Run"] },
+    { rank: 10, name: "Primeape", types: ["fighting"], fastMove: "Karate Chop", fastTurns: 2, chargedMoves: ["Rage Fist", "Close Combat"] }
+  ]
+};
+
 
 export const SPECIES_VARIANTS: Record<string, string[]> = {
   zacian: ["Zacian (Crowned)", "Zacian (Hero)"],
