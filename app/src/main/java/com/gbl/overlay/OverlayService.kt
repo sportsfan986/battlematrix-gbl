@@ -48,8 +48,8 @@ import kotlin.math.min
  * OverlayService:
  * Floating HUD and real-time screen analysis for Pokémon GO Battle League.
  * - Start Battle reset (clears opponents & resets waiting HUD)
- * - Automatic OCR detection for Opponent Pokémon (top-right header)
- * - Automatic OCR detection for Player Pokémon Switches (top-left header & lower move buttons)
+ * - Automatic OCR detection for Opponent Pokémon (top-right header, e.g. Zacian, Raikou)
+ * - Automatic OCR detection for Player Pokémon Switches (top-left header & lower move buttons, e.g. Lugia, Dialga)
  * - Turn alignment (zero-sneak attack timing) & damage counters
  */
 class OverlayService : LifecycleService() {
@@ -266,7 +266,6 @@ class OverlayService : LifecycleService() {
             format = PixelFormat.TRANSLUCENT
             gravity = Gravity.TOP or Gravity.START
             x = (8 * density).toInt()
-            // Placed at Y ~ 130dp so top headers (CP 4947 Zacian / Lugia CP 4179) at Y ~ 20-80dp are NEVER covered
             y = (130 * density).toInt()
             width = min((screenWidth * 0.78f).toInt(), (310 * density).toInt())
             height = WindowManager.LayoutParams.WRAP_CONTENT
@@ -492,33 +491,33 @@ class OverlayService : LifecycleService() {
     private suspend fun captureAndProcessBattleRegions() {
         val bitmap = captureCleanScreenBitmap() ?: return
 
-        // 1. OPPONENT HEADER CROP (Top-Right: X 48%..98%, Y 3.0%..12.5%)
-        val oppX = (bitmap.width * 0.48f).toInt()
-        val oppY = (bitmap.height * 0.030f).toInt()
-        val oppW = (bitmap.width * 0.50f).toInt()
-        val oppH = (bitmap.height * 0.095f).toInt()
+        // 1. OPPONENT HEADER CROP (Top-Right: X 45%..98%, Y 2.5%..14.0%)
+        val oppX = (bitmap.width * 0.45f).toInt()
+        val oppY = (bitmap.height * 0.025f).toInt()
+        val oppW = (bitmap.width * 0.53f).toInt()
+        val oppH = (bitmap.height * 0.115f).toInt()
 
         val safeOppX = max(0, min(oppX, bitmap.width - 1))
         val safeOppY = max(0, min(oppY, bitmap.height - 1))
         val safeOppW = min(oppW, bitmap.width - safeOppX)
         val safeOppH = min(oppH, bitmap.height - safeOppY)
 
-        // 2. PLAYER HEADER CROP (Top-Left: X 2%..50%, Y 3.0%..12.5%)
+        // 2. PLAYER HEADER CROP (Top-Left: X 2%..52%, Y 2.5%..14.0%)
         val playerX = (bitmap.width * 0.02f).toInt()
-        val playerY = (bitmap.height * 0.030f).toInt()
-        val playerW = (bitmap.width * 0.48f).toInt()
-        val playerH = (bitmap.height * 0.095f).toInt()
+        val playerY = (bitmap.height * 0.025f).toInt()
+        val playerW = (bitmap.width * 0.50f).toInt()
+        val playerH = (bitmap.height * 0.115f).toInt()
 
         val safePlayerX = max(0, min(playerX, bitmap.width - 1))
         val safePlayerY = max(0, min(playerY, bitmap.height - 1))
         val safePlayerW = min(playerW, bitmap.width - safePlayerX)
         val safePlayerH = min(playerH, bitmap.height - safePlayerY)
 
-        // 3. LOWER MOVE BUTTONS CROP (Y 58%..98%, X 0%..100%)
+        // 3. LOWER MOVE BUTTONS CROP (Y 70%..98%, X 0%..100%)
         val moveX = 0
-        val moveY = (bitmap.height * 0.58f).toInt()
+        val moveY = (bitmap.height * 0.70f).toInt()
         val moveW = bitmap.width
-        val moveH = (bitmap.height * 0.40f).toInt()
+        val moveH = (bitmap.height * 0.28f).toInt()
 
         val safeMoveX = max(0, min(moveX, bitmap.width - 1))
         val safeMoveY = max(0, min(moveY, bitmap.height - 1))
@@ -573,35 +572,31 @@ class OverlayService : LifecycleService() {
     }
 
     private fun handleRecognizedOpponentText(visionText: com.google.mlkit.vision.text.Text) {
-        val rawText = visionText.text
-        if (rawText.isBlank()) return
-
-        val lowerRaw = rawText.lowercase()
-        if (lowerRaw.contains("waiting for opponent") ||
-            lowerRaw.contains("scanning header") ||
-            lowerRaw.contains("start battle") ||
-            lowerRaw.contains("pick opp") ||
-            lowerRaw.contains("zero-sneak") ||
-            lowerRaw.contains("awaiting spawn")
-        ) {
-            return
-        }
-
         var detected: PokemonMeta? = null
 
         for (block in visionText.textBlocks) {
             for (line in block.lines) {
-                val matched = findPokemonInText(line.text)
+                val text = line.text.trim()
+                if (text.length < 3) continue
+
+                val lower = text.lowercase()
+                if (lower.contains("waiting") ||
+                    lower.contains("scanning") ||
+                    lower.contains("battle") ||
+                    lower.contains("pick opp") ||
+                    lower.contains("zero-sneak") ||
+                    lower.contains("awaiting")
+                ) {
+                    continue
+                }
+
+                val matched = findPokemonInText(text)
                 if (matched != null) {
                     detected = matched
                     break
                 }
             }
             if (detected != null) break
-        }
-
-        if (detected == null) {
-            detected = findPokemonInText(rawText)
         }
 
         if (detected != null) {
@@ -630,66 +625,73 @@ class OverlayService : LifecycleService() {
      */
     private fun handleRecognizedPlayerSwitchText(visionText: com.google.mlkit.vision.text.Text) {
         val preset = currentPreset ?: return
-        val rawText = visionText.text
-        if (rawText.isBlank()) return
 
-        val lowerRaw = rawText.lowercase()
-        if (lowerRaw.contains("waiting for opponent") ||
-            lowerRaw.contains("start battle") ||
-            lowerRaw.contains("pick opp") ||
-            lowerRaw.contains("zero-sneak")
-        ) {
-            return
-        }
+        for (block in visionText.textBlocks) {
+            for (line in block.lines) {
+                val lineText = line.text.trim()
+                if (lineText.length < 3) continue
 
-        val fullText = rawText.uppercase()
-
-        for (slot in preset.pokemon) {
-            val speciesBase = slot.name.split(" ").first().uppercase()
-            val cpStr = slot.cp.toString()
-            val meta = getPokemonMeta(slot.name)
-
-            // Collect move keywords belonging to this slot
-            val moveKeywords = mutableSetOf<String>()
-            fun addKw(move: String) {
-                if (move.isNotBlank() && !move.equals("Fast Attack", true) && !move.equals("Charged Move 1", true) && !move.equals("Move 1", true)) {
-                    val parts = move.uppercase().split(" ").filter { it.length >= 3 && it != "MOVE" && it != "THE" && it != "OF" }
-                    moveKeywords.addAll(parts)
+                val lowerLine = lineText.lowercase()
+                if (lowerLine.contains("waiting") ||
+                    lowerLine.contains("scanning") ||
+                    lowerLine.contains("battle") ||
+                    lowerLine.contains("pick opp") ||
+                    lowerLine.contains("zero-sneak") ||
+                    lowerLine.contains("awaiting")
+                ) {
+                    continue
                 }
-            }
-            addKw(slot.fastMove)
-            addKw(slot.chargedMove1)
-            addKw(slot.chargedMove2)
-            addKw(meta.defaultFastMove)
-            addKw(meta.chargedMove1)
-            addKw(meta.chargedMove2)
 
-            var isMatched = false
+                val upperLine = lineText.uppercase()
 
-            // 1. Check species name or CP
-            if (speciesBase.length >= 3 && fullText.contains(speciesBase)) {
-                isMatched = true
-            } else if (cpStr.length >= 3 && fullText.contains(cpStr)) {
-                isMatched = true
-            } else {
-                // 2. Check move name keywords
-                for (kw in moveKeywords) {
-                    if (kw.length >= 3 && fullText.contains(kw)) {
+                for (slot in preset.pokemon) {
+                    val speciesBase = slot.name.split(" ").first().uppercase()
+                    val cpStr = slot.cp.toString()
+                    val meta = getPokemonMeta(slot.name)
+
+                    // Collect move keywords belonging to this slot
+                    val moveKeywords = mutableSetOf<String>()
+                    fun addKw(move: String) {
+                        if (move.isNotBlank() && !move.equals("Fast Attack", true) && !move.equals("Charged Move 1", true) && !move.equals("Move 1", true)) {
+                            val parts = move.uppercase().split(" ").filter { it.length >= 3 && it != "MOVE" && it != "THE" && it != "OF" }
+                            moveKeywords.addAll(parts)
+                        }
+                    }
+                    addKw(slot.fastMove)
+                    addKw(slot.chargedMove1)
+                    addKw(slot.chargedMove2)
+                    addKw(meta.defaultFastMove)
+                    addKw(meta.chargedMove1)
+                    addKw(meta.chargedMove2)
+
+                    var isMatched = false
+
+                    // 1. Check species name or exact CP
+                    if (speciesBase.length >= 3 && upperLine.contains(speciesBase)) {
                         isMatched = true
-                        break
+                    } else if (cpStr.length >= 3 && upperLine.contains(cpStr)) {
+                        isMatched = true
+                    } else {
+                        // 2. Check move name keywords (e.g. AEROBLAST, ROAR, SURF, EARTH POWER)
+                        for (kw in moveKeywords) {
+                            if (kw.length >= 3 && upperLine.contains(kw)) {
+                                isMatched = true
+                                break
+                            }
+                        }
                     }
-                }
-            }
 
-            if (isMatched) {
-                if (activeUserPokemonName != slot.name) {
-                    activeUserPokemonName = slot.name
-                    recalculateAndPushBattleData()
-                    Handler(Looper.getMainLooper()).post {
-                        Toast.makeText(this, "🔄 Active Lead: ${slot.name}", Toast.LENGTH_SHORT).show()
+                    if (isMatched) {
+                        if (activeUserPokemonName != slot.name) {
+                            activeUserPokemonName = slot.name
+                            recalculateAndPushBattleData()
+                            Handler(Looper.getMainLooper()).post {
+                                Toast.makeText(this, "🔄 Active Lead: ${slot.name}", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                        return
                     }
                 }
-                break
             }
         }
     }
