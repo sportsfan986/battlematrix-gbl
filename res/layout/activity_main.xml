@@ -11,7 +11,7 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="GBL Battle Matrix"
+        android:text="BattleMatrix GBL"
         android:textSize="22sp"
         android:textStyle="bold"
         android:textColor="#f8fafc" />
@@ -19,7 +19,7 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Real-Time PvP Floating Overlay with In-Memory ML Kit OCR"
+        android:text="Real-Time 3x3 matchup Matrix, Damage Calculations, &amp; Turn Pacing HUD for Poekmon Go PVP"
         android:textSize="12sp"
         android:textColor="#94a3b8"
         android:layout_marginTop="2dp"

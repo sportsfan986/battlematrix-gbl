@@ -754,18 +754,18 @@ export default function App() {
           <div className="flex items-center gap-3">
             <img
               src="/favicon.svg"
-              alt="GBL Battle Matrix Icon"
+              alt="BattleMatrix GBL Icon"
               className="w-10 h-10 rounded-xl shadow-lg shadow-sky-500/20 border border-sky-500/30"
             />
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="font-bold text-base md:text-lg tracking-tight text-white">GBL Battle Matrix</h1>
+                <h1 className="font-bold text-base md:text-lg tracking-tight text-white">BattleMatrix GBL</h1>
                 <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20">
-                  v1.10 • Android Native Overlay
+                  v1.11 • Android Native Overlay
                 </span>
               </div>
               <p className="text-xs text-slate-400 hidden sm:block">
-                Real-Time ML Kit OCR • PvPoke Gamemaster • Turn-Aligned Bars • 3v3 Shield Matrix
+                Real-Time 3x3 matchup Matrix, Damage Calculations, & Turn Pacing HUD for Poekmon Go PVP
               </p>
             </div>
           </div>
@@ -827,7 +827,7 @@ export default function App() {
               target="_blank"
               rel="noopener noreferrer"
               className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs flex items-center gap-1.5 shadow-lg shadow-amber-500/20 transition"
-              title="Support GBL Battle Matrix on Buy Me a Coffee"
+              title="Support BattleMatrix GBL on Buy Me a Coffee"
             >
               <span>☕ Buy Me a Coffee</span>
             </a>
@@ -2671,7 +2671,7 @@ export default function App() {
 
       {/* Footer */}
       <footer className="border-t border-slate-800/80 py-4 px-6 text-center text-xs text-slate-500">
-        GBL Battle Matrix Overlay • Built with Kotlin, WindowManager TYPE_APPLICATION_OVERLAY, MediaProjection in-memory frame capture, and ML Kit Text Recognition.
+        BattleMatrix GBL Overlay • Built with Kotlin, WindowManager TYPE_APPLICATION_OVERLAY, MediaProjection in-memory frame capture, and ML Kit Text Recognition.
       </footer>
     </div>
   );

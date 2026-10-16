@@ -71,7 +71,7 @@ jobs:
               -validity 10000 \
               -storepass gblrelease123 \
               -keypass gblrelease123 \
-              -dname "CN=GBL Battle Matrix, OU=Android, O=GBL, C=US"
+              -dname "CN=BattleMatrix GBL, OU=Android, O=GBL, C=US"
           else
             echo "Release keystore is present at app/release.keystore"
           fi
@@ -83,7 +83,7 @@ jobs:
       - name: Prepare Named Release APK for Public Download
         if: github.event.inputs.build_target == 'release' || github.event.inputs.build_target == 'both' || github.event.inputs.build_target == '' || github.event_name == 'push'
         run: |
-          cp app/build/outputs/apk/release/app-release.apk "app/build/outputs/apk/release/gbl-battle-matrix-${{ steps.version.outputs.tag }}.apk"
+          cp app/build/outputs/apk/release/app-release.apk "app/build/outputs/apk/release/battlematrix-gbl-${{ steps.version.outputs.tag }}.apk"
 
       - name: Build Debug APK
         if: github.event.inputs.build_target == 'debug' || github.event.inputs.build_target == 'both'
@@ -93,7 +93,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: gbl-battle-matrix-release-apk
+          name: battlematrix-gbl-release-apk
           path: app/build/outputs/apk/release/*.apk
           if-no-files-found: ignore
           retention-days: 14
@@ -102,7 +102,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: gbl-battle-matrix-debug-apk
+          name: battlematrix-gbl-debug-apk
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: ignore
           retention-days: 14
@@ -112,14 +112,14 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
-          name: "GBL Battle Matrix ${{ steps.version.outputs.tag }}"
+          name: "BattleMatrix GBL ${{ steps.version.outputs.tag }}"
           body: |
-            ## GBL Battle Matrix ${{ steps.version.outputs.tag }} — Public Android Release
+            ## BattleMatrix GBL ${{ steps.version.outputs.tag }} — Public Android Release
             
             ### Download & Install
-            Download **`gbl-battle-matrix-${{ steps.version.outputs.tag }}.apk`** (or `app-release.apk`) from the **Assets** section below and install on your Android device.
+            Download **`battlematrix-gbl-${{ steps.version.outputs.tag }}.apk`** (or `app-release.apk`) from the **Assets** section below and install on your Android device.
           files: |
-            app/build/outputs/apk/release/gbl-battle-matrix-${{ steps.version.outputs.tag }}.apk
+            app/build/outputs/apk/release/battlematrix-gbl-${{ steps.version.outputs.tag }}.apk
             app/build/outputs/apk/release/app-release.apk
           draft: false
           prerelease: false

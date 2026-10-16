@@ -21,7 +21,7 @@
             android:layout_width="40dp"
             android:layout_height="40dp"
             android:src="@drawable/ic_gbl_logo"
-            android:contentDescription="GBL Battle Matrix Icon"
+            android:contentDescription="BattleMatrix GBL Icon"
             android:layout_marginEnd="10dp" />
 
         <LinearLayout
@@ -33,7 +33,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="GBL Battle Matrix"
+                android:text="BattleMatrix GBL"
                 android:textSize="20sp"
                 android:textStyle="bold"
                 android:textColor="#f8fafc" />
@@ -41,7 +41,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Real-Time PvP Floating Overlay • v1.10"
+                android:text="Real-Time PvP Floating Overlay • v1.11"
                 android:textSize="11sp"
                 android:textColor="#94a3b8"
                 android:layout_marginTop="1dp" />

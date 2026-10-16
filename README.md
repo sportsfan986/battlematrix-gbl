@@ -1,7 +1,7 @@
-# GBL Battle Matrix - Real-Time Overlay for Pokémon GO (v1.11)
+# BattleMatrix GBL - Real-Time 3x3 matchup Matrix, Damage Calculations, & Turn Pacing HUD for Poekmon Go PVP (v1.11)
 
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Support%20the%20Project-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/sportsfan986)
-[![Latest Release](https://img.shields.io/github/v/release/sportsfan986/gbl-matrix-realtime?style=for-the-badge&color=0284c7&label=Latest%20APK)](https://github.com/sportsfan986/gbl-matrix-realtime/releases)
+[![Latest Release](https://img.shields.io/github/v/release/sportsfan986/battlematrix-gbl?style=for-the-badge&color=0284c7&label=Latest%20APK)](https://github.com/sportsfan986/battlematrix-gbl/releases)
 
 A standalone native Android application and interactive floating battle overlay for Pokémon GO Battle League (GBL). Built with Kotlin, WindowManager `TYPE_APPLICATION_OVERLAY`, in-memory `MediaProjection` frame capture (zero disk writes), PvPoke `gamemaster.json` stats, and offline Google ML Kit Text Recognition.
 
@@ -9,7 +9,7 @@ A standalone native Android application and interactive floating battle overlay 
 
 ## ☕ Support the Project
 
-If **GBL Battle Matrix** helps you climb Elo and count moves in GO Battle League, consider supporting continued development and updates:
+If **BattleMatrix GBL** helps you climb Elo and count moves in GO Battle League, consider supporting continued development and updates:
 
 👉 **[Buy Me a Coffee — https://buymeacoffee.com/sportsfan986](https://buymeacoffee.com/sportsfan986)**
 
@@ -17,10 +17,10 @@ If **GBL Battle Matrix** helps you climb Elo and count moves in GO Battle League
 
 ## 📥 Download & Install Official Release APK
 
-1. Visit the **[Official GitHub Releases Page](https://github.com/sportsfan986/gbl-matrix-realtime/releases)**.
-2. Under the latest release (**`v1.11`**), download **`gbl-battle-matrix-v1.11.apk`** (or `app-release.apk`) directly to your Android phone.
+1. Visit the **[Official GitHub Releases Page](https://github.com/sportsfan986/battlematrix-gbl/releases)**.
+2. Under the latest release (**`v1.11`**), download **`battlematrix-gbl-v1.11.apk`** (or `app-release.apk`) directly to your Android phone.
 3. Tap the downloaded APK to install (allow *"Install unknown apps"* if prompted).
-4. Open **GBL Battle Matrix**:
+4. Open **BattleMatrix GBL**:
    - Configure your **GBL Team Presets**, **Opponent Move Count Basis** (`My Fasts` default vs. `Their Fasts`), and **Overlay Size** (`50%–100%` of screen width, defaulting to `78%`).
    - Grant **"Display over other apps"** (Floating Window permission) and **Screen Capture** permission (strictly in-memory for 1 Hz ML Kit OCR).
    - Tap **"Start Battle Overlay"** and switch to Pokémon GO!
@@ -58,8 +58,8 @@ To bump the version on future updates (defaults to incrementing the sub-version 
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/sportsfan986/gbl-matrix-realtime.git
-   cd gbl-matrix-realtime
+   git clone https://github.com/sportsfan986/battlematrix-gbl.git
+   cd battlematrix-gbl
    ```
 2. **Open in Android Studio** and run:
    ```bash
