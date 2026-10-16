@@ -12,6 +12,20 @@
 
 ---
 
+## 📸 Real Android Application Screenshots & In-Game HUD
+
+<p fill="center">
+  <img src="docs/screenshots/real_app_main_menu.svg" width="31%" alt="BattleMatrix GBL Main App & Presets" />
+  <img src="docs/screenshots/real_hud_master_league.svg" width="33%" alt="Real-Time Master League HUD (Kyogre vs Zacian)" />
+  <img src="docs/screenshots/real_hud_ultra_league.svg" width="33%" alt="Real-Time Ultra League HUD (Mimikyu vs Ampharos)" />
+</p>
+
+- **Main App & Presets Manager (Left)**: Floating overlay controller, PvPoke sync status, move count basis toggles, `50%–100%` overlay scaler, and persistent league team presets.
+- **Master League In-Game HUD (Center)**: Real-time damage calculations for Kyogre vs Zacian (Crowned), shield scenarios, move energy cycles, and CMP tie alerts.
+- **Ultra League In-Game HUD (Right)**: Turn pacing, safe move timing windows, catch point recommendations, and team switch damage previews.
+
+---
+
 ## 🎮 Try the Live Web Simulator (No Install Needed)
 
 Experience **BattleMatrix GBL** instantly in your web browser — completely free, client-side, and consuming **0 personal API tokens**:
