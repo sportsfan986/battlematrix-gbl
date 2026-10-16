@@ -67,10 +67,13 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnToggleOverlay: Button
     private lateinit var btnDownloadDb: Button
     private lateinit var btnAddPreset: Button
+    private lateinit var btnToggleOppCountBasis: Button
+    private lateinit var textOppCountBasisDesc: TextView
     private lateinit var presetsContainer: LinearLayout
 
     private val PREFS_KEY_PRESETS = "gbl_team_presets_v5"
     private val PREFS_KEY_SELECTED_PRESET = "gbl_selected_preset_id"
+    private val PREFS_KEY_OPP_COUNT_MODE = "opp_count_mode"
     private val GAMEMASTER_URL = "https://raw.githubusercontent.com/pvpoke/pvpoke/master/src/data/gamemaster.json"
 
     // Android 13+ Notification permission launcher
@@ -112,7 +115,11 @@ class MainActivity : AppCompatActivity() {
         btnToggleOverlay = findViewById(R.id.btn_toggle_overlay)
         btnDownloadDb = findViewById(R.id.btn_download_db)
         btnAddPreset = findViewById(R.id.btn_add_preset)
+        btnToggleOppCountBasis = findViewById(R.id.btn_toggle_opp_count_basis)
+        textOppCountBasisDesc = findViewById(R.id.text_opp_count_basis_desc)
         presetsContainer = findViewById(R.id.layout_presets_list)
+
+        updateOppCountBasisUi()
 
         btnToggleOverlay.setOnClickListener {
             if (isOverlayRunning) {
@@ -128,6 +135,32 @@ class MainActivity : AppCompatActivity() {
 
         btnAddPreset.setOnClickListener {
             showPresetEditorDialog(null)
+        }
+
+        btnToggleOppCountBasis.setOnClickListener {
+            val currentMode = prefs.getString(PREFS_KEY_OPP_COUNT_MODE, "my_fasts") ?: "my_fasts"
+            val nextMode = if (currentMode == "my_fasts") "opp_fasts" else "my_fasts"
+            prefs.edit().putString(PREFS_KEY_OPP_COUNT_MODE, nextMode).apply()
+            updateOppCountBasisUi()
+
+            if (isOverlayRunning) {
+                val updateIntent = Intent(this, OverlayService::class.java).apply {
+                    action = OverlayService.ACTION_UPDATE_SETTINGS
+                    putExtra(OverlayService.EXTRA_OPP_COUNT_MODE, nextMode)
+                }
+                startService(updateIntent)
+            }
+        }
+    }
+
+    private fun updateOppCountBasisUi() {
+        val mode = prefs.getString(PREFS_KEY_OPP_COUNT_MODE, "my_fasts") ?: "my_fasts"
+        if (mode == "opp_fasts") {
+            btnToggleOppCountBasis.text = "Their Fasts"
+            textOppCountBasisDesc.text = "Counts & 50e/Xf relative to Opponent Fast Moves"
+        } else {
+            btnToggleOppCountBasis.text = "My Fasts"
+            textOppCountBasisDesc.text = "Default: Counts & 50e/Xf relative to My Fast Moves"
         }
     }
 
@@ -177,6 +210,7 @@ class MainActivity : AppCompatActivity() {
                 putExtra(OverlayService.EXTRA_RESULT_DATA, data)
             }
             putExtra(OverlayService.EXTRA_PRESET_JSON, gson.toJson(getSelectedPreset()))
+            putExtra(OverlayService.EXTRA_OPP_COUNT_MODE, prefs.getString(PREFS_KEY_OPP_COUNT_MODE, "my_fasts") ?: "my_fasts")
         }
 
         try {

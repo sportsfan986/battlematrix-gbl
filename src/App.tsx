@@ -35,6 +35,7 @@ import {
   calculateMyMoveTimingRows,
   getAvailableFormsForPokemon,
   abbrMove5,
+  OppCountMode,
   PokemonStats,
   PVPOKE_TOP_OPPONENTS,
   TopOpponentInfo
@@ -110,6 +111,23 @@ export default function App() {
   // Overlay Mode: Option 1 (Top-Left Sky Trench) vs Option 2 (Bottom Horizon Belt)
   const [layoutMode, setLayoutMode] = useState<'option1' | 'option2'>('option1');
   const [isOverlayVisible, setIsOverlayVisible] = useState(true);
+
+  // App Setting (Not in Overlay): Opponent Fast Move Count Basis ("my_fasts" default vs "opp_fasts")
+  const [oppCountMode, setOppCountMode] = useState<OppCountMode>(() => {
+    try {
+      const saved = localStorage.getItem('gbl_opp_count_mode');
+      return saved === 'opp_fasts' ? 'opp_fasts' : 'my_fasts';
+    } catch {
+      return 'my_fasts';
+    }
+  });
+
+  const handleSetOppCountMode = (mode: OppCountMode) => {
+    setOppCountMode(mode);
+    try {
+      localStorage.setItem('gbl_opp_count_mode', mode);
+    } catch {}
+  };
 
   // Overlay Custom Position (Positioned below top header: y=118px, x=8px so it never obscures top opponent HP bar)
   const [overlayPos, setOverlayPos] = useState<{ x: number; y: number }>({ x: 8, y: 118 });
@@ -356,22 +374,25 @@ export default function App() {
     );
   }, [userActivePokemon, activeOpponent, userFastMoveName, isUserShadow, isOpponentShadow]);
 
-  const oppMoveTimingInfo = useMemo(() => {
-    return calculateOpponentMoveTimingRows(
-      activeOpponent,
-      userLeadName,
-      activePreset.pokemon.map(p => p.name),
-      isOpponentShadow,
-      userFastTurns
-    );
-  }, [activeOpponent, userLeadName, activePreset, isOpponentShadow, userFastTurns]);
-
   const myCustomChargedMoves = useMemo(() => {
     return [
       activeUserSlot?.chargedMove1 || userActivePokemon.chargedMoves[0]?.name || 'Move 1',
       activeUserSlot?.chargedMove2 || userActivePokemon.chargedMoves[1]?.name || 'Move 2'
     ];
   }, [activeUserSlot, userActivePokemon]);
+
+  const oppMoveTimingInfo = useMemo(() => {
+    return calculateOpponentMoveTimingRows(
+      activeOpponent,
+      userLeadName,
+      activePreset.pokemon.map(p => p.name),
+      isOpponentShadow,
+      userFastTurns,
+      userFastMoveName,
+      myCustomChargedMoves,
+      oppCountMode
+    );
+  }, [activeOpponent, userLeadName, activePreset, isOpponentShadow, userFastTurns, userFastMoveName, myCustomChargedMoves, oppCountMode]);
 
   const oppReadyTaps = useMemo(() => {
     return oppMoveTimingInfo.rows.map(r => r.myTapAtReady);
@@ -386,9 +407,10 @@ export default function App() {
       isOpponentShadow,
       userFastTurns,
       userFastMoveName,
-      scannedOpponents
+      scannedOpponents,
+      oppMoveTimingInfo.maxHorizonTurns
     );
-  }, [userLeadName, activeOpponent, myCustomChargedMoves, oppReadyTaps, isOpponentShadow, userFastTurns, userFastMoveName, scannedOpponents]);
+  }, [userLeadName, activeOpponent, myCustomChargedMoves, oppReadyTaps, isOpponentShadow, userFastTurns, userFastMoveName, scannedOpponents, oppMoveTimingInfo.maxHorizonTurns]);
 
   const abbrPoke3 = (name: string, isShad: boolean = false) => {
     const clean = name
@@ -1166,7 +1188,7 @@ export default function App() {
                             </div>
                           </div>
 
-                          {/* Opponent Attack Rows */}
+                          {/* Opponent Attack Rows (Turn-Aligned Proportional Bars + Multi-Cycle Support) */}
                           <div className="flex flex-col gap-[2px]">
                             {oppMoveTimingInfo.rows.map((row, rIdx) => {
                               const isLastRow = rIdx === oppMoveTimingInfo.rows.length - 1;
@@ -1194,31 +1216,44 @@ export default function App() {
                                       {row.shortName}
                                     </span>
                                     <span className="text-[7.5px] text-slate-300 font-mono truncate">
-                                      {row.energy}e/{row.myTapAtReady}f
+                                      {row.energy}e/{row.displayReadyCount}f
                                     </span>
                                   </div>
 
-                                  {/* Center: Universal Segmented Rectangle Bar */}
-                                  <div className="flex items-center justify-center min-w-0">
-                                    <div className="flex items-center justify-center gap-0.5 w-full">
-                                      <span className="flex-1 text-center rounded px-1.5 py-0.5 text-[7.5px] font-extrabold whitespace-nowrap bg-sky-600/35 border border-sky-400/70 text-sky-200">
-                                        {row.safeRangeLabel}
-                                      </span>
-                                      {row.winsCmp ? (
-                                        <span
-                                          className="rounded px-1.5 py-0.5 text-[7.5px] font-extrabold whitespace-nowrap bg-green-600/50 border border-green-300 text-white"
-                                          title={`You win CMP tie on tap #${row.myTapAtReady}`}
+                                  {/* Center: Turn-Aligned Proportional Multi-Cycle Segmented Bar */}
+                                  <div className="flex items-center justify-start min-w-0 w-full bg-slate-900/45 rounded p-[1px]">
+                                    <div className="flex items-center justify-start w-full">
+                                      {row.cycles.map((cycle) => (
+                                        <div
+                                          key={cycle.cycleIndex}
+                                          style={{ width: `${cycle.widthPct}%` }}
+                                          className="flex items-center gap-[1.5px] pr-[1.5px] last:pr-0 min-w-0 shrink-0"
                                         >
-                                          #{row.myTapAtReady}
-                                        </span>
-                                      ) : (
-                                        <span
-                                          className="rounded px-1.5 py-0.5 text-[7.5px] font-extrabold whitespace-nowrap bg-red-600/50 border border-red-300 text-white"
-                                          title={`Opponent move ready on #${row.myTapAtReady} (Catch)`}
-                                        >
-                                          #{row.myTapAtReady}
-                                        </span>
-                                      )}
+                                          {cycle.rangeLabel ? (
+                                            <span
+                                              className="flex-1 min-w-0 text-center rounded px-1 py-0.5 text-[7px] font-extrabold truncate bg-sky-600/35 border border-sky-400/70 text-sky-200 leading-none"
+                                              title={`Throw ${cycle.cycleIndex} charging taps: ${cycle.rangeLabel} (Turns ${cycle.startTurn + 1}–${cycle.readyTurn})`}
+                                            >
+                                              {cycle.rangeLabel}
+                                            </span>
+                                          ) : null}
+                                          {cycle.readyState === 'cmp' ? (
+                                            <span
+                                              className="rounded px-1 py-0.5 text-[7px] font-extrabold whitespace-nowrap bg-green-600/55 border border-green-300 text-white leading-none shrink-0"
+                                              title={`Throw #${cycle.cycleIndex} ready at Turn ${cycle.readyTurn} (Tap ${cycle.readyLabel} · CMP Win)`}
+                                            >
+                                              {cycle.readyLabel}
+                                            </span>
+                                          ) : (
+                                            <span
+                                              className="rounded px-1 py-0.5 text-[7px] font-extrabold whitespace-nowrap bg-red-600/55 border border-red-300 text-white leading-none shrink-0"
+                                              title={`Throw #${cycle.cycleIndex} ready at Turn ${cycle.readyTurn} (Tap ${cycle.readyLabel} · Catch/CMP)`}
+                                            >
+                                              {cycle.readyLabel}
+                                            </span>
+                                          )}
+                                        </div>
+                                      ))}
                                     </div>
                                   </div>
 
@@ -1285,7 +1320,7 @@ export default function App() {
                             </div>
                           </div>
 
-                          {/* My Attack Rows */}
+                          {/* My Attack Rows (Turn-Aligned Proportional Bars + Multi-Cycle & Safe Throw Numbers) */}
                           <div className="flex flex-col gap-[2px]">
                             {myMoveTimingInfo.map((row, rIdx) => {
                               const isLastRow = rIdx === myMoveTimingInfo.length - 1;
@@ -1317,45 +1352,55 @@ export default function App() {
                                     </span>
                                   </div>
 
-                                  {/* Center: Universal Segmented Rectangle Bar with Leak-Free Safe Throw Numbers */}
-                                  <div className="flex items-center justify-center min-w-0">
-                                    <div className="flex items-center justify-center gap-0.5 w-full">
-                                      <span
-                                        className={`flex-1 text-center rounded px-1 py-0.5 text-[7.5px] font-extrabold whitespace-nowrap ${
-                                          row.hasZeroSneak
-                                            ? 'bg-sky-600/35 border border-sky-400/70 text-sky-200'
-                                            : 'bg-slate-700/45 border border-slate-400/40 text-slate-300'
-                                        }`}
-                                        title={
-                                          row.hasZeroSneak
-                                            ? `Leak-free (zero-sneak) throw taps: ${row.safeThrowLabel}`
-                                            : 'Co-aligned fast moves (all turns align)'
-                                        }
-                                      >
-                                        {row.safeThrowLabel}
-                                      </span>
-                                      {row.state === 'cmp' ? (
-                                        <span
-                                          className="rounded px-1.5 py-0.5 text-[7.5px] font-extrabold whitespace-nowrap bg-green-600/50 border border-green-300 text-white"
-                                          title={`Ready on #${row.myTapsNeeded} (CMP Win)`}
+                                  {/* Center: Turn-Aligned Proportional Multi-Cycle Bar with Leak-Free Safe Throw Numbers */}
+                                  <div className="flex items-center justify-start min-w-0 w-full bg-slate-900/45 rounded p-[1px]">
+                                    <div className="flex items-center justify-start w-full">
+                                      {row.cycles.map((cycle) => (
+                                        <div
+                                          key={cycle.cycleIndex}
+                                          style={{ width: `${cycle.widthPct}%` }}
+                                          className="flex items-center gap-[1.5px] pr-[1.5px] last:pr-0 min-w-0 shrink-0"
                                         >
-                                          #{row.myTapsNeeded}
-                                        </span>
-                                      ) : row.state === 'cmp-loss' ? (
-                                        <span
-                                          className="rounded px-1.5 py-0.5 text-[7.5px] font-extrabold whitespace-nowrap bg-red-600/50 border border-red-300 text-white"
-                                          title={`Ready on #${row.myTapsNeeded} (CMP Loss)`}
-                                        >
-                                          #{row.myTapsNeeded}
-                                        </span>
-                                      ) : (
-                                        <span
-                                          className="rounded px-1.5 py-0.5 text-[7.5px] font-extrabold whitespace-nowrap bg-sky-600/35 border border-sky-400/70 text-sky-200"
-                                          title={`Ready on #${row.myTapsNeeded}`}
-                                        >
-                                          #{row.myTapsNeeded}
-                                        </span>
-                                      )}
+                                          {cycle.rangeLabel ? (
+                                            <span
+                                              className={`flex-1 min-w-0 text-center rounded px-1 py-0.5 text-[7px] font-extrabold truncate leading-none ${
+                                                cycle.hasZeroSneak
+                                                  ? 'bg-sky-600/35 border border-sky-400/70 text-sky-200'
+                                                  : 'bg-slate-700/45 border border-slate-400/40 text-slate-300'
+                                              }`}
+                                              title={
+                                                cycle.hasZeroSneak
+                                                  ? `Leak-free (zero-sneak) throw taps: ${cycle.rangeLabel} (Turns ${cycle.startTurn + 1}–${cycle.readyTurn})`
+                                                  : `Co-aligned charging taps (Turns ${cycle.startTurn + 1}–${cycle.readyTurn})`
+                                              }
+                                            >
+                                              {cycle.rangeLabel}
+                                            </span>
+                                          ) : null}
+                                          {cycle.readyState === 'cmp' ? (
+                                            <span
+                                              className="rounded px-1 py-0.5 text-[7px] font-extrabold whitespace-nowrap bg-green-600/55 border border-green-300 text-white leading-none shrink-0"
+                                              title={`Throw #${cycle.cycleIndex} ready at Turn ${cycle.readyTurn} (${cycle.readyLabel} · CMP Win)`}
+                                            >
+                                              {cycle.readyLabel}
+                                            </span>
+                                          ) : cycle.readyState === 'cmp-loss' ? (
+                                            <span
+                                              className="rounded px-1 py-0.5 text-[7px] font-extrabold whitespace-nowrap bg-red-600/55 border border-red-300 text-white leading-none shrink-0"
+                                              title={`Throw #${cycle.cycleIndex} ready at Turn ${cycle.readyTurn} (${cycle.readyLabel} · CMP Loss)`}
+                                            >
+                                              {cycle.readyLabel}
+                                            </span>
+                                          ) : (
+                                            <span
+                                              className="rounded px-1 py-0.5 text-[7px] font-extrabold whitespace-nowrap bg-sky-600/35 border border-sky-400/70 text-sky-200 leading-none shrink-0"
+                                              title={`Throw #${cycle.cycleIndex} ready at Turn ${cycle.readyTurn} (${cycle.readyLabel})`}
+                                            >
+                                              {cycle.readyLabel}
+                                            </span>
+                                          )}
+                                        </div>
+                                      ))}
                                     </div>
                                   </div>
 
@@ -1538,6 +1583,40 @@ export default function App() {
                     <Shield className="w-3.5 h-3.5 text-red-400" />
                     <span>Opp Shields: {oppShields}</span>
                   </button>
+                </div>
+
+                {/* App Setting (Not on Overlay): Opponent Fast Move Count Basis */}
+                <div className="mb-4 p-3 rounded-xl bg-slate-950/70 border border-slate-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-200">
+                      Opponent Move Count Basis
+                    </span>
+                    <span className="text-[10px] font-mono text-sky-400">
+                      App Setting · Turn-Aligned
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-900 rounded-lg border border-slate-800">
+                    <button
+                      onClick={() => handleSetOppCountMode('my_fasts')}
+                      className={`py-1.5 px-2 rounded-md text-xs font-bold transition ${
+                        oppCountMode === 'my_fasts'
+                          ? 'bg-sky-500/25 border border-sky-400/70 text-sky-200 shadow-sm'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      My Fast Moves (Default)
+                    </button>
+                    <button
+                      onClick={() => handleSetOppCountMode('opp_fasts')}
+                      className={`py-1.5 px-2 rounded-md text-xs font-bold transition ${
+                        oppCountMode === 'opp_fasts'
+                          ? 'bg-sky-500/25 border border-sky-400/70 text-sky-200 shadow-sm'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      Opponent Fast Moves
+                    </button>
+                  </div>
                 </div>
 
                 {/* Swap In Opponent Pokémon (PvPoke Top 10 Meta & OCR Switch Simulator) */}

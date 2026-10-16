@@ -1324,6 +1324,8 @@ export function calculateChargedDamage(
   };
 }
 
+export type OppCountMode = "my_fasts" | "opp_fasts";
+
 export interface TapNodeInfo {
   tap: number;
   label: string;
@@ -1348,6 +1350,20 @@ export interface TeamDamageCell {
   isEmpty?: boolean;
 }
 
+export interface MoveCycleSegment {
+  cycleIndex: number;
+  startTurn: number;
+  readyTurn: number;
+  turnSpan: number;
+  widthPct: number;
+  startTap: number;
+  readyTap: number;
+  rangeLabel: string;
+  readyLabel: string;
+  hasZeroSneak: boolean;
+  readyState: "cmp" | "catch" | "cmp-loss" | "safe";
+}
+
 export interface OpponentMoveTimingRow {
   name: string;
   shortName: string;
@@ -1356,6 +1372,7 @@ export interface OpponentMoveTimingRow {
   oppFasts: number;
   oppReadyTurn: number;
   myTapAtReady: number;
+  displayReadyCount: number;
   myCapTap: number;
   coAligned: boolean;
   winsCmp: boolean;
@@ -1363,6 +1380,8 @@ export interface OpponentMoveTimingRow {
   activeDmgPct: number;
   activeEff: number;
   safeRangeLabel: string;
+  maxHorizonTurns: number;
+  cycles: MoveCycleSegment[];
   tapNodes: TapNodeInfo[];
   bench: BenchThreatInfo[];
   teamDamages: TeamDamageCell[];
@@ -1373,11 +1392,14 @@ export interface MyMoveTimingRow {
   shortName: string;
   energy: number;
   myTapsNeeded: number;
+  myReadyTurn: number;
   dmgPct: number;
   eff: number;
   state: "safe" | "cmp" | "cmp-loss";
   safeThrowLabel: string;
   hasZeroSneak: boolean;
+  maxHorizonTurns: number;
+  cycles: MoveCycleSegment[];
   tapNodes: TapNodeInfo[];
   oppDamages: TeamDamageCell[];
 }
@@ -1396,16 +1418,58 @@ function abbrPokeCode3(name: string): string {
 }
 
 /**
- * Computes per-move timing, catch/CMP windows, and 3-column team threat rows
- * strictly in YOUR active Pokémon's fast-move tap counts up to opponent's first charged move.
+ * Helper to compute the shared maximum 1st-throw turn horizon across all 5 moves (Opponent's 3 + Player's 2)
+ */
+export function computeSharedHorizonTurns(
+  oppStats: PokemonStats,
+  userStats: PokemonStats,
+  userCustomChargedMoves: string[] | undefined,
+  userFastMove: FastMove
+): number {
+  const oppFastMove = resolveFastMove(oppStats);
+  const oppFastTurns = oppFastMove.turns || 2;
+  const oppFastEnergy = oppFastMove.energyGain || oppFastTurns * 4;
+
+  const userFastTurns = userFastMove.turns || 2;
+  const userFastEnergy = userFastMove.energyGain || userFastTurns * 4;
+
+  const oppFirstReadyTurns = oppStats.chargedMoves.slice(0, 3).map((cm) => {
+    const mEnergy = cm.energyCost || 50;
+    const fasts = Math.max(1, Math.ceil(mEnergy / oppFastEnergy));
+    return fasts * oppFastTurns;
+  });
+
+  const userMovesList =
+    userCustomChargedMoves && userCustomChargedMoves.length > 0
+      ? userCustomChargedMoves
+      : userStats.chargedMoves.slice(0, 2).map((m) => m.name);
+
+  const userFirstReadyTurns = userMovesList.map((mName, idx) => {
+    const existing =
+      userStats.chargedMoves.find((m) => m.name.toLowerCase() === mName.toLowerCase()) ||
+      userStats.chargedMoves[idx];
+    const mEnergy = existing?.energyCost || 50;
+    const fasts = Math.max(1, Math.ceil(mEnergy / userFastEnergy));
+    return fasts * userFastTurns;
+  });
+
+  return Math.max(4, ...oppFirstReadyTurns, ...userFirstReadyTurns);
+}
+
+/**
+ * Computes per-move timing, catch/CMP windows, turn-aligned multi-cycle segments,
+ * and 3-column team threat rows.
  */
 export function calculateOpponentMoveTimingRows(
   oppStats: PokemonStats,
   userLeadName: string,
   teamNames: string[],
   isOppShadow: boolean = false,
-  userFastTurnsOverride?: number
-): { rows: OpponentMoveTimingRow[]; winsCmp: boolean; userFastTurns: number } {
+  userFastTurnsOverride?: number,
+  userFastMoveNameOverride?: string,
+  userCustomChargedMoves?: string[],
+  oppCountMode: OppCountMode = "my_fasts"
+): { rows: OpponentMoveTimingRow[]; winsCmp: boolean; userFastTurns: number; maxHorizonTurns: number } {
   const cleanUserName = userLeadName.replace(/^Shadow\s+/i, "").trim();
   const userStats =
     POKEMON_DATABASE[userLeadName] ||
@@ -1414,11 +1478,17 @@ export function calculateOpponentMoveTimingRows(
     Object.values(POKEMON_DATABASE)[0];
 
   const isUserShadow = userLeadName.toLowerCase().startsWith("shadow ");
-  const userFastTurns = userFastTurnsOverride || userStats.defaultFastMove.turns || 2;
+  const resolvedUserFast = resolveFastMove(userStats, userFastMoveNameOverride);
+  const userFastTurns = userFastTurnsOverride || resolvedUserFast.turns || 2;
   const oppFastMove = resolveFastMove(oppStats);
   const oppFastTurns = oppFastMove.turns || 2;
   const oppFastEnergy = oppFastMove.energyGain || oppFastTurns * 4;
   const winsCmp = userStats.baseStats.atk >= oppStats.baseStats.atk;
+
+  const maxHorizonTurns = computeSharedHorizonTurns(oppStats, userStats, userCustomChargedMoves, {
+    ...resolvedUserFast,
+    turns: userFastTurns
+  });
 
   const benchNames = teamNames.filter((n) => n.toLowerCase() !== userLeadName.toLowerCase()).slice(0, 2);
 
@@ -1427,10 +1497,61 @@ export function calculateOpponentMoveTimingRows(
     const oppFasts = Math.max(1, Math.ceil(mEnergy / oppFastEnergy));
     const oppReadyTurn = oppFasts * oppFastTurns;
 
-    // Strictly in YOUR active Pokémon's fast-move tap counts
     const myTapAtReady = Math.max(1, Math.ceil(oppReadyTurn / userFastTurns));
+    const displayReadyCount = oppCountMode === "opp_fasts" ? oppFasts : myTapAtReady;
     const myCapTap = Math.max(myTapAtReady + 1, Math.ceil((oppReadyTurn * 2) / userFastTurns));
     const coAligned = oppReadyTurn % userFastTurns === 0;
+
+    // Multi-cycle calculation using true PvPoke residual energy up to maxHorizonTurns
+    const cycles: MoveCycleSegment[] = [];
+    let leftoverEnergy = 0;
+    let cumOppFasts = 0;
+    let prevTurn = 0;
+    let prevDisplayTap = 0;
+
+    for (let cycleIdx = 1; cycleIdx <= 3; cycleIdx++) {
+      const energyNeeded = Math.max(1, mEnergy - leftoverEnergy);
+      const fastsInCycle = Math.max(1, Math.ceil(energyNeeded / oppFastEnergy));
+      leftoverEnergy = leftoverEnergy + fastsInCycle * oppFastEnergy - mEnergy;
+      cumOppFasts += fastsInCycle;
+      const readyTurn = cumOppFasts * oppFastTurns;
+
+      if (cycleIdx > 1 && readyTurn > maxHorizonTurns) {
+        break;
+      }
+
+      const turnSpan = Math.max(1, readyTurn - prevTurn);
+      const widthPct = Math.min(100, Math.max(8, Number(((turnSpan / maxHorizonTurns) * 100).toFixed(2))));
+
+      const readyTap =
+        oppCountMode === "opp_fasts"
+          ? cumOppFasts
+          : Math.max(prevDisplayTap + 1, Math.ceil(readyTurn / userFastTurns));
+      const startTap = prevDisplayTap + 1;
+      const rangeEnd = readyTap - 1;
+
+      let rangeLabel = "";
+      if (readyTap > startTap) {
+        rangeLabel = rangeEnd === startTap ? `${startTap}` : `${startTap}–${rangeEnd}`;
+      }
+
+      cycles.push({
+        cycleIndex: cycleIdx,
+        startTurn: prevTurn,
+        readyTurn,
+        turnSpan,
+        widthPct,
+        startTap,
+        readyTap,
+        rangeLabel,
+        readyLabel: `#${readyTap}`,
+        hasZeroSneak: false,
+        readyState: winsCmp ? "cmp" : "catch"
+      });
+
+      prevTurn = readyTurn;
+      prevDisplayTap = readyTap;
+    }
 
     const actvDmg = calculateChargedDamage(oppStats, userStats, cm, isOppShadow, isUserShadow);
     const activeDmgPct = actvDmg.percentage;
@@ -1490,11 +1611,11 @@ export function calculateOpponentMoveTimingRows(
       };
     });
 
-    const maxNode = myTapAtReady;
+    const maxNode = displayReadyCount;
     const tapNodes: TapNodeInfo[] = [];
     for (let k = 1; k <= maxNode; k++) {
       let state: "safe" | "leak" | "catch" | "cmp";
-      if (k === myTapAtReady) {
+      if (k === maxNode) {
         state = winsCmp ? "cmp" : "catch";
       } else if ((k * userFastTurns) % oppFastTurns !== 0) {
         state = "safe";
@@ -1505,11 +1626,11 @@ export function calculateOpponentMoveTimingRows(
         tap: k,
         label: `${k}`,
         state,
-        isCatchOrCmp: k === myTapAtReady
+        isCatchOrCmp: k === maxNode
       });
     }
 
-    const safeEnd = Math.max(1, myTapAtReady - 1);
+    const safeEnd = Math.max(1, displayReadyCount - 1);
     const safeRangeLabel = safeEnd <= 1 ? "1" : `1–${safeEnd}`;
 
     return {
@@ -1520,6 +1641,7 @@ export function calculateOpponentMoveTimingRows(
       oppFasts,
       oppReadyTurn,
       myTapAtReady,
+      displayReadyCount,
       myCapTap,
       coAligned,
       winsCmp,
@@ -1527,17 +1649,20 @@ export function calculateOpponentMoveTimingRows(
       activeDmgPct,
       activeEff,
       safeRangeLabel,
+      maxHorizonTurns,
+      cycles,
       tapNodes,
       bench,
       teamDamages
     };
   });
 
-  return { rows, winsCmp, userFastTurns };
+  return { rows, winsCmp, userFastTurns, maxHorizonTurns };
 }
 
 /**
- * Computes player's charged move timing rows with leak-free range blocks and 3-column opponent damage matrix
+ * Computes player's charged move timing rows with turn-aligned multi-cycle segments,
+ * leak-free safe throw numbers, and 3-column opponent damage matrix.
  */
 export function calculateMyMoveTimingRows(
   userLeadName: string,
@@ -1547,7 +1672,8 @@ export function calculateMyMoveTimingRows(
   isOppShadow: boolean = false,
   userFastTurnsOverride?: number,
   userFastMoveNameOverride?: string,
-  scannedOpponentNames: string[] = []
+  scannedOpponentNames: string[] = [],
+  sharedHorizonTurnsOverride?: number
 ): MyMoveTimingRow[] {
   const cleanUserName = userLeadName.replace(/^Shadow\s+/i, "").trim();
   const userStats =
@@ -1560,20 +1686,33 @@ export function calculateMyMoveTimingRows(
   const resolvedUserFast = resolveFastMove(userStats, userFastMoveNameOverride);
   const userFastTurns = userFastTurnsOverride || resolvedUserFast.turns || 2;
   const userFastEnergy = resolvedUserFast.energyGain || userFastTurns * 4;
-  const oppFastTurns = resolveFastMove(oppStats).turns || 2;
+  const oppFastMove = resolveFastMove(oppStats);
+  const oppFastTurns = oppFastMove.turns || 2;
+  const oppFastEnergy = oppFastMove.energyGain || oppFastTurns * 4;
   const winsCmp = userStats.baseStats.atk >= oppStats.baseStats.atk;
   const maxOppTap = oppReadyTaps.length > 0 ? Math.max(...oppReadyTaps) : 4;
 
-  // Compute leak-free (zero-sneak) fast move tap numbers where (k * userFastTurns) % oppFastTurns !== 0
-  const zeroSneakTaps: number[] = [];
-  for (let k = 1; k <= 9; k++) {
-    if ((k * userFastTurns) % oppFastTurns !== 0) {
-      zeroSneakTaps.push(k);
+  const maxHorizonTurns =
+    sharedHorizonTurnsOverride ||
+    computeSharedHorizonTurns(oppStats, userStats, customMoves, {
+      ...resolvedUserFast,
+      turns: userFastTurns
+    });
+
+  // Compute all opponent ready turns (across up to 3 cycles) for CMP tie detection
+  const oppReadyTurnsSet = new Set<number>();
+  oppStats.chargedMoves.slice(0, 3).forEach((cm) => {
+    const mE = cm.energyCost || 50;
+    let leftE = 0;
+    let cumF = 0;
+    for (let c = 1; c <= 3; c++) {
+      const needE = Math.max(1, mE - leftE);
+      const f = Math.max(1, Math.ceil(needE / oppFastEnergy));
+      leftE = leftE + f * oppFastEnergy - mE;
+      cumF += f;
+      oppReadyTurnsSet.add(cumF * oppFastTurns);
     }
-    if (zeroSneakTaps.length >= 3) break;
-  }
-  const hasZeroSneak = zeroSneakTaps.length > 0;
-  const safeThrowLabelBase = hasZeroSneak ? `Safe ${zeroSneakTaps.join(",")}` : "";
+  });
 
   const oppSlots = scannedOpponentNames.length > 0 ? scannedOpponentNames : [oppStats.name];
 
@@ -1590,7 +1729,75 @@ export function calculateMyMoveTimingRows(
 
     const mEnergy = existing.energyCost || 50;
     const myTapsNeeded = Math.max(1, Math.ceil(mEnergy / userFastEnergy));
+    const myReadyTurn = myTapsNeeded * userFastTurns;
     const actvDmg = calculateChargedDamage(userStats, oppStats, existing, isUserShadow, isOppShadow);
+
+    // Multi-cycle calculation using true PvPoke residual energy up to maxHorizonTurns
+    const cycles: MoveCycleSegment[] = [];
+    let leftoverEnergy = 0;
+    let cumMyFasts = 0;
+    let prevTurn = 0;
+    let prevDisplayTap = 0;
+
+    for (let cycleIdx = 1; cycleIdx <= 3; cycleIdx++) {
+      const energyNeeded = Math.max(1, mEnergy - leftoverEnergy);
+      const fastsInCycle = Math.max(1, Math.ceil(energyNeeded / userFastEnergy));
+      leftoverEnergy = leftoverEnergy + fastsInCycle * userFastEnergy - mEnergy;
+      cumMyFasts += fastsInCycle;
+      const readyTurn = cumMyFasts * userFastTurns;
+
+      if (cycleIdx > 1 && readyTurn > maxHorizonTurns) {
+        break;
+      }
+
+      const turnSpan = Math.max(1, readyTurn - prevTurn);
+      const widthPct = Math.min(100, Math.max(8, Number(((turnSpan / maxHorizonTurns) * 100).toFixed(2))));
+
+      const readyTap = cumMyFasts;
+      const startTap = prevDisplayTap + 1;
+      const rangeEnd = readyTap - 1;
+
+      const cycleSafeTaps: number[] = [];
+      for (let k = startTap; k <= rangeEnd; k++) {
+        if ((k * userFastTurns) % oppFastTurns !== 0) {
+          cycleSafeTaps.push(k);
+        }
+      }
+      const cycleHasZeroSneak = cycleSafeTaps.length > 0;
+
+      let rangeLabel = "";
+      if (readyTap > startTap) {
+        if (cycleHasZeroSneak) {
+          rangeLabel = `Safe ${cycleSafeTaps.slice(0, 3).join(",")}`;
+        } else {
+          rangeLabel = rangeEnd === startTap ? `${startTap}` : `${startTap}–${rangeEnd}`;
+        }
+      }
+
+      const isCmpTurn = oppReadyTurnsSet.has(readyTurn) || oppReadyTaps.includes(readyTap);
+      const cycleReadyState: "safe" | "cmp" | "cmp-loss" = isCmpTurn
+        ? winsCmp
+          ? "cmp"
+          : "cmp-loss"
+        : "safe";
+
+      cycles.push({
+        cycleIndex: cycleIdx,
+        startTurn: prevTurn,
+        readyTurn,
+        turnSpan,
+        widthPct,
+        startTap,
+        readyTap,
+        rangeLabel,
+        readyLabel: `#${readyTap}`,
+        hasZeroSneak: cycleHasZeroSneak,
+        readyState: cycleReadyState
+      });
+
+      prevTurn = readyTurn;
+      prevDisplayTap = readyTap;
+    }
 
     const oppDamages: TeamDamageCell[] = [0, 1, 2].map((slotIdx) => {
       const oName = oppSlots[slotIdx] || "";
@@ -1613,7 +1820,6 @@ export function calculateMyMoveTimingRows(
         oppStats;
       const isOShadow = (slotIdx === 0 && isOppShadow) || oName.toLowerCase().startsWith("shadow ");
       const oDmg = calculateChargedDamage(userStats, oStats, existing, isUserShadow, isOShadow);
-      // For My Attacks: high outgoing damage (>=60% or SE) is strong ("resist" green), low (<=35%) is weak ("weak" red)
       const tier: "resist" | "neutral" | "weak" =
         oDmg.percentage >= 60 || oDmg.mult >= 1.5
           ? "resist"
@@ -1649,25 +1855,24 @@ export function calculateMyMoveTimingRows(
       });
     }
 
-    const readyState: "safe" | "cmp" | "cmp-loss" = oppReadyTaps.includes(myTapsNeeded)
-      ? winsCmp
-        ? "cmp"
-        : "cmp-loss"
-      : "safe";
-
-    const fallbackRange = myTapsNeeded <= 1 ? "1" : `1–${myTapsNeeded - 1}`;
-    const safeThrowLabel = hasZeroSneak ? safeThrowLabelBase : fallbackRange;
+    const firstCycle = cycles[0];
+    const readyState = firstCycle ? firstCycle.readyState : "safe";
+    const hasZeroSneak = firstCycle ? firstCycle.hasZeroSneak : false;
+    const safeThrowLabel = firstCycle ? firstCycle.rangeLabel : myTapsNeeded <= 1 ? "1" : `1–${myTapsNeeded - 1}`;
 
     return {
       name: mName,
       shortName: abbrMove5(mName),
       energy: mEnergy,
       myTapsNeeded,
+      myReadyTurn,
       dmgPct: actvDmg.percentage,
       eff: actvDmg.mult,
       state: readyState,
       safeThrowLabel,
       hasZeroSneak,
+      maxHorizonTurns,
+      cycles,
       tapNodes,
       oppDamages
     };

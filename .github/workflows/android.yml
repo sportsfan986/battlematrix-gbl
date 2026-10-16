@@ -17,6 +17,15 @@ on:
           - debug
           - both
 
+      workflow_version:
+        description: 'Optional release version override (e.g. v1.01)'
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -24,6 +33,22 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Resolve Release Version
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.workflow_version }}" ]; then
+            RAW_VER="${{ github.event.inputs.workflow_version }}"
+          elif [ -f VERSION ]; then
+            RAW_VER=$(cat VERSION | tr -d '[:space:]')
+          else
+            RAW_VER="v1.00"
+          fi
+          CLEAN_NUM="${RAW_VER#v}"
+          TAG_NAME="v${CLEAN_NUM}"
+          echo "tag=${TAG_NAME}" >> $GITHUB_OUTPUT
+          echo "version_num=${CLEAN_NUM}" >> $GITHUB_OUTPUT
+          echo "Resolved release version: ${TAG_NAME}"
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -55,6 +80,11 @@ jobs:
         if: github.event.inputs.build_target == 'release' || github.event.inputs.build_target == 'both' || github.event.inputs.build_target == '' || github.event_name == 'push'
         run: ./gradlew assembleRelease --no-daemon --stacktrace
 
+      - name: Prepare Named Release APK for Public Download
+        if: github.event.inputs.build_target == 'release' || github.event.inputs.build_target == 'both' || github.event.inputs.build_target == '' || github.event_name == 'push'
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk "app/build/outputs/apk/release/gbl-battle-matrix-${{ steps.version.outputs.tag }}.apk"
+
       - name: Build Debug APK
         if: github.event.inputs.build_target == 'debug' || github.event.inputs.build_target == 'both'
         run: ./gradlew assembleDebug --no-daemon --stacktrace
@@ -76,3 +106,24 @@ jobs:
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: ignore
           retention-days: 14
+
+      - name: Publish Official GitHub Release
+        if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: "GBL Battle Matrix ${{ steps.version.outputs.tag }}"
+          body: |
+            ## GBL Battle Matrix ${{ steps.version.outputs.tag }} — Public Android Release
+            
+            ### Download & Install
+            Download **`gbl-battle-matrix-${{ steps.version.outputs.tag }}.apk`** (or `app-release.apk`) from the **Assets** section below and install on your Android device.
+          files: |
+            app/build/outputs/apk/release/gbl-battle-matrix-${{ steps.version.outputs.tag }}.apk
+            app/build/outputs/apk/release/app-release.apk
+          draft: false
+          prerelease: false
+          make_latest: "true"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

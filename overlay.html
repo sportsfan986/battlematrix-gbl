@@ -406,14 +406,22 @@
         .seg-bar-track {
             display: flex;
             align-items: center;
-            gap: 2px;
+            gap: 1.5px;
             width: 100%;
             justify-content: flex-start;
         }
 
+        .seg-cycle-group {
+            display: flex;
+            align-items: center;
+            gap: 1px;
+            min-width: 0;
+            overflow: hidden;
+        }
+
         .seg-block {
             border-radius: 3px;
-            padding: 1.5px 4px;
+            padding: 1.5px 3.5px;
             font-size: 7.5px;
             font-weight: 800;
             white-space: nowrap;
@@ -426,6 +434,11 @@
             min-width: 0;
             overflow: hidden;
             text-overflow: ellipsis;
+            padding: 1.5px 2px;
+        }
+
+        .seg-block.seg-ready {
+            flex-shrink: 0;
         }
 
         .seg-safe {
@@ -1201,19 +1214,41 @@
                             const actvEff = row.activeEff || 1.0;
                             const threatClass = (actvPct >= 60 || actvEff >= 1.5) ? "high" : ((actvPct <= 30 || (actvEff <= 0.65 && actvPct < 45)) ? "low" : "mid");
                             const myTapReady = row.myTapAtReady || 4;
+                            const displayReadyCount = row.displayReadyCount || myTapReady;
                             const rowWinsCmp = row.winsCmp !== undefined ? !!row.winsCmp : winsCmp;
 
-                            // Always use the rectangular segmented bar for all turn lengths
-                            const safeLabel = row.safeRangeLabel || (myTapReady <= 1 ? "1" : `1–${myTapReady - 1}`);
-                            const actionBlock = rowWinsCmp
-                                ? `<span class="seg-block seg-cmp" title="CMP Win on #${myTapReady}">#${myTapReady}</span>`
-                                : `<span class="seg-block seg-catch" title="Opponent can throw on #${myTapReady} (Catch)">#${myTapReady}</span>`;
-                            const centerHtml = `
-                                <div class="seg-bar-track">
-                                    <span class="seg-block seg-range seg-safe">${safeLabel}</span>
-                                    ${actionBlock}
-                                </div>
-                            `;
+                            let cyclesHtml = "";
+                            if (row.cycles && row.cycles.length > 0) {
+                                cyclesHtml = row.cycles.map(cycle => {
+                                    const wPct = typeof cycle.widthPct === "number" ? cycle.widthPct.toFixed(2) : "100";
+                                    const rangePart = cycle.rangeLabel
+                                        ? `<span class="seg-block seg-range seg-safe" title="Turns ${cycle.startTurn + 1}–${cycle.readyTurn}">${cycle.rangeLabel}</span>`
+                                        : "";
+                                    const readyCls = cycle.readyState === "cmp" ? "seg-cmp" : "seg-catch";
+                                    const readyTitle = cycle.readyState === "cmp"
+                                        ? `Cycle ${cycle.cycleIndex}: Ready at Turn ${cycle.readyTurn} (CMP Win)`
+                                        : `Cycle ${cycle.cycleIndex}: Opponent can throw at Turn ${cycle.readyTurn} (Catch)`;
+                                    return `
+                                        <div class="seg-cycle-group" style="width:${wPct}%;">
+                                            ${rangePart}
+                                            <span class="seg-block seg-ready ${readyCls}" title="${readyTitle}">${cycle.readyLabel}</span>
+                                        </div>
+                                    `;
+                                }).join("");
+                            } else {
+                                const safeLabel = row.safeRangeLabel || (displayReadyCount <= 1 ? "1" : `1–${displayReadyCount - 1}`);
+                                const actionBlock = rowWinsCmp
+                                    ? `<span class="seg-block seg-ready seg-cmp" title="CMP Win on #${displayReadyCount}">#${displayReadyCount}</span>`
+                                    : `<span class="seg-block seg-ready seg-catch" title="Opponent can throw on #${displayReadyCount} (Catch)">#${displayReadyCount}</span>`;
+                                cyclesHtml = `
+                                    <div class="seg-cycle-group" style="width:100%;">
+                                        <span class="seg-block seg-range seg-safe">${safeLabel}</span>
+                                        ${actionBlock}
+                                    </div>
+                                `;
+                            }
+
+                            const centerHtml = `<div class="seg-bar-track">${cyclesHtml}</div>`;
 
                             // 3-Column Team Damage Matrix with Vertical Active Column Highlight
                             let teamDamages = row.teamDamages;
@@ -1236,7 +1271,7 @@
                                 <div class="move-timing-row">
                                     <div class="move-col-left">
                                         <div class="move-title-line threat-${threatClass}" title="${row.name || ''}">${shortMove}</div>
-                                        <div class="move-sub-line">${row.energy || 50}e/${myTapReady}f</div>
+                                        <div class="move-sub-line">${row.energy || 50}e/${displayReadyCount}f</div>
                                     </div>
                                     <div class="move-col-center">${centerHtml}</div>
                                     <div class="move-col-right-grid">${rightGridHtml}</div>
@@ -1269,20 +1304,51 @@
                             const myTaps = row.myTapsNeeded || 4;
                             const threatClass = (dmgPct >= 65 || eff >= 1.5) ? "low" : ((dmgPct <= 30 || eff <= 0.65) ? "high" : "mid");
 
-                            // Always use the rectangular segmented bar with Safe leak-free numbers inside
-                            const rangeLabel = row.safeThrowLabel || (myTaps <= 1 ? "1" : `1–${myTaps - 1}`);
-                            const rangeCls = row.hasZeroSneak ? "seg-safe" : "seg-uncharged";
-                            const readyBlock = row.state === "cmp"
-                                ? `<span class="seg-block seg-cmp" title="Ready on #${myTaps} (CMP Win)">#${myTaps}</span>`
-                                : row.state === "cmp-loss"
-                                ? `<span class="seg-block seg-catch" title="Ready on #${myTaps} (CMP Loss)">#${myTaps}</span>`
-                                : `<span class="seg-block seg-safe" title="Ready on #${myTaps}">#${myTaps}</span>`;
-                            const centerHtml = `
-                                <div class="seg-bar-track">
-                                    <span class="seg-block seg-range ${rangeCls}">${rangeLabel}</span>
-                                    ${readyBlock}
-                                </div>
-                            `;
+                            let cyclesHtml = "";
+                            if (row.cycles && row.cycles.length > 0) {
+                                cyclesHtml = row.cycles.map(cycle => {
+                                    const wPct = typeof cycle.widthPct === "number" ? cycle.widthPct.toFixed(2) : "100";
+                                    const rangeCls = cycle.hasZeroSneak ? "seg-safe" : "seg-uncharged";
+                                    const rangeTitle = cycle.hasZeroSneak
+                                        ? `Zero-sneak leak-free taps: ${cycle.rangeLabel}`
+                                        : `Charging taps: ${cycle.rangeLabel}`;
+                                    const rangePart = cycle.rangeLabel
+                                        ? `<span class="seg-block seg-range ${rangeCls}" title="${rangeTitle}">${cycle.rangeLabel}</span>`
+                                        : "";
+                                    const readyCls = cycle.readyState === "cmp"
+                                        ? "seg-cmp"
+                                        : cycle.readyState === "cmp-loss"
+                                        ? "seg-catch"
+                                        : "seg-safe";
+                                    const readyTitle = cycle.readyState === "cmp"
+                                        ? `Cycle ${cycle.cycleIndex}: Ready on #${cycle.readyTap} at Turn ${cycle.readyTurn} (CMP Win)`
+                                        : cycle.readyState === "cmp-loss"
+                                        ? `Cycle ${cycle.cycleIndex}: Ready on #${cycle.readyTap} at Turn ${cycle.readyTurn} (CMP Loss)`
+                                        : `Cycle ${cycle.cycleIndex}: Ready on #${cycle.readyTap} at Turn ${cycle.readyTurn}`;
+                                    return `
+                                        <div class="seg-cycle-group" style="width:${wPct}%;">
+                                            ${rangePart}
+                                            <span class="seg-block seg-ready ${readyCls}" title="${readyTitle}">${cycle.readyLabel}</span>
+                                        </div>
+                                    `;
+                                }).join("");
+                            } else {
+                                const rangeLabel = row.safeThrowLabel || (myTaps <= 1 ? "1" : `1–${myTaps - 1}`);
+                                const rangeCls = row.hasZeroSneak ? "seg-safe" : "seg-uncharged";
+                                const readyBlock = row.state === "cmp"
+                                    ? `<span class="seg-block seg-ready seg-cmp" title="Ready on #${myTaps} (CMP Win)">#${myTaps}</span>`
+                                    : row.state === "cmp-loss"
+                                    ? `<span class="seg-block seg-ready seg-catch" title="Ready on #${myTaps} (CMP Loss)">#${myTaps}</span>`
+                                    : `<span class="seg-block seg-ready seg-safe" title="Ready on #${myTaps}">#${myTaps}</span>`;
+                                cyclesHtml = `
+                                    <div class="seg-cycle-group" style="width:100%;">
+                                        <span class="seg-block seg-range ${rangeCls}">${rangeLabel}</span>
+                                        ${readyBlock}
+                                    </div>
+                                `;
+                            }
+
+                            const centerHtml = `<div class="seg-bar-track">${cyclesHtml}</div>`;
 
                             let oppDamages = row.oppDamages;
                             if (!oppDamages || oppDamages.length < 3) {

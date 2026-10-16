@@ -78,11 +78,13 @@ class OverlayService : LifecycleService() {
         const val ACTION_STOP_OVERLAY = "com.gbl.overlay.ACTION_STOP_OVERLAY"
         const val ACTION_TOGGLE_LAYOUT = "com.gbl.overlay.ACTION_TOGGLE_LAYOUT"
         const val ACTION_UPDATE_PRESET = "com.gbl.overlay.ACTION_UPDATE_PRESET"
+        const val ACTION_UPDATE_SETTINGS = "com.gbl.overlay.ACTION_UPDATE_SETTINGS"
         const val ACTION_START_BATTLE = "com.gbl.overlay.ACTION_START_BATTLE"
 
         const val EXTRA_RESULT_CODE = "extra_result_code"
         const val EXTRA_RESULT_DATA = "extra_result_data"
         const val EXTRA_PRESET_JSON = "extra_preset_json"
+        const val EXTRA_OPP_COUNT_MODE = "extra_opp_count_mode"
 
         private const val NOTIFICATION_CHANNEL_ID = "gbl_battle_overlay_channel"
         private const val NOTIFICATION_ID = 2001
@@ -1089,6 +1091,7 @@ class OverlayService : LifecycleService() {
     private var isWaitingForOpponent = true
 
     private var currentLayoutMode = "option1"
+    private var oppCountMode = "my_fasts"
     private var cachedScreenBitmap: Bitmap? = null
     private val captureLock = Any()
 
@@ -1100,6 +1103,7 @@ class OverlayService : LifecycleService() {
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         mediaProjectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         prefs = getSharedPreferences("gbl_overlay_prefs", Context.MODE_PRIVATE)
+        oppCountMode = prefs.getString("opp_count_mode", "my_fasts") ?: "my_fasts"
 
         val metrics = resources.displayMetrics
         screenWidth = metrics.widthPixels
@@ -1398,6 +1402,13 @@ class OverlayService : LifecycleService() {
         when (action) {
             ACTION_START_OVERLAY -> {
                 startForegroundNotification()
+                intent?.getStringExtra(EXTRA_OPP_COUNT_MODE)?.let { mode ->
+                    if (mode == "opp_fasts" || mode == "my_fasts") {
+                        oppCountMode = mode
+                    }
+                } ?: run {
+                    oppCountMode = prefs.getString("opp_count_mode", "my_fasts") ?: "my_fasts"
+                }
                 intent?.getStringExtra(EXTRA_PRESET_JSON)?.let { presetJson ->
                     try {
                         val incoming = gson.fromJson(presetJson, TeamPreset::class.java)
@@ -1434,6 +1445,13 @@ class OverlayService : LifecycleService() {
                         }
                     } catch (_: Exception) {}
                 }
+            }
+            ACTION_UPDATE_SETTINGS -> {
+                val newMode = intent?.getStringExtra(EXTRA_OPP_COUNT_MODE)
+                    ?: prefs.getString("opp_count_mode", "my_fasts")
+                    ?: "my_fasts"
+                oppCountMode = if (newMode == "opp_fasts") "opp_fasts" else "my_fasts"
+                recalculateAndPushBattleData()
             }
             ACTION_START_BATTLE -> startNewBattle()
             ACTION_TOGGLE_LAYOUT -> toggleLayoutMode()
@@ -2861,7 +2879,46 @@ class OverlayService : LifecycleService() {
             .filter { it.isNotBlank() }
             .distinct()
 
-        // Build per-move timing, catch/CMP & 3-column team threat rows strictly in YOUR fast move tap counts
+        val myChargedMoveNames = listOf(userMove1Name, userMove2Name).filter { it.isNotBlank() }.distinct()
+
+        // Compute shared 1st-throw maximum turn horizon across all 5 moves (Opponent's 3 + Player's 2)
+        val oppFirstTurns = oppChargedMoveNames.map { moveName ->
+            val mStats = MOVE_DATABASE[moveName]
+                ?: DYNAMIC_MOVE_DATABASE[moveName]
+                ?: MoveStats(moveName, oppMeta.types.firstOrNull() ?: "normal", 80, 50)
+            val mEnergy = MOVE_ENERGY_COST[moveName] ?: mStats.energyCost
+            val fasts = kotlin.math.ceil(mEnergy.toDouble() / oppFastEnergy.toDouble()).toInt().coerceAtLeast(1)
+            fasts * oppFastTurns
+        }
+        val myFirstTurns = myChargedMoveNames.map { mName ->
+            val mStats = MOVE_DATABASE[mName]
+                ?: DYNAMIC_MOVE_DATABASE[mName]
+                ?: MoveStats(mName, userMeta.types.firstOrNull() ?: "normal", 80, 50)
+            val mEnergy = MOVE_ENERGY_COST[mName] ?: mStats.energyCost
+            val fasts = kotlin.math.ceil(mEnergy.toDouble() / userFastEnergy.toDouble()).toInt().coerceAtLeast(1)
+            fasts * userFastTurns
+        }
+        val maxHorizonTurns = ((oppFirstTurns + myFirstTurns).maxOrNull() ?: 12).coerceAtLeast(4)
+
+        // Precompute opponent ready turns across up to 3 cycles for CMP tie evaluation
+        val oppReadyTurnsSet = mutableSetOf<Int>()
+        for (moveName in oppChargedMoveNames) {
+            val mStats = MOVE_DATABASE[moveName]
+                ?: DYNAMIC_MOVE_DATABASE[moveName]
+                ?: MoveStats(moveName, oppMeta.types.firstOrNull() ?: "normal", 80, 50)
+            val mEnergy = MOVE_ENERGY_COST[moveName] ?: mStats.energyCost
+            var leftE = 0
+            var cumF = 0
+            for (c in 1..3) {
+                val needE = max(1, mEnergy - leftE)
+                val f = kotlin.math.ceil(needE.toDouble() / oppFastEnergy.toDouble()).toInt().coerceAtLeast(1)
+                leftE = leftE + f * oppFastEnergy - mEnergy
+                cumF += f
+                oppReadyTurnsSet.add(cumF * oppFastTurns)
+            }
+        }
+
+        // Build per-move timing, catch/CMP, multi-cycle turn-aligned segments & 3-column team threat rows
         val oppMoveTimingRows = oppChargedMoveNames.map { moveName ->
             val mStats = MOVE_DATABASE[moveName]
                 ?: DYNAMIC_MOVE_DATABASE[moveName]
@@ -2870,10 +2927,64 @@ class OverlayService : LifecycleService() {
             val oppFasts = kotlin.math.ceil(mEnergy.toDouble() / oppFastEnergy.toDouble()).toInt().coerceAtLeast(1)
             val oppReadyTurn = oppFasts * oppFastTurns
 
-            // Convert opponent's ready turn strictly into YOUR active Pokémon's fast move tap counts
             val myTapAtReady = kotlin.math.ceil(oppReadyTurn.toDouble() / userFastTurns.toDouble()).toInt().coerceAtLeast(1)
+            val displayReadyCount = if (oppCountMode == "opp_fasts") oppFasts else myTapAtReady
             val myCapTap = kotlin.math.ceil((oppReadyTurn * 2).toDouble() / userFastTurns.toDouble()).toInt().coerceAtLeast(myTapAtReady + 1)
             val coAligned = (oppReadyTurn % userFastTurns == 0)
+
+            // Multi-cycle calculation using true PvPoke residual energy up to maxHorizonTurns
+            val cycles = mutableListOf<Map<String, Any>>()
+            var leftoverEnergy = 0
+            var cumOppFasts = 0
+            var prevTurn = 0
+            var prevDisplayTap = 0
+
+            for (cycleIdx in 1..3) {
+                val energyNeeded = max(1, mEnergy - leftoverEnergy)
+                val fastsInCycle = kotlin.math.ceil(energyNeeded.toDouble() / oppFastEnergy.toDouble()).toInt().coerceAtLeast(1)
+                leftoverEnergy = leftoverEnergy + fastsInCycle * oppFastEnergy - mEnergy
+                cumOppFasts += fastsInCycle
+                val readyTurn = cumOppFasts * oppFastTurns
+
+                if (cycleIdx > 1 && readyTurn > maxHorizonTurns) {
+                    break
+                }
+
+                val turnSpan = max(1, readyTurn - prevTurn)
+                val widthPct = ((turnSpan.toDouble() / maxHorizonTurns.toDouble()) * 100.0).coerceIn(8.0, 100.0)
+
+                val readyTap = if (oppCountMode == "opp_fasts") {
+                    cumOppFasts
+                } else {
+                    max(prevDisplayTap + 1, kotlin.math.ceil(readyTurn.toDouble() / userFastTurns.toDouble()).toInt())
+                }
+                val startTap = prevDisplayTap + 1
+                val rangeEnd = readyTap - 1
+                val rangeLabel = when {
+                    readyTap <= startTap -> ""
+                    rangeEnd == startTap -> "$startTap"
+                    else -> "$startTap–$rangeEnd"
+                }
+
+                cycles.add(
+                    mapOf(
+                        "cycleIndex" to cycleIdx,
+                        "startTurn" to prevTurn,
+                        "readyTurn" to readyTurn,
+                        "turnSpan" to turnSpan,
+                        "widthPct" to widthPct,
+                        "startTap" to startTap,
+                        "readyTap" to readyTap,
+                        "rangeLabel" to rangeLabel,
+                        "readyLabel" to "#$readyTap",
+                        "hasZeroSneak" to false,
+                        "readyState" to if (winsCmp) "cmp" else "catch"
+                    )
+                )
+
+                prevTurn = readyTurn
+                prevDisplayTap = readyTap
+            }
 
             val activeDmgPct = calculateChargedMoveDamagePercent(
                 attacker = oppMeta,
@@ -2910,7 +3021,7 @@ class OverlayService : LifecycleService() {
                 )
             }
 
-            val safeEnd = max(1, myTapAtReady - 1)
+            val safeEnd = max(1, displayReadyCount - 1)
             val safeRangeLabel = if (safeEnd <= 1) "1" else "1–$safeEnd"
 
             mapOf(
@@ -2920,6 +3031,7 @@ class OverlayService : LifecycleService() {
                 "oppFasts" to oppFasts,
                 "oppReadyTurn" to oppReadyTurn,
                 "myTapAtReady" to myTapAtReady,
+                "displayReadyCount" to displayReadyCount,
                 "myCapTap" to myCapTap,
                 "coAligned" to coAligned,
                 "winsCmp" to winsCmp,
@@ -2927,20 +3039,22 @@ class OverlayService : LifecycleService() {
                 "activeDmgPct" to activeDmgPct,
                 "activeEff" to activeEff,
                 "safeRangeLabel" to safeRangeLabel,
+                "maxHorizonTurns" to maxHorizonTurns,
+                "cycles" to cycles,
                 "teamDamages" to teamDamages
             )
         }
 
-        // Build player's charged move timing rows (My Attacks) with leak-free range label & 3 scanned opponent columns
+        // Build player's charged move timing rows (My Attacks) with turn-aligned multi-cycle segments, leak-free range label & 3 scanned opponent columns
         val oppFirstReadyTaps = oppMoveTimingRows.mapNotNull { it["myTapAtReady"] as? Int }.toSet()
 
-        val myChargedMoveNames = listOf(userMove1Name, userMove2Name).filter { it.isNotBlank() }.distinct()
         val myMoveTimingRows = myChargedMoveNames.map { mName ->
             val mStats = MOVE_DATABASE[mName]
                 ?: DYNAMIC_MOVE_DATABASE[mName]
                 ?: MoveStats(mName, userMeta.types.firstOrNull() ?: "normal", 80, 50)
             val mEnergy = MOVE_ENERGY_COST[mName] ?: mStats.energyCost
             val myTapsNeeded = kotlin.math.ceil(mEnergy.toDouble() / userFastEnergy.toDouble()).toInt().coerceAtLeast(1)
+            val myReadyTurn = myTapsNeeded * userFastTurns
 
             val dmgPct = calculateChargedMoveDamagePercent(
                 attacker = userMeta,
@@ -2951,19 +3065,76 @@ class OverlayService : LifecycleService() {
             )
             val eff = getTypeEffectiveness(mStats.type, oppMeta.types)
 
-            val safeTapsBeforeReady = mutableListOf<Int>()
-            for (k in 1 until myTapsNeeded) {
-                if ((k * userFastTurns) % oppFastTurns != 0) {
-                    safeTapsBeforeReady.add(k)
+            // Multi-cycle calculation using true PvPoke residual energy up to maxHorizonTurns
+            val cycles = mutableListOf<Map<String, Any>>()
+            var leftoverEnergy = 0
+            var cumMyFasts = 0
+            var prevTurn = 0
+            var prevDisplayTap = 0
+
+            for (cycleIdx in 1..3) {
+                val energyNeeded = max(1, mEnergy - leftoverEnergy)
+                val fastsInCycle = kotlin.math.ceil(energyNeeded.toDouble() / userFastEnergy.toDouble()).toInt().coerceAtLeast(1)
+                leftoverEnergy = leftoverEnergy + fastsInCycle * userFastEnergy - mEnergy
+                cumMyFasts += fastsInCycle
+                val readyTurn = cumMyFasts * userFastTurns
+
+                if (cycleIdx > 1 && readyTurn > maxHorizonTurns) {
+                    break
                 }
+
+                val turnSpan = max(1, readyTurn - prevTurn)
+                val widthPct = ((turnSpan.toDouble() / maxHorizonTurns.toDouble()) * 100.0).coerceIn(8.0, 100.0)
+
+                val readyTap = cumMyFasts
+                val startTap = prevDisplayTap + 1
+                val rangeEnd = readyTap - 1
+
+                val cycleSafeTaps = mutableListOf<Int>()
+                for (k in startTap..rangeEnd) {
+                    if ((k * userFastTurns) % oppFastTurns != 0) {
+                        cycleSafeTaps.add(k)
+                    }
+                }
+                val cycleHasZeroSneak = cycleSafeTaps.isNotEmpty()
+                val rangeLabel = when {
+                    readyTap <= startTap -> ""
+                    cycleHasZeroSneak -> "Safe ${cycleSafeTaps.take(3).joinToString(",")}"
+                    rangeEnd == startTap -> "$startTap"
+                    else -> "$startTap–$rangeEnd"
+                }
+
+                val isCmpTurn = oppReadyTurnsSet.contains(readyTurn) || oppFirstReadyTaps.contains(readyTap)
+                val cycleReadyState = when {
+                    isCmpTurn -> if (winsCmp) "cmp" else "cmp-loss"
+                    else -> "safe"
+                }
+
+                cycles.add(
+                    mapOf(
+                        "cycleIndex" to cycleIdx,
+                        "startTurn" to prevTurn,
+                        "readyTurn" to readyTurn,
+                        "turnSpan" to turnSpan,
+                        "widthPct" to widthPct,
+                        "startTap" to startTap,
+                        "readyTap" to readyTap,
+                        "rangeLabel" to rangeLabel,
+                        "readyLabel" to "#$readyTap",
+                        "hasZeroSneak" to cycleHasZeroSneak,
+                        "readyState" to cycleReadyState
+                    )
+                )
+
+                prevTurn = readyTurn
+                prevDisplayTap = readyTap
             }
-            val hasZeroSneak = safeTapsBeforeReady.isNotEmpty()
-            val safeThrowLabel = when {
-                myTapsNeeded <= 1 -> "1"
-                hasZeroSneak -> "Safe ${safeTapsBeforeReady.take(4).joinToString(",")}"
-                myTapsNeeded - 1 == 1 -> "1"
-                else -> "1–${myTapsNeeded - 1}"
-            }
+
+            val firstCycle = cycles.firstOrNull()
+            val hasZeroSneak = (firstCycle?.get("hasZeroSneak") as? Boolean) ?: false
+            val safeThrowLabel = (firstCycle?.get("rangeLabel") as? String)?.takeIf { it.isNotEmpty() }
+                ?: if (myTapsNeeded <= 1) "1" else "1–${myTapsNeeded - 1}"
+            val readyState = (firstCycle?.get("readyState") as? String) ?: "safe"
 
             val oppDamages = (0..2).map { slotIdx ->
                 if (slotIdx < displayList.size) {
@@ -3004,21 +3175,19 @@ class OverlayService : LifecycleService() {
                 }
             }
 
-            val readyState = when {
-                oppFirstReadyTaps.contains(myTapsNeeded) -> if (winsCmp) "cmp" else "cmp-loss"
-                else -> "safe"
-            }
-
             mapOf(
                 "name" to mName,
                 "shortName" to abbrMove5(mName),
                 "energy" to mEnergy,
                 "myTapsNeeded" to myTapsNeeded,
+                "myReadyTurn" to myReadyTurn,
                 "dmgPct" to dmgPct,
                 "eff" to eff,
                 "state" to readyState,
                 "safeThrowLabel" to safeThrowLabel,
                 "hasZeroSneak" to hasZeroSneak,
+                "maxHorizonTurns" to maxHorizonTurns,
+                "cycles" to cycles,
                 "oppDamages" to oppDamages
             )
         }
@@ -3029,6 +3198,8 @@ class OverlayService : LifecycleService() {
             "activeOpponentTurns" to oppMeta.fastTurns,
             "oppFastTelemetry" to oppFastTelemetry,
             "userFastTelemetry" to userFastTelemetry,
+            "oppCountMode" to oppCountMode,
+            "maxHorizonTurns" to maxHorizonTurns,
             "isOpponentShadow" to isOpponentShadow,
             "currentFormLabel" to oppMeta.formLabel,
             "availableForms" to availableOpponentForms.map { it.formLabel },
