@@ -1232,7 +1232,7 @@ export default function App() {
                     Opponent Pokémon Detected via OCR (1.4s Loop):
                   </label>
                   <div className="grid grid-cols-3 gap-2">
-                    {['Entei', 'Yveltal', 'Zacian (Crowned)', 'Kyogre', 'Dialga (Origin)', 'Giratina (Altered)'].map((opp) => (
+                    {['Kyurem (Black)', 'Zacian (Crowned)', 'Yveltal', 'Kyogre', 'Dialga (Origin)', 'Giratina (Altered)'].map((opp) => (
                       <button
                         key={opp}
                         onClick={() => {

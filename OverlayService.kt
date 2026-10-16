@@ -147,6 +147,8 @@ class OverlayService : LifecycleService() {
             "Florges" to "Psychic",
             "Reshiram" to "Crunch",
             "Zekrom" to "Outrage",
+            "Kyurem (Black)" to "Outrage",
+            "Kyurem (White)" to "Blizzard",
             "Kyurem" to "Blizzard",
             "Primarina" to "Moonblast",
             "Ursaluna" to "Swift",
@@ -467,9 +469,9 @@ class OverlayService : LifecycleService() {
             PokemonMeta("Necrozma (Dusk Mane)", "necrozma_dusk_mane", "necrozma", "Dusk Mane", listOf("psychic", "steel"), 4634, "Shadow Claw", 2, "Sunsteel Strike", "Dark Pulse", 54, 40, atk = 249.0, def = 200.0, hp = 179, glRank = 400, ulRank = 280, mlRank = 4),
             PokemonMeta("Necrozma (Dawn Wings)", "necrozma_dawn_wings", "necrozma", "Dawn Wings", listOf("psychic", "ghost"), 4634, "Shadow Claw", 2, "Moongeist Beam", "Dark Pulse", 54, 40, atk = 249.0, def = 200.0, hp = 179, glRank = 405, ulRank = 285, mlRank = 6),
             PokemonMeta("Necrozma", "necrozma", "necrozma", "Base", listOf("psychic"), 4163, "Shadow Claw", 2, "Dark Pulse", "Iron Head", 38, 30, atk = 225.0, def = 176.0, hp = 179, glRank = 450, ulRank = 310, mlRank = 65),
-            PokemonMeta("Kyurem (Black)", "kyurem_black", "kyurem", "Black", listOf("dragon", "ice"), 4605, "Dragon Tail", 3, "Freeze Shock", "Fusion Bolt", 58, 48, atk = 278.0, def = 171.0, hp = 218, glRank = 390, ulRank = 240, mlRank = 5),
-            PokemonMeta("Kyurem (White)", "kyurem_white", "kyurem", "White", listOf("dragon", "ice"), 4605, "Dragon Breath", 1, "Ice Burn", "Fusion Flare", 58, 48, atk = 278.0, def = 171.0, hp = 218, glRank = 395, ulRank = 245, mlRank = 6),
-            PokemonMeta("Kyurem", "kyurem", "kyurem", "Base", listOf("dragon", "ice"), 4041, "Dragon Breath", 1, "Glaciate", "Dragon Claw", 38, 30, atk = 219.0, def = 154.0, hp = 218, glRank = 310, ulRank = 95, mlRank = 18),
+            PokemonMeta("Kyurem (Black)", "kyurem_black", "kyurem", "Black", listOf("dragon", "ice"), 4605, "Shadow Claw", 2, "Freeze Shock", "Fusion Bolt", 58, 48, atk = 278.0, def = 171.0, hp = 218, glRank = 200, ulRank = 80, mlRank = 1, chargedMove3 = "Outrage"),
+            PokemonMeta("Kyurem (White)", "kyurem_white", "kyurem", "White", listOf("dragon", "ice"), 4605, "Dragon Breath", 1, "Ice Burn", "Fusion Flare", 58, 48, atk = 278.0, def = 171.0, hp = 218, glRank = 210, ulRank = 85, mlRank = 2, chargedMove3 = "Blizzard"),
+            PokemonMeta("Kyurem", "kyurem", "kyurem", "Base", listOf("dragon", "ice"), 4041, "Dragon Breath", 1, "Glaciate", "Dragon Claw", 38, 30, atk = 219.0, def = 154.0, hp = 218, glRank = 310, ulRank = 95, mlRank = 18, chargedMove3 = "Blizzard"),
             PokemonMeta("Enamorus (Incarnate)", "enamorus", "enamorus", "Incarnate", listOf("fairy", "flying"), 3873, "Fairy Wind", 2, "Fly", "Dazzling Gleam", 42, 48, atk = 250.0, def = 148.0, hp = 158, glRank = 280, ulRank = 130, mlRank = 17),
             PokemonMeta("Enamorus (Therian)", "enamorus_therian", "enamorus", "Therian", listOf("fairy", "flying"), 3873, "Fairy Wind", 2, "Fly", "Moonblast", 42, 50, atk = 225.0, def = 182.0, hp = 158, glRank = 290, ulRank = 140, mlRank = 25),
             PokemonMeta("Urshifu (Single Strike)", "urshifu_single", "urshifu", "Single", listOf("fighting", "dark"), 4077, "Counter", 2, "Dynamic Punch", "Payback", 44, 52, atk = 226.0, def = 166.0, hp = 200, glRank = 210, ulRank = 110, mlRank = 22),
@@ -1227,18 +1229,19 @@ class OverlayService : LifecycleService() {
             }
         } catch (_: Exception) {}
 
-        // Tight top nameplate bounds (Y: 0.032..0.106) where Player & Opponent Pokémon names & CPs sit above HP bars
+        // Generous top nameplate bounds (Y: 0.025..0.148) where Player & Opponent Pokémon names & CPs sit
+        // (overlayView is already masked out above so it can never be self-read)
         val srcOpp = Rect(
-            (w * 0.44f).toInt().coerceIn(0, w - 1),
-            (h * 0.032f).toInt().coerceIn(0, h - 1),
-            (w * 0.96f).toInt().coerceIn(1, w),
-            (h * 0.106f).toInt().coerceIn(1, h)
+            (w * 0.42f).toInt().coerceIn(0, w - 1),
+            (h * 0.025f).toInt().coerceIn(0, h - 1),
+            (w * 0.98f).toInt().coerceIn(1, w),
+            (h * 0.148f).toInt().coerceIn(1, h)
         )
         val srcPlayer = Rect(
             (w * 0.01f).toInt().coerceIn(0, w - 1),
-            (h * 0.032f).toInt().coerceIn(0, h - 1),
-            (w * 0.46f).toInt().coerceIn(1, w),
-            (h * 0.106f).toInt().coerceIn(1, h)
+            (h * 0.025f).toInt().coerceIn(0, h - 1),
+            (w * 0.47f).toInt().coerceIn(1, w),
+            (h * 0.148f).toInt().coerceIn(1, h)
         )
         val srcMoves = Rect(
             (w * 0.08f).toInt().coerceIn(0, w - 1),
@@ -1246,6 +1249,9 @@ class OverlayService : LifecycleService() {
             (w * 0.92f).toInt().coerceIn(1, w),
             (h * 0.95f).toInt().coerceIn(1, h)
         )
+
+        // Create high-contrast dark-on-white nameplate extraction of srcOpp so white text over icy/cloudy backgrounds (e.g. Kyurem) is unmistakable
+        val bwOppBitmap = createHighContrastWhiteTextBitmap(screen, srcOpp)
 
         // Upscale top nameplates 1.8x so white-on-sky outlined game font is large & crisp for ML Kit
         val scale = 1.8f
@@ -1255,14 +1261,17 @@ class OverlayService : LifecycleService() {
         val dstPlayerH = (srcPlayer.height() * scale).toInt().coerceAtLeast(1)
         val movesW = srcMoves.width().coerceAtLeast(1)
         val movesH = srcMoves.height().coerceAtLeast(1)
-        val gap = 28
+        val gap = 24
 
         val compW = max(max(dstOppW, dstPlayerW), movesW).coerceAtLeast(100)
-        val compH = dstOppH + gap + dstPlayerH + gap + movesH
+        // Stitch: [1] Raw Upscaled Opp -> [2] High-Contrast B&W Upscaled Opp -> [3] Player Top -> [4] Player Moves
+        val oppZoneH = dstOppH + gap + dstOppH
+        val compH = oppZoneH + gap + dstPlayerH + gap + movesH
 
         val composite = try {
             Bitmap.createBitmap(compW, compH, Bitmap.Config.ARGB_8888)
         } catch (_: Exception) {
+            bwOppBitmap?.recycle()
             screen.recycle()
             return
         }
@@ -1271,11 +1280,16 @@ class OverlayService : LifecycleService() {
         canvas.drawColor(Color.BLACK)
         val filterPaint = Paint(Paint.FILTER_BITMAP_FLAG)
 
-        val dstOpp = Rect(0, 0, dstOppW, dstOppH)
-        val dstPlayer = Rect(0, dstOppH + gap, dstPlayerW, dstOppH + gap + dstPlayerH)
-        val dstMoves = Rect(0, dstOppH + gap + dstPlayerH + gap, movesW, compH)
+        val dstOppRaw = Rect(0, 0, dstOppW, dstOppH)
+        val dstOppBw = Rect(0, dstOppH + gap, dstOppW, oppZoneH)
+        val dstPlayer = Rect(0, oppZoneH + gap, dstPlayerW, oppZoneH + gap + dstPlayerH)
+        val dstMoves = Rect(0, oppZoneH + gap + dstPlayerH + gap, movesW, compH)
 
-        canvas.drawBitmap(screen, srcOpp, dstOpp, filterPaint)
+        canvas.drawBitmap(screen, srcOpp, dstOppRaw, filterPaint)
+        if (bwOppBitmap != null) {
+            canvas.drawBitmap(bwOppBitmap, null, dstOppBw, filterPaint)
+            bwOppBitmap.recycle()
+        }
         canvas.drawBitmap(screen, srcPlayer, dstPlayer, filterPaint)
         canvas.drawBitmap(screen, srcMoves, dstMoves, null)
         screen.recycle()
@@ -1294,8 +1308,8 @@ class OverlayService : LifecycleService() {
 
         if (visionText == null) return
 
-        val yDivider1 = dstOppH + gap / 2
-        val yDivider2 = dstOppH + gap + dstPlayerH + gap / 2
+        val yDivider1 = oppZoneH + gap / 2
+        val yDivider2 = oppZoneH + gap + dstPlayerH + gap / 2
 
         val oppLines = mutableListOf<Text.Line>()
         val playerTopLines = mutableListOf<Text.Line>()
@@ -1314,6 +1328,33 @@ class OverlayService : LifecycleService() {
 
         handleOpponentLines(oppLines)
         handlePlayerSwitchLines(playerTopLines, playerMoveLines)
+    }
+
+    /**
+     * Isolates bright white nameplate text pixels (R>=185, G>=185, B>=185, low color saturation)
+     * into crisp black text on a pure white background so ML Kit reads names over bright sky/ice wings (e.g. Kyurem).
+     */
+    private fun createHighContrastWhiteTextBitmap(source: Bitmap, crop: Rect): Bitmap? {
+        return try {
+            val cw = crop.width().coerceAtLeast(1)
+            val ch = crop.height().coerceAtLeast(1)
+            val pixels = IntArray(cw * ch)
+            source.getPixels(pixels, 0, cw, crop.left, crop.top, cw, ch)
+            for (i in pixels.indices) {
+                val c = pixels[i]
+                val r = (c shr 16) and 0xFF
+                val g = (c shr 8) and 0xFF
+                val b = c and 0xFF
+                val maxCh = max(r, max(g, b))
+                val minCh = min(r, min(g, b))
+                // Pure white nameplate text has high luminance and low saturation
+                val isWhiteGlyph = r >= 188 && g >= 188 && b >= 188 && (maxCh - minCh) <= 42
+                pixels[i] = if (isWhiteGlyph) Color.BLACK else Color.WHITE
+            }
+            Bitmap.createBitmap(pixels, cw, ch, Bitmap.Config.ARGB_8888)
+        } catch (_: Exception) {
+            null
+        }
     }
 
     private fun isOverlayHudSelfText(lower: String): Boolean {
@@ -1603,8 +1644,8 @@ class OverlayService : LifecycleService() {
         recalculateAndPushBattleData()
     }
 
-    private fun normalizeOcrToken(input: String, oneAsL: Boolean = false): String {
-        return input.lowercase()
+    private fun normalizeOcrToken(input: String, oneAsL: Boolean = false, rnAsM: Boolean = false, vAsY: Boolean = false): String {
+        var s = input.lowercase()
             .replace("0", "o")
             .replace("1", if (oneAsL) "l" else "i")
             .replace("!", "i")
@@ -1612,15 +1653,19 @@ class OverlayService : LifecycleService() {
             .replace("5", "s")
             .replace("8", "b")
             .replace("2", "z")
-            .replace(Regex("[^a-z]"), "")
+            .replace("vv", "w")
+        if (rnAsM) s = s.replace("rn", "m")
+        if (vAsY) s = s.replace("v", "y")
+        return s.replace(Regex("[^a-z]"), "")
     }
 
     private fun findPokemonInText(rawText: String): PokemonMeta? {
-        // CRITICAL: Strip standalone CP numbers (\bcp\s*\d+) and standalone digit blocks (\b\d+\b),
-        // but preserve digits inside words (e.g. "Cl0dsire", "Feral1gatr", "D1alga") for normalizeOcrToken!
+        // Strip CP labels and 2+ digit numbers EVEN when concatenated without a space (e.g. "KyuremCP4605" or "Kyurem4605"),
+        // while preserving single digits inside words (e.g. "Cl0dsire", "D1alga") for normalizeOcrToken!
         val cleaned = rawText
-            .replace(Regex("(?i)\\bcp\\s*\\d+\\b"), " ")
+            .replace(Regex("(?i)cp\\s*\\d+"), " ")
             .replace(Regex("(?i)\\b(?:shadow|purified|forme|form|cp|iv|lv|level|vs)\\b"), " ")
+            .replace(Regex("\\d{2,}"), " ")
             .replace(Regex("\\b\\d+\\b"), " ")
             .replace(Regex("[^a-zA-Z0-9\\s-]"), " ")
             .trim()
@@ -1630,61 +1675,89 @@ class OverlayService : LifecycleService() {
         val allMeta = getAllPokemonMeta()
         val sortedByLenDesc = allMeta.sortedByDescending { it.baseSpecies.length }
         val lowerCleaned = cleaned.lowercase()
-        val normCleanedI = normalizeOcrToken(cleaned, oneAsL = false)
-        val normCleanedL = normalizeOcrToken(cleaned, oneAsL = true)
+        val normCleanedVariants = listOf(
+            normalizeOcrToken(cleaned, oneAsL = false, rnAsM = false, vAsY = false),
+            normalizeOcrToken(cleaned, oneAsL = true, rnAsM = false, vAsY = false),
+            normalizeOcrToken(cleaned, oneAsL = false, rnAsM = true, vAsY = false),
+            normalizeOcrToken(cleaned, oneAsL = false, rnAsM = true, vAsY = true),
+            normalizeOcrToken(cleaned, oneAsL = false, rnAsM = false, vAsY = true)
+        ).distinct()
 
         // 1. Direct or normalized substring match against species base names (longest species name first)
         for (meta in sortedByLenDesc) {
             val baseNorm = normalizeOcrToken(meta.baseSpecies)
-            if (baseNorm.length >= 4 && (lowerCleaned.contains(meta.baseSpecies) || normCleanedI.contains(baseNorm) || normCleanedL.contains(baseNorm))) {
+            if (baseNorm.length >= 4 && (lowerCleaned.contains(meta.baseSpecies) || normCleanedVariants.any { it.contains(baseNorm) })) {
                 return meta
             }
         }
 
-        // 2. Token-level exact & normalized OCR confusable match
+        // 2. Token-level exact & normalized OCR confusable match (including rn->m and v->y for "Kyurern"/"Kvurem")
         val tokens = cleaned.split("\\s+".toRegex()).filter { it.length >= 3 }
         for (token in tokens) {
-            val normTokenI = normalizeOcrToken(token, oneAsL = false)
-            val normTokenL = normalizeOcrToken(token, oneAsL = true)
-            if (normTokenI.length < 3) continue
+            val tokenNorms = listOf(
+                normalizeOcrToken(token, oneAsL = false, rnAsM = false, vAsY = false),
+                normalizeOcrToken(token, oneAsL = true, rnAsM = false, vAsY = false),
+                normalizeOcrToken(token, oneAsL = false, rnAsM = true, vAsY = false),
+                normalizeOcrToken(token, oneAsL = false, rnAsM = true, vAsY = true),
+                normalizeOcrToken(token, oneAsL = false, rnAsM = false, vAsY = true)
+            ).filter { it.length >= 3 }.distinct()
+            if (tokenNorms.isEmpty()) continue
 
-            val exactOrNorm = sortedByLenDesc.find {
-                val target = normalizeOcrToken(it.baseSpecies)
-                it.baseSpecies.equals(token, ignoreCase = true) ||
-                        target == normTokenI ||
-                        target == normTokenL
+            val exactOrNorm = sortedByLenDesc.find { meta ->
+                val target = normalizeOcrToken(meta.baseSpecies)
+                meta.baseSpecies.equals(token, ignoreCase = true) || tokenNorms.any { it == target }
             }
             if (exactOrNorm != null) return exactOrNorm
         }
 
-        // 3. Prefix match for partially clipped long names (e.g. "Feraliga", "Giratin", "Zacia")
+        // 3. Prefix match for partially clipped names (e.g. "Kyure", "Feraliga", "Giratin", "Zacia")
         for (token in tokens) {
-            val normToken = normalizeOcrToken(token)
-            if (normToken.length < 5) continue
-            val prefixMatch = sortedByLenDesc.find {
-                val target = normalizeOcrToken(it.baseSpecies)
-                target.length >= 5 && (target.startsWith(normToken) || normToken.startsWith(target))
+            val tokenNorms = listOf(
+                normalizeOcrToken(token, oneAsL = false, rnAsM = true, vAsY = false),
+                normalizeOcrToken(token, oneAsL = false, rnAsM = true, vAsY = true)
+            ).filter { it.length >= 5 }.distinct()
+            for (normToken in tokenNorms) {
+                val prefixMatch = sortedByLenDesc.find {
+                    val target = normalizeOcrToken(it.baseSpecies)
+                    target.length >= 5 && (target.startsWith(normToken) || normToken.startsWith(target))
+                }
+                if (prefixMatch != null) return prefixMatch
             }
-            if (prefixMatch != null) return prefixMatch
         }
 
-        // 4. Fuzzy Levenshtein match against meta dictionary (testing both 1->i and 1->l)
+        // 4. Fuzzy Levenshtein match against meta dictionary (testing 1->i, 1->l, rn->m, v->y)
         var bestMatch: PokemonMeta? = null
         var bestDistance = Int.MAX_VALUE
 
         for (token in tokens) {
-            val normTokenI = normalizeOcrToken(token, oneAsL = false)
-            val normTokenL = normalizeOcrToken(token, oneAsL = true)
-            if (normTokenI.length < 4) continue
-            val maxAllowedDist = if (normTokenI.length >= 7) 2 else 1
+            val tokenNorms = listOf(
+                normalizeOcrToken(token, oneAsL = false, rnAsM = false, vAsY = false),
+                normalizeOcrToken(token, oneAsL = true, rnAsM = false, vAsY = false),
+                normalizeOcrToken(token, oneAsL = false, rnAsM = true, vAsY = false),
+                normalizeOcrToken(token, oneAsL = false, rnAsM = true, vAsY = true),
+                normalizeOcrToken(token, oneAsL = false, rnAsM = false, vAsY = true)
+            ).filter { it.length >= 4 }.distinct()
+            if (tokenNorms.isEmpty()) continue
 
-            for (meta in allMeta) {
-                val target = normalizeOcrToken(meta.baseSpecies)
-                if (kotlin.math.abs(target.length - normTokenI.length) > maxAllowedDist) continue
-                val dist = min(levenshteinDistance(normTokenI, target), levenshteinDistance(normTokenL, target))
-                if (dist <= maxAllowedDist && dist < bestDistance) {
-                    bestDistance = dist
-                    bestMatch = meta
+            for (normTok in tokenNorms) {
+                val maxAllowedDist = if (normTok.length >= 5) 2 else 1
+                for (meta in allMeta) {
+                    val target = normalizeOcrToken(meta.baseSpecies)
+                    if (kotlin.math.abs(target.length - normTok.length) <= maxAllowedDist) {
+                        val dist = levenshteinDistance(normTok, target)
+                        if (dist <= maxAllowedDist && dist < bestDistance) {
+                            bestDistance = dist
+                            bestMatch = meta
+                        }
+                    } else if (normTok.length > target.length && target.length >= 5 && normTok.length <= target.length + 4) {
+                        // Sliding window check if trailing type icon / CP letter got glued to the token
+                        val sub = normTok.substring(0, target.length)
+                        val dist = levenshteinDistance(sub, target)
+                        if (dist <= 1 && dist < bestDistance) {
+                            bestDistance = dist
+                            bestMatch = meta
+                        }
+                    }
                 }
             }
         }

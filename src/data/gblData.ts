@@ -345,6 +345,51 @@ export const POKEMON_DATABASE: Record<string, PokemonStats> = {
       { name: "Focus Blast", code: "FB", type: "fighting", power: 150, energyCost: 75 }
     ],
     color: "#dc2626"
+  },
+  "Kyurem (Black)": {
+    speciesId: "kyurem_black",
+    name: "Kyurem (Black)",
+    baseSpecies: "kyurem",
+    formLabel: "Black",
+    types: ["dragon", "ice"],
+    baseStats: { atk: 278, def: 171, hp: 218 },
+    defaultFastMove: { name: "Shadow Claw", type: "ghost", turns: 2, power: 6, energyGain: 8 },
+    chargedMoves: [
+      { name: "Freeze Shock", code: "FS", type: "ice", power: 160, energyCost: 60 },
+      { name: "Fusion Bolt", code: "FB", type: "electric", power: 90, energyCost: 45 },
+      { name: "Outrage", code: "OR", type: "dragon", power: 110, energyCost: 60 }
+    ],
+    color: "#38bdf8"
+  },
+  "Kyurem (White)": {
+    speciesId: "kyurem_white",
+    name: "Kyurem (White)",
+    baseSpecies: "kyurem",
+    formLabel: "White",
+    types: ["dragon", "ice"],
+    baseStats: { atk: 278, def: 171, hp: 218 },
+    defaultFastMove: { name: "Dragon Breath", type: "dragon", turns: 1, power: 4, energyGain: 3 },
+    chargedMoves: [
+      { name: "Ice Burn", code: "IB", type: "ice", power: 160, energyCost: 60 },
+      { name: "Fusion Flare", code: "FF", type: "fire", power: 90, energyCost: 45 },
+      { name: "Blizzard", code: "Blz", type: "ice", power: 140, energyCost: 75 }
+    ],
+    color: "#f87171"
+  },
+  Kyurem: {
+    speciesId: "kyurem",
+    name: "Kyurem",
+    baseSpecies: "kyurem",
+    formLabel: "Base",
+    types: ["dragon", "ice"],
+    baseStats: { atk: 219, def: 154, hp: 218 },
+    defaultFastMove: { name: "Dragon Breath", type: "dragon", turns: 1, power: 4, energyGain: 3 },
+    chargedMoves: [
+      { name: "Glaciate", code: "Gl", type: "ice", power: 60, energyCost: 40 },
+      { name: "Dragon Claw", code: "DC", type: "dragon", power: 50, energyCost: 35 },
+      { name: "Blizzard", code: "Blz", type: "ice", power: 140, energyCost: 75 }
+    ],
+    color: "#60a5fa"
   }
 };
 
@@ -352,7 +397,8 @@ export const SPECIES_VARIANTS: Record<string, string[]> = {
   zacian: ["Zacian (Crowned)", "Zacian (Hero)"],
   giratina: ["Giratina (Origin)", "Giratina (Altered)"],
   ninetales: ["Ninetales (Alolan)", "Kanto Ninetales"],
-  dialga: ["Dialga (Origin)"]
+  dialga: ["Dialga (Origin)"],
+  kyurem: ["Kyurem (Black)", "Kyurem (White)", "Kyurem"]
 };
 
 export function getAvailableFormsForPokemon(name: string): string[] {
