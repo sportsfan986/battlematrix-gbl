@@ -175,9 +175,9 @@
         .matrix-row {
             display: flex;
             align-items: center;
-            justify-content: space-between;
-            gap: 4px;
-            padding: 1px 3px;
+            justify-content: flex-start;
+            gap: 6px;
+            padding: 1.5px 3px;
             border-radius: 3px;
             transition: background 0.15s ease;
         }
@@ -194,20 +194,23 @@
         .matrix-opp-name {
             font-weight: 700;
             color: #f8fafc;
-            flex: 1;
-            min-width: 78px;
-            max-width: 122px;
+            width: 100px;
+            min-width: 100px;
+            max-width: 100px;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             font-size: 9.5px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
         }
 
         .matrix-team-block {
             display: flex;
             align-items: center;
-            gap: 1.5px;
+            gap: 1px;
             font-size: 9px;
             flex-shrink: 0;
         }
@@ -221,7 +224,13 @@
         .shield-dots {
             display: inline-flex;
             align-items: center;
-            gap: 1.5px;
+            gap: 1px;
+        }
+
+        .matrix-team-block .divider {
+            margin: 0 1.5px;
+            color: rgba(255, 255, 255, 0.25);
+            font-size: 8px;
         }
 
         .tier-dot {
@@ -984,6 +993,7 @@
             const myDmgValuesEl = document.getElementById("sky-my-dmg-values");
             const cmpBadgeEl = document.getElementById("sky-cmp-badge");
             const timingRowsEl = document.getElementById("sky-move-timing-rows");
+            const myTimingRowsEl = document.getElementById("sky-my-move-timing-rows");
             const matrixBody = document.getElementById("sky-matrix-body");
 
             const my3Letter = abbrPoke(battleData.userActivePokemon || "Lead", false);
@@ -991,10 +1001,10 @@
             if (myShortEl) myShortEl.textContent = `${my3Letter} (${userTurns}t)`;
 
             if (isWaitingState) {
-                oppNameEl.textContent = "WAITING FOR OPPONENT...";
-                oppMoveEl.textContent = "(1 Hz OCR Active)";
-                myDmgTargetEl.textContent = "Opp";
-                myDmgValuesEl.textContent = "—";
+                if (oppNameEl) oppNameEl.textContent = "WAITING FOR OPPONENT...";
+                if (oppMoveEl) oppMoveEl.textContent = "(1 Hz OCR Active)";
+                if (myDmgTargetEl) myDmgTargetEl.textContent = "Opp";
+                if (myDmgValuesEl) myDmgValuesEl.textContent = "—";
                 if (cmpBadgeEl) {
                     cmpBadgeEl.textContent = "CMP: —";
                     cmpBadgeEl.className = "cmp-pill win";
@@ -1002,20 +1012,25 @@
                 if (timingRowsEl) {
                     timingRowsEl.innerHTML = "";
                 }
+                if (myTimingRowsEl) {
+                    myTimingRowsEl.innerHTML = "";
+                }
 
-                matrixBody.innerHTML = `
-                    <div style="display:flex; align-items:center; gap:6px; color:#cbd5e1; font-size:9px; padding:2px 0;">
-                        <span class="scan-indicator"></span>
-                        <span>1 Hz OCR scanning top-left & top-right headers...</span>
-                    </div>
-                `;
+                if (matrixBody) {
+                    matrixBody.innerHTML = `
+                        <div style="display:flex; align-items:center; gap:6px; color:#cbd5e1; font-size:9px; padding:2px 0;">
+                            <span class="scan-indicator"></span>
+                            <span>1 Hz OCR scanning top-left & top-right headers...</span>
+                        </div>
+                    `;
+                }
             } else {
                 const shadPrefix = battleData.isOpponentShadow ? "SHADOW " : "";
-                oppNameEl.textContent = "VS " + shadPrefix + battleData.activeOpponent.toUpperCase();
-                oppMoveEl.textContent = `(${battleData.activeOpponentTurns || 2}t ${battleData.activeOpponentFastMove || "Fast"})`;
+                if (oppNameEl) oppNameEl.textContent = "VS " + shadPrefix + (battleData.activeOpponent || "").toUpperCase();
+                if (oppMoveEl) oppMoveEl.textContent = `(${battleData.activeOpponentTurns || 2}t ${battleData.activeOpponentFastMove || "Fast"})`;
 
-                const opp3Letter = abbrPoke(battleData.activeOpponent, battleData.isOpponentShadow);
-                myDmgTargetEl.textContent = opp3Letter;
+                const opp3Letter = abbrPoke(battleData.activeOpponent || "", battleData.isOpponentShadow);
+                if (myDmgTargetEl) myDmgTargetEl.textContent = opp3Letter;
 
                 const winsCmp = battleData.winsCmp !== undefined ? !!battleData.winsCmp : true;
                 if (cmpBadgeEl) {
@@ -1082,7 +1097,6 @@
                 }
 
                 // Render My Attacks (Vertically Aligned With Opponent Moves)
-                const myTimingRowsEl = document.getElementById("sky-my-move-timing-rows");
                 if (myTimingRowsEl) {
                     const myRows = battleData.myMoveTimingRows || [];
                     myTimingRowsEl.innerHTML = myRows.map(row => {
@@ -1137,7 +1151,7 @@
                     }).join("");
                 }
 
-                if (battleData.scannedOpponents && battleData.scannedOpponents.length > 0) {
+                if (matrixBody && battleData.scannedOpponents && battleData.scannedOpponents.length > 0) {
                     const teamInitials = (battleData.team && battleData.team.length >= 3) 
                         ? battleData.team 
                         : [{ initial: "P1" }, { initial: "P2" }, { initial: "P3" }];
@@ -1152,7 +1166,7 @@
                         return `
                         <div class="matrix-row ${isLead ? 'active-lead' : ''}" onclick="swapOpponent('${opp.name || opp.code}')" style="cursor:pointer;" title="${isLead ? 'Active Opponent' : 'Tap to swap to lead'}">
                             <span class="matrix-opp-name" title="${fullOppDisplay}">
-                                ${isLead ? '<span style="color:#38bdf8; font-weight:800; margin-right:3px;">▶</span>' : '<span style="color:#64748b; font-size:7.5px; margin-right:3px;">#' + (idx + 1) + '</span>'}
+                                <span style="color:${isLead ? '#38bdf8' : '#64748b'}; font-weight:700; font-size:8px; margin-right:3px;">#${idx + 1}</span>
                                 ${fullOppDisplay}
                             </span>
                             <div class="matrix-team-block">

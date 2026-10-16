@@ -46,7 +46,7 @@ function renderTierDots(tierStr: string) {
     : Array.from(raw).map((ch) => (ch === '🟢' ? 'W' : ch === '🔴' ? 'L' : 'N'));
 
   return (
-    <span className="inline-flex items-center gap-[1.5px]">
+    <span className="inline-flex items-center gap-[1px]">
       {tokens.slice(0, 3).map((tok, i) => {
         const t = tok.trim().toUpperCase();
         if (t === 'SW') {
@@ -1117,34 +1117,28 @@ export default function App() {
                               <div
                                 key={oppName}
                                 onClick={() => handleSwapActiveOpponent(oppName)}
-                                className={`flex items-center justify-between gap-1 px-1.5 py-0.5 rounded cursor-pointer transition ${
+                                className={`flex items-center justify-start gap-1.5 px-1.5 py-0.5 rounded cursor-pointer transition ${
                                   isLead
                                     ? 'bg-sky-500/25 border border-sky-400/50 shadow-[0_0_8px_rgba(56,189,248,0.25)]'
                                     : 'hover:bg-white/10 border border-transparent'
                                 }`}
                                 title={isLead ? `${oppName} (Active on field)` : `Click to swap in ${oppName} as active opponent`}
                               >
-                                <div className="flex items-center gap-1 min-w-0">
-                                  {isLead ? (
-                                    <span className="text-[7px] font-black bg-sky-400 text-slate-950 px-1 py-0.2 rounded uppercase shrink-0">
-                                      LEAD
-                                    </span>
-                                  ) : (
-                                    <span className="text-[7.5px] font-bold text-slate-400 shrink-0">
-                                      #{idx + 1}
-                                    </span>
-                                  )}
-                                  <span className="font-bold text-slate-100 truncate max-w-[105px] text-[9.5px]" title={fullOppDisplay}>
+                                <div className="flex items-center gap-1 w-[100px] min-w-[100px] max-w-[100px] shrink-0">
+                                  <span className={`text-[8px] font-bold shrink-0 ${isLead ? 'text-sky-300' : 'text-slate-400'}`}>
+                                    #{idx + 1}
+                                  </span>
+                                  <span className="font-bold text-slate-100 truncate text-[9.5px]" title={fullOppDisplay}>
                                     {fullOppDisplay}
                                   </span>
                                 </div>
-                                <div className="flex items-center gap-0.5 text-[9px] font-mono shrink-0">
+                                <div className="flex items-center gap-[1px] text-[9px] font-mono shrink-0">
                                   <span className="font-bold text-slate-300">{p1Init}:</span>
                                   {renderTierDots(matrix.p1)}
-                                  <span className="text-white/25 mx-0.5">|</span>
+                                  <span className="text-white/25 mx-[1.5px] text-[8px]">|</span>
                                   <span className="font-bold text-slate-300">{p2Init}:</span>
                                   {renderTierDots(matrix.p2)}
-                                  <span className="text-white/25 mx-0.5">|</span>
+                                  <span className="text-white/25 mx-[1.5px] text-[8px]">|</span>
                                   <span className="font-bold text-slate-300">{p3Init}:</span>
                                   {renderTierDots(matrix.p3)}
                                 </div>
