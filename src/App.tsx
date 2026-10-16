@@ -29,6 +29,7 @@ import {
   calculateTurnAlignment,
   calculateChargedDamage,
   calculateShieldMatrix,
+  calculateOpponentMoveTimingRows,
   getAvailableFormsForPokemon,
   PokemonStats
 } from './data/gblData';
@@ -337,8 +338,33 @@ export default function App() {
     'Dark Pulse': 'Drk.Pls',
     'Oblivion Wing': 'Obl.Wng',
     'Hydro Cannon': 'Hyd.Can',
-    'Sacred Sword': 'Sac.Swd'
+    'Sacred Sword': 'Sac.Swd',
+    'Secret Sword': 'Sec.Swd',
+    'Behemoth Blade': 'Beh.Bld',
+    'Behemoth Bash': 'Beh.Bsh',
+    'Freeze Shock': 'Frz.Shk',
+    'Ice Burn': 'Ice.Brn',
+    'Fusion Bolt': 'Fus.Blt',
+    'Fusion Flare': 'Fus.Flr',
+    'Earth Power': 'Erth.Pwr',
+    'Avalanche': 'Avlnch',
+    'Drill Peck': 'Drl.Pck',
+    'Aqua Jet': 'Aq.Jet',
+    'Focus Blast': 'Foc.Blst',
+    'Blizzard': 'Blzzrd',
+    'Thunder': 'Thndr',
+    'Moonblast': 'Moonblst'
   };
+
+  const oppMoveTimingInfo = useMemo(() => {
+    return calculateOpponentMoveTimingRows(
+      activeOpponent,
+      userLeadName,
+      activePreset.pokemon.map(p => p.name),
+      isOpponentShadow,
+      userFastTurns
+    );
+  }, [activeOpponent, userLeadName, activePreset, isOpponentShadow, userFastTurns]);
 
   const abbrPoke3 = (name: string, isShad: boolean = false) => {
     const clean = name
@@ -1018,52 +1044,146 @@ export default function App() {
                         <span className="inline-flex items-center gap-0.5">{renderTierDots('SL').props.children[0]} Strong Loss</span>
                       </div>
 
-                      {/* Static Visual Turn Reminder Box */}
-                      <div className="py-0.5 px-1.5 rounded flex items-center justify-between text-[9.5px] font-bold border-l-2 border-emerald-400 bg-emerald-500/15 text-emerald-200 mb-1">
-                        <div className="flex items-center gap-1">
-                          <span>🎯 THROW ON:</span>
-                          <span className="font-extrabold text-white">
-                            {isWaitingOpponent || scannedOpponents.length === 0
-                              ? '—'
-                              : turnAlignInfo.horizonText}
-                          </span>
-                        </div>
-                        <span className="text-[8px] font-semibold text-emerald-100/80">
-                          {isWaitingOpponent || scannedOpponents.length === 0
-                            ? '(Zero-Sneak)'
-                            : `(${userFastTurns}t vs ${oppFastTurns}t)`}
-                        </span>
-                      </div>
+                      {/* Unified 3-Row Per-Move Fast Timing, Catch/CMP & Bench Threat HUD */}
+                      {!isWaitingOpponent && scannedOpponents.length > 0 && (
+                        <div className="flex flex-col gap-1 my-1">
+                          {oppMoveTimingInfo.rows.map((row) => {
+                            const shortMove = abbrMoveName(row.name);
+                            const threatLevel =
+                              row.activeDmgPct >= 60 || row.activeEff >= 1.5
+                                ? 'high'
+                                : row.activeDmgPct <= 30 || (row.activeEff <= 0.65 && row.activeDmgPct < 45)
+                                ? 'low'
+                                : 'mid';
+                            const titleColor =
+                              threatLevel === 'high'
+                                ? 'text-red-300'
+                                : threatLevel === 'low'
+                                ? 'text-emerald-300'
+                                : 'text-amber-300';
+                            const pctColor =
+                              threatLevel === 'high'
+                                ? 'text-red-400 font-extrabold'
+                                : threatLevel === 'low'
+                                ? 'text-emerald-400 font-extrabold'
+                                : 'text-amber-400 font-extrabold';
 
-                      {/* Charged Move Damage Rows (3-Letter Pokémon Codes & Compact Abbreviated Moves) */}
-                      <div className="bg-black/20 rounded px-1.5 py-1 flex flex-col gap-0.5 text-[9px] text-slate-100 leading-tight">
-                        <div className="flex items-center gap-1 whitespace-nowrap overflow-hidden text-ellipsis">
-                          <span>
-                            💥 <strong>{isWaitingOpponent || scannedOpponents.length === 0 ? 'Opp' : abbrPoke3(activeOpponent.name, isOpponentShadow)}</strong>→<strong className="text-sky-300">{abbrPoke3(userLeadName, false)}</strong>:
-                          </span>
-                          {isWaitingOpponent || scannedOpponents.length === 0 ? (
-                            <span className="text-slate-400">—</span>
-                          ) : (
-                            oppDamageData.slice(0, 3).map((dmg, idx, arr) => (
-                              <span 
-                                key={dmg.move.name}
-                                className={idx === 0 ? 'text-emerald-300 font-bold' : 'text-sky-300 font-semibold'}
+                            return (
+                              <div
+                                key={row.name}
+                                className="bg-slate-950/55 border border-slate-400/20 rounded px-1.5 py-1 grid grid-cols-[78px_1fr_auto] items-center gap-1 tabular-nums"
                               >
-                                {abbrMoveName(dmg.move.name)} ({dmg.percentage}%)
-                                {idx < arr.length - 1 ? ' | ' : ''}
-                              </span>
-                            ))
-                          )}
+                                {/* Left: Move Name, Energy Cost & Active Damage % + Your Tap Count */}
+                                <div className="flex flex-col leading-tight min-w-0">
+                                  <span className={`text-[8.5px] font-extrabold truncate ${titleColor}`}>
+                                    {shortMove} ({row.energy}e)
+                                  </span>
+                                  <span className="text-[7.5px] text-slate-300 truncate">
+                                    <span className={pctColor}>{row.activeDmgPct}%</span> on {abbrPoke3(userLeadName, false)} · @{row.myTapAtReady}f
+                                  </span>
+                                </div>
+
+                                {/* Center: Adaptive Timing in YOUR Fast Move Counts (Dots for 3-5T, Bars for 1-2T) */}
+                                <div className="flex items-center justify-center min-w-0">
+                                  {userFastTurns >= 3 ? (
+                                    <div className="flex items-start justify-center">
+                                      {row.tapNodes.map((node, nIdx) => {
+                                        const dotCls =
+                                          node.state === 'cmp'
+                                            ? 'bg-green-600 border-[1.2px] border-green-200 shadow-[0_0_4px_rgba(34,197,94,0.85)] text-white'
+                                            : node.state === 'catch'
+                                            ? 'bg-red-600 border-[1.2px] border-red-200 shadow-[0_0_4px_rgba(239,68,68,0.8)] text-white'
+                                            : node.state === 'safe'
+                                            ? 'bg-sky-600 border border-sky-300 text-white'
+                                            : 'bg-amber-700 border border-amber-300 text-amber-100';
+                                        return (
+                                          <React.Fragment key={node.tap}>
+                                            {nIdx > 0 && (
+                                              <span className="w-1.5 h-[1.5px] bg-slate-400/40 mt-[6px] shrink-0" />
+                                            )}
+                                            <div className="flex flex-col items-center">
+                                              <span
+                                                className={`min-w-[13px] h-[13px] px-0.5 rounded-full text-[7.5px] font-black inline-flex items-center justify-center leading-none ${dotCls}`}
+                                              >
+                                                {node.label}
+                                              </span>
+                                              {node.isCatchOrCmp && (
+                                                <span
+                                                  className={`text-[6.5px] font-extrabold leading-none mt-0.5 whitespace-nowrap ${
+                                                    row.winsCmp ? 'text-green-300' : 'text-red-300'
+                                                  }`}
+                                                >
+                                                  {row.winsCmp ? '▲CMP✓/🎯' : '▲🎯Catch'}
+                                                </span>
+                                              )}
+                                            </div>
+                                          </React.Fragment>
+                                        );
+                                      })}
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center justify-center gap-0.5">
+                                      <span className="rounded px-1 py-0.5 text-[7.5px] font-extrabold whitespace-nowrap bg-sky-600/35 border border-sky-400/70 text-sky-200">
+                                        {row.safeRangeLabel}
+                                      </span>
+                                      {row.winsCmp ? (
+                                        <span
+                                          className="rounded px-1 py-0.5 text-[7.5px] font-extrabold whitespace-nowrap bg-green-600/50 border border-green-300 text-white"
+                                          title={`You win CMP tie on tap #${row.myTapAtReady}, or swap to catch`}
+                                        >
+                                          ⚡#{row.myTapAtReady} CMP✓ · 🎯
+                                        </span>
+                                      ) : (
+                                        <span
+                                          className="rounded px-1 py-0.5 text-[7.5px] font-extrabold whitespace-nowrap bg-red-600/50 border border-red-300 text-white"
+                                          title={`Opponent wins CMP — swap on #${row.myTapAtReady} to catch`}
+                                        >
+                                          🎯 #{row.myTapAtReady} CATCH
+                                        </span>
+                                      )}
+                                      <span className="rounded px-1 py-0.5 text-[7.5px] font-extrabold whitespace-nowrap bg-amber-700/40 border border-amber-400/70 text-amber-200">
+                                        #{row.myCapTap}⚡
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Right: Both Bench Pokémon Damage % & Threat Badges */}
+                                <div className="flex items-center gap-0.5 shrink-0">
+                                  {row.bench.map((b) => {
+                                    const bCls =
+                                      b.tier === 'resist'
+                                        ? 'bg-blue-800/50 border border-blue-400/75 text-blue-100'
+                                        : b.tier === 'weak'
+                                        ? 'bg-red-900/60 border border-red-400/75 text-red-100'
+                                        : 'bg-slate-700/50 border border-slate-400/50 text-slate-100';
+                                    return (
+                                      <span
+                                        key={b.name}
+                                        className={`rounded px-1 py-0.5 text-[7.5px] font-extrabold whitespace-nowrap leading-tight ${bCls}`}
+                                      >
+                                        {abbrPoke3(b.name, false)}:{b.dmgPct}%{b.tag ? ` ${b.tag}` : ''}
+                                      </span>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
+                      )}
+
+                      {/* 1-Line Outgoing Damage & CMP Status Footer */}
+                      <div className="bg-black/25 rounded px-1.5 py-0.5 flex items-center justify-between gap-1 text-[8.5px] text-slate-100 leading-tight">
                         <div className="flex items-center gap-1 whitespace-nowrap overflow-hidden text-ellipsis">
                           <span>
-                            ⚔️ <strong className="text-sky-300">{abbrPoke3(userLeadName, false)}</strong>→<strong className="text-amber-200">{isWaitingOpponent || scannedOpponents.length === 0 ? 'Opp' : abbrPoke3(activeOpponent.name, isOpponentShadow)}</strong>:
+                            ⚔️ <strong className="text-sky-300">{abbrPoke3(userLeadName, false)} ({userFastTurns}t)</strong>→<strong className="text-amber-200">{isWaitingOpponent || scannedOpponents.length === 0 ? 'Opp' : abbrPoke3(activeOpponent.name, isOpponentShadow)}</strong>:
                           </span>
                           {isWaitingOpponent || scannedOpponents.length === 0 ? (
                             <span className="text-slate-400">—</span>
                           ) : (
                             myDamageData.slice(0, 2).map((dmg, idx) => (
-                              <span 
+                              <span
                                 key={dmg.move.name}
                                 className={idx === 0 ? 'text-emerald-300 font-bold' : 'text-sky-300 font-semibold'}
                               >
@@ -1073,11 +1193,19 @@ export default function App() {
                             ))
                           )}
                         </div>
-                        <div className="text-slate-300/90 text-[8.5px] truncate">
+                        <span
+                          className={`text-[7.5px] font-extrabold px-1 py-0.2 rounded shrink-0 border ${
+                            oppMoveTimingInfo.winsCmp
+                              ? 'bg-green-600/35 border-green-400 text-green-200'
+                              : 'bg-red-700/35 border-red-400 text-red-200'
+                          }`}
+                        >
                           {isWaitingOpponent || scannedOpponents.length === 0
-                            ? 'Bench: Awaiting switch...'
-                            : '💥 Bench: Yvl: Drk.Pls (42%) | Obl.Wng (40%)'}
-                        </div>
+                            ? 'CMP: —'
+                            : oppMoveTimingInfo.winsCmp
+                            ? 'CMP WIN ✓'
+                            : 'CMP LOSS'}
+                        </span>
                       </div>
                     </div>
                   )}

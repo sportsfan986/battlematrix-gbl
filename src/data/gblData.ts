@@ -546,6 +546,163 @@ export function calculateChargedDamage(
   };
 }
 
+export interface TapNodeInfo {
+  tap: number;
+  label: string;
+  state: "safe" | "leak" | "catch" | "cmp" | "cap";
+  isCatchOrCmp: boolean;
+}
+
+export interface BenchThreatInfo {
+  name: string;
+  dmgPct: number;
+  eff: number;
+  tag: string;
+  tier: "resist" | "neutral" | "weak";
+}
+
+export interface OpponentMoveTimingRow {
+  name: string;
+  code: string;
+  energy: number;
+  oppFasts: number;
+  oppReadyTurn: number;
+  myTapAtReady: number;
+  myCapTap: number;
+  coAligned: boolean;
+  winsCmp: boolean;
+  activeName: string;
+  activeDmgPct: number;
+  activeEff: number;
+  safeRangeLabel: string;
+  tapNodes: TapNodeInfo[];
+  bench: BenchThreatInfo[];
+}
+
+/**
+ * Computes per-move timing, catch/CMP windows, and active/bench threat rows
+ * strictly in YOUR active Pokémon's fast-move tap counts.
+ */
+export function calculateOpponentMoveTimingRows(
+  oppStats: PokemonStats,
+  userLeadName: string,
+  teamNames: string[],
+  isOppShadow: boolean = false,
+  userFastTurnsOverride?: number
+): { rows: OpponentMoveTimingRow[]; winsCmp: boolean; userFastTurns: number } {
+  const cleanUserName = userLeadName.replace(/^Shadow\s+/i, "").trim();
+  const userStats =
+    POKEMON_DATABASE[userLeadName] ||
+    POKEMON_DATABASE[cleanUserName] ||
+    Object.values(POKEMON_DATABASE).find((p) => p.name.toLowerCase() === cleanUserName.toLowerCase()) ||
+    Object.values(POKEMON_DATABASE)[0];
+
+  const isUserShadow = userLeadName.toLowerCase().startsWith("shadow ");
+  const userFastTurns = userFastTurnsOverride || userStats.defaultFastMove.turns || 2;
+  const oppFastTurns = oppStats.defaultFastMove.turns || 2;
+  const oppFastEnergy = oppStats.defaultFastMove.energyGain || oppFastTurns * 4;
+  const winsCmp = userStats.baseStats.atk >= oppStats.baseStats.atk;
+
+  const benchNames = teamNames.filter((n) => n.toLowerCase() !== userLeadName.toLowerCase()).slice(0, 2);
+
+  const rows: OpponentMoveTimingRow[] = oppStats.chargedMoves.slice(0, 3).map((cm) => {
+    const mEnergy = cm.energyCost || 50;
+    const oppFasts = Math.max(1, Math.ceil(mEnergy / oppFastEnergy));
+    const oppReadyTurn = oppFasts * oppFastTurns;
+
+    // Strictly in YOUR active Pokémon's fast-move tap counts
+    const myTapAtReady = Math.max(1, Math.ceil(oppReadyTurn / userFastTurns));
+    const myCapTap = Math.max(myTapAtReady + 1, Math.ceil((oppReadyTurn * 2) / userFastTurns));
+    const coAligned = oppReadyTurn % userFastTurns === 0;
+
+    const actvDmg = calculateChargedDamage(oppStats, userStats, cm, isOppShadow, isUserShadow);
+    const activeDmgPct = actvDmg.percentage;
+    const activeEff = actvDmg.mult;
+
+    const bench: BenchThreatInfo[] = benchNames.map((bName) => {
+      const cleanB = bName.replace(/^Shadow\s+/i, "").trim();
+      const bStats =
+        POKEMON_DATABASE[bName] ||
+        POKEMON_DATABASE[cleanB] ||
+        Object.values(POKEMON_DATABASE).find((p) => p.name.toLowerCase() === cleanB.toLowerCase()) ||
+        Object.values(POKEMON_DATABASE)[0];
+      const isBShadow = bName.toLowerCase().startsWith("shadow ");
+      const bDmg = calculateChargedDamage(oppStats, bStats, cm, isOppShadow, isBShadow);
+      let tag = "";
+      let tier: "resist" | "neutral" | "weak" = "neutral";
+      if (bDmg.mult <= 0.45) {
+        tag = "2xRes";
+        tier = "resist";
+      } else if (bDmg.mult <= 0.65 && bDmg.percentage < 55) {
+        tag = "Res";
+        tier = "resist";
+      } else if (bDmg.percentage <= 28) {
+        tag = "Tank";
+        tier = "resist";
+      } else if (bDmg.percentage >= 85) {
+        tag = "KO";
+        tier = "weak";
+      } else if (bDmg.mult >= 1.5 || bDmg.percentage >= 55) {
+        tag = "WK";
+        tier = "weak";
+      }
+      return {
+        name: bName,
+        dmgPct: bDmg.percentage,
+        eff: bDmg.mult,
+        tag,
+        tier
+      };
+    });
+
+    const maxNode = Math.min(7, Math.max(myTapAtReady + 1, 5));
+    const tapNodes: TapNodeInfo[] = [];
+    for (let k = 1; k <= maxNode; k++) {
+      let state: "safe" | "leak" | "catch" | "cmp" | "cap";
+      if (k === myTapAtReady) {
+        state = winsCmp ? "cmp" : "catch";
+      } else if (k === maxNode) {
+        state = "cap";
+      } else if ((k * userFastTurns) % oppFastTurns !== 0) {
+        state = "safe";
+      } else {
+        state = "leak";
+      }
+      tapNodes.push({
+        tap: k,
+        label: k === maxNode ? `${myCapTap}⚡` : `${k}`,
+        state,
+        isCatchOrCmp: k === myTapAtReady
+      });
+    }
+
+    const needsOdd = oppFastTurns % userFastTurns === 0 && oppFastTurns > userFastTurns;
+    const safeEnd = Math.max(1, myTapAtReady - 1);
+    const safeRangeLabel =
+      safeEnd <= 1 ? "1 SAFE" : `1–${safeEnd} SAFE${needsOdd ? " (Odd)" : ""}`;
+
+    return {
+      name: cm.name,
+      code: cm.code,
+      energy: mEnergy,
+      oppFasts,
+      oppReadyTurn,
+      myTapAtReady,
+      myCapTap,
+      coAligned,
+      winsCmp,
+      activeName: userLeadName,
+      activeDmgPct,
+      activeEff,
+      safeRangeLabel,
+      tapNodes,
+      bench
+    };
+  });
+
+  return { rows, winsCmp, userFastTurns };
+}
+
 /**
  * Computes 3v3 matchup tiers (0s, 1s, 2s shields)
  * Returns comma-separated 5-tier codes per shield scenario:

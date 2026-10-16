@@ -264,44 +264,251 @@
             margin: 0 2px;
         }
 
-        /* Static Visual Turn Reminder Box */
-        .throw-alignment-box {
-            background: rgba(16, 185, 129, 0.16);
-            border-left: 2px solid #34d399;
-            padding: 2px 5px;
-            border-radius: 2px 4px 4px 2px;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            font-weight: 700;
-            color: #a7f3d0;
-            font-size: 9.5px;
-        }
-
-        .throw-target {
-            color: #ffffff;
-            font-weight: 800;
-        }
-
-        /* Damage Counter Rows (3-Letter Pokémon Codes & Abbreviated Moves) */
-        .damage-rows {
-            background: rgba(0, 0, 0, 0.18);
-            border-radius: 4px;
-            padding: 3px 5px;
+        /* Unified Per-Move Timing, Catch/CMP & Bench Threat Rows */
+        .timing-rows-container {
             display: flex;
             flex-direction: column;
-            gap: 1.5px;
-            font-size: 9px;
+            gap: 2.5px;
         }
 
-        .dmg-line {
-            display: flex;
+        .move-timing-row {
+            background: rgba(2, 6, 23, 0.42);
+            border: 1px solid rgba(148, 163, 184, 0.16);
+            border-radius: 4px;
+            padding: 2.5px 4px;
+            display: grid;
+            grid-template-columns: 78px 1fr auto;
             align-items: center;
-            gap: 3px;
-            color: #e2e8f0;
+            gap: 4px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .move-col-left {
+            display: flex;
+            flex-direction: column;
+            line-height: 1.1;
+            min-width: 0;
+        }
+
+        .move-title-line {
+            font-size: 8.5px;
+            font-weight: 800;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+        }
+
+        .move-title-line.threat-high { color: #fca5a5; }
+        .move-title-line.threat-mid  { color: #fde047; }
+        .move-title-line.threat-low  { color: #6ee7b7; }
+
+        .move-sub-line {
+            font-size: 7.5px;
+            color: #cbd5e1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .move-sub-line .actv-pct-high { color: #f87171; font-weight: 800; }
+        .move-sub-line .actv-pct-mid  { color: #fbbf24; font-weight: 800; }
+        .move-sub-line .actv-pct-low  { color: #34d399; font-weight: 800; }
+
+        /* Center Track: 3-5T Connected Tap Dots OR 1-2T Segmented Bars */
+        .move-col-center {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 0;
+        }
+
+        .tap-dots-track {
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            gap: 0;
+            width: 100%;
+        }
+
+        .tap-node-wrap {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+        }
+
+        .tap-connector {
+            width: 5px;
+            height: 1.5px;
+            background: rgba(148, 163, 184, 0.35);
+            margin-top: 6px;
+            flex-shrink: 0;
+        }
+
+        .tap-dot {
+            min-width: 13px;
+            height: 13px;
+            padding: 0 2px;
+            border-radius: 999px;
+            font-size: 7.5px;
+            font-weight: 900;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #ffffff;
+            line-height: 1;
+            box-sizing: border-box;
+        }
+
+        /* Blue = Safe to throw (no energy leakage) */
+        .tap-dot.node-safe {
+            background: #0284c7;
+            border: 1px solid #7dd3fc;
+        }
+
+        /* Yellow = Energy leak turn or 2nd move cap */
+        .tap-dot.node-leak, .tap-dot.node-cap {
+            background: #b45309;
+            border: 1px solid #fcd34d;
+            color: #fef08a;
+        }
+
+        /* Red = Opponent can throw & wins CMP -> Catch option */
+        .tap-dot.node-catch {
+            background: #dc2626;
+            border: 1.2px solid #fecaca;
+            box-shadow: 0 0 4px rgba(239, 68, 68, 0.75);
+        }
+
+        /* Green = Opponent can throw & YOU win CMP tie! */
+        .tap-dot.node-cmp {
+            background: #16a34a;
+            border: 1.2px solid #bbf7d0;
+            box-shadow: 0 0 4px rgba(34, 197, 94, 0.8);
+        }
+
+        .tap-micro-caption {
+            font-size: 6.5px;
+            font-weight: 800;
+            line-height: 1;
+            margin-top: 1px;
+            white-space: nowrap;
+        }
+
+        .tap-micro-caption.cap-catch { color: #fca5a5; }
+        .tap-micro-caption.cap-cmp   { color: #86efac; }
+
+        /* 1-2T Segmented Bar Mode */
+        .seg-bar-track {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            width: 100%;
+            justify-content: center;
+        }
+
+        .seg-block {
+            border-radius: 3px;
+            padding: 1.5px 3.5px;
+            font-size: 7.5px;
+            font-weight: 800;
+            white-space: nowrap;
+            line-height: 1.15;
+        }
+
+        .seg-safe {
+            background: rgba(2, 132, 199, 0.32);
+            border: 1px solid rgba(56, 189, 248, 0.65);
+            color: #7dd3fc;
+        }
+
+        .seg-catch {
+            background: rgba(220, 38, 38, 0.48);
+            border: 1px solid #fca5a5;
+            color: #ffffff;
+        }
+
+        .seg-cmp {
+            background: rgba(22, 163, 74, 0.48);
+            border: 1px solid #86efac;
+            color: #ffffff;
+        }
+
+        .seg-cap {
+            background: rgba(180, 83, 9, 0.35);
+            border: 1px solid rgba(251, 191, 36, 0.65);
+            color: #fde047;
+        }
+
+        /* Right Column: Bench Catch & Threat Badges */
+        .move-col-right {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            flex-shrink: 0;
+        }
+
+        .bench-chip {
+            border-radius: 3px;
+            padding: 1.5px 3px;
+            font-size: 7.5px;
+            font-weight: 800;
+            white-space: nowrap;
+            line-height: 1.15;
+            text-align: center;
+        }
+
+        .bench-chip.tier-resist {
+            background: rgba(30, 64, 175, 0.48);
+            border: 1px solid rgba(96, 165, 250, 0.75);
+            color: #bfdbfe;
+        }
+
+        .bench-chip.tier-neutral {
+            background: rgba(51, 65, 85, 0.48);
+            border: 1px solid rgba(148, 163, 184, 0.5);
+            color: #e2e8f0;
+        }
+
+        .bench-chip.tier-weak {
+            background: rgba(127, 29, 29, 0.55);
+            border: 1px solid rgba(248, 113, 113, 0.75);
+            color: #fecaca;
+        }
+
+        /* 1-Line Outgoing Damage & CMP Status Footer */
+        .my-dmg-footer {
+            background: rgba(0, 0, 0, 0.22);
+            border-radius: 4px;
+            padding: 2px 5px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 4px;
+            font-size: 8.5px;
+            color: #e2e8f0;
+            white-space: nowrap;
+            overflow: hidden;
+        }
+
+        .cmp-pill {
+            font-size: 7.5px;
+            font-weight: 800;
+            padding: 0.5px 3.5px;
+            border-radius: 3px;
+            flex-shrink: 0;
+        }
+
+        .cmp-pill.win {
+            background: rgba(22, 163, 74, 0.35);
+            border: 1px solid #4ade80;
+            color: #86efac;
+        }
+
+        .cmp-pill.loss {
+            background: rgba(185, 28, 28, 0.35);
+            border: 1px solid #f87171;
+            color: #fca5a5;
         }
 
         .dmg-taps {
@@ -391,26 +598,18 @@
             </div>
         </div>
 
-        <!-- Static Visual Turn Alignment Reminder -->
-        <div class="throw-alignment-box" id="sky-throw-box">
-            <span>🎯 THROW ON:</span>
-            <span class="throw-target" id="sky-throw-timing">—</span>
-            <span id="sky-turn-ratio" style="font-size: 8px; opacity: 0.85; margin-left: auto;">(Zero-Sneak)</span>
+        <!-- Unified 3-Row Per-Move Fast Timing, Catch/CMP & Bench Threat HUD -->
+        <div class="timing-rows-container" id="sky-move-timing-rows">
+            <!-- Dynamically populated per opponent charged move (c1, c2, c3) -->
         </div>
 
-        <!-- Damage Rows (3-Letter Pokémon Codes & Compact Abbreviated Moves) -->
-        <div class="damage-rows">
-            <div class="dmg-line" id="sky-dmg-active">
-                💥 <strong id="sky-opp-short">Opp</strong>→<span id="sky-active-pokemon" style="color:#38bdf8; font-weight:bold;">Me</span>: 
-                <span class="dmg-taps" id="sky-dmg-values">—</span>
-            </div>
-            <div class="dmg-line" id="sky-my-dmg-active">
+        <!-- 1-Line Outgoing Damage & CMP Status Footer -->
+        <div class="my-dmg-footer" id="sky-my-dmg-active">
+            <div style="overflow:hidden; text-overflow:ellipsis;">
                 ⚔️ <strong id="sky-my-short" style="color:#38bdf8;">Me</strong>→<strong id="sky-my-dmg-target" style="color:#fef08a;">Opp</strong>: 
                 <span class="dmg-taps" id="sky-my-dmg-values">—</span>
             </div>
-            <div class="dmg-line" id="sky-dmg-bench" style="opacity: 0.9;">
-                Bench: Awaiting switch...
-            </div>
+            <span id="sky-cmp-badge" class="cmp-pill win">CMP: —</span>
         </div>
     </div>
 
@@ -743,31 +942,29 @@
 
             const oppNameEl = document.getElementById("sky-opp-name");
             const oppMoveEl = document.getElementById("sky-opp-fastmove");
-            const throwTimingEl = document.getElementById("sky-throw-timing");
-            const turnRatioEl = document.getElementById("sky-turn-ratio");
-            const userPokeEl = document.getElementById("sky-active-pokemon");
             const myShortEl = document.getElementById("sky-my-short");
-            const oppShortEl = document.getElementById("sky-opp-short");
-            const dmgValuesEl = document.getElementById("sky-dmg-values");
             const myDmgTargetEl = document.getElementById("sky-my-dmg-target");
             const myDmgValuesEl = document.getElementById("sky-my-dmg-values");
-            const benchDmgEl = document.getElementById("sky-dmg-bench");
+            const cmpBadgeEl = document.getElementById("sky-cmp-badge");
+            const timingRowsEl = document.getElementById("sky-move-timing-rows");
             const matrixBody = document.getElementById("sky-matrix-body");
 
             const my3Letter = abbrPoke(battleData.userActivePokemon || "Lead", false);
-            userPokeEl.textContent = my3Letter;
-            if (myShortEl) myShortEl.textContent = my3Letter;
+            const userTurns = battleData.userFastMoveTurns || 2;
+            if (myShortEl) myShortEl.textContent = `${my3Letter} (${userTurns}t)`;
 
             if (isWaitingState) {
                 oppNameEl.textContent = "WAITING FOR OPPONENT...";
                 oppMoveEl.textContent = "(1 Hz OCR Active)";
-                throwTimingEl.textContent = "—";
-                if (turnRatioEl) turnRatioEl.textContent = "(Zero-Sneak)";
-                oppShortEl.textContent = "Opp";
-                dmgValuesEl.textContent = "—";
                 myDmgTargetEl.textContent = "Opp";
                 myDmgValuesEl.textContent = "—";
-                benchDmgEl.textContent = "Bench: Awaiting switch...";
+                if (cmpBadgeEl) {
+                    cmpBadgeEl.textContent = "CMP: —";
+                    cmpBadgeEl.className = "cmp-pill win";
+                }
+                if (timingRowsEl) {
+                    timingRowsEl.innerHTML = "";
+                }
 
                 matrixBody.innerHTML = `
                     <div style="display:flex; align-items:center; gap:6px; color:#cbd5e1; font-size:9px; padding:2px 0;">
@@ -779,14 +976,15 @@
                 const shadPrefix = battleData.isOpponentShadow ? "SHADOW " : "";
                 oppNameEl.textContent = "VS " + shadPrefix + battleData.activeOpponent.toUpperCase();
                 oppMoveEl.textContent = `(${battleData.activeOpponentTurns || 2}t ${battleData.activeOpponentFastMove || "Fast"})`;
-                throwTimingEl.textContent = battleData.throwAlignmentText || "1st, 3rd, 5th";
-                if (turnRatioEl) {
-                    turnRatioEl.textContent = `(${battleData.userFastMoveTurns || 2}t vs ${battleData.activeOpponentTurns || 2}t)`;
-                }
 
                 const opp3Letter = abbrPoke(battleData.activeOpponent, battleData.isOpponentShadow);
-                oppShortEl.textContent = opp3Letter;
                 myDmgTargetEl.textContent = opp3Letter;
+
+                const winsCmp = battleData.winsCmp !== undefined ? !!battleData.winsCmp : true;
+                if (cmpBadgeEl) {
+                    cmpBadgeEl.textContent = winsCmp ? "CMP WIN ✓" : "CMP LOSS";
+                    cmpBadgeEl.className = "cmp-pill " + (winsCmp ? "win" : "loss");
+                }
 
                 if (battleData.myMove1Summary && battleData.myMove2Summary) {
                     const m1 = abbrMoveSummary(battleData.myMove1Summary);
@@ -796,24 +994,71 @@
                     myDmgValuesEl.textContent = "—";
                 }
 
-                if (battleData.scannedOpponents && battleData.scannedOpponents.length > 0) {
-                    const activeOpp = battleData.scannedOpponents[0];
-                    const oppM1 = abbrMoveSummary(activeOpp.c1 || "C1 (30%)");
-                    const oppM2 = abbrMoveSummary(activeOpp.c2 || "C2 (50%)");
-                    const oppM3 = activeOpp.c3 ? abbrMoveSummary(activeOpp.c3) : "";
-                    dmgValuesEl.innerHTML = `<span class="dmg-ready">${oppM1}</span> | <span class="dmg-taps">${oppM2}</span>` + (oppM3 ? ` | <span class="dmg-taps">${oppM3}</span>` : "");
-                    
-                    if (battleData.scannedOpponents.length > 1) {
-                        const bench = battleData.scannedOpponents.slice(1);
-                        benchDmgEl.innerHTML = "💥 Bench: " + bench.map(b => {
-                            const bCode = abbrPoke(b.name || b.code, false);
-                            const b3 = b.c3 ? ` | ${abbrMoveSummary(b.c3)}` : "";
-                            return `${bCode}: ${abbrMoveSummary(b.c1 || '')} | ${abbrMoveSummary(b.c2 || '')}${b3}`;
-                        }).join(" • ");
-                    } else {
-                        benchDmgEl.innerHTML = "Bench: Awaiting opponent switch...";
-                    }
+                // Render Unified 3-Row Per-Move Timing, Catch/CMP & Bench Threat HUD
+                if (timingRowsEl) {
+                    const rows = battleData.oppMoveTimingRows || [];
+                    timingRowsEl.innerHTML = rows.map(row => {
+                        const shortMove = MOVE_ABBR[row.name] || (row.name && row.name.length > 8 ? row.name.substring(0, 7) + "." : (row.name || "Move"));
+                        const actvPct = row.activeDmgPct || 35;
+                        const actvEff = row.activeEff || 1.0;
+                        const threatClass = (actvPct >= 60 || actvEff >= 1.5) ? "high" : ((actvPct <= 30 || (actvEff <= 0.65 && actvPct < 45)) ? "low" : "mid");
+                        const myTapReady = row.myTapAtReady || 4;
+                        const myCapTap = row.myCapTap || (myTapReady * 2);
+                        const rowWinsCmp = row.winsCmp !== undefined ? !!row.winsCmp : winsCmp;
 
+                        let centerHtml = "";
+                        if (userTurns >= 3 && row.tapNodes && row.tapNodes.length > 0) {
+                            // 3, 4, or 5 turn user fast move -> Connected numbered tap dots in YOUR fast move counts
+                            centerHtml = `<div class="tap-dots-track">` + row.tapNodes.map((node, nIdx) => {
+                                const conn = nIdx > 0 ? `<span class="tap-connector"></span>` : "";
+                                const nodeClass = node.state === "cmp" ? "node-cmp"
+                                    : node.state === "catch" ? "node-catch"
+                                    : node.state === "safe" ? "node-safe"
+                                    : "node-leak";
+                                let caption = "";
+                                if (node.isCatchOrCmp) {
+                                    caption = rowWinsCmp
+                                        ? `<span class="tap-micro-caption cap-cmp">▲CMP✓/🎯</span>`
+                                        : `<span class="tap-micro-caption cap-catch">▲🎯Catch</span>`;
+                                }
+                                return `${conn}<div class="tap-node-wrap"><span class="tap-dot ${nodeClass}">${node.label}</span>${caption}</div>`;
+                            }).join("") + `</div>`;
+                        } else {
+                            // 1 or 2 turn user fast move -> Simplified segmented bars in YOUR fast move counts
+                            const safeLabel = row.safeRangeLabel || `1–${Math.max(1, myTapReady - 1)} SAFE`;
+                            const actionBlock = rowWinsCmp
+                                ? `<span class="seg-block seg-cmp" title="You win CMP tie on tap #${myTapReady}, or swap to catch">⚡#${myTapReady} CMP✓ · 🎯</span>`
+                                : `<span class="seg-block seg-catch" title="Opponent wins CMP — swap on #${myTapReady} to catch">🎯 #${myTapReady} CATCH</span>`;
+                            centerHtml = `
+                                <div class="seg-bar-track">
+                                    <span class="seg-block seg-safe">${safeLabel}</span>
+                                    ${actionBlock}
+                                    <span class="seg-block seg-cap">#${myCapTap}⚡</span>
+                                </div>
+                            `;
+                        }
+
+                        const benchBadgesHtml = (row.bench || []).map(b => {
+                            const bShort = abbrPoke(b.name, false);
+                            const tierCls = b.tier === "resist" ? "tier-resist" : (b.tier === "weak" ? "tier-weak" : "tier-neutral");
+                            const tagStr = b.tag ? ` ${b.tag}` : "";
+                            return `<span class="bench-chip ${tierCls}">${bShort}:${b.dmgPct}%${tagStr}</span>`;
+                        }).join("");
+
+                        return `
+                            <div class="move-timing-row">
+                                <div class="move-col-left">
+                                    <div class="move-title-line threat-${threatClass}">${shortMove} (${row.energy || 50}e)</div>
+                                    <div class="move-sub-line"><span class="actv-pct-${threatClass}">${actvPct}%</span> on ${my3Letter} · @${myTapReady}f</div>
+                                </div>
+                                <div class="move-col-center">${centerHtml}</div>
+                                <div class="move-col-right">${benchBadgesHtml}</div>
+                            </div>
+                        `;
+                    }).join("");
+                }
+
+                if (battleData.scannedOpponents && battleData.scannedOpponents.length > 0) {
                     const teamInitials = (battleData.team && battleData.team.length >= 3) 
                         ? battleData.team 
                         : [{ initial: "P1" }, { initial: "P2" }, { initial: "P3" }];

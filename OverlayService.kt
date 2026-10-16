@@ -90,7 +90,8 @@ class OverlayService : LifecycleService() {
         data class MoveStats(
             val name: String,
             val type: String,
-            val power: Int
+            val power: Int,
+            val energyCost: Int = 50
         )
 
         data class PokemonMeta(
@@ -635,6 +636,206 @@ class OverlayService : LifecycleService() {
         val DYNAMIC_POKEMON_DATABASE = CopyOnWriteArrayList<PokemonMeta>()
         val DYNAMIC_MOVE_DATABASE = java.util.concurrent.ConcurrentHashMap<String, MoveStats>()
         val DYNAMIC_FAST_TURNS = java.util.concurrent.ConcurrentHashMap<String, Int>()
+        val DYNAMIC_FAST_ENERGY = java.util.concurrent.ConcurrentHashMap<String, Int>()
+
+        val FAST_MOVE_ENERGY: Map<String, Int> = mapOf(
+            "dragon breath" to 3,
+            "sand attack" to 4,
+            "quick attack" to 8,
+            "lock-on" to 5,
+            "water gun" to 3,
+            "lick" to 3,
+            "bite" to 2,
+            "tackle" to 3,
+            "fury cutter" to 4,
+            "bug bite" to 3,
+            "scratch" to 2,
+            "psywave" to 4,
+            "psycho cut" to 9,
+            "mud shot" to 8,
+            "shadow claw" to 8,
+            "counter" to 6,
+            "powder snow" to 8,
+            "wing attack" to 7,
+            "peck" to 6,
+            "poison sting" to 9,
+            "thunder shock" to 9,
+            "fairy wind" to 9,
+            "bullet punch" to 7,
+            "fire fang" to 6,
+            "vine whip" to 8,
+            "karate chop" to 9,
+            "low kick" to 7,
+            "ice fang" to 6,
+            "metal claw" to 7,
+            "sucker punch" to 7,
+            "poison jab" to 7,
+            "spark" to 7,
+            "leafage" to 7,
+            "steel wing" to 6,
+            "rock throw" to 5,
+            "force palm" to 10,
+            "dragon tail" to 9,
+            "waterfall" to 8,
+            "fire spin" to 10,
+            "snarl" to 13,
+            "geomancy" to 13,
+            "mud-slap" to 10,
+            "charm" to 6,
+            "double kick" to 12,
+            "air slash" to 9,
+            "ice shard" to 10,
+            "bubble" to 11,
+            "rollout" to 13,
+            "smack down" to 8,
+            "astonish" to 10,
+            "hex" to 12,
+            "magical leaf" to 10,
+            "bullet seed" to 13,
+            "water shuriken" to 14,
+            "gust" to 12,
+            "confusion" to 12,
+            "volt switch" to 16,
+            "incinerate" to 20
+        )
+
+        val MOVE_ENERGY_COST: Map<String, Int> = mapOf(
+            "Behemoth Blade" to 55,
+            "Behemoth Bash" to 45,
+            "Secret Sword" to 35,
+            "Sacred Sword" to 35,
+            "Aqua Jet" to 40,
+            "Double Iron Bash" to 35,
+            "Bleakwind Storm" to 45,
+            "Wildbolt Storm" to 45,
+            "Springtide Storm" to 45,
+            "Roar of Time" to 65,
+            "Iron Head" to 50,
+            "Draco Meteor" to 65,
+            "Thunder" to 60,
+            "Aeroblast" to 75,
+            "Sky Attack" to 55,
+            "Future Sight" to 65,
+            "Surf" to 40,
+            "Origin Pulse" to 60,
+            "Hydro Pump" to 75,
+            "Blizzard" to 75,
+            "Close Combat" to 45,
+            "Brave Bird" to 55,
+            "Play Rough" to 60,
+            "Wild Charge" to 45,
+            "Shadow Ball" to 55,
+            "Ominous Wind" to 45,
+            "Dragon Claw" to 35,
+            "Ancient Power" to 45,
+            "Shadow Force" to 90,
+            "Spacial Rend" to 50,
+            "Aqua Tail" to 35,
+            "Precipice Blades" to 60,
+            "Fire Punch" to 40,
+            "Psystrike" to 45,
+            "Ice Beam" to 55,
+            "Moonblast" to 60,
+            "Dark Pulse" to 50,
+            "Oblivion Wing" to 50,
+            "Crunch" to 45,
+            "Earthquake" to 65,
+            "Sandsear Storm" to 45,
+            "Stone Edge" to 55,
+            "Superpower" to 40,
+            "Sacred Fire" to 65,
+            "Sunsteel Strike" to 65,
+            "Moongeist Beam" to 65,
+            "Rock Slide" to 45,
+            "Earth Power" to 55,
+            "Outrage" to 60,
+            "Meteor Mash" to 50,
+            "Drill Run" to 45,
+            "Rock Wrecker" to 50,
+            "Breaking Swipe" to 35,
+            "Avalanche" to 45,
+            "High Horsepower" to 60,
+            "Ice Punch" to 40,
+            "Fusion Flare" to 45,
+            "Overheat" to 55,
+            "Fusion Bolt" to 45,
+            "Glaciate" to 40,
+            "Disarming Voice" to 45,
+            "Hydro Cannon" to 40,
+            "Weather Ball" to 35,
+            "Dazzling Gleam" to 70,
+            "Scorching Sands" to 50,
+            "Psycho Boost" to 35,
+            "Thunderbolt" to 55,
+            "Grass Knot" to 50,
+            "Leaf Blade" to 35,
+            "Aerial Ace" to 40,
+            "Fly" to 45,
+            "Flame Charge" to 50,
+            "Blast Burn" to 50,
+            "Feather Dance" to 50,
+            "Shadow Sneak" to 45,
+            "Twister" to 45,
+            "Air Cutter" to 45,
+            "Payback" to 60,
+            "Body Slam" to 35,
+            "Foul Play" to 45,
+            "Night Slash" to 35,
+            "Cross Chop" to 35,
+            "Dynamic Punch" to 50,
+            "Aura Sphere" to 55,
+            "Focus Blast" to 75,
+            "Sludge Bomb" to 50,
+            "Sludge Wave" to 65,
+            "Acid Spray" to 45,
+            "Poison Fang" to 40,
+            "Cross Poison" to 35,
+            "Gunk Shot" to 75,
+            "Mud Bomb" to 40,
+            "Bone Club" to 35,
+            "Shadow Bone" to 45,
+            "Hurricane" to 65,
+            "Acrobatics" to 55,
+            "Drill Peck" to 40,
+            "Psychic" to 55,
+            "Psyshock" to 45,
+            "Psychic Fangs" to 35,
+            "Lunge" to 45,
+            "Megahorn" to 55,
+            "X-Scissor" to 40,
+            "Power Gem" to 50,
+            "Meteor Beam" to 60,
+            "Night Shade" to 55,
+            "Icy Wind" to 45,
+            "Triple Axel" to 45,
+            "Icicle Spear" to 40,
+            "Freeze Shock" to 60,
+            "Ice Burn" to 60,
+            "Dragon Pulse" to 60,
+            "Brutal Swing" to 40,
+            "Flash Cannon" to 70,
+            "Heavy Slam" to 50,
+            "Magnet Bomb" to 45,
+            "Mirror Shot" to 35,
+            "Doom Desire" to 40,
+            "Frenzy Plant" to 45,
+            "Energy Ball" to 55,
+            "Seed Bomb" to 45,
+            "Power Whip" to 50,
+            "Trailblaze" to 45,
+            "Solar Beam" to 80,
+            "Discharge" to 45,
+            "Zap Cannon" to 80,
+            "Scald" to 55,
+            "Liquidation" to 45,
+            "Muddy Water" to 35,
+            "Water Pulse" to 55,
+            "Nature's Madness" to 50,
+            "Swift" to 35,
+            "Hyper Beam" to 80,
+            "Aura Wheel" to 45,
+            "Rage Fist" to 35
+        )
 
         fun getAllPokemonMeta(): List<PokemonMeta> {
             return if (DYNAMIC_POKEMON_DATABASE.isEmpty()) {
@@ -798,13 +999,16 @@ class OverlayService : LifecycleService() {
                     val type = obj.get("type")?.asString?.lowercase() ?: "normal"
                     val power = obj.get("power")?.asInt ?: 50
                     val energyGain = obj.get("energyGain")?.asInt ?: 0
+                    val energyCost = obj.get("energy")?.asInt ?: 50
                     val turns = ((obj.get("cooldown")?.asInt ?: 1000) / 500).coerceIn(1, 5)
                     if (energyGain > 0) {
                         fastMoveNames[moveId] = name
                         DYNAMIC_FAST_TURNS[name.lowercase()] = turns
                         DYNAMIC_FAST_TURNS[moveId.lowercase()] = turns
+                        DYNAMIC_FAST_ENERGY[name.lowercase()] = energyGain
+                        DYNAMIC_FAST_ENERGY[moveId.lowercase()] = energyGain
                     } else {
-                        DYNAMIC_MOVE_DATABASE[name] = MoveStats(name, type, power)
+                        DYNAMIC_MOVE_DATABASE[name] = MoveStats(name, type, power, energyCost)
                     }
                 }
             }
@@ -2070,6 +2274,116 @@ class OverlayService : LifecycleService() {
             availableOpponentForms = FormResolver.getVariantsForSpecies(oppMeta.baseSpecies, activeLeague)
         }
 
+        // CMP Tie Evaluation: True if player's active Pokémon wins CMP (higher or equal Attack)
+        val winsCmp = userMeta.atk >= oppMeta.atk
+
+        // Identify the 2 bench teammates (excluding activePlayerName)
+        val allTeamSlots = listOfNotNull(p1, p2, p3)
+        val benchSlots = allTeamSlots.filter { !it.name.equals(activePlayerName, ignoreCase = true) }.take(2)
+
+        // Active opponent's 3 charged moves
+        val activeOppThirdMove = oppMeta.chargedMove3.takeIf { it.isNotBlank() }
+            ?: COMMON_THIRD_CHARGED_MOVE[oppMeta.name]
+            ?: COMMON_THIRD_CHARGED_MOVE.entries.firstOrNull { it.key.equals(oppMeta.name, ignoreCase = true) }?.value
+            ?: "Outrage"
+        val oppChargedMoveNames = listOf(oppMeta.chargedMove1, oppMeta.chargedMove2, activeOppThirdMove)
+            .filter { it.isNotBlank() }
+            .distinct()
+
+        val oppFastEnergy = FAST_MOVE_ENERGY[oppMeta.defaultFastMove.lowercase().trim()]
+            ?: DYNAMIC_FAST_ENERGY[oppMeta.defaultFastMove.lowercase().trim()]
+            ?: (oppFastTurns * 4).coerceAtLeast(3)
+
+        // Build per-move timing, catch/CMP & active/bench threat rows strictly in YOUR fast move tap counts
+        val oppMoveTimingRows = oppChargedMoveNames.map { moveName ->
+            val mStats = MOVE_DATABASE[moveName]
+                ?: DYNAMIC_MOVE_DATABASE[moveName]
+                ?: MoveStats(moveName, oppMeta.types.firstOrNull() ?: "normal", 80, 50)
+            val mEnergy = MOVE_ENERGY_COST[moveName] ?: mStats.energyCost
+            val oppFasts = kotlin.math.ceil(mEnergy.toDouble() / oppFastEnergy.toDouble()).toInt().coerceAtLeast(1)
+            val oppReadyTurn = oppFasts * oppFastTurns
+
+            // Convert opponent's ready turn strictly into YOUR active Pokémon's fast move tap counts
+            val myTapAtReady = kotlin.math.ceil(oppReadyTurn.toDouble() / userFastTurns.toDouble()).toInt().coerceAtLeast(1)
+            val myCapTap = kotlin.math.ceil((oppReadyTurn * 2).toDouble() / userFastTurns.toDouble()).toInt().coerceAtLeast(myTapAtReady + 1)
+            val coAligned = (oppReadyTurn % userFastTurns == 0)
+
+            val activeDmgPct = calculateChargedMoveDamagePercent(
+                attacker = oppMeta,
+                defender = userMeta,
+                moveName = moveName,
+                isAttackerShadow = isOpponentShadow,
+                isDefenderShadow = activePlayerName.contains("Shadow", ignoreCase = true)
+            )
+            val activeEff = getTypeEffectiveness(mStats.type, userMeta.types)
+
+            val benchData = benchSlots.map { bSlot ->
+                val bMeta = getPokemonMeta(bSlot.name)
+                val bDmgPct = calculateChargedMoveDamagePercent(
+                    attacker = oppMeta,
+                    defender = bMeta,
+                    moveName = moveName,
+                    isAttackerShadow = isOpponentShadow,
+                    isDefenderShadow = bSlot.name.contains("Shadow", ignoreCase = true)
+                )
+                val bEff = getTypeEffectiveness(mStats.type, bMeta.types)
+                val (tag, tier) = when {
+                    bEff <= 0.45 -> "2xRes" to "resist"
+                    bEff <= 0.65 && bDmgPct < 55 -> "Res" to "resist"
+                    bDmgPct <= 28 -> "Tank" to "resist"
+                    bDmgPct >= 85 -> "KO" to "weak"
+                    bEff >= 1.5 || bDmgPct >= 55 -> "WK" to "weak"
+                    else -> "" to "neutral"
+                }
+                mapOf(
+                    "name" to bSlot.name,
+                    "dmgPct" to bDmgPct,
+                    "eff" to bEff,
+                    "tag" to tag,
+                    "tier" to tier
+                )
+            }
+
+            // Build tap nodes for slower 3-5T fast moves (in YOUR fast move counts)
+            val maxNode = max(myTapAtReady + 1, 5).coerceAtMost(7)
+            val tapNodes = (1..maxNode).map { k ->
+                val state = when {
+                    k == myTapAtReady -> if (winsCmp) "cmp" else "catch"
+                    k == maxNode -> "cap"
+                    (k * userFastTurns) % oppFastTurns != 0 -> "safe"
+                    else -> "leak"
+                }
+                val label = if (k == maxNode) "${myCapTap}⚡" else k.toString()
+                mapOf(
+                    "tap" to k,
+                    "label" to label,
+                    "state" to state,
+                    "isCatchOrCmp" to (k == myTapAtReady)
+                )
+            }
+
+            val needsOdd = (oppFastTurns % userFastTurns == 0 && oppFastTurns > userFastTurns)
+            val safeEnd = max(1, myTapAtReady - 1)
+            val safeRangeLabel = if (safeEnd <= 1) "1 SAFE" else "1–$safeEnd SAFE" + (if (needsOdd) " (Odd)" else "")
+
+            mapOf(
+                "name" to moveName,
+                "energy" to mEnergy,
+                "oppFasts" to oppFasts,
+                "oppReadyTurn" to oppReadyTurn,
+                "myTapAtReady" to myTapAtReady,
+                "myCapTap" to myCapTap,
+                "coAligned" to coAligned,
+                "winsCmp" to winsCmp,
+                "activeName" to activePlayerName,
+                "activeDmgPct" to activeDmgPct,
+                "activeEff" to activeEff,
+                "safeRangeLabel" to safeRangeLabel,
+                "tapNodes" to tapNodes,
+                "bench" to benchData
+            )
+        }
+
         val battlePayload = mapOf(
             "activeOpponent" to oppMeta.name,
             "activeOpponentFastMove" to oppMeta.defaultFastMove,
@@ -2078,13 +2392,16 @@ class OverlayService : LifecycleService() {
             "currentFormLabel" to oppMeta.formLabel,
             "availableForms" to availableOpponentForms.map { it.formLabel },
             "userActivePokemon" to activePlayerName,
+            "userFastMoveName" to userFastMoveName,
             "userFastMoveTurns" to userFastTurns,
+            "winsCmp" to winsCmp,
             "myMove1Summary" to myMove1Summary,
             "myMove2Summary" to myMove2Summary,
             "throwAlignmentText" to throwAlignmentText,
             "throwHorizonText" to throwHorizonText,
             "team" to teamData,
-            "scannedOpponents" to scannedOpponentsData
+            "scannedOpponents" to scannedOpponentsData,
+            "oppMoveTimingRows" to oppMoveTimingRows
         )
 
         val jsonStr = gson.toJson(battlePayload)

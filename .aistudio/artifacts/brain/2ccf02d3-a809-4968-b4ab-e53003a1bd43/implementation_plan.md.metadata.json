@@ -1,0 +1,6 @@
+{
+  "summary": "Updated implementation plan confirming all timing bars use your active Pokémon's fast move counts and adding an explicit green CMP tie win indicator on the opponent's throw/catch turn.",
+  "updatedAt": "2026-10-16T04:22:00.994651076Z",
+  "requestFeedback": true,
+  "userFacing": true
+}
