@@ -28,11 +28,13 @@ import {
   TeamPreset,
   TeamMember,
   calculateTurnAlignment,
+  calculateFastDamage,
   calculateChargedDamage,
   calculateShieldMatrix,
   calculateOpponentMoveTimingRows,
   calculateMyMoveTimingRows,
   getAvailableFormsForPokemon,
+  abbrMove5,
   PokemonStats,
   PVPOKE_TOP_OPPONENTS,
   TopOpponentInfo
@@ -334,56 +336,25 @@ export default function App() {
   const oppFastTurns = activeOpponent?.defaultFastMove?.turns || 2;
   const turnAlignInfo = calculateTurnAlignment(userFastTurns, oppFastTurns);
 
-  const MOVE_ABBR_MAP: Record<string, string> = {
-    'Roar of Time': 'Roar.T',
-    'Iron Head': 'Iron.Hd',
-    'Draco Meteor': 'Draco.M',
-    'Aeroblast': 'Aeroblst',
-    'Sky Attack': 'Sky.Atk',
-    'Origin Pulse': 'Orig.Pls',
-    'Close Combat': 'Cls.Cmb',
-    'Brave Bird': 'Brv.Brd',
-    'Play Rough': 'Play.Rgh',
-    'Wild Charge': 'Wld.Chg',
-    'Shadow Ball': 'Shd.Ball',
-    'Ominous Wind': 'Om.Wind',
-    'Dragon Claw': 'Drg.Claw',
-    'Ancient Power': 'Anc.Pwr',
-    'Weather Ball': 'Wth.Ball',
-    'Scorching Sands': 'Scr.Snd',
-    'Dazzling Gleam': 'Dzl.Glm',
-    'Feather Dance': 'Fth.Dnc',
-    'Shadow Sneak': 'Shd.Snk',
-    'Drill Run': 'Drl.Run',
-    'Earthquake': 'Earthqk',
-    'Flame Charge': 'Flm.Chg',
-    'Overheat': 'Ovrheat',
-    'Dark Pulse': 'Drk.Pls',
-    'Oblivion Wing': 'Obl.Wng',
-    'Hydro Cannon': 'Hyd.Can',
-    'Sacred Sword': 'Sac.Swd',
-    'Secret Sword': 'Sec.Swd',
-    'Behemoth Blade': 'Beh.Bld',
-    'Behemoth Bash': 'Beh.Bsh',
-    'Freeze Shock': 'Frz.Shk',
-    'Ice Burn': 'Ice.Brn',
-    'Fusion Bolt': 'Fus.Blt',
-    'Fusion Flare': 'Fus.Flr',
-    'Earth Power': 'Erth.Pwr',
-    'Avalanche': 'Avlnch',
-    'Drill Peck': 'Drl.Pck',
-    'Aqua Jet': 'Aq.Jet',
-    'Focus Blast': 'Foc.Blst',
-    'Blizzard': 'Blzzrd',
-    'Thunder': 'Thndr',
-    'Moonblast': 'Moonblst',
-    'Drum Beating': 'Drm.Bt',
-    'Gigaton Hammer': 'Ggt.Hmr',
-    'Air Cutter': 'Air.Cut',
-    'Energy Ball': 'Enrg.Bll',
-    'Bulldoze': 'Bulldz',
-    'Brutal Swing': 'Brt.Swg'
-  };
+  const oppFastInfo = useMemo(() => {
+    return calculateFastDamage(
+      activeOpponent,
+      userActivePokemon,
+      undefined,
+      isOpponentShadow,
+      isUserShadow
+    );
+  }, [activeOpponent, userActivePokemon, isOpponentShadow, isUserShadow]);
+
+  const userFastInfo = useMemo(() => {
+    return calculateFastDamage(
+      userActivePokemon,
+      activeOpponent,
+      userFastMoveName,
+      isUserShadow,
+      isOpponentShadow
+    );
+  }, [userActivePokemon, activeOpponent, userFastMoveName, isUserShadow, isOpponentShadow]);
 
   const oppMoveTimingInfo = useMemo(() => {
     return calculateOpponentMoveTimingRows(
@@ -413,9 +384,11 @@ export default function App() {
       myCustomChargedMoves,
       oppReadyTaps,
       isOpponentShadow,
-      userFastTurns
+      userFastTurns,
+      userFastMoveName,
+      scannedOpponents
     );
-  }, [userLeadName, activeOpponent, myCustomChargedMoves, oppReadyTaps, isOpponentShadow, userFastTurns]);
+  }, [userLeadName, activeOpponent, myCustomChargedMoves, oppReadyTaps, isOpponentShadow, userFastTurns, userFastMoveName, scannedOpponents]);
 
   const abbrPoke3 = (name: string, isShad: boolean = false) => {
     const clean = name
@@ -429,7 +402,7 @@ export default function App() {
   };
 
   const abbrMoveName = (name: string) => {
-    return MOVE_ABBR_MAP[name] || (name.length > 8 ? name.slice(0, 7) + '.' : name);
+    return abbrMove5(name);
   };
 
   // Damage Calculations (Opponent -> Player & Player -> Opponent with Shadow modifiers & custom moves)
@@ -934,8 +907,8 @@ export default function App() {
                       <div className="mt-1 text-center font-bold text-sm text-amber-200 [text-shadow:0_2px_4px_#000]">
                         {activeOpponent.name}
                       </div>
-                      <div className="text-[10px] text-slate-300 font-semibold [text-shadow:0_1px_2px_#000]">
-                        {activeOpponent.defaultFastMove.turns}t {activeOpponent.defaultFastMove.name}
+                      <div className="text-[10px] text-slate-300 font-semibold font-mono [text-shadow:0_1px_2px_#000]">
+                        {oppFastInfo.telemetry}
                       </div>
                     </div>
                   </div>
@@ -950,8 +923,8 @@ export default function App() {
                       <div className="mt-1 text-center font-bold text-sm text-sky-200 [text-shadow:0_2px_4px_#000]">
                         {userActivePokemon.name}
                       </div>
-                      <div className="text-[10px] text-slate-300 font-semibold [text-shadow:0_1px_2px_#000]">
-                        {userFastTurns}t {userActivePokemon.defaultFastMove?.name || 'Spark'}
+                      <div className="text-[10px] text-slate-300 font-semibold font-mono [text-shadow:0_1px_2px_#000]">
+                        {userFastInfo.telemetry}
                       </div>
                     </div>
                   </div>
@@ -975,24 +948,29 @@ export default function App() {
                         textShadow: '0 1px 2px rgba(0, 0, 0, 0.98), 0 0 4px rgba(0, 0, 0, 0.95)'
                       }}
                     >
-                      {/* Header row (Full width, no redundant preset dropdown) */}
-                      <div className="flex items-center justify-between pb-1 border-b border-white/15">
-                        <div className="font-extrabold text-[11px] text-amber-100 flex items-center gap-1 truncate w-full">
+                      {/* Header row (Full width, fast move telemetry Abbr Xt/Ye/Z%) */}
+                      <div className="flex items-center justify-between pb-1 border-b border-white/15 gap-1">
+                        <div className="font-extrabold text-[10.5px] text-amber-100 flex items-center gap-1 truncate min-w-0">
                           {isWaitingOpponent || scannedOpponents.length === 0 ? (
                             <>
-                              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping inline-block" />
+                              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping inline-block shrink-0" />
                               <span className="text-emerald-200">WAITING FOR OPPONENT...</span>
                               <span className="text-amber-300 font-semibold text-[9px]">(1 Hz OCR Active)</span>
                             </>
                           ) : (
                             <>
-                              <span>⚔️ VS {isOpponentShadow ? 'SHADOW ' : ''}{activeOpponent.name.toUpperCase()}</span>
-                              <span className="text-amber-300 font-semibold text-[9.5px]">
-                                ({oppFastTurns}t {activeOpponent.defaultFastMove.name})
+                              <span className="truncate">⚔️ VS {isOpponentShadow ? 'S-' : ''}{activeOpponent.name.toUpperCase()}</span>
+                              <span className="text-amber-300 font-bold text-[8.5px] font-mono shrink-0 bg-black/35 px-1 rounded border border-amber-400/30">
+                                {oppFastInfo.telemetry}
                               </span>
                             </>
                           )}
                         </div>
+                        {!isWaitingOpponent && scannedOpponents.length > 0 && (
+                          <span className="text-sky-300 font-bold text-[8px] font-mono shrink-0 bg-black/35 px-1 rounded border border-sky-400/30">
+                            {userFastInfo.telemetry}
+                          </span>
+                        )}
                       </div>
 
                       {/* Action Toolbar: Reset Opp, Swap Opponent, Shadow Toggle, Form Cycler, and Active Lead Switch */}
@@ -1148,98 +1126,82 @@ export default function App() {
                         )}
                       </div>
 
-                      {/* 5-Tier Dot Legend */}
-                      <div className="flex items-center justify-between px-1 pb-0.5 text-[7.5px] text-slate-300/90">
-                        <span className="inline-flex items-center gap-0.5">{renderTierDots('SW').props.children[0]} Strong Win</span>
-                        <span className="inline-flex items-center gap-0.5">{renderTierDots('W').props.children[0]} Win</span>
-                        <span className="inline-flex items-center gap-0.5">{renderTierDots('N').props.children[0]} Neutral</span>
-                        <span className="inline-flex items-center gap-0.5">{renderTierDots('L').props.children[0]} Loss</span>
-                        <span className="inline-flex items-center gap-0.5">{renderTierDots('SL').props.children[0]} Strong Loss</span>
-                      </div>
-
-                      {/* Opponent Attacks (Incoming Damage & Turn Timing) */}
+                      {/* Opponent Attacks & My Attacks (Segmented Range Bars + 3-Column Damage Matrices with Vertical Highlight) */}
                       {!isWaitingOpponent && scannedOpponents.length > 0 && (
-                        <div className="flex flex-col gap-1 my-1">
-                          <div className="flex items-center justify-between text-[8px] font-bold text-slate-400 uppercase tracking-wider px-0.5">
-                            <span>Opponent Attacks</span>
-                            <span
-                              className={`text-[7.5px] font-extrabold px-1 rounded ${
-                                oppMoveTimingInfo.winsCmp
-                                  ? 'bg-emerald-500/25 border border-emerald-400/50 text-emerald-300'
-                                  : 'bg-red-500/25 border border-red-400/50 text-red-300'
-                              }`}
-                            >
-                              {oppMoveTimingInfo.winsCmp ? 'CMP WIN ✓' : 'CMP LOSS'}
-                            </span>
-                          </div>
-                          {oppMoveTimingInfo.rows.map((row) => {
-                            const shortMove = abbrMoveName(row.name);
-                            const threatLevel =
-                              row.activeDmgPct >= 60 || row.activeEff >= 1.5
-                                ? 'high'
-                                : row.activeDmgPct <= 30 || (row.activeEff <= 0.65 && row.activeDmgPct < 45)
-                                ? 'low'
-                                : 'mid';
-                            const titleColor =
-                              threatLevel === 'high'
-                                ? 'text-red-300'
-                                : threatLevel === 'low'
-                                ? 'text-emerald-300'
-                                : 'text-amber-300';
-                            const pctColor =
-                              threatLevel === 'high'
-                                ? 'text-red-400 font-extrabold'
-                                : threatLevel === 'low'
-                                ? 'text-emerald-400 font-extrabold'
-                                : 'text-amber-400 font-extrabold';
-
-                            return (
-                              <div
-                                key={row.name}
-                                className="bg-slate-950/55 border border-slate-400/20 rounded px-1.5 py-1 grid grid-cols-[78px_1fr_auto] items-center gap-1 tabular-nums"
+                        <div className="flex flex-col gap-0.5 my-1">
+                          {/* Opponent Attacks Section Header + 3-Team Column Headers */}
+                          <div className="grid grid-cols-[44px_1fr_84px] items-center gap-1 px-1 pt-0.5">
+                            <span className="text-[7.5px] font-extrabold text-slate-400 uppercase tracking-wider col-span-2 flex items-center justify-between pr-1">
+                              <span>Opp Attacks</span>
+                              <span
+                                className={`text-[7px] font-extrabold px-1 rounded ${
+                                  oppMoveTimingInfo.winsCmp
+                                    ? 'bg-emerald-500/25 border border-emerald-400/50 text-emerald-300'
+                                    : 'bg-red-500/25 border border-red-400/50 text-red-300'
+                                }`}
                               >
-                                {/* Left: Move Name & Active Damage % */}
-                                <div className="flex flex-col leading-tight min-w-0">
-                                  <span className={`text-[8.5px] font-extrabold truncate ${titleColor}`}>
-                                    {shortMove} ({row.energy}e)
+                                {oppMoveTimingInfo.winsCmp ? 'CMP WIN ✓' : 'CMP LOSS'}
+                              </span>
+                            </span>
+                            <div className="grid grid-cols-3 w-[84px] text-center font-mono text-[7.5px] font-extrabold">
+                              {[0, 1, 2].map((slotIdx) => {
+                                const memberName = activePreset.pokemon[slotIdx]?.name || '';
+                                const code = memberName
+                                  ? abbrPoke3(memberName, false).toUpperCase().slice(0, 3)
+                                  : '---';
+                                const isActv = slotIdx === activeUserSlotIndex;
+                                return (
+                                  <span
+                                    key={slotIdx}
+                                    className={`py-0.5 leading-none transition ${
+                                      isActv
+                                        ? 'bg-sky-500/25 text-sky-200 border-t border-x border-sky-400/80 rounded-t shadow-[0_0_6px_rgba(56,189,248,0.25)]'
+                                        : 'text-slate-400'
+                                    }`}
+                                  >
+                                    {code}
                                   </span>
-                                  <span className="text-[7.5px] text-slate-300 truncate">
-                                    <span className={pctColor}>{row.activeDmgPct}%</span> on {abbrPoke3(userLeadName, false)} · @{row.myTapAtReady}f
-                                  </span>
-                                </div>
+                                );
+                              })}
+                            </div>
+                          </div>
 
-                                {/* Center: Adaptive Timing in YOUR Fast Move Counts (Zero Clutter, Stops at First Move) */}
-                                <div className="flex items-center justify-center min-w-0">
-                                  {userFastTurns >= 3 ? (
-                                    <div className="flex items-start justify-center">
-                                      {row.tapNodes.map((node, nIdx) => {
-                                        const dotCls =
-                                          node.state === 'cmp'
-                                            ? 'bg-green-600 border-[1.2px] border-green-200 shadow-[0_0_4px_rgba(34,197,94,0.85)] text-white'
-                                            : node.state === 'catch'
-                                            ? 'bg-red-600 border-[1.2px] border-red-200 shadow-[0_0_4px_rgba(239,68,68,0.8)] text-white'
-                                            : node.state === 'safe'
-                                            ? 'bg-sky-600 border border-sky-300 text-white'
-                                            : 'bg-amber-700 border border-amber-300 text-amber-100';
-                                        return (
-                                          <React.Fragment key={node.tap}>
-                                            {nIdx > 0 && (
-                                              <span className="w-1.5 h-[1.5px] bg-slate-400/40 mt-[6px] shrink-0" />
-                                            )}
-                                            <div className="flex flex-col items-center">
-                                              <span
-                                                className={`min-w-[13px] h-[13px] px-0.5 rounded-full text-[7.5px] font-black inline-flex items-center justify-center leading-none ${dotCls}`}
-                                              >
-                                                {node.label}
-                                              </span>
-                                            </div>
-                                          </React.Fragment>
-                                        );
-                                      })}
-                                    </div>
-                                  ) : (
-                                    <div className="flex items-center justify-center gap-0.5">
-                                      <span className="rounded px-1.5 py-0.5 text-[7.5px] font-extrabold whitespace-nowrap bg-sky-600/35 border border-sky-400/70 text-sky-200">
+                          {/* Opponent Attack Rows */}
+                          <div className="flex flex-col gap-[2px]">
+                            {oppMoveTimingInfo.rows.map((row, rIdx) => {
+                              const isLastRow = rIdx === oppMoveTimingInfo.rows.length - 1;
+                              const threatLevel =
+                                row.activeDmgPct >= 60 || row.activeEff >= 1.5
+                                  ? 'high'
+                                  : row.activeDmgPct <= 30 || (row.activeEff <= 0.65 && row.activeDmgPct < 45)
+                                  ? 'low'
+                                  : 'mid';
+                              const titleColor =
+                                threatLevel === 'high'
+                                  ? 'text-red-300'
+                                  : threatLevel === 'low'
+                                  ? 'text-emerald-300'
+                                  : 'text-amber-300';
+
+                              return (
+                                <div
+                                  key={row.name}
+                                  className="bg-slate-950/55 border border-slate-400/20 rounded px-1 py-0.5 grid grid-cols-[44px_1fr_84px] items-center gap-1 tabular-nums"
+                                >
+                                  {/* Left: <=5 Char Move Name (Top) & Energy/Turns (Bottom) */}
+                                  <div className="flex flex-col leading-tight min-w-0">
+                                    <span className={`text-[8.5px] font-extrabold truncate ${titleColor}`} title={row.name}>
+                                      {row.shortName}
+                                    </span>
+                                    <span className="text-[7.5px] text-slate-300 font-mono truncate">
+                                      {row.energy}e/{row.myTapAtReady}f
+                                    </span>
+                                  </div>
+
+                                  {/* Center: Universal Segmented Rectangle Bar */}
+                                  <div className="flex items-center justify-center min-w-0">
+                                    <div className="flex items-center justify-center gap-0.5 w-full">
+                                      <span className="flex-1 text-center rounded px-1.5 py-0.5 text-[7.5px] font-extrabold whitespace-nowrap bg-sky-600/35 border border-sky-400/70 text-sky-200">
                                         {row.safeRangeLabel}
                                       </span>
                                       {row.winsCmp ? (
@@ -1258,111 +1220,120 @@ export default function App() {
                                         </span>
                                       )}
                                     </div>
-                                  )}
-                                </div>
+                                  </div>
 
-                                {/* Right: Both Bench Pokémon Damage % (Clean: 3 letters + %, NO Weak/Res text) */}
-                                <div className="flex items-center gap-0.5 shrink-0">
-                                  {row.bench.map((b) => {
-                                    const bCls =
-                                      b.tier === 'resist'
-                                        ? 'bg-emerald-600/40 border border-emerald-400/80 text-emerald-200'
-                                        : b.tier === 'weak'
-                                        ? 'bg-red-900/60 border border-red-400/75 text-red-100'
-                                        : 'bg-slate-700/50 border border-slate-400/50 text-slate-100';
-                                    return (
-                                      <span
-                                        key={b.name}
-                                        className={`rounded px-1.5 py-0.5 text-[7.5px] font-extrabold whitespace-nowrap leading-tight ${bCls}`}
-                                      >
-                                        {abbrPoke3(b.name, false)} {b.dmgPct}%
-                                      </span>
-                                    );
-                                  })}
+                                  {/* Right: 3-Pokemon Team Damage % Columns with Vertical Active Highlight */}
+                                  <div className="grid grid-cols-3 w-[84px] items-center text-center font-mono shrink-0">
+                                    {row.teamDamages.map((cell, cIdx) => {
+                                      const isActv = cIdx === activeUserSlotIndex;
+                                      const textCls =
+                                        cell.tier === 'resist'
+                                          ? 'text-emerald-300'
+                                          : cell.tier === 'weak'
+                                          ? 'text-red-300'
+                                          : 'text-amber-200';
+                                      return (
+                                        <div
+                                          key={cIdx}
+                                          className={`py-0.5 text-[7.5px] font-extrabold leading-tight ${textCls} ${
+                                            isActv
+                                              ? `bg-sky-500/25 border-x border-sky-400/80 shadow-[inset_0_0_6px_rgba(56,189,248,0.25)] ${
+                                                  isLastRow ? 'border-b rounded-b' : ''
+                                                }`
+                                              : 'bg-slate-900/40'
+                                          }`}
+                                          title={`${cell.name}: ${cell.dmgPct}%`}
+                                        >
+                                          {cell.isEmpty ? '—' : `${cell.dmgPct}%`}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
                                 </div>
-                              </div>
-                            );
-                          })}
-
-                          {/* My Attacks (Vertically Aligned Charging Taps & Outgoing Damage) */}
-                          <div className="flex items-center justify-between text-[8px] font-bold text-slate-400 uppercase tracking-wider px-0.5 mt-1">
-                            <span>My Attacks</span>
-                            <span className="text-sky-300 font-extrabold text-[8px]">
-                              {abbrPoke3(userLeadName, false)} ({userFastTurns}t)
-                            </span>
+                              );
+                            })}
                           </div>
-                          {myMoveTimingInfo.map((row) => {
-                            const shortMove = abbrMoveName(row.name);
-                            const threatLevel =
-                              row.dmgPct >= 65 || row.eff >= 1.5
-                                ? 'high'
-                                : row.dmgPct <= 30 || row.eff <= 0.65
-                                ? 'low'
-                                : 'mid';
-                            const titleColor =
-                              threatLevel === 'high'
-                                ? 'text-red-300'
-                                : threatLevel === 'low'
-                                ? 'text-emerald-300'
-                                : 'text-amber-300';
-                            const pctColor =
-                              threatLevel === 'high'
-                                ? 'text-red-400 font-extrabold'
-                                : threatLevel === 'low'
-                                ? 'text-emerald-400 font-extrabold'
-                                : 'text-amber-400 font-extrabold';
 
-                            return (
-                              <div
-                                key={row.name}
-                                className="bg-slate-950/55 border border-slate-400/20 rounded px-1.5 py-1 grid grid-cols-[78px_1fr_auto] items-center gap-1 tabular-nums"
-                              >
-                                {/* Left: Move Name & Outgoing Damage % */}
-                                <div className="flex flex-col leading-tight min-w-0">
-                                  <span className={`text-[8.5px] font-extrabold truncate ${titleColor}`}>
-                                    {shortMove} ({row.energy}e)
+                          {/* My Attacks Section Header + 3-Opponent Column Headers */}
+                          <div className="grid grid-cols-[44px_1fr_84px] items-center gap-1 px-1 pt-1">
+                            <span className="text-[7.5px] font-extrabold text-slate-400 uppercase tracking-wider col-span-2 flex items-center justify-between pr-1">
+                              <span>My Attacks</span>
+                              <span className="text-sky-300 font-extrabold text-[7.5px] font-mono">
+                                {abbrPoke3(userLeadName, false)} ({userFastInfo.telemetry})
+                              </span>
+                            </span>
+                            <div className="grid grid-cols-3 w-[84px] text-center font-mono text-[7.5px] font-extrabold">
+                              {[0, 1, 2].map((oppIdx) => {
+                                const oppName = scannedOpponents[oppIdx] || '';
+                                const code = oppName
+                                  ? abbrPoke3(oppName, false).toUpperCase().slice(0, 3)
+                                  : '---';
+                                const isActv = oppIdx === 0;
+                                return (
+                                  <span
+                                    key={oppIdx}
+                                    className={`py-0.5 leading-none transition ${
+                                      isActv
+                                        ? 'bg-sky-500/25 text-sky-200 border-t border-x border-sky-400/80 rounded-t shadow-[0_0_6px_rgba(56,189,248,0.25)]'
+                                        : 'text-slate-400'
+                                    }`}
+                                  >
+                                    {code}
                                   </span>
-                                  <span className="text-[7.5px] text-slate-300 truncate">
-                                    <span className={pctColor}>{row.dmgPct}%</span> to Opp · @{row.myTapsNeeded}f
-                                  </span>
-                                </div>
+                                );
+                              })}
+                            </div>
+                          </div>
 
-                                {/* Center: Vertically Aligned Tap Dots/Bars */}
-                                <div className="flex items-center justify-center min-w-0">
-                                  {userFastTurns >= 3 ? (
-                                    <div className="flex items-start justify-center">
-                                      {row.tapNodes.map((node, nIdx) => {
-                                        const dotCls =
-                                          node.state === 'cmp'
-                                            ? 'bg-green-600 border-[1.2px] border-green-200 shadow-[0_0_4px_rgba(34,197,94,0.85)] text-white'
-                                            : node.state === 'cmp-loss'
-                                            ? 'bg-red-600 border-[1.2px] border-red-200 shadow-[0_0_4px_rgba(239,68,68,0.8)] text-white'
-                                            : node.state === 'safe'
-                                            ? 'bg-sky-600 border border-sky-300 text-white'
-                                            : 'bg-slate-700/60 border border-slate-400/40 text-slate-400';
-                                        return (
-                                          <React.Fragment key={node.tap}>
-                                            {nIdx > 0 && (
-                                              <span className="w-1.5 h-[1.5px] bg-slate-400/40 mt-[6px] shrink-0" />
-                                            )}
-                                            <div className="flex flex-col items-center">
-                                              <span
-                                                className={`min-w-[13px] h-[13px] px-0.5 rounded-full text-[7.5px] font-black inline-flex items-center justify-center leading-none ${dotCls}`}
-                                              >
-                                                {node.label}
-                                              </span>
-                                            </div>
-                                          </React.Fragment>
-                                        );
-                                      })}
-                                    </div>
-                                  ) : (
-                                    <div className="flex items-center justify-center gap-0.5">
-                                      {row.myTapsNeeded > 1 && (
-                                        <span className="rounded px-1.5 py-0.5 text-[7.5px] font-extrabold whitespace-nowrap bg-slate-700/40 border border-slate-400/40 text-slate-400">
-                                          {row.myTapsNeeded <= 1 ? '' : `1–${row.myTapsNeeded - 1}`}
-                                        </span>
-                                      )}
+                          {/* My Attack Rows */}
+                          <div className="flex flex-col gap-[2px]">
+                            {myMoveTimingInfo.map((row, rIdx) => {
+                              const isLastRow = rIdx === myMoveTimingInfo.length - 1;
+                              const threatLevel =
+                                row.dmgPct >= 60 || row.eff >= 1.5
+                                  ? 'high'
+                                  : row.dmgPct <= 35 || row.eff <= 0.65
+                                  ? 'low'
+                                  : 'mid';
+                              const titleColor =
+                                threatLevel === 'high'
+                                  ? 'text-emerald-300'
+                                  : threatLevel === 'low'
+                                  ? 'text-red-300'
+                                  : 'text-amber-300';
+
+                              return (
+                                <div
+                                  key={row.name}
+                                  className="bg-slate-950/55 border border-slate-400/20 rounded px-1 py-0.5 grid grid-cols-[44px_1fr_84px] items-center gap-1 tabular-nums"
+                                >
+                                  {/* Left: <=5 Char Move Name (Top) & Energy/Turns (Bottom) */}
+                                  <div className="flex flex-col leading-tight min-w-0">
+                                    <span className={`text-[8.5px] font-extrabold truncate ${titleColor}`} title={row.name}>
+                                      {row.shortName}
+                                    </span>
+                                    <span className="text-[7.5px] text-slate-300 font-mono truncate">
+                                      {row.energy}e/{row.myTapsNeeded}f
+                                    </span>
+                                  </div>
+
+                                  {/* Center: Universal Segmented Rectangle Bar with Leak-Free Safe Throw Numbers */}
+                                  <div className="flex items-center justify-center min-w-0">
+                                    <div className="flex items-center justify-center gap-0.5 w-full">
+                                      <span
+                                        className={`flex-1 text-center rounded px-1 py-0.5 text-[7.5px] font-extrabold whitespace-nowrap ${
+                                          row.hasZeroSneak
+                                            ? 'bg-sky-600/35 border border-sky-400/70 text-sky-200'
+                                            : 'bg-slate-700/45 border border-slate-400/40 text-slate-300'
+                                        }`}
+                                        title={
+                                          row.hasZeroSneak
+                                            ? `Leak-free (zero-sneak) throw taps: ${row.safeThrowLabel}`
+                                            : 'Co-aligned fast moves (all turns align)'
+                                        }
+                                      >
+                                        {row.safeThrowLabel}
+                                      </span>
                                       {row.state === 'cmp' ? (
                                         <span
                                           className="rounded px-1.5 py-0.5 text-[7.5px] font-extrabold whitespace-nowrap bg-green-600/50 border border-green-300 text-white"
@@ -1386,26 +1357,40 @@ export default function App() {
                                         </span>
                                       )}
                                     </div>
-                                  )}
-                                </div>
+                                  </div>
 
-                                {/* Right: Outgoing Damage / KO badge */}
-                                <div className="flex items-center gap-0.5 shrink-0">
-                                  <span
-                                    className={`rounded px-1.5 py-0.5 text-[7.5px] font-extrabold whitespace-nowrap leading-tight ${
-                                      row.dmgPct >= 65
-                                        ? 'bg-emerald-600/40 border border-emerald-400/80 text-emerald-200'
-                                        : row.dmgPct <= 35
-                                        ? 'bg-red-900/60 border border-red-400/75 text-red-100'
-                                        : 'bg-slate-700/50 border border-slate-400/50 text-slate-100'
-                                    }`}
-                                  >
-                                    {row.dmgPct >= 100 ? 'KO!' : `${row.dmgPct}%`}
-                                  </span>
+                                  {/* Right: 3-Opponent Outgoing Damage % Columns with Vertical Active Highlight */}
+                                  <div className="grid grid-cols-3 w-[84px] items-center text-center font-mono shrink-0">
+                                    {row.oppDamages.map((cell, cIdx) => {
+                                      const isActv = cIdx === 0;
+                                      const textCls = cell.isEmpty
+                                        ? 'text-slate-500'
+                                        : cell.tier === 'resist'
+                                        ? 'text-emerald-300'
+                                        : cell.tier === 'weak'
+                                        ? 'text-red-300'
+                                        : 'text-amber-200';
+                                      return (
+                                        <div
+                                          key={cIdx}
+                                          className={`py-0.5 text-[7.5px] font-extrabold leading-tight ${textCls} ${
+                                            isActv
+                                              ? `bg-sky-500/25 border-x border-sky-400/80 shadow-[inset_0_0_6px_rgba(56,189,248,0.25)] ${
+                                                  isLastRow ? 'border-b rounded-b' : ''
+                                                }`
+                                              : 'bg-slate-900/40'
+                                          }`}
+                                          title={cell.isEmpty ? 'Unscanned opponent slot' : `${cell.name}: ${cell.dmgPct}%`}
+                                        >
+                                          {cell.isEmpty ? '—' : cell.dmgPct >= 100 ? 'KO!' : `${cell.dmgPct}%`}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
                                 </div>
-                              </div>
-                            );
-                          })}
+                              );
+                            })}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -1434,7 +1419,7 @@ export default function App() {
                             </>
                           ) : (
                             <>
-                              <strong>[{activeOpponent.name}: {oppFastTurns}t]</strong>
+                              <strong>[{activeOpponent.name}: {oppFastInfo.telemetry}]</strong>
                               <span className="inline-flex items-center gap-1">
                                 D:{renderTierDots('W,N,L')} | L:{renderTierDots('SL,L,L')} | K:{renderTierDots('SW,W,W')}
                               </span>

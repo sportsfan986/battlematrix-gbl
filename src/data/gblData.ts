@@ -970,6 +970,330 @@ function getOrdinal(n: number): string {
 }
 
 /**
+ * Standardized <= 5 character PvPoke Move Abbreviations (Fast & Charged Moves)
+ */
+export const MOVE_ABBR_5: Record<string, string> = {
+  // Fast Moves
+  "Dragon Breath": "DB",
+  "Sand Attack": "SndAt",
+  "Quick Attack": "QA",
+  "Lock-On": "LckOn",
+  "Water Gun": "WG",
+  "Lick": "Lick",
+  "Bite": "Bite",
+  "Tackle": "Tckl",
+  "Fury Cutter": "FC",
+  "Bug Bite": "BgBt",
+  "Scratch": "Scrt",
+  "Psywave": "Psywv",
+  "Psycho Cut": "PC",
+  "Mud Shot": "MS",
+  "Shadow Claw": "SC",
+  "Counter": "Cntr",
+  "Powder Snow": "PS",
+  "Wing Attack": "WA",
+  "Peck": "Peck",
+  "Poison Sting": "PStg",
+  "Thunder Shock": "TS",
+  "Fairy Wind": "FW",
+  "Bullet Punch": "BP",
+  "Fire Fang": "FF",
+  "Vine Whip": "VW",
+  "Karate Chop": "KC",
+  "Low Kick": "LK",
+  "Ice Fang": "IF",
+  "Metal Claw": "MC",
+  "Sucker Punch": "SP",
+  "Poison Jab": "PJ",
+  "Spark": "Spk",
+  "Leafage": "Lfge",
+  "Steel Wing": "SW",
+  "Rock Throw": "RT",
+  "Ember": "Embr",
+  "Force Palm": "FP",
+  "Dragon Tail": "DT",
+  "Waterfall": "WF",
+  "Fire Spin": "FS",
+  "Snarl": "Snrl",
+  "Geomancy": "Geom",
+  "Mud-Slap": "MSlp",
+  "Charm": "Chrm",
+  "Double Kick": "DK",
+  "Air Slash": "AS",
+  "Ice Shard": "IS",
+  "Bubble": "Bbl",
+  "Rollout": "Rllt",
+  "Smack Down": "SD",
+  "Astonish": "Astn",
+  "Hex": "Hex",
+  "Magical Leaf": "MgLf",
+  "Bullet Seed": "BS",
+  "Water Shuriken": "WShr",
+  "Gust": "Gust",
+  "Confusion": "Conf",
+  "Volt Switch": "VS",
+  "Incinerate": "Incin",
+
+  // Charged Moves (all strictly <= 5 chars)
+  "Roar of Time": "RoT",
+  "Spacial Rend": "SpR",
+  "Behemoth Blade": "BehBl",
+  "Behemoth Bash": "BehBs",
+  "Sunsteel Strike": "SunSt",
+  "Moongeist Beam": "MngBm",
+  "Freeze Shock": "FrzSh",
+  "Ice Burn": "IcBrn",
+  "Fusion Bolt": "FusBl",
+  "Fusion Flare": "FusFl",
+  "Origin Pulse": "OrigP",
+  "Precipice Blades": "PrcBl",
+  "Sacred Fire": "SacFr",
+  "Aeroblast": "Aerob",
+  "Psystrike": "Psyst",
+  "Shadow Force": "ShdFr",
+  "Oblivion Wing": "OblWg",
+  "Sandsear Storm": "SndSt",
+  "Bleakwind Storm": "BlkSt",
+  "Wildbolt Storm": "WldSt",
+  "Springtide Storm": "SprSt",
+  "Double Iron Bash": "DIB",
+  "Secret Sword": "SecSw",
+  "Sacred Sword": "SacSw",
+  "Nature's Madness": "NatMd",
+  "Rage Fist": "RgFst",
+  "Aura Wheel": "AurWh",
+  "Gigaton Hammer": "GgHmr",
+  "Drum Beating": "DrmBt",
+  "Iron Head": "IrnHd",
+  "Draco Meteor": "DracM",
+  "Sky Attack": "SkyAt",
+  "Close Combat": "ClsCm",
+  "Brave Bird": "BrvBd",
+  "Play Rough": "PlayR",
+  "Wild Charge": "WldCh",
+  "Shadow Ball": "ShdBl",
+  "Ominous Wind": "OmWnd",
+  "Dragon Claw": "DrgCl",
+  "Ancient Power": "AncPw",
+  "Weather Ball": "WthBl",
+  "Scorching Sands": "ScrSn",
+  "Dazzling Gleam": "DzlGl",
+  "Feather Dance": "FthDn",
+  "Shadow Sneak": "ShdSn",
+  "Drill Run": "DrlRn",
+  "Drill Peck": "DrlPk",
+  "Earthquake": "Eq",
+  "Earth Power": "ErthP",
+  "Flame Charge": "FlmCh",
+  "Overheat": "Ovrht",
+  "Dark Pulse": "DrkPl",
+  "Hydro Cannon": "HydCn",
+  "Hydro Pump": "HydPm",
+  "Surf": "Surf",
+  "Aqua Tail": "AqTl",
+  "Aqua Jet": "AqJet",
+  "Scald": "Scald",
+  "Liquidation": "Liqdn",
+  "Avalanche": "Avlnc",
+  "Ice Beam": "IceBm",
+  "Ice Punch": "IcePn",
+  "Icy Wind": "IcyWn",
+  "Icicle Spear": "IcSpr",
+  "Blizzard": "Blzrd",
+  "Glaciate": "Glcit",
+  "Thunder": "Thndr",
+  "Thunderbolt": "Thblt",
+  "Thunder Punch": "ThPnc",
+  "Zap Cannon": "ZpCan",
+  "Discharge": "Dschg",
+  "Moonblast": "Mnbls",
+  "Disarming Voice": "DisVc",
+  "Focus Blast": "FocBl",
+  "Superpower": "Suprp",
+  "Dynamic Punch": "DynPn",
+  "Cross Chop": "CrsCh",
+  "Counter": "Cntr",
+  "Rock Slide": "RckSl",
+  "Stone Edge": "StnEd",
+  "Rock Wrecker": "RckWr",
+  "Meteor Mash": "MtrMs",
+  "Flash Cannon": "FlshC",
+  "Heavy Slam": "HvySl",
+  "Outrage": "Outrg",
+  "Breaking Swipe": "BrkSw",
+  "Dragon Pulse": "DrgPl",
+  "Twister": "Twstr",
+  "Crunch": "Crnch",
+  "Foul Play": "FlPly",
+  "Night Slash": "NgtSl",
+  "Brutal Swing": "BrtSw",
+  "Payback": "Pybck",
+  "Body Slam": "BdySl",
+  "Swift": "Swift",
+  "Hyper Beam": "HypBm",
+  "Frenzy Plant": "FrnzP",
+  "Leaf Blade": "LfBld",
+  "Energy Ball": "EnBll",
+  "Grass Knot": "GrsKn",
+  "Power Whip": "PwrWh",
+  "Seed Bomb": "SdBmb",
+  "Trailblaze": "Trlbl",
+  "Solar Beam": "SolBm",
+  "Blast Burn": "BlstB",
+  "Fire Punch": "FirPn",
+  "Fly": "Fly",
+  "Aerial Ace": "AerAc",
+  "Air Cutter": "AirCt",
+  "Hurricane": "Hrrcn",
+  "Acrobatics": "Acrbt",
+  "Psychic": "Psych",
+  "Psyshock": "Psysh",
+  "Psycho Boost": "PsyBs",
+  "Future Sight": "FutSg",
+  "Psychic Fangs": "PsyFg",
+  "Sludge Wave": "SlgWv",
+  "Sludge Bomb": "SlgBm",
+  "Acid Spray": "AcdSp",
+  "Poison Fang": "PsnFg",
+  "Gunk Shot": "GnkSh",
+  "High Horsepower": "HghHp",
+  "Bulldoze": "Blldz",
+  "Mud Bomb": "MdBmb",
+  "Sand Tomb": "SndTm",
+  "Bone Club": "BnClb",
+  "Shadow Bone": "ShdBn",
+  "Shadow Punch": "ShdPn",
+  "Power Gem": "PwrGm",
+  "Megahorn": "Mghrn",
+  "Lunge": "Lunge",
+  "X-Scissor": "XScsr"
+};
+
+export function abbrMove5(name: string): string {
+  if (!name) return "Move";
+  if (MOVE_ABBR_5[name]) return MOVE_ABBR_5[name];
+  const foundKey = Object.keys(MOVE_ABBR_5).find(k => k.toLowerCase() === name.toLowerCase().trim());
+  if (foundKey) return MOVE_ABBR_5[foundKey];
+  const words = name.trim().split(/\s+/);
+  if (words.length >= 2) {
+    const combined = (words[0].slice(0, 3) + words[1].slice(0, 2));
+    return combined.slice(0, 5);
+  }
+  return name.slice(0, 5);
+}
+
+export const FAST_MOVE_STATS: Record<string, FastMove> = {
+  "dragon breath": { name: "Dragon Breath", type: "dragon", turns: 1, power: 4, energyGain: 3 },
+  "sand attack": { name: "Sand Attack", type: "ground", turns: 1, power: 2, energyGain: 4 },
+  "quick attack": { name: "Quick Attack", type: "normal", turns: 1, power: 5, energyGain: 7 },
+  "lock-on": { name: "Lock-On", type: "normal", turns: 1, power: 1, energyGain: 5 },
+  "water gun": { name: "Water Gun", type: "water", turns: 1, power: 3, energyGain: 3 },
+  "lick": { name: "Lick", type: "ghost", turns: 1, power: 3, energyGain: 3 },
+  "bite": { name: "Bite", type: "dark", turns: 1, power: 4, energyGain: 2 },
+  "tackle": { name: "Tackle", type: "normal", turns: 1, power: 3, energyGain: 3 },
+  "fury cutter": { name: "Fury Cutter", type: "bug", turns: 1, power: 2, energyGain: 4 },
+  "bug bite": { name: "Bug Bite", type: "bug", turns: 1, power: 3, energyGain: 3 },
+  "scratch": { name: "Scratch", type: "normal", turns: 1, power: 4, energyGain: 2 },
+  "psywave": { name: "Psywave", type: "psychic", turns: 1, power: 3, energyGain: 4 },
+  "psycho cut": { name: "Psycho Cut", type: "psychic", turns: 2, power: 3, energyGain: 9 },
+  "mud shot": { name: "Mud Shot", type: "ground", turns: 2, power: 4, energyGain: 8 },
+  "shadow claw": { name: "Shadow Claw", type: "ghost", turns: 2, power: 6, energyGain: 8 },
+  "counter": { name: "Counter", type: "fighting", turns: 2, power: 8, energyGain: 6 },
+  "powder snow": { name: "Powder Snow", type: "ice", turns: 2, power: 5, energyGain: 8 },
+  "wing attack": { name: "Wing Attack", type: "flying", turns: 2, power: 5, energyGain: 7 },
+  "peck": { name: "Peck", type: "flying", turns: 2, power: 6, energyGain: 6 },
+  "poison sting": { name: "Poison Sting", type: "poison", turns: 2, power: 4, energyGain: 9 },
+  "thunder shock": { name: "Thunder Shock", type: "electric", turns: 2, power: 3, energyGain: 9 },
+  "fairy wind": { name: "Fairy Wind", type: "fairy", turns: 2, power: 4, energyGain: 9 },
+  "bullet punch": { name: "Bullet Punch", type: "steel", turns: 2, power: 6, energyGain: 7 },
+  "fire fang": { name: "Fire Fang", type: "fire", turns: 2, power: 8, energyGain: 6 },
+  "vine whip": { name: "Vine Whip", type: "grass", turns: 2, power: 5, energyGain: 8 },
+  "karate chop": { name: "Karate Chop", type: "fighting", turns: 2, power: 5, energyGain: 9 },
+  "low kick": { name: "Low Kick", type: "fighting", turns: 2, power: 4, energyGain: 7 },
+  "ice fang": { name: "Ice Fang", type: "ice", turns: 2, power: 8, energyGain: 6 },
+  "metal claw": { name: "Metal Claw", type: "steel", turns: 2, power: 5, energyGain: 7 },
+  "sucker punch": { name: "Sucker Punch", type: "dark", turns: 2, power: 8, energyGain: 7 },
+  "poison jab": { name: "Poison Jab", type: "poison", turns: 2, power: 7, energyGain: 7 },
+  "spark": { name: "Spark", type: "electric", turns: 2, power: 5, energyGain: 7 },
+  "leafage": { name: "Leafage", type: "grass", turns: 2, power: 6, energyGain: 7 },
+  "steel wing": { name: "Steel Wing", type: "steel", turns: 2, power: 7, energyGain: 6 },
+  "rock throw": { name: "Rock Throw", type: "rock", turns: 2, power: 8, energyGain: 5 },
+  "ember": { name: "Ember", type: "fire", turns: 2, power: 7, energyGain: 6 },
+  "force palm": { name: "Force Palm", type: "fighting", turns: 3, power: 13, energyGain: 10 },
+  "dragon tail": { name: "Dragon Tail", type: "dragon", turns: 3, power: 13, energyGain: 9 },
+  "waterfall": { name: "Waterfall", type: "water", turns: 3, power: 12, energyGain: 8 },
+  "fire spin": { name: "Fire Spin", type: "fire", turns: 3, power: 11, energyGain: 10 },
+  "snarl": { name: "Snarl", type: "dark", turns: 3, power: 5, energyGain: 13 },
+  "geomancy": { name: "Geomancy", type: "fairy", turns: 3, power: 4, energyGain: 13 },
+  "mud-slap": { name: "Mud-Slap", type: "ground", turns: 3, power: 12, energyGain: 10 },
+  "charm": { name: "Charm", type: "fairy", turns: 3, power: 15, energyGain: 6 },
+  "double kick": { name: "Double Kick", type: "fighting", turns: 3, power: 8, energyGain: 12 },
+  "air slash": { name: "Air Slash", type: "flying", turns: 3, power: 9, energyGain: 9 },
+  "ice shard": { name: "Ice Shard", type: "ice", turns: 3, power: 9, energyGain: 10 },
+  "bubble": { name: "Bubble", type: "water", turns: 3, power: 7, energyGain: 11 },
+  "rollout": { name: "Rollout", type: "rock", turns: 3, power: 8, energyGain: 13 },
+  "smack down": { name: "Smack Down", type: "rock", turns: 3, power: 11, energyGain: 8 },
+  "astonish": { name: "Astonish", type: "ghost", turns: 3, power: 12, energyGain: 10 },
+  "hex": { name: "Hex", type: "ghost", turns: 3, power: 8, energyGain: 12 },
+  "magical leaf": { name: "Magical Leaf", type: "grass", turns: 3, power: 10, energyGain: 10 },
+  "bullet seed": { name: "Bullet Seed", type: "grass", turns: 3, power: 5, energyGain: 13 },
+  "water shuriken": { name: "Water Shuriken", type: "water", turns: 3, power: 6, energyGain: 14 },
+  "gust": { name: "Gust", type: "flying", turns: 4, power: 16, energyGain: 12 },
+  "confusion": { name: "Confusion", type: "psychic", turns: 4, power: 16, energyGain: 12 },
+  "volt switch": { name: "Volt Switch", type: "electric", turns: 4, power: 12, energyGain: 16 },
+  "incinerate": { name: "Incinerate", type: "fire", turns: 5, power: 20, energyGain: 20 }
+};
+
+export function resolveFastMove(pokemon: PokemonStats, customFastMoveName?: string): FastMove {
+  if (customFastMoveName) {
+    const key = customFastMoveName.toLowerCase().trim();
+    if (FAST_MOVE_STATS[key]) return FAST_MOVE_STATS[key];
+  }
+  const defKey = pokemon.defaultFastMove?.name?.toLowerCase()?.trim() || "";
+  return FAST_MOVE_STATS[defKey] || pokemon.defaultFastMove || { name: "Fast", type: "normal", turns: 2, power: 5, energyGain: 7 };
+}
+
+/**
+ * Computes exact PvPoke Fast Move damage % and formatted telemetry string:
+ * Format: "<Abbr> <Turns>t/<Energy>e/<Dmg>%" (e.g. "DB 1t/3e/2%")
+ */
+export function calculateFastDamage(
+  attacker: PokemonStats,
+  defender: PokemonStats,
+  fastMoveOverride?: string,
+  isAttackerShadow: boolean = false,
+  isDefenderShadow: boolean = false
+): {
+  move: FastMove;
+  abbr: string;
+  damage: number;
+  percentage: number;
+  telemetry: string;
+} {
+  const move = resolveFastMove(attacker, fastMoveOverride);
+  const isStab = attacker.types.includes(move.type);
+  const stabMult = isStab ? 1.2 : 1.0;
+  const typeMult = getTypeMultiplier(move.type, defender.types);
+
+  const atk = attacker.baseStats.atk * (isAttackerShadow ? 1.2 : 1.0);
+  const def = defender.baseStats.def * (isDefenderShadow ? 0.8333333 : 1.0);
+  const maxHp = Math.max(1, defender.baseStats.hp);
+
+  const baseDamage = Math.floor(0.5 * (move.power || 4) * (atk / def) * stabMult * typeMult * 1.3) + 1;
+  const percentage = Math.min(100, Math.max(1, Math.round((baseDamage / maxHp) * 100)));
+  const abbr = abbrMove5(move.name);
+  const telemetry = `${abbr} ${move.turns}t/${move.energyGain}e/${percentage}%`;
+
+  return {
+    move,
+    abbr,
+    damage: baseDamage,
+    percentage,
+    telemetry
+  };
+}
+
+/**
  * Computes exact PvPoke Charged Move damage %:
  * Floor(0.5 * Power * (EffectiveAtk / EffectiveDef) * STAB * TypeMultiplier * 1.3) + 1
  * Accounts for Shadow 1.2x Attack and 0.8333333x Defense modifiers.
@@ -1014,8 +1338,19 @@ export interface BenchThreatInfo {
   tier: "resist" | "neutral" | "weak";
 }
 
+export interface TeamDamageCell {
+  name: string;
+  code: string;
+  dmgPct: number;
+  eff: number;
+  tier: "resist" | "neutral" | "weak";
+  isActive: boolean;
+  isEmpty?: boolean;
+}
+
 export interface OpponentMoveTimingRow {
   name: string;
+  shortName: string;
   code: string;
   energy: number;
   oppFasts: number;
@@ -1030,20 +1365,38 @@ export interface OpponentMoveTimingRow {
   safeRangeLabel: string;
   tapNodes: TapNodeInfo[];
   bench: BenchThreatInfo[];
+  teamDamages: TeamDamageCell[];
 }
 
 export interface MyMoveTimingRow {
   name: string;
+  shortName: string;
   energy: number;
   myTapsNeeded: number;
   dmgPct: number;
   eff: number;
   state: "safe" | "cmp" | "cmp-loss";
+  safeThrowLabel: string;
+  hasZeroSneak: boolean;
   tapNodes: TapNodeInfo[];
+  oppDamages: TeamDamageCell[];
+}
+
+function abbrPokeCode3(name: string): string {
+  if (!name) return "---";
+  return name
+    .replace(/^Shadow\s+/i, "")
+    .replace(/^Kanto\s+/i, "")
+    .replace(/^Alolan\s+/i, "")
+    .replace(/^Galarian\s+/i, "")
+    .replace(/^Hisuian\s+/i, "")
+    .split(" ")[0]
+    .slice(0, 3)
+    .toUpperCase();
 }
 
 /**
- * Computes per-move timing, catch/CMP windows, and active/bench threat rows
+ * Computes per-move timing, catch/CMP windows, and 3-column team threat rows
  * strictly in YOUR active Pokémon's fast-move tap counts up to opponent's first charged move.
  */
 export function calculateOpponentMoveTimingRows(
@@ -1062,8 +1415,9 @@ export function calculateOpponentMoveTimingRows(
 
   const isUserShadow = userLeadName.toLowerCase().startsWith("shadow ");
   const userFastTurns = userFastTurnsOverride || userStats.defaultFastMove.turns || 2;
-  const oppFastTurns = oppStats.defaultFastMove.turns || 2;
-  const oppFastEnergy = oppStats.defaultFastMove.energyGain || oppFastTurns * 4;
+  const oppFastMove = resolveFastMove(oppStats);
+  const oppFastTurns = oppFastMove.turns || 2;
+  const oppFastEnergy = oppFastMove.energyGain || oppFastTurns * 4;
   const winsCmp = userStats.baseStats.atk >= oppStats.baseStats.atk;
 
   const benchNames = teamNames.filter((n) => n.toLowerCase() !== userLeadName.toLowerCase()).slice(0, 2);
@@ -1081,6 +1435,41 @@ export function calculateOpponentMoveTimingRows(
     const actvDmg = calculateChargedDamage(oppStats, userStats, cm, isOppShadow, isUserShadow);
     const activeDmgPct = actvDmg.percentage;
     const activeEff = actvDmg.mult;
+
+    // All 3 team Pokemon in fixed team slot order [0, 1, 2]
+    const teamDamages: TeamDamageCell[] = [0, 1, 2].map((slotIdx) => {
+      const tName = teamNames[slotIdx] || "";
+      if (!tName) {
+        return {
+          name: "—",
+          code: "—",
+          dmgPct: 0,
+          eff: 1.0,
+          tier: "neutral",
+          isActive: false,
+          isEmpty: true
+        };
+      }
+      const cleanT = tName.replace(/^Shadow\s+/i, "").trim();
+      const tStats =
+        POKEMON_DATABASE[tName] ||
+        POKEMON_DATABASE[cleanT] ||
+        Object.values(POKEMON_DATABASE).find((p) => p.name.toLowerCase() === cleanT.toLowerCase()) ||
+        Object.values(POKEMON_DATABASE)[0];
+      const isTShadow = tName.toLowerCase().startsWith("shadow ");
+      const tDmg = calculateChargedDamage(oppStats, tStats, cm, isOppShadow, isTShadow);
+      const tier: "resist" | "neutral" | "weak" =
+        tDmg.percentage <= 35 ? "resist" : tDmg.percentage >= 60 || tDmg.mult >= 1.5 ? "weak" : "neutral";
+      const isActive = tName.toLowerCase() === userLeadName.toLowerCase();
+      return {
+        name: tName,
+        code: abbrPokeCode3(tName),
+        dmgPct: tDmg.percentage,
+        eff: tDmg.mult,
+        tier,
+        isActive
+      };
+    });
 
     const bench: BenchThreatInfo[] = benchNames.map((bName) => {
       const cleanB = bName.replace(/^Shadow\s+/i, "").trim();
@@ -1101,7 +1490,6 @@ export function calculateOpponentMoveTimingRows(
       };
     });
 
-    // Move count bars do NOT go to max energy, JUST to first charged move by opponent!
     const maxNode = myTapAtReady;
     const tapNodes: TapNodeInfo[] = [];
     for (let k = 1; k <= maxNode; k++) {
@@ -1126,6 +1514,7 @@ export function calculateOpponentMoveTimingRows(
 
     return {
       name: cm.name,
+      shortName: abbrMove5(cm.name),
       code: cm.code,
       energy: mEnergy,
       oppFasts,
@@ -1139,7 +1528,8 @@ export function calculateOpponentMoveTimingRows(
       activeEff,
       safeRangeLabel,
       tapNodes,
-      bench
+      bench,
+      teamDamages
     };
   });
 
@@ -1147,7 +1537,7 @@ export function calculateOpponentMoveTimingRows(
 }
 
 /**
- * Computes player's charged move timing rows vertically aligned with opponent moves
+ * Computes player's charged move timing rows with leak-free range blocks and 3-column opponent damage matrix
  */
 export function calculateMyMoveTimingRows(
   userLeadName: string,
@@ -1155,7 +1545,9 @@ export function calculateMyMoveTimingRows(
   customMoves: string[],
   oppReadyTaps: number[],
   isOppShadow: boolean = false,
-  userFastTurnsOverride?: number
+  userFastTurnsOverride?: number,
+  userFastMoveNameOverride?: string,
+  scannedOpponentNames: string[] = []
 ): MyMoveTimingRow[] {
   const cleanUserName = userLeadName.replace(/^Shadow\s+/i, "").trim();
   const userStats =
@@ -1165,10 +1557,25 @@ export function calculateMyMoveTimingRows(
     Object.values(POKEMON_DATABASE)[0];
 
   const isUserShadow = userLeadName.toLowerCase().startsWith("shadow ");
-  const userFastTurns = userFastTurnsOverride || userStats.defaultFastMove.turns || 2;
-  const userFastEnergy = userStats.defaultFastMove.energyGain || userFastTurns * 4;
+  const resolvedUserFast = resolveFastMove(userStats, userFastMoveNameOverride);
+  const userFastTurns = userFastTurnsOverride || resolvedUserFast.turns || 2;
+  const userFastEnergy = resolvedUserFast.energyGain || userFastTurns * 4;
+  const oppFastTurns = resolveFastMove(oppStats).turns || 2;
   const winsCmp = userStats.baseStats.atk >= oppStats.baseStats.atk;
   const maxOppTap = oppReadyTaps.length > 0 ? Math.max(...oppReadyTaps) : 4;
+
+  // Compute leak-free (zero-sneak) fast move tap numbers where (k * userFastTurns) % oppFastTurns !== 0
+  const zeroSneakTaps: number[] = [];
+  for (let k = 1; k <= 9; k++) {
+    if ((k * userFastTurns) % oppFastTurns !== 0) {
+      zeroSneakTaps.push(k);
+    }
+    if (zeroSneakTaps.length >= 3) break;
+  }
+  const hasZeroSneak = zeroSneakTaps.length > 0;
+  const safeThrowLabelBase = hasZeroSneak ? `Safe ${zeroSneakTaps.join(",")}` : "";
+
+  const oppSlots = scannedOpponentNames.length > 0 ? scannedOpponentNames : [oppStats.name];
 
   return customMoves.map((mName, idx) => {
     const existing =
@@ -1184,6 +1591,44 @@ export function calculateMyMoveTimingRows(
     const mEnergy = existing.energyCost || 50;
     const myTapsNeeded = Math.max(1, Math.ceil(mEnergy / userFastEnergy));
     const actvDmg = calculateChargedDamage(userStats, oppStats, existing, isUserShadow, isOppShadow);
+
+    const oppDamages: TeamDamageCell[] = [0, 1, 2].map((slotIdx) => {
+      const oName = oppSlots[slotIdx] || "";
+      if (!oName) {
+        return {
+          name: "—",
+          code: "—",
+          dmgPct: 0,
+          eff: 1.0,
+          tier: "neutral",
+          isActive: slotIdx === 0,
+          isEmpty: true
+        };
+      }
+      const cleanO = oName.replace(/^Shadow\s+/i, "").trim();
+      const oStats =
+        POKEMON_DATABASE[oName] ||
+        POKEMON_DATABASE[cleanO] ||
+        Object.values(POKEMON_DATABASE).find((p) => p.name.toLowerCase() === cleanO.toLowerCase()) ||
+        oppStats;
+      const isOShadow = (slotIdx === 0 && isOppShadow) || oName.toLowerCase().startsWith("shadow ");
+      const oDmg = calculateChargedDamage(userStats, oStats, existing, isUserShadow, isOShadow);
+      // For My Attacks: high outgoing damage (>=60% or SE) is strong ("resist" green), low (<=35%) is weak ("weak" red)
+      const tier: "resist" | "neutral" | "weak" =
+        oDmg.percentage >= 60 || oDmg.mult >= 1.5
+          ? "resist"
+          : oDmg.percentage <= 35
+          ? "weak"
+          : "neutral";
+      return {
+        name: oName,
+        code: abbrPokeCode3(oName),
+        dmgPct: oDmg.percentage,
+        eff: oDmg.mult,
+        tier,
+        isActive: slotIdx === 0
+      };
+    });
 
     const maxNode = Math.min(7, Math.max(myTapsNeeded, maxOppTap));
     const tapNodes: TapNodeInfo[] = [];
@@ -1210,14 +1655,21 @@ export function calculateMyMoveTimingRows(
         : "cmp-loss"
       : "safe";
 
+    const fallbackRange = myTapsNeeded <= 1 ? "1" : `1–${myTapsNeeded - 1}`;
+    const safeThrowLabel = hasZeroSneak ? safeThrowLabelBase : fallbackRange;
+
     return {
       name: mName,
+      shortName: abbrMove5(mName),
       energy: mEnergy,
       myTapsNeeded,
       dmgPct: actvDmg.percentage,
       eff: actvDmg.mult,
       state: readyState,
-      tapNodes
+      safeThrowLabel,
+      hasZeroSneak,
+      tapNodes,
+      oppDamages
     };
   });
 }

@@ -1322,7 +1322,12 @@ class OverlayService : LifecycleService() {
             settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
             setBackgroundColor(0x00000000)
             setLayerType(WebView.LAYER_TYPE_HARDWARE, null)
-            webViewClient = WebViewClient()
+            webViewClient = object : WebViewClient() {
+                override fun onPageFinished(view: WebView?, url: String?) {
+                    super.onPageFinished(view, url)
+                    loadInitialDataIntoOverlay()
+                }
+            }
             addJavascriptInterface(AndroidBridge(), "AndroidOverlay")
             loadUrl("file:///android_asset/overlay.html")
         }
@@ -2261,6 +2266,367 @@ class OverlayService : LifecycleService() {
     }
 
     /**
+     * Standardized <= 5 character PvPoke Move Abbreviations (Fast & Charged Moves)
+     */
+    private val moveAbbr5Map = mapOf(
+        // Fast Moves
+        "Dragon Breath" to "DB",
+        "Sand Attack" to "SndAt",
+        "Quick Attack" to "QA",
+        "Lock-On" to "LO",
+        "Water Gun" to "WG",
+        "Lick" to "Lick",
+        "Bite" to "Bite",
+        "Tackle" to "Tckl",
+        "Fury Cutter" to "FC",
+        "Bug Bite" to "BB",
+        "Scratch" to "Scrt",
+        "Psywave" to "PsyWv",
+        "Psycho Cut" to "PC",
+        "Mud Shot" to "MS",
+        "Shadow Claw" to "SC",
+        "Counter" to "C",
+        "Powder Snow" to "PS",
+        "Wing Attack" to "WA",
+        "Peck" to "Peck",
+        "Poison Sting" to "PSng",
+        "Thunder Shock" to "TS",
+        "Fairy Wind" to "FW",
+        "Bullet Punch" to "BP",
+        "Fire Fang" to "FF",
+        "Vine Whip" to "VW",
+        "Karate Chop" to "KC",
+        "Low Kick" to "LK",
+        "Ice Fang" to "IF",
+        "Metal Claw" to "MC",
+        "Sucker Punch" to "SP",
+        "Poison Jab" to "PJ",
+        "Spark" to "Sprk",
+        "Leafage" to "Lfge",
+        "Steel Wing" to "SW",
+        "Rock Throw" to "RT",
+        "Ember" to "Embr",
+        "Force Palm" to "FP",
+        "Dragon Tail" to "DT",
+        "Waterfall" to "WF",
+        "Fire Spin" to "FS",
+        "Snarl" to "Snrl",
+        "Geomancy" to "Geo",
+        "Mud-Slap" to "MSlp",
+        "Charm" to "Chrm",
+        "Double Kick" to "DK",
+        "Air Slash" to "AS",
+        "Ice Shard" to "IS",
+        "Bubble" to "Bbl",
+        "Rollout" to "Rll",
+        "Smack Down" to "SD",
+        "Astonish" to "Astn",
+        "Hex" to "Hex",
+        "Magical Leaf" to "MgLf",
+        "Bullet Seed" to "BS",
+        "Water Shuriken" to "WS",
+        "Gust" to "Gust",
+        "Confusion" to "Conf",
+        "Volt Switch" to "VS",
+        "Incinerate" to "Incin",
+        // Charged Moves
+        "Roar of Time" to "RoT",
+        "Iron Head" to "IH",
+        "Draco Meteor" to "DM",
+        "Thunder" to "Thdr",
+        "Aeroblast" to "Aero",
+        "Sky Attack" to "SA",
+        "Future Sight" to "FS",
+        "Surf" to "Surf",
+        "Origin Pulse" to "OP",
+        "Hydro Pump" to "HP",
+        "Blizzard" to "Blz",
+        "Close Combat" to "CC",
+        "Brave Bird" to "BB",
+        "Play Rough" to "PR",
+        "Wild Charge" to "WC",
+        "Shadow Ball" to "SB",
+        "Ominous Wind" to "OW",
+        "Dragon Claw" to "DC",
+        "Ancient Power" to "AP",
+        "Shadow Force" to "SF",
+        "Spacial Rend" to "SpR",
+        "Aqua Tail" to "AT",
+        "Precipice Blades" to "PB",
+        "Fire Punch" to "FP",
+        "Psystrike" to "Pstk",
+        "Ice Beam" to "IB",
+        "Moonblast" to "Mb",
+        "Dark Pulse" to "DP",
+        "Oblivion Wing" to "ObW",
+        "Crunch" to "Crn",
+        "Earthquake" to "Eq",
+        "Sandsear Storm" to "SndS",
+        "Stone Edge" to "SE",
+        "Superpower" to "SpP",
+        "Sacred Fire" to "ScF",
+        "Sunsteel Strike" to "SnSt",
+        "Moongeist Beam" to "MnBm",
+        "Rock Slide" to "RS",
+        "Earth Power" to "EP",
+        "Outrage" to "OR",
+        "Meteor Mash" to "MM",
+        "Drill Run" to "DR",
+        "Rock Wrecker" to "RW",
+        "Breaking Swipe" to "BS",
+        "Avalanche" to "Avl",
+        "High Horsepower" to "HH",
+        "Ice Punch" to "IP",
+        "Fusion Flare" to "FFl",
+        "Overheat" to "OH",
+        "Fusion Bolt" to "FBlt",
+        "Glaciate" to "Glct",
+        "Disarming Voice" to "DV",
+        "Hydro Cannon" to "HC",
+        "Weather Ball (Fire)" to "WB-F",
+        "Weather Ball (Ice)" to "WB-I",
+        "Weather Ball (Water)" to "WB-W",
+        "Weather Ball (Rock)" to "WB-R",
+        "Weather Ball" to "WB",
+        "Dazzling Gleam" to "DG",
+        "Scorching Sands" to "ScS",
+        "Psycho Boost" to "PsB",
+        "Thunderbolt" to "TB",
+        "Grass Knot" to "GK",
+        "Sacred Sword" to "ScS",
+        "Leaf Blade" to "LB",
+        "Aerial Ace" to "AA",
+        "Fly" to "Fly",
+        "Flame Charge" to "FC",
+        "Blast Burn" to "BB",
+        "Feather Dance" to "FD",
+        "Shadow Sneak" to "SS",
+        "Air Cutter" to "AirC",
+        "Twister" to "Twst",
+        "Focus Blast" to "FB",
+        "Solar Beam" to "SolB",
+        "Dragon Pulse" to "DP",
+        "Megahorn" to "Mgh",
+        "Hurricane" to "Hrc",
+        "Psychic" to "Psyc",
+        "Psyshock" to "Psyk",
+        "Flash Cannon" to "FlC",
+        "Sludge Wave" to "SWv",
+        "Sludge Bomb" to "SlB",
+        "Gunk Shot" to "GS",
+        "Foul Play" to "FoP",
+        "Payback" to "Pybk",
+        "Dynamic Punch" to "DyP",
+        "Power Gem" to "PG",
+        "Water Pulse" to "WP",
+        "Petal Blizzard" to "PtB",
+        "Energy Ball" to "EnB",
+        "Power Whip" to "PW",
+        "Heavy Slam" to "HS",
+        "Hyper Beam" to "HB",
+        "Night Slash" to "NS",
+        "Sand Tomb" to "ST",
+        "Freeze Shock" to "FrS",
+        "Ice Burn" to "IcB",
+        "Drill Peck" to "DPk",
+        "Behemoth Blade" to "BehB",
+        "Behemoth Bash" to "BehS",
+        "Secret Sword" to "SecS",
+        "Aqua Jet" to "AJ",
+        "Double Iron Bash" to "DIB",
+        "Drum Beating" to "DrmB",
+        "Gigaton Hammer" to "GgHm",
+        "Bulldoze" to "Bldz",
+        "Brutal Swing" to "BrS",
+        "Swift" to "Swft",
+        "Body Slam" to "BS",
+        "Icy Wind" to "IW",
+        "Cross Chop" to "CrCh",
+        "Mystical Fire" to "MyF",
+        "Liquidation" to "Liq",
+        "Scald" to "Scld",
+        "Trailblaze" to "Trlb",
+        "Nature's Madness" to "NM",
+        "Rage Fist" to "RgF",
+        "Aura Wheel" to "AuW"
+    )
+
+    private val fastMovePowerMap = mapOf(
+        "dragon breath" to 4,
+        "sand attack" to 2,
+        "quick attack" to 5,
+        "lock-on" to 1,
+        "water gun" to 3,
+        "lick" to 3,
+        "bite" to 4,
+        "tackle" to 3,
+        "fury cutter" to 2,
+        "bug bite" to 3,
+        "scratch" to 4,
+        "psywave" to 3,
+        "psycho cut" to 3,
+        "mud shot" to 4,
+        "shadow claw" to 6,
+        "counter" to 8,
+        "powder snow" to 6,
+        "wing attack" to 5,
+        "peck" to 6,
+        "poison sting" to 4,
+        "thunder shock" to 3,
+        "fairy wind" to 4,
+        "bullet punch" to 8,
+        "fire fang" to 8,
+        "vine whip" to 5,
+        "karate chop" to 5,
+        "low kick" to 4,
+        "ice fang" to 8,
+        "metal claw" to 6,
+        "sucker punch" to 8,
+        "poison jab" to 7,
+        "spark" to 5,
+        "leafage" to 6,
+        "steel wing" to 7,
+        "rock throw" to 8,
+        "ember" to 7,
+        "force palm" to 13,
+        "dragon tail" to 13,
+        "waterfall" to 12,
+        "fire spin" to 11,
+        "snarl" to 5,
+        "geomancy" to 4,
+        "mud-slap" to 12,
+        "charm" to 15,
+        "double kick" to 8,
+        "air slash" to 9,
+        "ice shard" to 9,
+        "bubble" to 7,
+        "rollout" to 8,
+        "smack down" to 11,
+        "astonish" to 12,
+        "hex" to 7,
+        "magical leaf" to 10,
+        "bullet seed" to 5,
+        "water shuriken" to 6,
+        "gust" to 16,
+        "confusion" to 16,
+        "volt switch" to 12,
+        "incinerate" to 20
+    )
+
+    private val fastMoveTypeMap = mapOf(
+        "dragon breath" to "dragon",
+        "sand attack" to "ground",
+        "quick attack" to "normal",
+        "lock-on" to "normal",
+        "water gun" to "water",
+        "lick" to "ghost",
+        "bite" to "dark",
+        "tackle" to "normal",
+        "fury cutter" to "bug",
+        "bug bite" to "bug",
+        "scratch" to "normal",
+        "psywave" to "psychic",
+        "psycho cut" to "psychic",
+        "mud shot" to "ground",
+        "shadow claw" to "ghost",
+        "counter" to "fighting",
+        "powder snow" to "ice",
+        "wing attack" to "flying",
+        "peck" to "flying",
+        "poison sting" to "poison",
+        "thunder shock" to "electric",
+        "fairy wind" to "fairy",
+        "bullet punch" to "steel",
+        "fire fang" to "fire",
+        "vine whip" to "grass",
+        "karate chop" to "fighting",
+        "low kick" to "fighting",
+        "ice fang" to "ice",
+        "metal claw" to "steel",
+        "sucker punch" to "dark",
+        "poison jab" to "poison",
+        "spark" to "electric",
+        "leafage" to "grass",
+        "steel wing" to "steel",
+        "rock throw" to "rock",
+        "ember" to "fire",
+        "force palm" to "fighting",
+        "dragon tail" to "dragon",
+        "waterfall" to "water",
+        "fire spin" to "fire",
+        "snarl" to "dark",
+        "geomancy" to "fairy",
+        "mud-slap" to "ground",
+        "charm" to "fairy",
+        "double kick" to "fighting",
+        "air slash" to "flying",
+        "ice shard" to "ice",
+        "bubble" to "water",
+        "rollout" to "rock",
+        "smack down" to "rock",
+        "astonish" to "ghost",
+        "hex" to "ghost",
+        "magical leaf" to "grass",
+        "bullet seed" to "grass",
+        "water shuriken" to "water",
+        "gust" to "flying",
+        "confusion" to "psychic",
+        "volt switch" to "electric",
+        "incinerate" to "fire"
+    )
+
+    private fun abbrMove5(moveName: String): String {
+        if (moveName.isBlank()) return "Move"
+        moveAbbr5Map[moveName]?.let { return it }
+        moveAbbr5Map.entries.firstOrNull { it.key.equals(moveName, ignoreCase = true) }?.let { return it.value }
+        val clean = moveName.replace(Regex("[()\\-]"), " ").trim()
+        val words = clean.split(Regex("\\s+")).filter { it.isNotEmpty() }
+        if (words.size >= 2) {
+            val combo = (words[0].take(3) + words[1].take(2)).take(5)
+            return combo
+        }
+        return clean.take(5)
+    }
+
+    private fun abbrPokemon3(name: String, isShadow: Boolean = false): String {
+        if (name.isBlank() || name == "Waiting...") return "OPP"
+        val clean = name
+            .replace(Regex("^Shadow\\s+", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("^Kanto\\s+", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("^Alolan\\s+", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("^Galarian\\s+", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("^Hisuian\\s+", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("^Paldean\\s+", RegexOption.IGNORE_CASE), "")
+            .split(" ")
+            .firstOrNull()
+            ?.take(3)
+            ?.uppercase() ?: "MON"
+        return if (isShadow) "S$clean".take(4) else clean
+    }
+
+    private fun calculateFastMoveDamagePercent(
+        attacker: PokemonMeta,
+        defender: PokemonMeta,
+        fastMoveName: String,
+        fastTurns: Int,
+        isAttackerShadow: Boolean,
+        isDefenderShadow: Boolean
+    ): Int {
+        val key = fastMoveName.lowercase().trim()
+        val power = fastMovePowerMap[key] ?: (fastTurns * 3).coerceAtLeast(3)
+        val moveType = fastMoveTypeMap[key] ?: attacker.types.firstOrNull() ?: "normal"
+        val stab = if (attacker.types.any { it.equals(moveType, ignoreCase = true) }) 1.2 else 1.0
+        val typeEff = getTypeEffectiveness(moveType, defender.types)
+
+        val effectiveAtk = attacker.atk * (if (isAttackerShadow) 1.2 else 1.0)
+        val effectiveDef = defender.def * (if (isDefenderShadow) 0.8333333 else 1.0)
+
+        val rawDamage = floor(0.5 * power * (effectiveAtk / effectiveDef) * stab * typeEff * 1.3) + 1.0
+        val pct = ((rawDamage / defender.hp.toDouble()) * 100.0).roundToInt()
+        return pct.coerceIn(1, 100)
+    }
+
+    /**
      * Computes exact PvPoke Charged Move damage percentage dealt to defender's total HP pool:
      * Damage = floor(0.5 * Power * (EffectiveAtk / EffectiveDef) * STAB * TypeEffectiveness * 1.3) + 1
      * Accounts for STAB (1.2x), Type Effectiveness, and Shadow modifiers (1.2x Atk / 0.8333333x Def).
@@ -2302,10 +2668,13 @@ class OverlayService : LifecycleService() {
         val activePlayerName = activeUserPokemonName ?: p1Name
         val activeSlot = currentPreset?.pokemon?.find { it.name.equals(activePlayerName, ignoreCase = true) }
 
+        val teamNames = listOf(p1Name, p2Name, p3Name)
+        val activeUserSlotIndex = teamNames.indexOfFirst { it.equals(activePlayerName, ignoreCase = true) }.let { if (it >= 0) it else 0 }
+
         val teamData = listOf(
-            mapOf("initial" to (p1Name.firstOrNull()?.uppercase() ?: "P1"), "name" to p1Name),
-            mapOf("initial" to (p2Name.firstOrNull()?.uppercase() ?: "P2"), "name" to p2Name),
-            mapOf("initial" to (p3Name.firstOrNull()?.uppercase() ?: "P3"), "name" to p3Name)
+            mapOf("initial" to (p1Name.firstOrNull()?.uppercase() ?: "P1"), "code" to abbrPokemon3(p1Name), "name" to p1Name),
+            mapOf("initial" to (p2Name.firstOrNull()?.uppercase() ?: "P2"), "code" to abbrPokemon3(p2Name), "name" to p2Name),
+            mapOf("initial" to (p3Name.firstOrNull()?.uppercase() ?: "P3"), "code" to abbrPokemon3(p3Name), "name" to p3Name)
         )
 
         if (isWaitingForOpponent || activeOpponentName == "Waiting...") {
@@ -2313,10 +2682,13 @@ class OverlayService : LifecycleService() {
                 "activeOpponent" to "Waiting...",
                 "activeOpponentFastMove" to "Scanning Header...",
                 "activeOpponentTurns" to 0,
+                "oppFastTelemetry" to "1 Hz OCR Active",
+                "userFastTelemetry" to "",
                 "isOpponentShadow" to isOpponentShadow,
                 "currentFormLabel" to "Base",
                 "availableForms" to emptyList<String>(),
                 "userActivePokemon" to activePlayerName,
+                "activeUserSlotIndex" to activeUserSlotIndex,
                 "myMove1Summary" to "—",
                 "myMove2Summary" to "—",
                 "throwAlignmentText" to "Waiting for Opponent spawn",
@@ -2333,6 +2705,7 @@ class OverlayService : LifecycleService() {
 
         val oppMeta = getPokemonMeta(activeOpponentName)
         val userMeta = getPokemonMeta(activePlayerName)
+        val isUserShadow = activePlayerName.contains("Shadow", ignoreCase = true)
 
         val userMove1Name = activeSlot?.chargedMove1 ?: userMeta.chargedMove1
         val userMove2Name = activeSlot?.chargedMove2 ?: userMeta.chargedMove2
@@ -2341,25 +2714,53 @@ class OverlayService : LifecycleService() {
             attacker = userMeta,
             defender = oppMeta,
             moveName = userMove1Name,
-            isAttackerShadow = activePlayerName.contains("Shadow", ignoreCase = true),
+            isAttackerShadow = isUserShadow,
             isDefenderShadow = isOpponentShadow
         )
         val myMove2Pct = calculateChargedMoveDamagePercent(
             attacker = userMeta,
             defender = oppMeta,
             moveName = userMove2Name,
-            isAttackerShadow = activePlayerName.contains("Shadow", ignoreCase = true),
+            isAttackerShadow = isUserShadow,
             isDefenderShadow = isOpponentShadow
         )
 
-        val myMove1Summary = "$userMove1Name ($myMove1Pct%)"
-        val myMove2Summary = "$userMove2Name ($myMove2Pct%)"
+        val myMove1Summary = "${abbrMove5(userMove1Name)} ($myMove1Pct%)"
+        val myMove2Summary = "${abbrMove5(userMove2Name)} ($myMove2Pct%)"
 
         val userFastMoveName = activeSlot?.fastMove?.takeIf { it.isNotBlank() } ?: userMeta.defaultFastMove
         val userFastTurns = FAST_MOVE_TURNS[userFastMoveName.lowercase().trim()]
             ?: DYNAMIC_FAST_TURNS[userFastMoveName.lowercase().trim()]
             ?: userMeta.fastTurns
+        val oppFastMoveName = oppMeta.defaultFastMove
         val oppFastTurns = oppMeta.fastTurns
+
+        val oppFastEnergy = FAST_MOVE_ENERGY[oppFastMoveName.lowercase().trim()]
+            ?: DYNAMIC_FAST_ENERGY[oppFastMoveName.lowercase().trim()]
+            ?: (oppFastTurns * 4).coerceAtLeast(3)
+        val userFastEnergy = FAST_MOVE_ENERGY[userFastMoveName.lowercase().trim()]
+            ?: DYNAMIC_FAST_ENERGY[userFastMoveName.lowercase().trim()]
+            ?: (userFastTurns * 4).coerceAtLeast(3)
+
+        val oppFastDmgPct = calculateFastMoveDamagePercent(
+            attacker = oppMeta,
+            defender = userMeta,
+            fastMoveName = oppFastMoveName,
+            fastTurns = oppFastTurns,
+            isAttackerShadow = isOpponentShadow,
+            isDefenderShadow = isUserShadow
+        )
+        val userFastDmgPct = calculateFastMoveDamagePercent(
+            attacker = userMeta,
+            defender = oppMeta,
+            fastMoveName = userFastMoveName,
+            fastTurns = userFastTurns,
+            isAttackerShadow = isUserShadow,
+            isDefenderShadow = isOpponentShadow
+        )
+
+        val oppFastTelemetry = "${abbrMove5(oppFastMoveName)} ${oppFastTurns}t/${oppFastEnergy}e/${oppFastDmgPct}%"
+        val userFastTelemetry = "${abbrMove5(userFastMoveName)} ${userFastTurns}t/${userFastEnergy}e/${userFastDmgPct}%"
 
         fun formatOrdinal(n: Int): String = when {
             n % 100 in 11..13 -> "${n}th"
@@ -2393,14 +2794,14 @@ class OverlayService : LifecycleService() {
                 defender = userMeta,
                 moveName = meta.chargedMove1,
                 isAttackerShadow = isThisOppShadow,
-                isDefenderShadow = activePlayerName.contains("Shadow", ignoreCase = true)
+                isDefenderShadow = isUserShadow
             )
             val oppC2Pct = calculateChargedMoveDamagePercent(
                 attacker = meta,
                 defender = userMeta,
                 moveName = meta.chargedMove2,
                 isAttackerShadow = isThisOppShadow,
-                isDefenderShadow = activePlayerName.contains("Shadow", ignoreCase = true)
+                isDefenderShadow = isUserShadow
             )
             val thirdMoveName = meta.chargedMove3.takeIf { it.isNotBlank() }
                 ?: COMMON_THIRD_CHARGED_MOVE[meta.name]
@@ -2429,16 +2830,16 @@ class OverlayService : LifecycleService() {
                 defender = userMeta,
                 moveName = thirdMoveName,
                 isAttackerShadow = isThisOppShadow,
-                isDefenderShadow = activePlayerName.contains("Shadow", ignoreCase = true)
+                isDefenderShadow = isUserShadow
             )
             val matrix = calculate3v3Matrix(meta, isThisOppShadow, p1, p2, p3)
             mapOf(
                 "name" to meta.name,
-                "code" to meta.name.split(" ").first().take(3),
+                "code" to abbrPokemon3(meta.name, isThisOppShadow),
                 "turns" to meta.fastTurns,
-                "c1" to "${meta.chargedMove1} ($oppC1Pct%)",
-                "c2" to "${meta.chargedMove2} ($oppC2Pct%)",
-                "c3" to "$thirdMoveName ($oppC3Pct%)",
+                "c1" to "${abbrMove5(meta.chargedMove1)} ($oppC1Pct%)",
+                "c2" to "${abbrMove5(meta.chargedMove2)} ($oppC2Pct%)",
+                "c3" to "${abbrMove5(thirdMoveName)} ($oppC3Pct%)",
                 "matrix" to matrix
             )
         }
@@ -2451,10 +2852,6 @@ class OverlayService : LifecycleService() {
         // CMP Tie Evaluation: True if player's active Pokémon wins CMP (higher or equal Attack)
         val winsCmp = userMeta.atk >= oppMeta.atk
 
-        // Identify the 2 bench teammates (excluding activePlayerName)
-        val allTeamSlots = listOfNotNull(p1, p2, p3)
-        val benchSlots = allTeamSlots.filter { !it.name.equals(activePlayerName, ignoreCase = true) }.take(2)
-
         // Active opponent's 3 charged moves
         val activeOppThirdMove = oppMeta.chargedMove3.takeIf { it.isNotBlank() }
             ?: COMMON_THIRD_CHARGED_MOVE[oppMeta.name]
@@ -2464,11 +2861,7 @@ class OverlayService : LifecycleService() {
             .filter { it.isNotBlank() }
             .distinct()
 
-        val oppFastEnergy = FAST_MOVE_ENERGY[oppMeta.defaultFastMove.lowercase().trim()]
-            ?: DYNAMIC_FAST_ENERGY[oppMeta.defaultFastMove.lowercase().trim()]
-            ?: (oppFastTurns * 4).coerceAtLeast(3)
-
-        // Build per-move timing, catch/CMP & active/bench threat rows strictly in YOUR fast move tap counts
+        // Build per-move timing, catch/CMP & 3-column team threat rows strictly in YOUR fast move tap counts
         val oppMoveTimingRows = oppChargedMoveNames.map { moveName ->
             val mStats = MOVE_DATABASE[moveName]
                 ?: DYNAMIC_MOVE_DATABASE[moveName]
@@ -2487,45 +2880,33 @@ class OverlayService : LifecycleService() {
                 defender = userMeta,
                 moveName = moveName,
                 isAttackerShadow = isOpponentShadow,
-                isDefenderShadow = activePlayerName.contains("Shadow", ignoreCase = true)
+                isDefenderShadow = isUserShadow
             )
             val activeEff = getTypeEffectiveness(mStats.type, userMeta.types)
 
-            val benchData = benchSlots.map { bSlot ->
-                val bMeta = getPokemonMeta(bSlot.name)
-                val bDmgPct = calculateChargedMoveDamagePercent(
+            // All 3 team Pokémon damage percentages in fixed team slot order [0, 1, 2]
+            val teamDamages = teamNames.mapIndexed { tIdx, tName ->
+                val tMeta = getPokemonMeta(tName)
+                val tDmgPct = calculateChargedMoveDamagePercent(
                     attacker = oppMeta,
-                    defender = bMeta,
+                    defender = tMeta,
                     moveName = moveName,
                     isAttackerShadow = isOpponentShadow,
-                    isDefenderShadow = bSlot.name.contains("Shadow", ignoreCase = true)
+                    isDefenderShadow = tName.contains("Shadow", ignoreCase = true)
                 )
-                val bEff = getTypeEffectiveness(mStats.type, bMeta.types)
+                val tEff = getTypeEffectiveness(mStats.type, tMeta.types)
                 val tier = when {
-                    bDmgPct <= 35 -> "resist"
-                    bDmgPct >= 65 || bEff >= 1.5 -> "weak"
+                    tDmgPct <= 35 -> "resist"
+                    tDmgPct >= 65 || tEff >= 1.5 -> "weak"
                     else -> "neutral"
                 }
                 mapOf(
-                    "name" to bSlot.name,
-                    "dmgPct" to bDmgPct,
-                    "eff" to bEff,
-                    "tier" to tier
-                )
-            }
-
-            // Move count bars do NOT go to max energy, JUST to first charged move by opponent!
-            val maxNode = myTapAtReady
-            val tapNodes = (1..maxNode).map { k ->
-                val state = when {
-                    k == myTapAtReady -> if (winsCmp) "cmp" else "catch"
-                    (k * userFastTurns) % oppFastTurns != 0 -> "safe"
-                    else -> "leak"
-                }
-                mapOf(
-                    "tap" to k,
-                    "label" to k.toString(),
-                    "state" to state
+                    "name" to tName,
+                    "code" to abbrPokemon3(tName),
+                    "dmgPct" to tDmgPct,
+                    "eff" to tEff,
+                    "tier" to tier,
+                    "isActive" to (tIdx == activeUserSlotIndex)
                 )
             }
 
@@ -2534,6 +2915,7 @@ class OverlayService : LifecycleService() {
 
             mapOf(
                 "name" to moveName,
+                "shortName" to abbrMove5(moveName),
                 "energy" to mEnergy,
                 "oppFasts" to oppFasts,
                 "oppReadyTurn" to oppReadyTurn,
@@ -2545,18 +2927,12 @@ class OverlayService : LifecycleService() {
                 "activeDmgPct" to activeDmgPct,
                 "activeEff" to activeEff,
                 "safeRangeLabel" to safeRangeLabel,
-                "tapNodes" to tapNodes,
-                "bench" to benchData
+                "teamDamages" to teamDamages
             )
         }
 
-        // Build player's charged move timing rows (My Attacks) vertically aligned with opponent moves
-        val userFastEnergy = FAST_MOVE_ENERGY[userFastMoveName.lowercase().trim()]
-            ?: DYNAMIC_FAST_ENERGY[userFastMoveName.lowercase().trim()]
-            ?: (userFastTurns * 4).coerceAtLeast(3)
-
+        // Build player's charged move timing rows (My Attacks) with leak-free range label & 3 scanned opponent columns
         val oppFirstReadyTaps = oppMoveTimingRows.mapNotNull { it["myTapAtReady"] as? Int }.toSet()
-        val maxOppFirstTap = oppFirstReadyTaps.maxOrNull() ?: 5
 
         val myChargedMoveNames = listOf(userMove1Name, userMove2Name).filter { it.isNotBlank() }.distinct()
         val myMoveTimingRows = myChargedMoveNames.map { mName ->
@@ -2570,24 +2946,62 @@ class OverlayService : LifecycleService() {
                 attacker = userMeta,
                 defender = oppMeta,
                 moveName = mName,
-                isAttackerShadow = activePlayerName.contains("Shadow", ignoreCase = true),
+                isAttackerShadow = isUserShadow,
                 isDefenderShadow = isOpponentShadow
             )
             val eff = getTypeEffectiveness(mStats.type, oppMeta.types)
 
-            // Mimic opponent UI with vertical alignment: show taps from 1 up to max(myTapsNeeded, maxOppFirstTap)
-            val maxNode = max(myTapsNeeded, maxOppFirstTap).coerceAtMost(7)
-            val tapNodes = (1..maxNode).map { k ->
-                val state = when {
-                    k < myTapsNeeded -> "uncharged"
-                    oppFirstReadyTaps.contains(k) -> if (winsCmp) "cmp" else "cmp-loss"
-                    else -> "safe"
+            val safeTapsBeforeReady = mutableListOf<Int>()
+            for (k in 1 until myTapsNeeded) {
+                if ((k * userFastTurns) % oppFastTurns != 0) {
+                    safeTapsBeforeReady.add(k)
                 }
-                mapOf(
-                    "tap" to k,
-                    "label" to k.toString(),
-                    "state" to state
-                )
+            }
+            val hasZeroSneak = safeTapsBeforeReady.isNotEmpty()
+            val safeThrowLabel = when {
+                myTapsNeeded <= 1 -> "1"
+                hasZeroSneak -> "Safe ${safeTapsBeforeReady.take(4).joinToString(",")}"
+                myTapsNeeded - 1 == 1 -> "1"
+                else -> "1–${myTapsNeeded - 1}"
+            }
+
+            val oppDamages = (0..2).map { slotIdx ->
+                if (slotIdx < displayList.size) {
+                    val oppNameSlot = displayList[slotIdx]
+                    val oppMetaSlot = getPokemonMeta(oppNameSlot)
+                    val baseKeySlot = oppMetaSlot.baseSpecies.lowercase()
+                    val isSlotShadow = manualShadowOverrides[baseKeySlot] ?: (if (slotIdx == 0) isOpponentShadow else false)
+                    val oDmgPct = calculateChargedMoveDamagePercent(
+                        attacker = userMeta,
+                        defender = oppMetaSlot,
+                        moveName = mName,
+                        isAttackerShadow = isUserShadow,
+                        isDefenderShadow = isSlotShadow
+                    )
+                    val oEff = getTypeEffectiveness(mStats.type, oppMetaSlot.types)
+                    val tier = when {
+                        oDmgPct >= 65 || oEff >= 1.5 -> "high"
+                        oDmgPct <= 35 || oEff <= 0.65 -> "low"
+                        else -> "neutral"
+                    }
+                    mapOf(
+                        "name" to oppMetaSlot.name,
+                        "code" to abbrPokemon3(oppMetaSlot.name, isSlotShadow),
+                        "dmgPct" to oDmgPct,
+                        "eff" to oEff,
+                        "tier" to tier,
+                        "isActive" to (slotIdx == 0)
+                    )
+                } else {
+                    mapOf(
+                        "name" to "—",
+                        "code" to "—",
+                        "dmgPct" to null,
+                        "eff" to 1.0,
+                        "tier" to "empty",
+                        "isActive" to false
+                    )
+                }
             }
 
             val readyState = when {
@@ -2597,12 +3011,15 @@ class OverlayService : LifecycleService() {
 
             mapOf(
                 "name" to mName,
+                "shortName" to abbrMove5(mName),
                 "energy" to mEnergy,
                 "myTapsNeeded" to myTapsNeeded,
                 "dmgPct" to dmgPct,
                 "eff" to eff,
                 "state" to readyState,
-                "tapNodes" to tapNodes
+                "safeThrowLabel" to safeThrowLabel,
+                "hasZeroSneak" to hasZeroSneak,
+                "oppDamages" to oppDamages
             )
         }
 
@@ -2610,10 +3027,13 @@ class OverlayService : LifecycleService() {
             "activeOpponent" to oppMeta.name,
             "activeOpponentFastMove" to oppMeta.defaultFastMove,
             "activeOpponentTurns" to oppMeta.fastTurns,
+            "oppFastTelemetry" to oppFastTelemetry,
+            "userFastTelemetry" to userFastTelemetry,
             "isOpponentShadow" to isOpponentShadow,
             "currentFormLabel" to oppMeta.formLabel,
             "availableForms" to availableOpponentForms.map { it.formLabel },
             "userActivePokemon" to activePlayerName,
+            "activeUserSlotIndex" to activeUserSlotIndex,
             "userFastMoveName" to userFastMoveName,
             "userFastMoveTurns" to userFastTurns,
             "winsCmp" to winsCmp,
@@ -2716,7 +3136,9 @@ class OverlayService : LifecycleService() {
     }
 
     private fun loadPresets(): List<TeamPreset> {
-        val json = prefs.getString("gbl_team_presets_v5", null) ?: return emptyList()
+        val json = prefs.getString("gbl_team_presets_v6", null)
+            ?: prefs.getString("gbl_team_presets_v5", null)
+            ?: return emptyList()
         val type = object : TypeToken<List<TeamPreset>>() {}.type
         return gson.fromJson(json, type) ?: emptyList()
     }
@@ -2817,7 +3239,7 @@ class OverlayService : LifecycleService() {
             if (currentLayoutMode != "option1") return
             val density = resources.displayMetrics.density
             val targetHeight = (heightDp * density).toInt()
-            if (Math.abs(layoutParams.height - targetHeight) > 15) {
+            if (layoutParams.height < 0 || Math.abs(layoutParams.height - targetHeight) > 4) {
                 layoutParams.height = targetHeight
                 Handler(Looper.getMainLooper()).post {
                     try {

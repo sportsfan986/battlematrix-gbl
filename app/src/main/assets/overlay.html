@@ -285,38 +285,101 @@
             margin: 0 2px;
         }
 
-        /* Unified Per-Move Timing, Catch/CMP & Bench Threat Rows */
+        /* Unified Per-Move Timing, Catch/CMP & 3-Column Threat Rows */
         .timing-rows-container {
             display: flex;
             flex-direction: column;
-            gap: 2.5px;
+            gap: 0px;
+        }
+
+        .section-header-grid {
+            display: grid;
+            grid-template-columns: 1fr 87px;
+            align-items: center;
+            gap: 4px;
+            padding: 1px 0 0 1px;
+        }
+
+        .section-header-left {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 8px;
+            font-weight: 800;
+            color: #94a3b8;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            padding-right: 2px;
+        }
+
+        .dmg-col-headers {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            width: 87px;
+            text-align: center;
+            font-size: 7.5px;
+            font-weight: 900;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .dmg-col-hdr {
+            padding: 1px 0;
+            color: #94a3b8;
+            border-left: 1px solid transparent;
+            border-right: 1px solid transparent;
+            border-top: 1px solid transparent;
+            line-height: 1.15;
+        }
+
+        .dmg-col-hdr.active-col {
+            background: rgba(56, 189, 248, 0.22);
+            color: #7dd3fc;
+            border-top: 1px solid rgba(56, 189, 248, 0.65);
+            border-left: 1px solid rgba(56, 189, 248, 0.55);
+            border-right: 1px solid rgba(56, 189, 248, 0.55);
+            border-top-left-radius: 3px;
+            border-top-right-radius: 3px;
         }
 
         .move-timing-row {
             background: rgba(2, 6, 23, 0.42);
-            border: 1px solid rgba(148, 163, 184, 0.16);
-            border-radius: 4px;
-            padding: 2.5px 4px;
+            border-top: 1px solid rgba(148, 163, 184, 0.14);
+            border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+            border-left: 1px solid rgba(148, 163, 184, 0.16);
+            border-right: 1px solid rgba(148, 163, 184, 0.16);
+            padding: 0 0 0 4px;
             display: grid;
-            grid-template-columns: 78px 1fr auto;
-            align-items: center;
+            grid-template-columns: 44px 1fr 87px;
+            align-items: stretch;
             gap: 4px;
             font-variant-numeric: tabular-nums;
+        }
+
+        .move-timing-row:first-child {
+            border-top-left-radius: 4px;
+        }
+
+        .move-timing-row:last-child {
+            border-bottom-left-radius: 4px;
+            border-bottom-right-radius: 4px;
         }
 
         .move-col-left {
             display: flex;
             flex-direction: column;
-            line-height: 1.1;
+            justify-content: center;
+            line-height: 1.05;
             min-width: 0;
+            padding: 2px 0;
         }
 
         .move-title-line {
             font-size: 8.5px;
-            font-weight: 800;
+            font-weight: 900;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            letter-spacing: -0.01em;
         }
 
         .move-title-line.threat-high { color: #fca5a5; }
@@ -325,151 +388,32 @@
 
         .move-sub-line {
             font-size: 7.5px;
-            color: #cbd5e1;
+            font-weight: 700;
+            color: #94a3b8;
             white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            font-family: monospace;
         }
 
-        .move-sub-line .actv-pct-high { color: #f87171; font-weight: 800; }
-        .move-sub-line .actv-pct-mid  { color: #fbbf24; font-weight: 800; }
-        .move-sub-line .actv-pct-low  { color: #34d399; font-weight: 800; }
-
-        /* Center Track: 3-5T Connected Tap Dots OR 1-2T Segmented Bars */
+        /* Center Track: Universal Segmented Range Bars */
         .move-col-center {
             display: flex;
             align-items: center;
-            justify-content: center;
+            justify-content: flex-start;
             min-width: 0;
+            padding: 2px 0;
         }
 
-        .tap-dots-track {
-            display: flex;
-            align-items: flex-start;
-            justify-content: center;
-            gap: 0;
-            width: 100%;
-        }
-
-        .tap-node-wrap {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            position: relative;
-        }
-
-        .tap-connector {
-            width: 5px;
-            height: 1.5px;
-            background: rgba(148, 163, 184, 0.35);
-            margin-top: 6px;
-            flex-shrink: 0;
-        }
-
-        .tap-dot {
-            min-width: 13px;
-            height: 13px;
-            padding: 0 2px;
-            border-radius: 999px;
-            font-size: 7.5px;
-            font-weight: 900;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            color: #ffffff;
-            line-height: 1;
-            box-sizing: border-box;
-        }
-
-        /* Blue = Safe to throw (no energy leakage) */
-        .tap-dot.node-safe {
-            background: #0284c7;
-            border: 1px solid #7dd3fc;
-        }
-
-        /* Yellow = Energy leak turn */
-        .tap-dot.node-leak, .tap-dot.node-cap {
-            background: #b45309;
-            border: 1px solid #fcd34d;
-            color: #fef08a;
-        }
-
-        /* Red = Opponent can throw & wins CMP -> Catch option */
-        .tap-dot.node-catch, .tap-dot.node-cmp-loss {
-            background: #dc2626;
-            border: 1.2px solid #fecaca;
-            box-shadow: 0 0 4px rgba(239, 68, 68, 0.75);
-            color: #ffffff;
-        }
-
-        /* Green = Opponent can throw & YOU win CMP tie! */
-        .tap-dot.node-cmp {
-            background: #16a34a;
-            border: 1.2px solid #bbf7d0;
-            box-shadow: 0 0 4px rgba(34, 197, 94, 0.8);
-            color: #ffffff;
-        }
-
-        /* Grey = Uncharged / charging turn (unable to throw yet) */
-        .tap-dot.node-uncharged {
-            background: rgba(51, 65, 85, 0.6);
-            border: 1px solid rgba(148, 163, 184, 0.45);
-            color: #94a3b8;
-        }
-
-        /* 1-2T Segmented Bar Mode */
         .seg-bar-track {
             display: flex;
             align-items: center;
             gap: 2px;
             width: 100%;
-            justify-content: center;
+            justify-content: flex-start;
         }
 
         .seg-block {
             border-radius: 3px;
-            padding: 1.5px 3.5px;
-            font-size: 7.5px;
-            font-weight: 800;
-            white-space: nowrap;
-            line-height: 1.15;
-        }
-
-        .seg-safe {
-            background: rgba(2, 132, 199, 0.32);
-            border: 1px solid rgba(56, 189, 248, 0.65);
-            color: #7dd3fc;
-        }
-
-        .seg-catch {
-            background: rgba(220, 38, 38, 0.48);
-            border: 1px solid #fca5a5;
-            color: #ffffff;
-        }
-
-        .seg-cmp {
-            background: rgba(22, 163, 74, 0.48);
-            border: 1px solid #86efac;
-            color: #ffffff;
-        }
-
-        .seg-uncharged {
-            background: rgba(51, 65, 85, 0.35);
-            border: 1px solid rgba(148, 163, 184, 0.4);
-            color: #94a3b8;
-        }
-
-        /* Right Column: Bench Catch & Threat Badges */
-        .move-col-right {
-            display: flex;
-            align-items: center;
-            gap: 2px;
-            flex-shrink: 0;
-        }
-
-        .bench-chip {
-            border-radius: 3px;
-            padding: 1.5px 3.5px;
+            padding: 1.5px 4px;
             font-size: 7.5px;
             font-weight: 800;
             white-space: nowrap;
@@ -477,49 +421,104 @@
             text-align: center;
         }
 
-        .bench-chip.tier-resist {
-            background: rgba(16, 185, 129, 0.42);
-            border: 1px solid rgba(52, 211, 153, 0.85);
-            color: #a7f3d0;
+        .seg-block.seg-range {
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
-        .bench-chip.tier-neutral {
-            background: rgba(51, 65, 85, 0.48);
-            border: 1px solid rgba(148, 163, 184, 0.5);
-            color: #e2e8f0;
+        .seg-safe {
+            background: rgba(2, 132, 199, 0.34);
+            border: 1px solid rgba(56, 189, 248, 0.7);
+            color: #bae6fd;
         }
 
-        .bench-chip.tier-weak {
-            background: rgba(185, 28, 28, 0.55);
-            border: 1px solid rgba(248, 113, 113, 0.85);
-            color: #fecaca;
+        .seg-catch {
+            background: rgba(220, 38, 38, 0.52);
+            border: 1px solid #fca5a5;
+            color: #ffffff;
         }
 
-        .section-header-label {
+        .seg-cmp {
+            background: rgba(22, 163, 74, 0.52);
+            border: 1px solid #86efac;
+            color: #ffffff;
+        }
+
+        .seg-uncharged {
+            background: rgba(51, 65, 85, 0.38);
+            border: 1px solid rgba(148, 163, 184, 0.42);
+            color: #cbd5e1;
+        }
+
+        /* Right Column: 3-Column Tabular Damage Matrix with Vertical Highlight */
+        .move-col-right-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            width: 87px;
+            align-items: stretch;
+            flex-shrink: 0;
+        }
+
+        .dmg-cell {
+            display: flex;
+            align-items: center;
+            justify-content: center;
             font-size: 8px;
             font-weight: 800;
-            color: #94a3b8;
-            letter-spacing: 0.04em;
-            text-transform: uppercase;
-            padding: 1px 1px 2px 1px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
+            font-family: monospace;
+            font-variant-numeric: tabular-nums;
+            line-height: 1;
+            padding: 2px 1px;
+            border-left: 1px solid rgba(148, 163, 184, 0.12);
+            border-right: 1px solid transparent;
         }
 
-        /* 1-Line Outgoing Damage & CMP Status Footer */
-        .my-dmg-footer {
-            background: rgba(0, 0, 0, 0.22);
-            border-radius: 4px;
-            padding: 2px 5px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 4px;
-            font-size: 8.5px;
+        .dmg-cell.active-col {
+            background: rgba(56, 189, 248, 0.16);
+            border-left: 1px solid rgba(56, 189, 248, 0.55);
+            border-right: 1px solid rgba(56, 189, 248, 0.55);
+            font-weight: 900;
+        }
+
+        .move-timing-row:last-child .dmg-cell.active-col {
+            border-bottom: 1px solid rgba(56, 189, 248, 0.65);
+            border-bottom-left-radius: 3px;
+            border-bottom-right-radius: 3px;
+        }
+
+        .dmg-cell.tier-resist, .dmg-cell.tier-high {
+            color: #6ee7b7;
+        }
+
+        .dmg-cell.tier-neutral {
             color: #e2e8f0;
+        }
+
+        .dmg-cell.tier-weak {
+            color: #fca5a5;
+        }
+
+        .dmg-cell.tier-low {
+            color: #fca5a5;
+        }
+
+        .dmg-cell.tier-empty {
+            color: #475569;
+        }
+
+        .user-fast-badge {
+            font-size: 8px;
+            font-weight: 800;
+            font-family: monospace;
+            color: #6ee7b7;
+            background: rgba(6, 78, 59, 0.45);
+            border: 1px solid rgba(52, 211, 153, 0.45);
+            padding: 0.5px 4px;
+            border-radius: 3px;
             white-space: nowrap;
-            overflow: hidden;
+            flex-shrink: 0;
         }
 
         .cmp-pill {
@@ -540,16 +539,6 @@
             background: rgba(185, 28, 28, 0.35);
             border: 1px solid #f87171;
             color: #fca5a5;
-        }
-
-        .dmg-taps {
-            color: #38bdf8;
-            font-weight: 700;
-        }
-
-        .dmg-ready {
-            color: #34d399;
-            font-weight: 800;
         }
 
         .scan-indicator {
@@ -593,14 +582,15 @@
 </head>
 <body>
 
-    <!-- OPTION 1: Top-Left Sky Trench (Transparent, Full-Width Header, No Redundant Preset Dropdown) -->
+    <!-- OPTION 1: Top-Left Sky Trench (Transparent, Full-Width Header, 3-Column Threat Matrices) -->
     <div id="mode-sky-trench" class="glass-panel">
-        <!-- Header: Opponent Name & Fast Move -->
+        <!-- Header: Opponent Name, Opponent Fast Move Telemetry & Your Fast Move Telemetry -->
         <div class="header-row">
             <div class="opp-title" id="sky-title">
                 ⚔️ <span id="sky-opp-name">WAITING FOR OPPONENT...</span> 
                 <span class="opp-move-tag" id="sky-opp-fastmove">(1 Hz OCR Active)</span>
             </div>
+            <span class="user-fast-badge hidden" id="sky-user-fastmove">You: —</span>
         </div>
 
         <!-- Toolbar: Reset Opponent, Shadow Toggle, Form Cycler, and Active Team Chips -->
@@ -621,7 +611,7 @@
             </div>
         </div>
 
-        <!-- 3v3 Matchup Matrix Dots (Full Opponent Names) -->
+        <!-- 3v3 Matchup Matrix Dots (Full Opponent Names, No Static Legend Row) -->
         <div class="matrix-container" id="sky-matrix-body">
             <div style="display:flex; align-items:center; gap:6px; color:#cbd5e1; font-size:9px; padding:2px 0;">
                 <span class="scan-indicator"></span>
@@ -629,22 +619,28 @@
             </div>
         </div>
 
-        <!-- Opponent Attacks (Unified 3-Row Per-Move Timing & Catch/Swap HUD) -->
+        <!-- Opponent Attacks (Segmented Bars + 3-Column Team Damage Matrix with Vertical Active Highlight) -->
         <div class="timing-rows-container">
-            <div class="section-header-label">
-                <span>Opponent Attacks</span>
-                <span id="sky-cmp-badge" class="cmp-pill win">CMP: —</span>
+            <div class="section-header-grid">
+                <div class="section-header-left">
+                    <span>Opponent Attacks</span>
+                    <span id="sky-cmp-badge" class="cmp-pill win">CMP: —</span>
+                </div>
+                <div id="sky-opp-dmg-headers" class="dmg-col-headers"></div>
             </div>
-            <div id="sky-move-timing-rows" style="display:flex; flex-direction:column; gap:2.5px;"></div>
+            <div id="sky-move-timing-rows" style="display:flex; flex-direction:column; gap:1px;"></div>
         </div>
 
-        <!-- My Attacks (Vertically Aligned Charging Taps & Outgoing Damage) -->
+        <!-- My Attacks (Zero-Sneak Segmented Bar + 3-Column Scanned Opponent Damage Matrix) -->
         <div class="timing-rows-container">
-            <div class="section-header-label">
-                <span>My Attacks</span>
-                <span id="sky-my-short" style="color:#38bdf8; font-weight:800;">Lead</span>
+            <div class="section-header-grid">
+                <div class="section-header-left">
+                    <span>My Attacks</span>
+                    <span id="sky-my-short" style="color:#38bdf8; font-weight:800; font-family:monospace; text-transform:none;">Lead</span>
+                </div>
+                <div id="sky-my-dmg-headers" class="dmg-col-headers"></div>
             </div>
-            <div id="sky-my-move-timing-rows" style="display:flex; flex-direction:column; gap:2.5px;"></div>
+            <div id="sky-my-move-timing-rows" style="display:flex; flex-direction:column; gap:1px;"></div>
         </div>
     </div>
 
@@ -672,156 +668,245 @@
     <script>
         let currentMode = "option1";
 
-        const MOVE_ABBR = {
-            "Roar of Time": "Roar.T",
-            "Iron Head": "Iron.Hd",
-            "Draco Meteor": "Draco.M",
-            "Thunder": "Thndr",
-            "Aeroblast": "Aeroblst",
-            "Sky Attack": "Sky.Atk",
-            "Future Sight": "Fut.Sght",
+        const MOVE_ABBR_5 = {
+            "Dragon Breath": "DB",
+            "Sand Attack": "SndAt",
+            "Quick Attack": "QA",
+            "Lock-On": "LO",
+            "Water Gun": "WG",
+            "Lick": "Lick",
+            "Bite": "Bite",
+            "Tackle": "Tckl",
+            "Fury Cutter": "FC",
+            "Bug Bite": "BB",
+            "Scratch": "Scrt",
+            "Psywave": "PsyWv",
+            "Psycho Cut": "PC",
+            "Mud Shot": "MS",
+            "Shadow Claw": "SC",
+            "Counter": "C",
+            "Powder Snow": "PS",
+            "Wing Attack": "WA",
+            "Peck": "Peck",
+            "Poison Sting": "PSng",
+            "Thunder Shock": "TS",
+            "Fairy Wind": "FW",
+            "Bullet Punch": "BP",
+            "Fire Fang": "FF",
+            "Vine Whip": "VW",
+            "Karate Chop": "KC",
+            "Low Kick": "LK",
+            "Ice Fang": "IF",
+            "Metal Claw": "MC",
+            "Sucker Punch": "SP",
+            "Poison Jab": "PJ",
+            "Spark": "Sprk",
+            "Leafage": "Lfge",
+            "Steel Wing": "SW",
+            "Rock Throw": "RT",
+            "Ember": "Embr",
+            "Force Palm": "FP",
+            "Dragon Tail": "DT",
+            "Waterfall": "WF",
+            "Fire Spin": "FS",
+            "Snarl": "Snrl",
+            "Geomancy": "Geo",
+            "Mud-Slap": "MSlp",
+            "Charm": "Chrm",
+            "Double Kick": "DK",
+            "Air Slash": "AS",
+            "Ice Shard": "IS",
+            "Bubble": "Bbl",
+            "Rollout": "Rll",
+            "Smack Down": "SD",
+            "Astonish": "Astn",
+            "Hex": "Hex",
+            "Magical Leaf": "MgLf",
+            "Bullet Seed": "BS",
+            "Water Shuriken": "WS",
+            "Gust": "Gust",
+            "Confusion": "Conf",
+            "Volt Switch": "VS",
+            "Incinerate": "Incin",
+            "Roar of Time": "RoT",
+            "Iron Head": "IH",
+            "Draco Meteor": "DM",
+            "Thunder": "Thdr",
+            "Aeroblast": "Aero",
+            "Sky Attack": "SA",
+            "Future Sight": "FS",
             "Surf": "Surf",
-            "Origin Pulse": "Orig.Pls",
-            "Hydro Pump": "Hyd.Pmp",
-            "Blizzard": "Blzzrd",
-            "Close Combat": "Cls.Cmb",
-            "Brave Bird": "Brv.Brd",
-            "Play Rough": "Play.Rgh",
-            "Wild Charge": "Wld.Chg",
-            "Shadow Ball": "Shd.Ball",
-            "Ominous Wind": "Om.Wind",
-            "Dragon Claw": "Drg.Claw",
-            "Ancient Power": "Anc.Pwr",
-            "Shadow Force": "Shd.Frc",
-            "Spacial Rend": "Spc.Rnd",
-            "Aqua Tail": "Aq.Tail",
-            "Precipice Blades": "Prc.Bld",
-            "Fire Punch": "Fire.Pn",
-            "Psystrike": "Psystrk",
-            "Ice Beam": "Ice.Bm",
-            "Moonblast": "Moonblst",
-            "Dark Pulse": "Drk.Pls",
-            "Oblivion Wing": "Obl.Wng",
-            "Crunch": "Crunch",
-            "Earthquake": "Earthqk",
-            "Sandsear Storm": "Snd.Strm",
-            "Stone Edge": "Stn.Edg",
-            "Superpower": "Suprpwr",
-            "Sacred Fire": "Sac.Fire",
-            "Sunsteel Strike": "Sun.Strk",
-            "Moongeist Beam": "Mng.Beam",
-            "Rock Slide": "Rck.Sld",
-            "Earth Power": "Erth.Pwr",
-            "Outrage": "Outrage",
-            "Meteor Mash": "Mtr.Msh",
-            "Drill Run": "Drl.Run",
-            "Rock Wrecker": "Rck.Wrk",
-            "Breaking Swipe": "Brk.Swp",
-            "Avalanche": "Avlnch",
-            "High Horsepower": "H.Horse",
-            "Ice Punch": "Ice.Pn",
-            "Fusion Flare": "Fus.Flr",
-            "Overheat": "Ovrheat",
-            "Fusion Bolt": "Fus.Blt",
-            "Glaciate": "Glciate",
-            "Disarming Voice": "Dis.Voic",
-            "Hydro Cannon": "Hyd.Can",
-            "Weather Ball": "Wth.Ball",
-            "Dazzling Gleam": "Dzl.Glm",
-            "Scorching Sands": "Scr.Snd",
-            "Psycho Boost": "Psy.Bst",
-            "Thunderbolt": "Thndrblt",
-            "Grass Knot": "Grs.Knt",
-            "Sacred Sword": "Sac.Swd",
-            "Leaf Blade": "Lf.Bld",
-            "Aerial Ace": "Aer.Ace",
+            "Origin Pulse": "OP",
+            "Hydro Pump": "HP",
+            "Blizzard": "Blz",
+            "Close Combat": "CC",
+            "Brave Bird": "BB",
+            "Play Rough": "PR",
+            "Wild Charge": "WC",
+            "Shadow Ball": "SB",
+            "Ominous Wind": "OW",
+            "Dragon Claw": "DC",
+            "Ancient Power": "AP",
+            "Shadow Force": "SF",
+            "Spacial Rend": "SpR",
+            "Aqua Tail": "AT",
+            "Precipice Blades": "PB",
+            "Fire Punch": "FP",
+            "Psystrike": "Pstk",
+            "Ice Beam": "IB",
+            "Moonblast": "Mb",
+            "Dark Pulse": "DP",
+            "Oblivion Wing": "ObW",
+            "Crunch": "Crn",
+            "Earthquake": "Eq",
+            "Sandsear Storm": "SndS",
+            "Stone Edge": "SE",
+            "Superpower": "SpP",
+            "Sacred Fire": "ScF",
+            "Sunsteel Strike": "SnSt",
+            "Moongeist Beam": "MnBm",
+            "Rock Slide": "RS",
+            "Earth Power": "EP",
+            "Outrage": "OR",
+            "Meteor Mash": "MM",
+            "Drill Run": "DR",
+            "Rock Wrecker": "RW",
+            "Breaking Swipe": "BS",
+            "Avalanche": "Avl",
+            "High Horsepower": "HH",
+            "Ice Punch": "IP",
+            "Fusion Flare": "FFl",
+            "Overheat": "OH",
+            "Fusion Bolt": "FBlt",
+            "Glaciate": "Glct",
+            "Disarming Voice": "DV",
+            "Hydro Cannon": "HC",
+            "Weather Ball (Fire)": "WB-F",
+            "Weather Ball (Ice)": "WB-I",
+            "Weather Ball (Water)": "WB-W",
+            "Weather Ball (Rock)": "WB-R",
+            "Weather Ball": "WB",
+            "Dazzling Gleam": "DG",
+            "Scorching Sands": "ScS",
+            "Psycho Boost": "PsB",
+            "Thunderbolt": "TB",
+            "Grass Knot": "GK",
+            "Sacred Sword": "ScS",
+            "Leaf Blade": "LB",
+            "Aerial Ace": "AA",
             "Fly": "Fly",
-            "Flame Charge": "Flm.Chg",
-            "Blast Burn": "Blst.Brn",
-            "Feather Dance": "Fth.Dnc",
-            "Shadow Sneak": "Shd.Snk",
-            "Air Cutter": "Air.Cut",
-            "Twister": "Twister",
-            "Focus Blast": "Foc.Blst",
-            "Solar Beam": "Sol.Beam",
-            "Dragon Pulse": "Drg.Pls",
-            "Megahorn": "Mghrn",
-            "Hurricane": "Hrrcn",
-            "Psychic": "Psychic",
-            "Psyshock": "Psyshk",
-            "Flash Cannon": "Flsh.Can",
-            "Sludge Wave": "Sldg.Wv",
-            "Sludge Bomb": "Sldg.Bmb",
-            "Gunk Shot": "Gnk.Sht",
-            "Foul Play": "Fl.Play",
-            "Payback": "Payback",
-            "Dynamic Punch": "Dyn.Pnch",
-            "Power Gem": "Pwr.Gem",
-            "Water Pulse": "Wtr.Pls",
-            "Petal Blizzard": "Ptl.Blz",
-            "Energy Ball": "Enr.Ball",
-            "Power Whip": "Pwr.Whp",
-            "Heavy Slam": "Hvy.Slm",
-            "Hyper Beam": "Hyp.Beam",
-            "Night Slash": "Nght.Sl",
-            "Sand Tomb": "Snd.Tmb",
-            "Freeze Shock": "Frz.Shk",
-            "Ice Burn": "Ice.Brn",
-            "Drill Peck": "Drl.Pck",
-            "Behemoth Blade": "Beh.Bld",
-            "Behemoth Bash": "Beh.Bsh",
-            "Secret Sword": "Sec.Swd",
-            "Aqua Jet": "Aq.Jet",
-            "Double Iron Bash": "Dbl.Irn",
-            "Drum Beating": "Drm.Bt",
-            "Gigaton Hammer": "Ggt.Hmr",
-            "Air Cutter": "Air.Cut",
-            "Bulldoze": "Bulldz",
-            "Brutal Swing": "Brt.Swg",
-            "Swift": "Swift"
+            "Flame Charge": "FC",
+            "Blast Burn": "BB",
+            "Feather Dance": "FD",
+            "Shadow Sneak": "SS",
+            "Air Cutter": "AirC",
+            "Twister": "Twst",
+            "Focus Blast": "FB",
+            "Solar Beam": "SolB",
+            "Dragon Pulse": "DP",
+            "Megahorn": "Mgh",
+            "Hurricane": "Hrc",
+            "Psychic": "Psyc",
+            "Psyshock": "Psyk",
+            "Flash Cannon": "FlC",
+            "Sludge Wave": "SWv",
+            "Sludge Bomb": "SlB",
+            "Gunk Shot": "GS",
+            "Foul Play": "FoP",
+            "Payback": "Pybk",
+            "Dynamic Punch": "DyP",
+            "Power Gem": "PG",
+            "Water Pulse": "WP",
+            "Petal Blizzard": "PtB",
+            "Energy Ball": "EnB",
+            "Power Whip": "PW",
+            "Heavy Slam": "HS",
+            "Hyper Beam": "HB",
+            "Night Slash": "NS",
+            "Sand Tomb": "ST",
+            "Freeze Shock": "FrS",
+            "Ice Burn": "IcB",
+            "Drill Peck": "DPk",
+            "Behemoth Blade": "BehB",
+            "Behemoth Bash": "BehS",
+            "Secret Sword": "SecS",
+            "Aqua Jet": "AJ",
+            "Double Iron Bash": "DIB",
+            "Drum Beating": "DrmB",
+            "Gigaton Hammer": "GgHm",
+            "Bulldoze": "Bldz",
+            "Brutal Swing": "BrS",
+            "Swift": "Swft",
+            "Body Slam": "BS",
+            "Icy Wind": "IW",
+            "Cross Chop": "CrCh",
+            "Mystical Fire": "MyF",
+            "Liquidation": "Liq",
+            "Scald": "Scld",
+            "Trailblaze": "Trlb",
+            "Nature's Madness": "NM",
+            "Rage Fist": "RgF",
+            "Aura Wheel": "AuW"
         };
 
+        function abbrMove5(moveName) {
+            if (!moveName) return "Move";
+            if (MOVE_ABBR_5[moveName]) return MOVE_ABBR_5[moveName];
+            const clean = String(moveName).replace(/[()\-]/g, " ").trim();
+            const words = clean.split(/\s+/).filter(Boolean);
+            if (words.length >= 2) {
+                return (words[0].substring(0, 3) + words[1].substring(0, 2)).substring(0, 5);
+            }
+            return clean.substring(0, 5);
+        }
+
         function abbrPoke(name, isShadow) {
-            if (!name || name === "Waiting...") return "Opp";
-            const clean = name
+            if (!name || name === "Waiting...") return "OPP";
+            const clean = String(name)
                 .replace(/^Shadow\s+/i, "")
                 .replace(/^Kanto\s+/i, "")
                 .replace(/^Alolan\s+/i, "")
                 .replace(/^Galarian\s+/i, "")
+                .replace(/^Hisuian\s+/i, "")
+                .replace(/^Paldean\s+/i, "")
                 .split(" ")[0]
-                .substring(0, 3);
-            const prefix = (isShadow || /^Shadow\s+/i.test(name)) ? "S-" : "";
-            return prefix + clean;
+                .substring(0, 3)
+                .toUpperCase();
+            const prefix = (isShadow || /^Shadow\s+/i.test(name)) ? "S" : "";
+            return (prefix + clean).substring(0, 4);
         }
 
         function abbrMoveSummary(summary) {
             if (!summary || summary === "—") return "—";
-            // summary format: "Move Name (XX%)"
-            const match = summary.match(/^(.+?)\s*(\(\d+%\))$/);
+            const match = String(summary).match(/^(.+?)\s*(\(\d+%\))$/);
             if (!match) return summary;
             const rawMove = match[1].trim();
             const pctPart = match[2];
-            const shortMove = MOVE_ABBR[rawMove] || (rawMove.length > 8 ? rawMove.substring(0, 7) + "." : rawMove);
-            return `${shortMove} ${pctPart}`;
+            return `${abbrMove5(rawMove)} ${pctPart}`;
         }
 
         let battleData = {
             activeOpponent: "Waiting...",
             activeOpponentFastMove: "1 Hz OCR Active",
             activeOpponentTurns: 0,
+            oppFastTelemetry: "1 Hz OCR Active",
+            userFastTelemetry: "",
             isOpponentShadow: false,
             currentFormLabel: "Base",
             availableForms: [],
             userActivePokemon: "My Lead",
+            activeUserSlotIndex: 0,
             userFastMoveTurns: 2,
             myMove1Summary: "—",
             myMove2Summary: "—",
             team: [
-                { initial: "D", name: "Dialga (Origin)" },
-                { initial: "L", name: "Lugia" },
-                { initial: "K", name: "Kyogre" }
+                { initial: "D", code: "DIA", name: "Dialga (Origin)" },
+                { initial: "L", code: "LUG", name: "Lugia" },
+                { initial: "K", code: "KYO", name: "Kyogre" }
             ],
             scannedOpponents: [],
+            oppMoveTimingRows: [],
+            myMoveTimingRows: [],
             throwAlignmentText: "—",
             throwHorizonText: "—"
         };
@@ -887,10 +972,13 @@
             battleData.activeOpponent = "Waiting...";
             battleData.activeOpponentFastMove = "1 Hz OCR Active";
             battleData.activeOpponentTurns = 0;
+            battleData.oppFastTelemetry = "1 Hz OCR Active";
             battleData.isOpponentShadow = false;
             battleData.currentFormLabel = "Base";
             battleData.availableForms = [];
             battleData.scannedOpponents = [];
+            battleData.oppMoveTimingRows = [];
+            battleData.myMoveTimingRows = [];
             battleData.throwAlignmentText = "—";
             battleData.throwHorizonText = "—";
             render();
@@ -915,15 +1003,20 @@
             }
         }
 
-        function selectUserPokemon(pokemonName) {
+        function selectUserPokemonByIndex(idx) {
+            if (!battleData.team || !battleData.team[idx]) return;
+            const pokemonName = battleData.team[idx].name;
             battleData.userActivePokemon = pokemonName;
+            battleData.activeUserSlotIndex = idx;
             render();
             if (window.AndroidOverlay && window.AndroidOverlay.selectActiveUserPokemon) {
                 window.AndroidOverlay.selectActiveUserPokemon(pokemonName);
             }
         }
 
-        function swapOpponent(pokemonName) {
+        function swapOpponentByIndex(idx) {
+            if (!battleData.scannedOpponents || !battleData.scannedOpponents[idx]) return;
+            const pokemonName = battleData.scannedOpponents[idx].name || battleData.scannedOpponents[idx].code;
             if (window.AndroidOverlay && window.AndroidOverlay.swapActiveOpponent) {
                 window.AndroidOverlay.swapActiveOpponent(pokemonName);
             }
@@ -940,81 +1033,98 @@
         }
 
         function updatePresets(presetsJson) {
-            // Presets are managed in the main app; active team chips render below
             notifyHeight();
         }
 
         function render() {
             const isWaitingState = (battleData.activeOpponent === "Waiting..." || !battleData.activeOpponent);
 
-            // Update Shadow Toggle Button
-            const shadowBtn = document.getElementById("btn-toggle-shadow");
-            if (shadowBtn) {
-                const isShad = !!battleData.isOpponentShadow;
-                shadowBtn.textContent = `Shadow: ${isShad ? "ON" : "OFF"}`;
-                if (isShad) shadowBtn.classList.add("active");
-                else shadowBtn.classList.remove("active");
-            }
-
-            // Update Form Cycle Button
-            const formBtn = document.getElementById("btn-cycle-form");
-            if (formBtn) {
-                const forms = battleData.availableForms || [];
-                const formLabel = battleData.currentFormLabel || "Base";
-                formBtn.textContent = `Form: ${formLabel}`;
-                if (forms.length > 1 && !isWaitingState) {
-                    formBtn.disabled = false;
-                    formBtn.classList.remove("disabled");
-                } else {
-                    formBtn.disabled = true;
-                    formBtn.classList.add("disabled");
+            try {
+                // Update Shadow Toggle Button
+                const shadowBtn = document.getElementById("btn-toggle-shadow");
+                if (shadowBtn) {
+                    const isShad = !!battleData.isOpponentShadow;
+                    shadowBtn.textContent = `Shadow: ${isShad ? "ON" : "OFF"}`;
+                    if (isShad) shadowBtn.classList.add("active");
+                    else shadowBtn.classList.remove("active");
                 }
-            }
 
-            // Render active team chips for player switches
-            const teamChipsContainer = document.getElementById("sky-team-chips");
-            if (teamChipsContainer && battleData.team) {
-                teamChipsContainer.innerHTML = battleData.team.map(member => {
-                    const fullName = member.name || "Pokemon";
-                    const shortName = fullName
-                        .replace(/^Shadow\s+/i, "S-")
-                        .replace(/^Kanto\s+/i, "")
-                        .split(" ")[0]
-                        .substring(0, 6);
-                    const isActive = (fullName.toLowerCase() === (battleData.userActivePokemon || "").toLowerCase());
-                    return `<button class="chip-btn ${isActive ? 'active' : ''}" onclick="selectUserPokemon('${fullName}')" title="Active lead: ${fullName}">${shortName}</button>`;
-                }).join("");
+                // Update Form Cycle Button
+                const formBtn = document.getElementById("btn-cycle-form");
+                if (formBtn) {
+                    const forms = battleData.availableForms || [];
+                    const formLabel = battleData.currentFormLabel || "Base";
+                    formBtn.textContent = `Form: ${formLabel}`;
+                    if (forms.length > 1 && !isWaitingState) {
+                        formBtn.disabled = false;
+                        formBtn.classList.remove("disabled");
+                    } else {
+                        formBtn.disabled = true;
+                        formBtn.classList.add("disabled");
+                    }
+                }
+
+                // Render active team chips for player switches
+                const teamChipsContainer = document.getElementById("sky-team-chips");
+                if (teamChipsContainer && battleData.team) {
+                    teamChipsContainer.innerHTML = battleData.team.map((member, mIdx) => {
+                        const fullName = member.name || "Pokemon";
+                        const shortName = fullName
+                            .replace(/^Shadow\s+/i, "S-")
+                            .replace(/^Kanto\s+/i, "")
+                            .split(" ")[0]
+                            .substring(0, 6);
+                        const isActive = (fullName.toLowerCase() === (battleData.userActivePokemon || "").toLowerCase());
+                        return `<button class="chip-btn ${isActive ? 'active' : ''}" onclick="selectUserPokemonByIndex(${mIdx})" title="Active lead: ${fullName}">${shortName}</button>`;
+                    }).join("");
+                }
+            } catch (e) {
+                console.error("Toolbar render error", e);
             }
 
             const oppNameEl = document.getElementById("sky-opp-name");
             const oppMoveEl = document.getElementById("sky-opp-fastmove");
+            const userFastEl = document.getElementById("sky-user-fastmove");
             const myShortEl = document.getElementById("sky-my-short");
-            const myDmgTargetEl = document.getElementById("sky-my-dmg-target");
-            const myDmgValuesEl = document.getElementById("sky-my-dmg-values");
             const cmpBadgeEl = document.getElementById("sky-cmp-badge");
+            const oppDmgHeadersEl = document.getElementById("sky-opp-dmg-headers");
+            const myDmgHeadersEl = document.getElementById("sky-my-dmg-headers");
             const timingRowsEl = document.getElementById("sky-move-timing-rows");
             const myTimingRowsEl = document.getElementById("sky-my-move-timing-rows");
             const matrixBody = document.getElementById("sky-matrix-body");
 
+            const teamList = (battleData.team && battleData.team.length >= 3)
+                ? battleData.team
+                : [
+                    { initial: "D", code: "DIA", name: "Dialga (Origin)" },
+                    { initial: "L", code: "LUG", name: "Lugia" },
+                    { initial: "K", code: "KYO", name: "Kyogre" }
+                ];
+
+            let activeSlotIdx = typeof battleData.activeUserSlotIndex === "number" ? battleData.activeUserSlotIndex : -1;
+            if (activeSlotIdx < 0 || activeSlotIdx > 2) {
+                activeSlotIdx = teamList.findIndex(m => (m.name || "").toLowerCase() === (battleData.userActivePokemon || "").toLowerCase());
+                if (activeSlotIdx < 0) activeSlotIdx = 0;
+            }
+
             const my3Letter = abbrPoke(battleData.userActivePokemon || "Lead", false);
-            const userTurns = battleData.userFastMoveTurns || 2;
-            if (myShortEl) myShortEl.textContent = `${my3Letter} (${userTurns}t)`;
+            const userFastTelemetry = battleData.userFastTelemetry || `${abbrMove5(battleData.userFastMoveName || "Fast")} ${battleData.userFastMoveTurns || 2}t`;
+            if (myShortEl) {
+                myShortEl.textContent = isWaitingState ? `${my3Letter}` : `${my3Letter} · ${userFastTelemetry}`;
+            }
 
             if (isWaitingState) {
                 if (oppNameEl) oppNameEl.textContent = "WAITING FOR OPPONENT...";
                 if (oppMoveEl) oppMoveEl.textContent = "(1 Hz OCR Active)";
-                if (myDmgTargetEl) myDmgTargetEl.textContent = "Opp";
-                if (myDmgValuesEl) myDmgValuesEl.textContent = "—";
+                if (userFastEl) userFastEl.classList.add("hidden");
                 if (cmpBadgeEl) {
                     cmpBadgeEl.textContent = "CMP: —";
                     cmpBadgeEl.className = "cmp-pill win";
                 }
-                if (timingRowsEl) {
-                    timingRowsEl.innerHTML = "";
-                }
-                if (myTimingRowsEl) {
-                    myTimingRowsEl.innerHTML = "";
-                }
+                if (oppDmgHeadersEl) oppDmgHeadersEl.innerHTML = "";
+                if (myDmgHeadersEl) myDmgHeadersEl.innerHTML = "";
+                if (timingRowsEl) timingRowsEl.innerHTML = "";
+                if (myTimingRowsEl) myTimingRowsEl.innerHTML = "";
 
                 if (matrixBody) {
                     matrixBody.innerHTML = `
@@ -1027,10 +1137,15 @@
             } else {
                 const shadPrefix = battleData.isOpponentShadow ? "SHADOW " : "";
                 if (oppNameEl) oppNameEl.textContent = "VS " + shadPrefix + (battleData.activeOpponent || "").toUpperCase();
-                if (oppMoveEl) oppMoveEl.textContent = `(${battleData.activeOpponentTurns || 2}t ${battleData.activeOpponentFastMove || "Fast"})`;
 
-                const opp3Letter = abbrPoke(battleData.activeOpponent || "", battleData.isOpponentShadow);
-                if (myDmgTargetEl) myDmgTargetEl.textContent = opp3Letter;
+                const oppFastTelemetry = battleData.oppFastTelemetry
+                    || `${abbrMove5(battleData.activeOpponentFastMove || "Fast")} ${battleData.activeOpponentTurns || 2}t`;
+                if (oppMoveEl) oppMoveEl.textContent = `[${oppFastTelemetry}]`;
+
+                if (userFastEl) {
+                    userFastEl.textContent = `You: ${userFastTelemetry}`;
+                    userFastEl.classList.remove("hidden");
+                }
 
                 const winsCmp = battleData.winsCmp !== undefined ? !!battleData.winsCmp : true;
                 if (cmpBadgeEl) {
@@ -1038,174 +1153,206 @@
                     cmpBadgeEl.className = "cmp-pill " + (winsCmp ? "win" : "loss");
                 }
 
-                // Render Opponent Attacks (Unified 3-Row Per-Move Timing & Catch/Swap HUD)
-                if (timingRowsEl) {
-                    const rows = battleData.oppMoveTimingRows || [];
-                    timingRowsEl.innerHTML = rows.map(row => {
-                        const shortMove = MOVE_ABBR[row.name] || (row.name && row.name.length > 8 ? row.name.substring(0, 7) + "." : (row.name || "Move"));
-                        const actvPct = row.activeDmgPct || 35;
-                        const actvEff = row.activeEff || 1.0;
-                        const threatClass = (actvPct >= 60 || actvEff >= 1.5) ? "high" : ((actvPct <= 30 || (actvEff <= 0.65 && actvPct < 45)) ? "low" : "mid");
-                        const myTapReady = row.myTapAtReady || 4;
-                        const rowWinsCmp = row.winsCmp !== undefined ? !!row.winsCmp : winsCmp;
+                // 1. Render 3v3 Battle Matrix FIRST so it is always visible when opponent is detected
+                try {
+                    if (matrixBody && battleData.scannedOpponents && battleData.scannedOpponents.length > 0) {
+                        matrixBody.innerHTML = battleData.scannedOpponents.map((opp, idx) => {
+                            const isLead = (idx === 0);
+                            const fullOppDisplay = (idx === 0 && battleData.isOpponentShadow ? "S-" : "") + (opp.name || opp.code);
+                            const p1Dots = renderTierDots(opp.matrix ? opp.matrix.p1 : "W,N,L");
+                            const p2Dots = renderTierDots(opp.matrix ? opp.matrix.p2 : "N,N,N");
+                            const p3Dots = renderTierDots(opp.matrix ? opp.matrix.p3 : "SW,W,W");
+                            return `
+                            <div class="matrix-row ${isLead ? 'active-lead' : ''}" onclick="swapOpponentByIndex(${idx})" style="cursor:pointer;" title="${isLead ? 'Active Opponent' : 'Tap to swap to lead'}">
+                                <span class="matrix-opp-name" title="${fullOppDisplay}">
+                                    <span style="color:${isLead ? '#38bdf8' : '#64748b'}; font-weight:700; font-size:8px; margin-right:3px;">#${idx + 1}</span>
+                                    ${fullOppDisplay}
+                                </span>
+                                <div class="matrix-team-block">
+                                    <span class="team-initial">${teamList[0].initial}:</span><span class="shield-dots">${p1Dots}</span>
+                                    <span class="divider">|</span>
+                                    <span class="team-initial">${teamList[1].initial}:</span><span class="shield-dots">${p2Dots}</span>
+                                    <span class="divider">|</span>
+                                    <span class="team-initial">${teamList[2].initial}:</span><span class="shield-dots">${p3Dots}</span>
+                                </div>
+                            </div>
+                            `;
+                        }).join("");
+                    }
+                } catch (e) {
+                    console.error("Matrix render error", e);
+                }
 
-                        let centerHtml = "";
-                        if (userTurns >= 3 && row.tapNodes && row.tapNodes.length > 0) {
-                            // 3, 4, or 5 turn user fast move -> Connected numbered tap dots in YOUR fast move counts
-                            // Minimal: no captions, no symbols, clean dots up to opponent's first charged move
-                            centerHtml = `<div class="tap-dots-track">` + row.tapNodes.map((node, nIdx) => {
-                                const conn = nIdx > 0 ? `<span class="tap-connector"></span>` : "";
-                                const nodeClass = node.state === "cmp" ? "node-cmp"
-                                    : node.state === "catch" ? "node-catch"
-                                    : node.state === "safe" ? "node-safe"
-                                    : "node-leak";
-                                return `${conn}<div class="tap-node-wrap"><span class="tap-dot ${nodeClass}">${node.label}</span></div>`;
-                            }).join("") + `</div>`;
-                        } else {
-                            // 1 or 2 turn user fast move -> Simplified segmented bar in YOUR fast move counts
-                            // Stops at first charged move tap! No symbols, no SAFE/CATCH words
+                // 2. Render Opponent Attacks 3-Column Header & Segmented Range Rows
+                try {
+                    if (oppDmgHeadersEl) {
+                        oppDmgHeadersEl.innerHTML = teamList.slice(0, 3).map((member, idx) => {
+                            const code = member.code || abbrPoke(member.name, false);
+                            const isAct = (idx === activeSlotIdx);
+                            return `<span class="dmg-col-hdr ${isAct ? 'active-col' : ''}">${code}</span>`;
+                        }).join("");
+                    }
+
+                    if (timingRowsEl) {
+                        const rows = battleData.oppMoveTimingRows || [];
+                        timingRowsEl.innerHTML = rows.map(row => {
+                            const shortMove = row.shortName || abbrMove5(row.name || "Move");
+                            const actvPct = row.activeDmgPct || 35;
+                            const actvEff = row.activeEff || 1.0;
+                            const threatClass = (actvPct >= 60 || actvEff >= 1.5) ? "high" : ((actvPct <= 30 || (actvEff <= 0.65 && actvPct < 45)) ? "low" : "mid");
+                            const myTapReady = row.myTapAtReady || 4;
+                            const rowWinsCmp = row.winsCmp !== undefined ? !!row.winsCmp : winsCmp;
+
+                            // Always use the rectangular segmented bar for all turn lengths
                             const safeLabel = row.safeRangeLabel || (myTapReady <= 1 ? "1" : `1–${myTapReady - 1}`);
                             const actionBlock = rowWinsCmp
                                 ? `<span class="seg-block seg-cmp" title="CMP Win on #${myTapReady}">#${myTapReady}</span>`
                                 : `<span class="seg-block seg-catch" title="Opponent can throw on #${myTapReady} (Catch)">#${myTapReady}</span>`;
-                            centerHtml = `
+                            const centerHtml = `
                                 <div class="seg-bar-track">
-                                    <span class="seg-block seg-safe">${safeLabel}</span>
+                                    <span class="seg-block seg-range seg-safe">${safeLabel}</span>
                                     ${actionBlock}
                                 </div>
                             `;
-                        }
 
-                        // Swap options: 3 letters of pokemon name and percent with color coding, NO weak/res text
-                        const benchBadgesHtml = (row.bench || []).map(b => {
-                            const bShort = abbrPoke(b.name, false);
-                            const tierCls = b.tier === "resist" ? "tier-resist" : (b.tier === "weak" ? "tier-weak" : "tier-neutral");
-                            return `<span class="bench-chip ${tierCls}">${bShort} ${b.dmgPct}%</span>`;
-                        }).join("");
+                            // 3-Column Team Damage Matrix with Vertical Active Column Highlight
+                            let teamDamages = row.teamDamages;
+                            if (!teamDamages || teamDamages.length < 3) {
+                                teamDamages = teamList.slice(0, 3).map((m, idx) => ({
+                                    code: m.code || abbrPoke(m.name, false),
+                                    dmgPct: idx === activeSlotIdx ? actvPct : 40,
+                                    tier: "neutral",
+                                    isActive: idx === activeSlotIdx
+                                }));
+                            }
 
-                        return `
-                            <div class="move-timing-row">
-                                <div class="move-col-left">
-                                    <div class="move-title-line threat-${threatClass}">${shortMove} (${row.energy || 50}e)</div>
-                                    <div class="move-sub-line"><span class="actv-pct-${threatClass}">${actvPct}%</span> on ${my3Letter} · @${myTapReady}f</div>
+                            const rightGridHtml = teamDamages.slice(0, 3).map((td, idx) => {
+                                const isAct = td.isActive !== undefined ? !!td.isActive : (idx === activeSlotIdx);
+                                const tierCls = td.tier === "resist" ? "tier-resist" : (td.tier === "weak" ? "tier-weak" : "tier-neutral");
+                                return `<div class="dmg-cell ${tierCls} ${isAct ? 'active-col' : ''}">${td.dmgPct}%</div>`;
+                            }).join("");
+
+                            return `
+                                <div class="move-timing-row">
+                                    <div class="move-col-left">
+                                        <div class="move-title-line threat-${threatClass}" title="${row.name || ''}">${shortMove}</div>
+                                        <div class="move-sub-line">${row.energy || 50}e/${myTapReady}f</div>
+                                    </div>
+                                    <div class="move-col-center">${centerHtml}</div>
+                                    <div class="move-col-right-grid">${rightGridHtml}</div>
                                 </div>
-                                <div class="move-col-center">${centerHtml}</div>
-                                <div class="move-col-right">${benchBadgesHtml}</div>
-                            </div>
-                        `;
-                    }).join("");
+                            `;
+                        }).join("");
+                    }
+                } catch (e) {
+                    console.error("Opponent attacks render error", e);
                 }
 
-                // Render My Attacks (Vertically Aligned With Opponent Moves)
-                if (myTimingRowsEl) {
-                    const myRows = battleData.myMoveTimingRows || [];
-                    myTimingRowsEl.innerHTML = myRows.map(row => {
-                        const shortMove = MOVE_ABBR[row.name] || (row.name && row.name.length > 8 ? row.name.substring(0, 7) + "." : (row.name || "Move"));
-                        const dmgPct = row.dmgPct || 40;
-                        const eff = row.eff || 1.0;
-                        const myTaps = row.myTapsNeeded || 4;
-                        const threatClass = (dmgPct >= 65 || eff >= 1.5) ? "high" : ((dmgPct <= 30 || eff <= 0.65) ? "low" : "mid");
+                // 3. Render My Attacks 3-Column Opponent Header & Zero-Sneak Segmented Range Rows
+                try {
+                    const scanned = battleData.scannedOpponents || [];
+                    if (myDmgHeadersEl) {
+                        myDmgHeadersEl.innerHTML = [0, 1, 2].map(idx => {
+                            const opp = scanned[idx];
+                            const code = opp ? (opp.code || abbrPoke(opp.name, idx === 0 && battleData.isOpponentShadow)) : "—";
+                            const isAct = (idx === 0);
+                            return `<span class="dmg-col-hdr ${isAct ? 'active-col' : ''}">${code}</span>`;
+                        }).join("");
+                    }
 
-                        let centerHtml = "";
-                        if (userTurns >= 3 && row.tapNodes && row.tapNodes.length > 0) {
-                            // Mimic opponent dots vertically aligned
-                            centerHtml = `<div class="tap-dots-track">` + row.tapNodes.map((node, nIdx) => {
-                                const conn = nIdx > 0 ? `<span class="tap-connector"></span>` : "";
-                                const nodeClass = node.state === "cmp" ? "node-cmp"
-                                    : node.state === "cmp-loss" ? "node-cmp-loss"
-                                    : node.state === "safe" ? "node-safe"
-                                    : "node-uncharged";
-                                return `${conn}<div class="tap-node-wrap"><span class="tap-dot ${nodeClass}">${node.label}</span></div>`;
-                            }).join("") + `</div>`;
-                        } else {
-                            // 1-2 turn fast moves: segmented bar
-                            const unchargedLabel = myTaps <= 1 ? "" : `1–${myTaps - 1}`;
+                    if (myTimingRowsEl) {
+                        const myRows = battleData.myMoveTimingRows || [];
+                        myTimingRowsEl.innerHTML = myRows.map(row => {
+                            const shortMove = row.shortName || abbrMove5(row.name || "Move");
+                            const dmgPct = row.dmgPct || 40;
+                            const eff = row.eff || 1.0;
+                            const myTaps = row.myTapsNeeded || 4;
+                            const threatClass = (dmgPct >= 65 || eff >= 1.5) ? "low" : ((dmgPct <= 30 || eff <= 0.65) ? "high" : "mid");
+
+                            // Always use the rectangular segmented bar with Safe leak-free numbers inside
+                            const rangeLabel = row.safeThrowLabel || (myTaps <= 1 ? "1" : `1–${myTaps - 1}`);
+                            const rangeCls = row.hasZeroSneak ? "seg-safe" : "seg-uncharged";
                             const readyBlock = row.state === "cmp"
                                 ? `<span class="seg-block seg-cmp" title="Ready on #${myTaps} (CMP Win)">#${myTaps}</span>`
                                 : row.state === "cmp-loss"
                                 ? `<span class="seg-block seg-catch" title="Ready on #${myTaps} (CMP Loss)">#${myTaps}</span>`
                                 : `<span class="seg-block seg-safe" title="Ready on #${myTaps}">#${myTaps}</span>`;
-                            centerHtml = `
+                            const centerHtml = `
                                 <div class="seg-bar-track">
-                                    ${unchargedLabel ? `<span class="seg-block seg-uncharged">${unchargedLabel}</span>` : ""}
+                                    <span class="seg-block seg-range ${rangeCls}">${rangeLabel}</span>
                                     ${readyBlock}
                                 </div>
                             `;
-                        }
 
-                        const badgeCls = dmgPct >= 65 ? "tier-resist" : (dmgPct <= 35 ? "tier-weak" : "tier-neutral");
-                        const koText = dmgPct >= 100 ? "KO!" : `${dmgPct}%`;
+                            let oppDamages = row.oppDamages;
+                            if (!oppDamages || oppDamages.length < 3) {
+                                oppDamages = [0, 1, 2].map(idx => ({
+                                    code: scanned[idx] ? abbrPoke(scanned[idx].name, false) : "—",
+                                    dmgPct: idx === 0 ? dmgPct : null,
+                                    tier: idx === 0 ? (dmgPct >= 65 ? "high" : (dmgPct <= 35 ? "low" : "neutral")) : "empty",
+                                    isActive: idx === 0
+                                }));
+                            }
 
-                        return `
-                            <div class="move-timing-row">
-                                <div class="move-col-left">
-                                    <div class="move-title-line threat-${threatClass}">${shortMove} (${row.energy || 50}e)</div>
-                                    <div class="move-sub-line"><span class="actv-pct-${threatClass}">${dmgPct}%</span> to Opp · @${myTaps}f</div>
+                            const rightGridHtml = oppDamages.slice(0, 3).map((od, idx) => {
+                                const isAct = od.isActive !== undefined ? !!od.isActive : (idx === 0);
+                                if (od.dmgPct === null || od.dmgPct === undefined || od.tier === "empty") {
+                                    return `<div class="dmg-cell tier-empty ${isAct ? 'active-col' : ''}">—</div>`;
+                                }
+                                const tierCls = od.tier === "high" ? "tier-high" : (od.tier === "low" ? "tier-low" : "tier-neutral");
+                                const text = od.dmgPct >= 100 ? "KO!" : `${od.dmgPct}%`;
+                                return `<div class="dmg-cell ${tierCls} ${isAct ? 'active-col' : ''}">${text}</div>`;
+                            }).join("");
+
+                            return `
+                                <div class="move-timing-row">
+                                    <div class="move-col-left">
+                                        <div class="move-title-line threat-${threatClass}" title="${row.name || ''}">${shortMove}</div>
+                                        <div class="move-sub-line">${row.energy || 50}e/${myTaps}f</div>
+                                    </div>
+                                    <div class="move-col-center">${centerHtml}</div>
+                                    <div class="move-col-right-grid">${rightGridHtml}</div>
                                 </div>
-                                <div class="move-col-center">${centerHtml}</div>
-                                <div class="move-col-right">
-                                    <span class="bench-chip ${badgeCls}">${koText}</span>
-                                </div>
-                            </div>
-                        `;
-                    }).join("");
-                }
-
-                if (matrixBody && battleData.scannedOpponents && battleData.scannedOpponents.length > 0) {
-                    const teamInitials = (battleData.team && battleData.team.length >= 3) 
-                        ? battleData.team 
-                        : [{ initial: "P1" }, { initial: "P2" }, { initial: "P3" }];
-
-                    // Show FULL Pokémon Name & 5-Tier Shield Matrix Dots in the 3v3 Battle Matrix
-                    matrixBody.innerHTML = battleData.scannedOpponents.map((opp, idx) => {
-                        const isLead = (idx === 0);
-                        const fullOppDisplay = (idx === 0 && battleData.isOpponentShadow ? "S-" : "") + (opp.name || opp.code);
-                        const p1Dots = renderTierDots(opp.matrix ? opp.matrix.p1 : "W,N,L");
-                        const p2Dots = renderTierDots(opp.matrix ? opp.matrix.p2 : "N,N,N");
-                        const p3Dots = renderTierDots(opp.matrix ? opp.matrix.p3 : "SW,W,W");
-                        return `
-                        <div class="matrix-row ${isLead ? 'active-lead' : ''}" onclick="swapOpponent('${opp.name || opp.code}')" style="cursor:pointer;" title="${isLead ? 'Active Opponent' : 'Tap to swap to lead'}">
-                            <span class="matrix-opp-name" title="${fullOppDisplay}">
-                                <span style="color:${isLead ? '#38bdf8' : '#64748b'}; font-weight:700; font-size:8px; margin-right:3px;">#${idx + 1}</span>
-                                ${fullOppDisplay}
-                            </span>
-                            <div class="matrix-team-block">
-                                <span class="team-initial">${teamInitials[0].initial}:</span><span class="shield-dots">${p1Dots}</span>
-                                <span class="divider">|</span>
-                                <span class="team-initial">${teamInitials[1].initial}:</span><span class="shield-dots">${p2Dots}</span>
-                                <span class="divider">|</span>
-                                <span class="team-initial">${teamInitials[2].initial}:</span><span class="shield-dots">${p3Dots}</span>
-                            </div>
-                        </div>
-                        `;
-                    }).join("");
+                            `;
+                        }).join("");
+                    }
+                } catch (e) {
+                    console.error("My attacks render error", e);
                 }
             }
 
             // Render Option 2 (Horizon Belt)
-            const horizonTitle = document.getElementById("horizon-opp-title");
-            const horizonDots = document.getElementById("horizon-matrix-dots");
-            const horizonThrow = document.getElementById("horizon-throw-timing");
-            const horizonDmg = document.getElementById("horizon-dmg-summary");
+            try {
+                const horizonTitle = document.getElementById("horizon-opp-title");
+                const horizonDots = document.getElementById("horizon-matrix-dots");
+                const horizonThrow = document.getElementById("horizon-throw-timing");
+                const horizonDmg = document.getElementById("horizon-dmg-summary");
 
-            if (isWaitingState) {
-                horizonTitle.textContent = "[Waiting for Opponent]";
-                horizonDots.textContent = "1 Hz OCR active...";
-                horizonThrow.textContent = "—";
-                horizonDmg.textContent = "Awaiting opponent...";
-            } else {
-                horizonTitle.textContent = `[${battleData.activeOpponent}: ${battleData.activeOpponentTurns}t]`;
-                horizonThrow.textContent = battleData.throwHorizonText || "1st, 3rd, 5th";
-                if (battleData.scannedOpponents && battleData.scannedOpponents.length > 0) {
-                    horizonDots.innerHTML = battleData.scannedOpponents.map((opp, idx) => `
-                        <strong>${opp.name}</strong> <span class="shield-dots">${renderTierDots(opp.matrix ? opp.matrix.p1 : "W,N,L")}</span>
-                        ${idx < battleData.scannedOpponents.length - 1 ? ' • ' : ''}
-                    `).join("");
-                    horizonDmg.textContent = `Opp: ${abbrMoveSummary(battleData.scannedOpponents[0].c1)} • My: ${abbrMoveSummary(battleData.myMove1Summary || '—')}`;
+                if (isWaitingState) {
+                    if (horizonTitle) horizonTitle.textContent = "[Waiting for Opponent]";
+                    if (horizonDots) horizonDots.textContent = "1 Hz OCR active...";
+                    if (horizonThrow) horizonThrow.textContent = "—";
+                    if (horizonDmg) horizonDmg.textContent = "Awaiting opponent...";
+                } else {
+                    const oppFastTelemetry = battleData.oppFastTelemetry
+                        || `${abbrMove5(battleData.activeOpponentFastMove || "Fast")} ${battleData.activeOpponentTurns || 2}t`;
+                    if (horizonTitle) horizonTitle.textContent = `[${battleData.activeOpponent}: ${oppFastTelemetry}]`;
+                    if (horizonThrow) horizonThrow.textContent = battleData.throwHorizonText || "1st, 3rd, 5th";
+                    if (horizonDots && battleData.scannedOpponents && battleData.scannedOpponents.length > 0) {
+                        horizonDots.innerHTML = battleData.scannedOpponents.map((opp, idx) => `
+                            <strong>${opp.name}</strong> <span class="shield-dots">${renderTierDots(opp.matrix ? opp.matrix.p1 : "W,N,L")}</span>
+                            ${idx < battleData.scannedOpponents.length - 1 ? ' • ' : ''}
+                        `).join("");
+                        if (horizonDmg) {
+                            horizonDmg.textContent = `Opp: ${abbrMoveSummary(battleData.scannedOpponents[0].c1)} • My: ${abbrMoveSummary(battleData.myMove1Summary || '—')}`;
+                        }
+                    }
                 }
+            } catch (e) {
+                console.error("Horizon render error", e);
             }
 
-            setTimeout(notifyHeight, 50);
+            setTimeout(notifyHeight, 40);
         }
 
         window.onload = function() {
