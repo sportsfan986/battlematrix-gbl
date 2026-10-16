@@ -366,7 +366,7 @@
             border: 1px solid #7dd3fc;
         }
 
-        /* Yellow = Energy leak turn or 2nd move cap */
+        /* Yellow = Energy leak turn */
         .tap-dot.node-leak, .tap-dot.node-cap {
             background: #b45309;
             border: 1px solid #fcd34d;
@@ -374,10 +374,11 @@
         }
 
         /* Red = Opponent can throw & wins CMP -> Catch option */
-        .tap-dot.node-catch {
+        .tap-dot.node-catch, .tap-dot.node-cmp-loss {
             background: #dc2626;
             border: 1.2px solid #fecaca;
             box-shadow: 0 0 4px rgba(239, 68, 68, 0.75);
+            color: #ffffff;
         }
 
         /* Green = Opponent can throw & YOU win CMP tie! */
@@ -385,18 +386,15 @@
             background: #16a34a;
             border: 1.2px solid #bbf7d0;
             box-shadow: 0 0 4px rgba(34, 197, 94, 0.8);
+            color: #ffffff;
         }
 
-        .tap-micro-caption {
-            font-size: 6.5px;
-            font-weight: 800;
-            line-height: 1;
-            margin-top: 1px;
-            white-space: nowrap;
+        /* Grey = Uncharged / charging turn (unable to throw yet) */
+        .tap-dot.node-uncharged {
+            background: rgba(51, 65, 85, 0.6);
+            border: 1px solid rgba(148, 163, 184, 0.45);
+            color: #94a3b8;
         }
-
-        .tap-micro-caption.cap-catch { color: #fca5a5; }
-        .tap-micro-caption.cap-cmp   { color: #86efac; }
 
         /* 1-2T Segmented Bar Mode */
         .seg-bar-track {
@@ -434,10 +432,10 @@
             color: #ffffff;
         }
 
-        .seg-cap {
-            background: rgba(180, 83, 9, 0.35);
-            border: 1px solid rgba(251, 191, 36, 0.65);
-            color: #fde047;
+        .seg-uncharged {
+            background: rgba(51, 65, 85, 0.35);
+            border: 1px solid rgba(148, 163, 184, 0.4);
+            color: #94a3b8;
         }
 
         /* Right Column: Bench Catch & Threat Badges */
@@ -450,7 +448,7 @@
 
         .bench-chip {
             border-radius: 3px;
-            padding: 1.5px 3px;
+            padding: 1.5px 3.5px;
             font-size: 7.5px;
             font-weight: 800;
             white-space: nowrap;
@@ -459,9 +457,9 @@
         }
 
         .bench-chip.tier-resist {
-            background: rgba(30, 64, 175, 0.48);
-            border: 1px solid rgba(96, 165, 250, 0.75);
-            color: #bfdbfe;
+            background: rgba(16, 185, 129, 0.42);
+            border: 1px solid rgba(52, 211, 153, 0.85);
+            color: #a7f3d0;
         }
 
         .bench-chip.tier-neutral {
@@ -471,9 +469,21 @@
         }
 
         .bench-chip.tier-weak {
-            background: rgba(127, 29, 29, 0.55);
-            border: 1px solid rgba(248, 113, 113, 0.75);
+            background: rgba(185, 28, 28, 0.55);
+            border: 1px solid rgba(248, 113, 113, 0.85);
             color: #fecaca;
+        }
+
+        .section-header-label {
+            font-size: 8px;
+            font-weight: 800;
+            color: #94a3b8;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            padding: 1px 1px 2px 1px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
         }
 
         /* 1-Line Outgoing Damage & CMP Status Footer */
@@ -598,18 +608,22 @@
             </div>
         </div>
 
-        <!-- Unified 3-Row Per-Move Fast Timing, Catch/CMP & Bench Threat HUD -->
-        <div class="timing-rows-container" id="sky-move-timing-rows">
-            <!-- Dynamically populated per opponent charged move (c1, c2, c3) -->
+        <!-- Opponent Attacks (Unified 3-Row Per-Move Timing & Catch/Swap HUD) -->
+        <div class="timing-rows-container">
+            <div class="section-header-label">
+                <span>Opponent Attacks</span>
+                <span id="sky-cmp-badge" class="cmp-pill win">CMP: —</span>
+            </div>
+            <div id="sky-move-timing-rows" style="display:flex; flex-direction:column; gap:2.5px;"></div>
         </div>
 
-        <!-- 1-Line Outgoing Damage & CMP Status Footer -->
-        <div class="my-dmg-footer" id="sky-my-dmg-active">
-            <div style="overflow:hidden; text-overflow:ellipsis;">
-                ⚔️ <strong id="sky-my-short" style="color:#38bdf8;">Me</strong>→<strong id="sky-my-dmg-target" style="color:#fef08a;">Opp</strong>: 
-                <span class="dmg-taps" id="sky-my-dmg-values">—</span>
+        <!-- My Attacks (Vertically Aligned Charging Taps & Outgoing Damage) -->
+        <div class="timing-rows-container">
+            <div class="section-header-label">
+                <span>My Attacks</span>
+                <span id="sky-my-short" style="color:#38bdf8; font-weight:800;">Lead</span>
             </div>
-            <span id="sky-cmp-badge" class="cmp-pill win">CMP: —</span>
+            <div id="sky-my-move-timing-rows" style="display:flex; flex-direction:column; gap:2.5px;"></div>
         </div>
     </div>
 
@@ -738,6 +752,11 @@
             "Secret Sword": "Sec.Swd",
             "Aqua Jet": "Aq.Jet",
             "Double Iron Bash": "Dbl.Irn",
+            "Drum Beating": "Drm.Bt",
+            "Gigaton Hammer": "Ggt.Hmr",
+            "Air Cutter": "Air.Cut",
+            "Bulldoze": "Bulldz",
+            "Brutal Swing": "Brt.Swg",
             "Swift": "Swift"
         };
 
@@ -986,15 +1005,7 @@
                     cmpBadgeEl.className = "cmp-pill " + (winsCmp ? "win" : "loss");
                 }
 
-                if (battleData.myMove1Summary && battleData.myMove2Summary) {
-                    const m1 = abbrMoveSummary(battleData.myMove1Summary);
-                    const m2 = abbrMoveSummary(battleData.myMove2Summary);
-                    myDmgValuesEl.innerHTML = `<span class="dmg-ready">${m1}</span> | <span class="dmg-taps">${m2}</span>`;
-                } else {
-                    myDmgValuesEl.textContent = "—";
-                }
-
-                // Render Unified 3-Row Per-Move Timing, Catch/CMP & Bench Threat HUD
+                // Render Opponent Attacks (Unified 3-Row Per-Move Timing & Catch/Swap HUD)
                 if (timingRowsEl) {
                     const rows = battleData.oppMoveTimingRows || [];
                     timingRowsEl.innerHTML = rows.map(row => {
@@ -1003,46 +1014,40 @@
                         const actvEff = row.activeEff || 1.0;
                         const threatClass = (actvPct >= 60 || actvEff >= 1.5) ? "high" : ((actvPct <= 30 || (actvEff <= 0.65 && actvPct < 45)) ? "low" : "mid");
                         const myTapReady = row.myTapAtReady || 4;
-                        const myCapTap = row.myCapTap || (myTapReady * 2);
                         const rowWinsCmp = row.winsCmp !== undefined ? !!row.winsCmp : winsCmp;
 
                         let centerHtml = "";
                         if (userTurns >= 3 && row.tapNodes && row.tapNodes.length > 0) {
                             // 3, 4, or 5 turn user fast move -> Connected numbered tap dots in YOUR fast move counts
+                            // Minimal: no captions, no symbols, clean dots up to opponent's first charged move
                             centerHtml = `<div class="tap-dots-track">` + row.tapNodes.map((node, nIdx) => {
                                 const conn = nIdx > 0 ? `<span class="tap-connector"></span>` : "";
                                 const nodeClass = node.state === "cmp" ? "node-cmp"
                                     : node.state === "catch" ? "node-catch"
                                     : node.state === "safe" ? "node-safe"
                                     : "node-leak";
-                                let caption = "";
-                                if (node.isCatchOrCmp) {
-                                    caption = rowWinsCmp
-                                        ? `<span class="tap-micro-caption cap-cmp">▲CMP✓/🎯</span>`
-                                        : `<span class="tap-micro-caption cap-catch">▲🎯Catch</span>`;
-                                }
-                                return `${conn}<div class="tap-node-wrap"><span class="tap-dot ${nodeClass}">${node.label}</span>${caption}</div>`;
+                                return `${conn}<div class="tap-node-wrap"><span class="tap-dot ${nodeClass}">${node.label}</span></div>`;
                             }).join("") + `</div>`;
                         } else {
-                            // 1 or 2 turn user fast move -> Simplified segmented bars in YOUR fast move counts
-                            const safeLabel = row.safeRangeLabel || `1–${Math.max(1, myTapReady - 1)} SAFE`;
+                            // 1 or 2 turn user fast move -> Simplified segmented bar in YOUR fast move counts
+                            // Stops at first charged move tap! No symbols, no SAFE/CATCH words
+                            const safeLabel = row.safeRangeLabel || (myTapReady <= 1 ? "1" : `1–${myTapReady - 1}`);
                             const actionBlock = rowWinsCmp
-                                ? `<span class="seg-block seg-cmp" title="You win CMP tie on tap #${myTapReady}, or swap to catch">⚡#${myTapReady} CMP✓ · 🎯</span>`
-                                : `<span class="seg-block seg-catch" title="Opponent wins CMP — swap on #${myTapReady} to catch">🎯 #${myTapReady} CATCH</span>`;
+                                ? `<span class="seg-block seg-cmp" title="CMP Win on #${myTapReady}">#${myTapReady}</span>`
+                                : `<span class="seg-block seg-catch" title="Opponent can throw on #${myTapReady} (Catch)">#${myTapReady}</span>`;
                             centerHtml = `
                                 <div class="seg-bar-track">
                                     <span class="seg-block seg-safe">${safeLabel}</span>
                                     ${actionBlock}
-                                    <span class="seg-block seg-cap">#${myCapTap}⚡</span>
                                 </div>
                             `;
                         }
 
+                        // Swap options: 3 letters of pokemon name and percent with color coding, NO weak/res text
                         const benchBadgesHtml = (row.bench || []).map(b => {
                             const bShort = abbrPoke(b.name, false);
                             const tierCls = b.tier === "resist" ? "tier-resist" : (b.tier === "weak" ? "tier-weak" : "tier-neutral");
-                            const tagStr = b.tag ? ` ${b.tag}` : "";
-                            return `<span class="bench-chip ${tierCls}">${bShort}:${b.dmgPct}%${tagStr}</span>`;
+                            return `<span class="bench-chip ${tierCls}">${bShort} ${b.dmgPct}%</span>`;
                         }).join("");
 
                         return `
@@ -1053,6 +1058,62 @@
                                 </div>
                                 <div class="move-col-center">${centerHtml}</div>
                                 <div class="move-col-right">${benchBadgesHtml}</div>
+                            </div>
+                        `;
+                    }).join("");
+                }
+
+                // Render My Attacks (Vertically Aligned With Opponent Moves)
+                const myTimingRowsEl = document.getElementById("sky-my-move-timing-rows");
+                if (myTimingRowsEl) {
+                    const myRows = battleData.myMoveTimingRows || [];
+                    myTimingRowsEl.innerHTML = myRows.map(row => {
+                        const shortMove = MOVE_ABBR[row.name] || (row.name && row.name.length > 8 ? row.name.substring(0, 7) + "." : (row.name || "Move"));
+                        const dmgPct = row.dmgPct || 40;
+                        const eff = row.eff || 1.0;
+                        const myTaps = row.myTapsNeeded || 4;
+                        const threatClass = (dmgPct >= 65 || eff >= 1.5) ? "high" : ((dmgPct <= 30 || eff <= 0.65) ? "low" : "mid");
+
+                        let centerHtml = "";
+                        if (userTurns >= 3 && row.tapNodes && row.tapNodes.length > 0) {
+                            // Mimic opponent dots vertically aligned
+                            centerHtml = `<div class="tap-dots-track">` + row.tapNodes.map((node, nIdx) => {
+                                const conn = nIdx > 0 ? `<span class="tap-connector"></span>` : "";
+                                const nodeClass = node.state === "cmp" ? "node-cmp"
+                                    : node.state === "cmp-loss" ? "node-cmp-loss"
+                                    : node.state === "safe" ? "node-safe"
+                                    : "node-uncharged";
+                                return `${conn}<div class="tap-node-wrap"><span class="tap-dot ${nodeClass}">${node.label}</span></div>`;
+                            }).join("") + `</div>`;
+                        } else {
+                            // 1-2 turn fast moves: segmented bar
+                            const unchargedLabel = myTaps <= 1 ? "" : `1–${myTaps - 1}`;
+                            const readyBlock = row.state === "cmp"
+                                ? `<span class="seg-block seg-cmp" title="Ready on #${myTaps} (CMP Win)">#${myTaps}</span>`
+                                : row.state === "cmp-loss"
+                                ? `<span class="seg-block seg-catch" title="Ready on #${myTaps} (CMP Loss)">#${myTaps}</span>`
+                                : `<span class="seg-block seg-safe" title="Ready on #${myTaps}">#${myTaps}</span>`;
+                            centerHtml = `
+                                <div class="seg-bar-track">
+                                    ${unchargedLabel ? `<span class="seg-block seg-uncharged">${unchargedLabel}</span>` : ""}
+                                    ${readyBlock}
+                                </div>
+                            `;
+                        }
+
+                        const badgeCls = dmgPct >= 65 ? "tier-resist" : (dmgPct <= 35 ? "tier-weak" : "tier-neutral");
+                        const koText = dmgPct >= 100 ? "KO!" : `${dmgPct}%`;
+
+                        return `
+                            <div class="move-timing-row">
+                                <div class="move-col-left">
+                                    <div class="move-title-line threat-${threatClass}">${shortMove} (${row.energy || 50}e)</div>
+                                    <div class="move-sub-line"><span class="actv-pct-${threatClass}">${dmgPct}%</span> to Opp · @${myTaps}f</div>
+                                </div>
+                                <div class="move-col-center">${centerHtml}</div>
+                                <div class="move-col-right">
+                                    <span class="bench-chip ${badgeCls}">${koText}</span>
+                                </div>
                             </div>
                         `;
                     }).join("");

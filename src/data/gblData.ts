@@ -265,9 +265,9 @@ export const POKEMON_DATABASE: Record<string, PokemonStats> = {
     baseStats: { atk: 148, def: 178, hp: 202 },
     defaultFastMove: { name: "Sand Attack", type: "ground", turns: 1, power: 2, energyGain: 4 },
     chargedMoves: [
-      { name: "Sky Attack", code: "SA", type: "flying", power: 75, energyCost: 50 },
+      { name: "Air Cutter", code: "AC", type: "flying", power: 60, energyCost: 55 },
       { name: "Iron Head", code: "IH", type: "steel", power: 70, energyCost: 50 },
-      { name: "Payback", code: "PB", type: "dark", power: 110, energyCost: 60 }
+      { name: "Sky Attack", code: "SA", type: "flying", power: 75, energyCost: 50 }
     ],
     color: "#64748b"
   },
@@ -293,13 +293,43 @@ export const POKEMON_DATABASE: Record<string, PokemonStats> = {
     formLabel: "Kanto",
     types: ["fire"],
     baseStats: { atk: 115, def: 138, hp: 127 },
-    defaultFastMove: { name: "Fire Spin", type: "fire", turns: 3, power: 10, energyGain: 10 },
+    defaultFastMove: { name: "Ember", type: "fire", turns: 2, power: 10, energyGain: 6 },
     chargedMoves: [
       { name: "Weather Ball", code: "WB", type: "fire", power: 55, energyCost: 35 },
-      { name: "Scorching Sands", code: "SS", type: "ground", power: 80, energyCost: 50 },
+      { name: "Energy Ball", code: "EB", type: "grass", power: 90, energyCost: 55 },
       { name: "Overheat", code: "OH", type: "fire", power: 130, energyCost: 55 }
     ],
     color: "#f97316"
+  },
+  Tinkaton: {
+    speciesId: "tinkaton",
+    name: "Tinkaton",
+    baseSpecies: "tinkaton",
+    formLabel: "Base",
+    types: ["fairy", "steel"],
+    baseStats: { atk: 138, def: 176, hp: 166 },
+    defaultFastMove: { name: "Fairy Wind", type: "fairy", turns: 2, power: 3, energyGain: 9 },
+    chargedMoves: [
+      { name: "Gigaton Hammer", code: "GH", type: "steel", power: 130, energyCost: 60 },
+      { name: "Bulldoze", code: "BD", type: "ground", power: 80, energyCost: 55 },
+      { name: "Brutal Swing", code: "BS", type: "dark", power: 65, energyCost: 40 }
+    ],
+    color: "#ec4899"
+  },
+  Rillaboom: {
+    speciesId: "rillaboom",
+    name: "Rillaboom",
+    baseSpecies: "rillaboom",
+    formLabel: "Base",
+    types: ["grass"],
+    baseStats: { atk: 178, def: 138, hp: 172 },
+    defaultFastMove: { name: "Scratch", type: "normal", turns: 1, power: 4, energyGain: 2 },
+    chargedMoves: [
+      { name: "Drum Beating", code: "DB", type: "grass", power: 60, energyCost: 35 },
+      { name: "Earth Power", code: "EP", type: "ground", power: 90, energyCost: 55 },
+      { name: "Frenzy Plant", code: "FP", type: "grass", power: 100, energyCost: 45 }
+    ],
+    color: "#22c55e"
   },
   "Ninetales (Alolan)": {
     speciesId: "ninetales_alolan",
@@ -549,7 +579,7 @@ export function calculateChargedDamage(
 export interface TapNodeInfo {
   tap: number;
   label: string;
-  state: "safe" | "leak" | "catch" | "cmp" | "cap";
+  state: "safe" | "leak" | "catch" | "cmp" | "uncharged" | "cmp-loss";
   isCatchOrCmp: boolean;
 }
 
@@ -557,7 +587,6 @@ export interface BenchThreatInfo {
   name: string;
   dmgPct: number;
   eff: number;
-  tag: string;
   tier: "resist" | "neutral" | "weak";
 }
 
@@ -579,9 +608,19 @@ export interface OpponentMoveTimingRow {
   bench: BenchThreatInfo[];
 }
 
+export interface MyMoveTimingRow {
+  name: string;
+  energy: number;
+  myTapsNeeded: number;
+  dmgPct: number;
+  eff: number;
+  state: "safe" | "cmp" | "cmp-loss";
+  tapNodes: TapNodeInfo[];
+}
+
 /**
  * Computes per-move timing, catch/CMP windows, and active/bench threat rows
- * strictly in YOUR active Pokémon's fast-move tap counts.
+ * strictly in YOUR active Pokémon's fast-move tap counts up to opponent's first charged move.
  */
 export function calculateOpponentMoveTimingRows(
   oppStats: PokemonStats,
@@ -628,41 +667,23 @@ export function calculateOpponentMoveTimingRows(
         Object.values(POKEMON_DATABASE)[0];
       const isBShadow = bName.toLowerCase().startsWith("shadow ");
       const bDmg = calculateChargedDamage(oppStats, bStats, cm, isOppShadow, isBShadow);
-      let tag = "";
-      let tier: "resist" | "neutral" | "weak" = "neutral";
-      if (bDmg.mult <= 0.45) {
-        tag = "2xRes";
-        tier = "resist";
-      } else if (bDmg.mult <= 0.65 && bDmg.percentage < 55) {
-        tag = "Res";
-        tier = "resist";
-      } else if (bDmg.percentage <= 28) {
-        tag = "Tank";
-        tier = "resist";
-      } else if (bDmg.percentage >= 85) {
-        tag = "KO";
-        tier = "weak";
-      } else if (bDmg.mult >= 1.5 || bDmg.percentage >= 55) {
-        tag = "WK";
-        tier = "weak";
-      }
+      const tier: "resist" | "neutral" | "weak" =
+        bDmg.percentage <= 35 ? "resist" : bDmg.percentage >= 65 || bDmg.mult >= 1.5 ? "weak" : "neutral";
       return {
         name: bName,
         dmgPct: bDmg.percentage,
         eff: bDmg.mult,
-        tag,
         tier
       };
     });
 
-    const maxNode = Math.min(7, Math.max(myTapAtReady + 1, 5));
+    // Move count bars do NOT go to max energy, JUST to first charged move by opponent!
+    const maxNode = myTapAtReady;
     const tapNodes: TapNodeInfo[] = [];
     for (let k = 1; k <= maxNode; k++) {
-      let state: "safe" | "leak" | "catch" | "cmp" | "cap";
+      let state: "safe" | "leak" | "catch" | "cmp";
       if (k === myTapAtReady) {
         state = winsCmp ? "cmp" : "catch";
-      } else if (k === maxNode) {
-        state = "cap";
       } else if ((k * userFastTurns) % oppFastTurns !== 0) {
         state = "safe";
       } else {
@@ -670,16 +691,14 @@ export function calculateOpponentMoveTimingRows(
       }
       tapNodes.push({
         tap: k,
-        label: k === maxNode ? `${myCapTap}⚡` : `${k}`,
+        label: `${k}`,
         state,
         isCatchOrCmp: k === myTapAtReady
       });
     }
 
-    const needsOdd = oppFastTurns % userFastTurns === 0 && oppFastTurns > userFastTurns;
     const safeEnd = Math.max(1, myTapAtReady - 1);
-    const safeRangeLabel =
-      safeEnd <= 1 ? "1 SAFE" : `1–${safeEnd} SAFE${needsOdd ? " (Odd)" : ""}`;
+    const safeRangeLabel = safeEnd <= 1 ? "1" : `1–${safeEnd}`;
 
     return {
       name: cm.name,
@@ -701,6 +720,82 @@ export function calculateOpponentMoveTimingRows(
   });
 
   return { rows, winsCmp, userFastTurns };
+}
+
+/**
+ * Computes player's charged move timing rows vertically aligned with opponent moves
+ */
+export function calculateMyMoveTimingRows(
+  userLeadName: string,
+  oppStats: PokemonStats,
+  customMoves: string[],
+  oppReadyTaps: number[],
+  isOppShadow: boolean = false,
+  userFastTurnsOverride?: number
+): MyMoveTimingRow[] {
+  const cleanUserName = userLeadName.replace(/^Shadow\s+/i, "").trim();
+  const userStats =
+    POKEMON_DATABASE[userLeadName] ||
+    POKEMON_DATABASE[cleanUserName] ||
+    Object.values(POKEMON_DATABASE).find((p) => p.name.toLowerCase() === cleanUserName.toLowerCase()) ||
+    Object.values(POKEMON_DATABASE)[0];
+
+  const isUserShadow = userLeadName.toLowerCase().startsWith("shadow ");
+  const userFastTurns = userFastTurnsOverride || userStats.defaultFastMove.turns || 2;
+  const userFastEnergy = userStats.defaultFastMove.energyGain || userFastTurns * 4;
+  const winsCmp = userStats.baseStats.atk >= oppStats.baseStats.atk;
+  const maxOppTap = oppReadyTaps.length > 0 ? Math.max(...oppReadyTaps) : 4;
+
+  return customMoves.map((mName, idx) => {
+    const existing =
+      userStats.chargedMoves.find((m) => m.name.toLowerCase() === mName.toLowerCase()) ||
+      userStats.chargedMoves[idx] || {
+        name: mName,
+        code: mName.slice(0, 2),
+        type: userStats.types[0],
+        power: 80,
+        energyCost: 50
+      };
+
+    const mEnergy = existing.energyCost || 50;
+    const myTapsNeeded = Math.max(1, Math.ceil(mEnergy / userFastEnergy));
+    const actvDmg = calculateChargedDamage(userStats, oppStats, existing, isUserShadow, isOppShadow);
+
+    const maxNode = Math.min(7, Math.max(myTapsNeeded, maxOppTap));
+    const tapNodes: TapNodeInfo[] = [];
+    for (let k = 1; k <= maxNode; k++) {
+      let state: "safe" | "cmp" | "cmp-loss" | "uncharged";
+      if (k < myTapsNeeded) {
+        state = "uncharged";
+      } else if (oppReadyTaps.includes(k)) {
+        state = winsCmp ? "cmp" : "cmp-loss";
+      } else {
+        state = "safe";
+      }
+      tapNodes.push({
+        tap: k,
+        label: `${k}`,
+        state,
+        isCatchOrCmp: k === myTapsNeeded
+      });
+    }
+
+    const readyState: "safe" | "cmp" | "cmp-loss" = oppReadyTaps.includes(myTapsNeeded)
+      ? winsCmp
+        ? "cmp"
+        : "cmp-loss"
+      : "safe";
+
+    return {
+      name: mName,
+      energy: mEnergy,
+      myTapsNeeded,
+      dmgPct: actvDmg.percentage,
+      eff: actvDmg.mult,
+      state: readyState,
+      tapNodes
+    };
+  });
 }
 
 /**
@@ -739,7 +834,7 @@ export function calculateShieldMatrix(
     const oppFastScore = oppFastEff * oppFastStab * (isOppShadow ? 1.12 : 1.0);
 
     const myChargedDamages = myStats.chargedMoves.map(
-      (cm) => calculateDamage(myStats, oppStats, cm, isMyShadow, isOppShadow).percentage
+      (cm) => calculateChargedDamage(myStats, oppStats, cm, isMyShadow, isOppShadow).percentage
     );
     const myMaxCharged = myChargedDamages.length ? Math.max(...myChargedDamages) : 45;
     const myMinEnergy = myStats.chargedMoves.length
@@ -747,7 +842,7 @@ export function calculateShieldMatrix(
       : 45;
 
     const oppChargedDamages = oppStats.chargedMoves.map(
-      (cm) => calculateDamage(oppStats, myStats, cm, isOppShadow, isMyShadow).percentage
+      (cm) => calculateChargedDamage(oppStats, myStats, cm, isOppShadow, isMyShadow).percentage
     );
     const oppMaxCharged = oppChargedDamages.length ? Math.max(...oppChargedDamages) : 45;
     const oppMinEnergy = oppStats.chargedMoves.length
@@ -831,7 +926,7 @@ export const INITIAL_PRESETS: TeamPreset[] = [
         name: "Corviknight",
         cp: 2499,
         fastMove: "Sand Attack",
-        chargedMove1: "Sky Attack",
+        chargedMove1: "Air Cutter",
         chargedMove2: "Iron Head"
       },
       {
@@ -853,9 +948,9 @@ export const INITIAL_PRESETS: TeamPreset[] = [
         id: "g1",
         name: "Kanto Ninetales",
         cp: 1498,
-        fastMove: "Fire Spin",
+        fastMove: "Ember",
         chargedMove1: "Weather Ball",
-        chargedMove2: "Scorching Sands"
+        chargedMove2: "Energy Ball"
       },
       {
         id: "g2",
