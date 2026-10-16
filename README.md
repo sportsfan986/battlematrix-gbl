@@ -6,7 +6,7 @@
 
 ---
 
-![BattleMatrix GBL Hero Banner](docs/images/hero_banner.svg)
+![BattleMatrix GBL Hero Banner](./docs/images/hero_banner.svg)
 
 **BattleMatrix GBL** is a standalone Android application and client-side web battle simulator for **Pokémon GO Battle League (GBL)**. Built with Kotlin, WindowManager `TYPE_APPLICATION_OVERLAY`, in-memory `MediaProjection` frame analysis (zero disk writes), PvPoke `gamemaster.json` stats, offline Google ML Kit Text Recognition, and an interactive React web dashboard.
 
@@ -14,11 +14,9 @@
 
 ## 📸 Real Android Application Screenshots & In-Game HUD
 
-<p fill="center">
-  <img src="docs/screenshots/real_app_main_menu.svg" width="31%" alt="BattleMatrix GBL Main App & Presets" />
-  <img src="docs/screenshots/real_hud_master_league.svg" width="33%" alt="Real-Time Master League HUD (Kyogre vs Zacian)" />
-  <img src="docs/screenshots/real_hud_ultra_league.svg" width="33%" alt="Real-Time Ultra League HUD (Mimikyu vs Ampharos)" />
-</p>
+| Main App & Presets Manager | Master League HUD (Kyogre vs Zacian) | Ultra League HUD (Mimikyu vs Ampharos) |
+| :---: | :---: | :---: |
+| ![Main App & Presets](./docs/screenshots/real_app_main_menu.svg) | ![Master League HUD](./docs/screenshots/real_hud_master_league.svg) | ![Ultra League HUD](./docs/screenshots/real_hud_ultra_league.svg) |
 
 - **Main App & Presets Manager (Left)**: Floating overlay controller, PvPoke sync status, move count basis toggles, `50%–100%` overlay scaler, and persistent league team presets.
 - **Master League In-Game HUD (Center)**: Real-time damage calculations for Kyogre vs Zacian (Crowned), shield scenarios, move energy cycles, and CMP tie alerts.
@@ -41,7 +39,7 @@ Experience **BattleMatrix GBL** instantly in your web browser — completely fre
 
 ## 🖼️ HUD & Feature Overview
 
-![Floating HUD Overlay Diagram](docs/images/hud_overlay_preview.svg)
+![Floating HUD Overlay Diagram](./docs/images/hud_overlay_preview.svg)
 
 ---
 
