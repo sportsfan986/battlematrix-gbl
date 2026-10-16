@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 480" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#020617" />
+    </linearGradient>
+    <linearGradient id="card" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b" />
+      <stop offset="100%" stop-color="#0f172a" />
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0284c7" />
+      <stop offset="100%" stop-color="#38bdf8" />
+    </linearGradient>
+  </defs>
+
+  <rect width="900" height="480" rx="16" fill="url(#bg)" stroke="#334155" stroke-width="2" />
+
+  <!-- Phone Frame Overlay Mockup -->
+  <g transform="translate(40, 40)">
+    <rect width="360" height="400" rx="24" fill="#020617" stroke="#334155" stroke-width="3" />
+    <!-- Status bar mock -->
+    <rect x="130" y="8" width="100" height="18" rx="9" fill="#0f172a" />
+    <circle cx="210" cy="17" r="4" fill="#334155" />
+
+    <!-- Simulated GO Battle League Game View (Background) -->
+    <rect x="16" y="36" width="328" height="348" rx="12" fill="#0a1224" />
+    <text x="180" y="100" font-family="sans-serif" font-size="12" font-weight="bold" fill="#334155" text-anchor="middle">[ ACTIVE POKÉMON GO MATCH ]</text>
+    
+    <!-- Floating Overlay HUD Window Over Phone -->
+    <g transform="translate(24, 120)">
+      <rect width="312" height="240" rx="12" fill="url(#card)" stroke="#0284c7" stroke-width="2" filter="drop-shadow(0 8px 16px rgba(0,0,0,0.8))" />
+      
+      <!-- Overlay Title Bar -->
+      <rect x="0" y="0" width="312" height="32" rx="12" fill="#0284c7" />
+      <rect x="0" y="20" width="312" height="12" fill="#0284c7" />
+      <text x="12" y="21" font-family="sans-serif" font-size="11" font-weight="900" fill="#ffffff">⚔️ BattleMatrix HUD (78% Scale)</text>
+      <text x="296" y="21" font-family="sans-serif" font-size="11" font-weight="bold" fill="#ffffff" text-anchor="end">⚙️</text>
+
+      <!-- Move Counter HUD -->
+      <g transform="translate(10, 42)">
+        <rect width="292" height="50" rx="8" fill="#0b0f19" stroke="#1e293b" />
+        <text x="10" y="20" font-family="sans-serif" font-size="12" font-weight="bold" fill="#f8fafc">Opponent Fast Move Count</text>
+        <text x="282" y="20" font-family="sans-serif" font-size="14" font-weight="900" fill="#38bdf8" text-anchor="end">5 / 7 FASTS</text>
+        
+        <!-- Energy Bar -->
+        <rect x="10" y="28" width="272" height="10" rx="5" fill="#1e293b" />
+        <rect x="10" y="28" width="194" height="10" rx="5" fill="#10b981" />
+      </g>
+
+      <!-- Turn Alignment Advisor -->
+      <g transform="translate(10, 100)">
+        <rect width="292" height="38" rx="8" fill="#d97706" fill-opacity="0.2" stroke="#d97706" stroke-width="1" />
+        <text x="10" y="23" font-family="sans-serif" font-size="10" font-weight="bold" fill="#fbbf24">🎯 OPTIMAL THROW: 4 FASTS (8 TURNS)</text>
+      </g>
+
+      <!-- Compact 3x3 Grid -->
+      <g transform="translate(10, 146)">
+        <rect width="292" height="84" rx="8" fill="#020617" stroke="#1e293b" />
+        <text x="10" y="18" font-family="sans-serif" font-size="10" font-weight="bold" fill="#94a3b8">MATCHUP DAMAGE &amp; CMP</text>
+        
+        <rect x="10" y="26" width="86" height="22" rx="4" fill="#059669" />
+        <text x="53" y="41" font-family="sans-serif" font-size="9" font-weight="bold" fill="#ffffff" text-anchor="middle">0S: WIN (+32%)</text>
+
+        <rect x="103" y="26" width="86" height="22" rx="4" fill="#d97706" />
+        <text x="146" y="41" font-family="sans-serif" font-size="9" font-weight="bold" fill="#ffffff" text-anchor="middle">1S: EVEN (500)</text>
+
+        <rect x="196" y="26" width="86" height="22" rx="4" fill="#e11d48" />
+        <text x="239" y="41" font-family="sans-serif" font-size="9" font-weight="bold" fill="#ffffff" text-anchor="middle">2S: LOSS (-14%)</text>
+
+        <text x="10" y="68" font-family="sans-serif" font-size="10" fill="#38bdf8">CMP Tie Winner: <tspan font-weight="bold" fill="#10b981">YOUR CLODSIRE</tspan></text>
+      </g>
+    </g>
+  </g>
+
+  <!-- Explanation Callouts -->
+  <g transform="translate(430, 60)">
+    <!-- Point 1 -->
+    <rect width="430" height="80" rx="12" fill="url(#card)" stroke="#334155" />
+    <circle cx="28" cy="28" r="14" fill="#0284c7" />
+    <text x="28" y="33" font-family="sans-serif" font-size="12" font-weight="bold" fill="#ffffff" text-anchor="middle">1</text>
+    <text x="54" y="28" font-family="sans-serif" font-size="14" font-weight="bold" fill="#f8fafc">Real-Time OCR &amp; Move Counting</text>
+    <text x="54" y="46" font-family="sans-serif" font-size="12" fill="#94a3b8">In-memory 1 Hz screen frame analysis automatically identifies active opponent and tracks fast move counts.</text>
+
+    <!-- Point 2 -->
+    <g transform="translate(0, 96)">
+      <rect width="430" height="80" rx="12" fill="url(#card)" stroke="#334155" />
+      <circle cx="28" cy="28" r="14" fill="#10b981" />
+      <text x="28" y="33" font-family="sans-serif" font-size="12" font-weight="bold" fill="#ffffff" text-anchor="middle">2</text>
+      <text x="54" y="28" font-family="sans-serif" font-size="14" font-weight="bold" fill="#f8fafc">Optimal Throw &amp; Turn Alignment</text>
+      <text x="54" y="46" font-family="sans-serif" font-size="12" fill="#94a3b8">Advises exact charged move throw timing to deny opponent free fast move turns based on move turn durations.</text>
+    </g>
+
+    <!-- Point 3 -->
+    <g transform="translate(0, 192)">
+      <rect width="430" height="80" rx="12" fill="url(#card)" stroke="#334155" />
+      <circle cx="28" cy="28" r="14" fill="#f59e0b" />
+      <text x="28" y="33" font-family="sans-serif" font-size="12" font-weight="bold" fill="#ffffff" text-anchor="middle">3</text>
+      <text x="54" y="28" font-family="sans-serif" font-size="14" font-weight="bold" fill="#f8fafc">Adjustable Overlay Scale (50% - 100%)</text>
+      <text x="54" y="46" font-family="sans-serif" font-size="12" fill="#94a3b8">Scale the overlay size seamlessly on screen with relative font &amp; element scaling.</text>
+    </g>
+
+    <!-- Point 4 -->
+    <g transform="translate(0, 288)">
+      <rect width="430" height="80" rx="12" fill="url(#card)" stroke="#334155" />
+      <circle cx="28" cy="28" r="14" fill="#e11d48" />
+      <text x="28" y="33" font-family="sans-serif" font-size="12" font-weight="bold" fill="#ffffff" text-anchor="middle">4</text>
+      <text x="54" y="28" font-family="sans-serif" font-size="14" font-weight="bold" fill="#f8fafc">PvPoke Stats &amp; CP Scaling</text>
+      <text x="54" y="46" font-family="sans-serif" font-size="12" fill="#94a3b8">Exact damage formulas, CPM multipliers, and optional custom Atk/Def/HP IV calculation.</text>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,195 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 520" width="100%" height="100%">
+  <defs>
+    <!-- Dark Background Gradients -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0b0f19" />
+      <stop offset="50%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#020617" />
+    </linearGradient>
+    <linearGradient id="cardGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b" stop-opacity="0.9" />
+      <stop offset="100%" stop-color="#0f172a" stop-opacity="0.95" />
+    </linearGradient>
+    <linearGradient id="skyGlow" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0284c7" />
+      <stop offset="50%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#818cf8" />
+    </linearGradient>
+    <linearGradient id="emeraldGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#059669" />
+      <stop offset="100%" stop-color="#34d399" />
+    </linearGradient>
+    <linearGradient id="amberGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#d97706" />
+      <stop offset="100%" stop-color="#fbbf24" />
+    </linearGradient>
+    <linearGradient id="roseGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#e11d48" />
+      <stop offset="100%" stop-color="#fb7185" />
+    </linearGradient>
+
+    <!-- Drop Shadows -->
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#000000" flood-opacity="0.6" />
+    </filter>
+    <filter id="glowSky" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="0" stdDeviation="8" flood-color="#38bdf8" flood-opacity="0.4" />
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="520" fill="url(#bgGrad)" rx="16" />
+  
+  <!-- Subtle Grid Lines -->
+  <path d="M 0 100 H 1200 M 0 200 H 1200 M 0 300 H 1200 M 0 400 H 1200" stroke="#1e293b" stroke-width="1" stroke-dasharray="4 8" opacity="0.4" />
+  <path d="M 200 0 V 520 M 400 0 V 520 M 600 0 V 520 M 800 0 V 520 M 1000 0 V 520" stroke="#1e293b" stroke-width="1" stroke-dasharray="4 8" opacity="0.4" />
+
+  <!-- App Header / Branding Banner -->
+  <g transform="translate(50, 40)">
+    <!-- App Icon Emblem -->
+    <rect x="0" y="0" width="56" height="56" rx="14" fill="url(#skyGlow)" filter="url(#glowSky)" />
+    <path d="M 16 28 C 16 20, 40 20, 40 28 C 40 36, 16 36, 16 28 Z" fill="none" stroke="#ffffff" stroke-width="3.5" />
+    <circle cx="28" cy="28" r="6" fill="#ffffff" />
+    <path d="M 10 28 H 22 M 34 28 H 46" stroke="#ffffff" stroke-width="3" stroke-linecap="round" />
+
+    <!-- Title & Tagline -->
+    <text x="74" y="28" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="28" font-weight="900" fill="#f8fafc" letter-spacing="0.5">BattleMatrix GBL</text>
+    <text x="300" y="28" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="700" fill="#0284c7" bg-color="#0284c7">v1.11 OFFICIAL RELEASE</text>
+    <text x="74" y="48" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="500" fill="#94a3b8">Real-Time 3x3 Matchup Matrix, Damage Calculations &amp; Turn Pacing HUD for Pokémon GO PVP</text>
+  </g>
+
+  <!-- Left Card: Floating HUD Overlay Preview -->
+  <g transform="translate(50, 120)" filter="url(#shadow)">
+    <rect width="520" height="350" rx="16" fill="url(#cardGrad)" stroke="#334155" stroke-width="1.5" />
+    
+    <!-- HUD Header -->
+    <rect x="0" y="0" width="520" height="42" rx="16" fill="#0f172a" />
+    <rect x="0" y="32" width="520" height="10" fill="#0f172a" />
+    <line x1="0" y1="42" x2="520" y2="42" stroke="#334155" stroke-width="1" />
+    
+    <circle cx="24" cy="21" r="6" fill="#ef4444" />
+    <circle cx="42" cy="21" r="6" fill="#f59e0b" />
+    <circle cx="60" cy="21" r="6" fill="#10b981" />
+    <text x="80" y="25" font-family="monospace" font-size="12" font-weight="bold" fill="#38bdf8">HUD OVERLAY • SCALE: 78% [ACTIVE] </text>
+    
+    <!-- Active Matchup Banner -->
+    <g transform="translate(20, 56)">
+      <rect width="480" height="64" rx="10" fill="#020617" stroke="#1e293b" />
+      <!-- Lead Pokémon Active -->
+      <text x="16" y="26" font-family="sans-serif" font-size="15" font-weight="bold" fill="#38bdf8">CLODSIRE (1498 CP)</text>
+      <text x="16" y="46" font-family="sans-serif" font-size="12" fill="#cbd5e1">Poison Sting (2t) • Stone Edge / Sludge Bomb</text>
+      
+      <text x="250" y="36" font-family="sans-serif" font-size="14" font-weight="900" fill="#f59e0b">VS</text>
+
+      <text x="280" y="26" font-family="sans-serif" font-size="15" font-weight="bold" fill="#f43f5e">FERALIGATR (1492 CP)</text>
+      <text x="280" y="46" font-family="sans-serif" font-size="12" fill="#cbd5e1">Shadow Claw (2t) • Hydro Cannon / Ice Beam</text>
+    </g>
+
+    <!-- Turn Pacing & Move Alignment HUD Bar -->
+    <g transform="translate(20, 132)">
+      <rect width="480" height="88" rx="10" fill="#0b0f19" stroke="#0284c7" stroke-width="1.5" />
+      <text x="16" y="24" font-family="sans-serif" font-size="12" font-weight="bold" fill="#38bdf8">TURN PACING &amp; MOVE ALIGNMENT</text>
+      <rect x="340" y="10" width="124" height="20" rx="6" fill="#0284c7" />
+      <text x="402" y="24" font-family="sans-serif" font-size="10" font-weight="bold" fill="#ffffff" text-anchor="middle">2t vs 2t • ALIGNED</text>
+
+      <!-- Move Energy Track -->
+      <rect x="16" y="38" width="448" height="14" rx="7" fill="#1e293b" />
+      <rect x="16" y="38" width="313" height="14" rx="7" fill="url(#emeraldGrad)" />
+      <!-- Energy Ticks -->
+      <text x="20" y="49" font-family="sans-serif" font-size="9" font-weight="bold" fill="#0f172a">5 FASTS (10 TURNS) • HYDRO CANNON READY (40 E)</text>
+
+      <!-- Optimal Throw Warning -->
+      <rect x="16" y="58" width="448" height="22" rx="6" fill="#d97706" opacity="0.2" />
+      <text x="24" y="73" font-family="sans-serif" font-size="11" font-weight="bold" fill="#fbbf24">💡 THROW ON 4th OR 6th FAST MOVE TO DENY OPPONENT FREE FAST TURN</text>
+    </g>
+
+    <!-- 3v3 Matchup Matrix Grid -->
+    <g transform="translate(20, 232)">
+      <text x="0" y="14" font-family="sans-serif" font-size="11" font-weight="bold" fill="#94a3b8">3v3 SHIELD MATCHUP MATRIX (DAMAGE % / CMP)</text>
+      
+      <!-- Table Header -->
+      <rect x="0" y="22" width="480" height="82" rx="8" fill="#020617" stroke="#1e293b" />
+      
+      <!-- Grid Columns -->
+      <text x="110" y="38" font-family="sans-serif" font-size="10" font-weight="bold" fill="#38bdf8" text-anchor="middle">0 Shields</text>
+      <text x="230" y="38" font-family="sans-serif" font-size="10" font-weight="bold" fill="#38bdf8" text-anchor="middle">1 Shield</text>
+      <text x="350" y="38" font-family="sans-serif" font-size="10" font-weight="bold" fill="#38bdf8" text-anchor="middle">2 Shields</text>
+      <text x="440" y="38" font-family="sans-serif" font-size="10" font-weight="bold" fill="#38bdf8" text-anchor="middle">CMP Tie</text>
+      <line x1="0" y1="44" x2="480" y2="44" stroke="#1e293b" />
+
+      <!-- Row 1 -->
+      <text x="12" y="60" font-family="sans-serif" font-size="11" font-weight="bold" fill="#f8fafc">Clodsire</text>
+      <rect x="80" y="48" width="60" height="18" rx="4" fill="#059669" />
+      <text x="110" y="61" font-family="sans-serif" font-size="10" font-weight="bold" fill="#ffffff" text-anchor="middle">WIN (+32%)</text>
+      
+      <rect x="200" y="48" width="60" height="18" rx="4" fill="#d97706" />
+      <text x="230" y="61" font-family="sans-serif" font-size="10" font-weight="bold" fill="#ffffff" text-anchor="middle">EVEN (500)</text>
+
+      <rect x="320" y="48" width="60" height="18" rx="4" fill="#e11d48" />
+      <text x="350" y="61" font-family="sans-serif" font-size="10" font-weight="bold" fill="#ffffff" text-anchor="middle">LOSS (-14%)</text>
+
+      <text x="440" y="61" font-family="sans-serif" font-size="10" font-weight="bold" fill="#10b981" text-anchor="middle">WIN CMP</text>
+
+      <!-- Row 2 -->
+      <text x="12" y="82" font-family="sans-serif" font-size="11" font-weight="bold" fill="#f8fafc">Gastrodon</text>
+      <rect x="80" y="70" width="60" height="18" rx="4" fill="#059669" />
+      <text x="110" y="83" font-family="sans-serif" font-size="10" font-weight="bold" fill="#ffffff" text-anchor="middle">WIN (+48%)</text>
+      
+      <rect x="200" y="70" width="60" height="18" rx="4" fill="#059669" />
+      <text x="230" y="83" font-family="sans-serif" font-size="10" font-weight="bold" fill="#ffffff" text-anchor="middle">WIN (+21%)</text>
+
+      <rect x="320" y="70" width="60" height="18" rx="4" fill="#059669" />
+      <text x="350" y="83" font-family="sans-serif" font-size="10" font-weight="bold" fill="#ffffff" text-anchor="middle">WIN (+8%)</text>
+
+      <text x="440" y="83" font-family="sans-serif" font-size="10" font-weight="bold" fill="#f59e0b" text-anchor="middle">Losing CMP</text>
+    </g>
+  </g>
+
+  <!-- Right Card: Web Simulator & Companion Features -->
+  <g transform="translate(600, 120)" filter="url(#shadow)">
+    <rect width="550" height="350" rx="16" fill="url(#cardGrad)" stroke="#334155" stroke-width="1.5" />
+    
+    <!-- Header -->
+    <rect x="0" y="0" width="550" height="42" rx="16" fill="#0f172a" />
+    <rect x="0" y="32" width="550" height="10" fill="#0f172a" />
+    <line x1="0" y1="42" x2="550" y2="42" stroke="#334155" stroke-width="1" />
+    
+    <text x="20" y="26" font-family="sans-serif" font-size="14" font-weight="bold" fill="#38bdf8">🌐 INTERACTIVE WEB SIMULATOR &amp; FEATURES</text>
+    <rect x="390" y="10" width="140" height="22" rx="6" fill="#10b981" />
+    <text x="460" y="25" font-family="sans-serif" font-size="10" font-weight="bold" fill="#ffffff" text-anchor="middle">100% FREE • CLIENT-SIDE</text>
+
+    <!-- Feature Items List -->
+    <g transform="translate(24, 60)">
+      <!-- Feature 1 -->
+      <circle cx="16" cy="16" r="14" fill="#0284c7" opacity="0.2" />
+      <text x="16" y="21" font-family="sans-serif" font-size="12" font-weight="bold" fill="#38bdf8" text-anchor="middle">1</text>
+      <text x="42" y="16" font-family="sans-serif" font-size="14" font-weight="bold" fill="#f8fafc">PvPoke Top 3 Rated League Defaults</text>
+      <text x="42" y="32" font-family="sans-serif" font-size="12" fill="#94a3b8">Auto-loads Clodsire/Feraligatr/Gastrodon (GL) &amp; Zygarde/Giratina (UL).</text>
+
+      <!-- Feature 2 -->
+      <circle cx="16" cy="64" r="14" fill="#059669" opacity="0.2" />
+      <text x="16" y="69" font-family="sans-serif" font-size="12" font-weight="bold" fill="#34d399" text-anchor="middle">2</text>
+      <text x="42" y="64" font-family="sans-serif" font-size="14" font-weight="bold" fill="#f8fafc">Auto-Filled Fast &amp; Charged Moves</text>
+      <text x="42" y="80" font-family="sans-serif" font-size="12" fill="#94a3b8">Type any Pokémon name — #1 recommended moves and CP fill automatically.</text>
+
+      <!-- Feature 3 -->
+      <circle cx="16" cy="112" r="14" fill="#d97706" opacity="0.2" />
+      <text x="16" y="117" font-family="sans-serif" font-size="12" font-weight="bold" fill="#fbbf24" text-anchor="middle">3</text>
+      <text x="42" y="112" font-family="sans-serif" font-size="14" font-weight="bold" fill="#f8fafc">Exact League CP Scaling &amp; Custom IVs</text>
+      <text x="42" y="128" font-family="sans-serif" font-size="12" fill="#94a3b8">Calculates actual stat product, damage percentages, and CMP ties accurately.</text>
+
+      <!-- Feature 4 -->
+      <circle cx="16" cy="160" r="14" fill="#e11d48" opacity="0.2" />
+      <text x="16" y="165" font-family="sans-serif" font-size="12" font-weight="bold" fill="#fb7185" text-anchor="middle">4</text>
+      <text x="42" y="160" font-family="sans-serif" font-size="14" font-weight="bold" fill="#f8fafc">Persistent Settings &amp; Overlay Scale (50% - 100%)</text>
+      <text x="42" y="176" font-family="sans-serif" font-size="12" fill="#94a3b8">Updates preserve custom teams in localStorage; customize floating HUD size.</text>
+    </g>
+
+    <!-- Web Simulator CTA Button Graphic -->
+    <g transform="translate(24, 260)">
+      <rect width="502" height="60" rx="12" fill="url(#skyGlow)" filter="url(#glowSky)" />
+      <text x="251" y="28" font-family="sans-serif" font-size="16" font-weight="900" fill="#ffffff" text-anchor="middle">🚀 LAUNCH LIVE WEB SIMULATOR ON GITHUB PAGES</text>
+      <text x="251" y="46" font-family="sans-serif" font-size="11" font-weight="600" fill="#e0f2fe" text-anchor="middle">No installation required • Runs 100% in browser with PvPoke Gamemaster Data</text>
+    </g>
+  </g>
+</svg>
