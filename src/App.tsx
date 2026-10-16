@@ -29,6 +29,7 @@ import {
   calculateTurnAlignment,
   calculateChargedDamage,
   calculateShieldMatrix,
+  getAvailableFormsForPokemon,
   PokemonStats
 } from './data/gblData';
 import { ANDROID_FILES, downloadAndroidProjectZip, AndroidProjectFile } from './data/androidFiles';
@@ -82,9 +83,9 @@ export default function App() {
     setIsDragging(false);
   };
 
-  // Team Presets State (stored in localStorage)
+  // Team Presets State (stored in localStorage v2 with updated Great & Ultra League defaults)
   const [presets, setPresets] = useState<TeamPreset[]>(() => {
-    const saved = localStorage.getItem('gbl_team_presets_v1');
+    const saved = localStorage.getItem('gbl_team_presets_v2');
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -101,7 +102,7 @@ export default function App() {
 
   // Save presets whenever updated
   useEffect(() => {
-    localStorage.setItem('gbl_team_presets_v1', JSON.stringify(presets));
+    localStorage.setItem('gbl_team_presets_v2', JSON.stringify(presets));
   }, [presets]);
 
   useEffect(() => {
@@ -113,7 +114,9 @@ export default function App() {
   }, [presets, selectedPresetId]);
 
   // Battle Simulation State
-  const [activeOpponentKey, setActiveOpponentKey] = useState<string>('Entei');
+  const [activeOpponentKey, setActiveOpponentKey] = useState<string>('Zacian (Crowned)');
+  const [isOpponentShadow, setIsOpponentShadow] = useState<boolean>(false);
+  const [activeUserSlotIndex, setActiveUserSlotIndex] = useState<number>(0);
   const [userTurnsElapsed, setUserTurnsElapsed] = useState<number>(0);
   const [oppTurnsElapsed, setOppTurnsElapsed] = useState<number>(0);
   const [userEnergy, setUserEnergy] = useState<number>(36);
@@ -121,8 +124,8 @@ export default function App() {
   const [userShields, setUserShields] = useState<number>(2);
   const [oppShields, setOppShields] = useState<number>(2);
 
-  // Scanned Opponents (Simulating ML Kit 1.4s OCR detection)
-  const [scannedOpponents, setScannedOpponents] = useState<string[]>(['Entei', 'Yveltal', 'Zacian (Crowned)']);
+  // Scanned Opponents (Simulating ML Kit 0.95s OCR detection)
+  const [scannedOpponents, setScannedOpponents] = useState<string[]>(['Zacian (Crowned)', 'Yveltal', 'Entei']);
   const [isWaitingOpponent, setIsWaitingOpponent] = useState<boolean>(false);
   const [showOpponentPicker, setShowOpponentPicker] = useState<boolean>(false);
 
@@ -216,19 +219,31 @@ export default function App() {
   };
 
   // Active Pokémon stats
-  const activeOpponent = POKEMON_DATABASE[activeOpponentKey] || POKEMON_DATABASE['Entei'];
-  const userLeadName = activePreset?.pokemon[0]?.name || 'Dialga (Origin)';
-  const userActivePokemon = POKEMON_DATABASE[userLeadName] || POKEMON_DATABASE['Luxray'] || POKEMON_DATABASE['Dialga (Origin)'];
+  const activeOpponent = POKEMON_DATABASE[activeOpponentKey] || POKEMON_DATABASE['Zacian (Crowned)'];
+  const userLeadName = activePreset?.pokemon[activeUserSlotIndex]?.name || activePreset?.pokemon[0]?.name || 'Dialga (Origin)';
+  const userActivePokemon = POKEMON_DATABASE[userLeadName] || POKEMON_DATABASE['Lugia'] || POKEMON_DATABASE['Dialga (Origin)'];
+  const isUserShadow = userLeadName.toLowerCase().includes('shadow');
+
+  const availableForms = useMemo(() => {
+    return getAvailableFormsForPokemon(activeOpponent.name);
+  }, [activeOpponent.name]);
+
+  const handleCycleForm = () => {
+    if (availableForms.length <= 1) return;
+    const idx = availableForms.indexOf(activeOpponent.name);
+    const nextForm = availableForms[(idx + 1) % availableForms.length];
+    handleSelectOpponent(nextForm);
+  };
 
   // Calculations
   const userFastTurns = userActivePokemon?.defaultFastMove?.turns || 3;
   const oppFastTurns = activeOpponent?.defaultFastMove?.turns || 2;
   const turnAlignInfo = calculateTurnAlignment(userFastTurns, oppFastTurns);
 
-  // Damage Calculations
+  // Damage Calculations (Opponent -> Player & Player -> Opponent with Shadow modifiers)
   const oppDamageData = useMemo(() => {
     return activeOpponent.chargedMoves.map(move => {
-      const calc = calculateChargedDamage(activeOpponent, userActivePokemon, move);
+      const calc = calculateChargedDamage(activeOpponent, userActivePokemon, move, isOpponentShadow, isUserShadow);
       const tapsNeeded = Math.max(0, Math.ceil((move.energyCost - oppEnergy) / (activeOpponent.defaultFastMove.energyGain || 8)));
       return {
         move,
@@ -237,7 +252,17 @@ export default function App() {
         isReady: oppEnergy >= move.energyCost
       };
     });
-  }, [activeOpponent, userActivePokemon, oppEnergy]);
+  }, [activeOpponent, userActivePokemon, oppEnergy, isOpponentShadow, isUserShadow]);
+
+  const myDamageData = useMemo(() => {
+    return userActivePokemon.chargedMoves.map(move => {
+      const calc = calculateChargedDamage(userActivePokemon, activeOpponent, move, isUserShadow, isOpponentShadow);
+      return {
+        move,
+        ...calc
+      };
+    });
+  }, [userActivePokemon, activeOpponent, isUserShadow, isOpponentShadow]);
 
   // Fast move click handler in simulator
   const handleFastAttack = () => {
@@ -749,17 +774,17 @@ export default function App() {
 
                       {/* Header row */}
                       <div className="flex items-center justify-between pb-1.5 border-b border-white/15">
-                        <div className="font-extrabold text-[11.5px] text-amber-100 flex items-center gap-1.5">
+                        <div className="font-extrabold text-[11px] text-amber-100 flex items-center gap-1 truncate">
                           {isWaitingOpponent || scannedOpponents.length === 0 ? (
                             <>
                               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping inline-block" />
                               <span className="text-emerald-200">WAITING FOR OPPONENT...</span>
-                              <span className="text-amber-300 font-semibold text-[9.5px]">(Scanning Header)</span>
+                              <span className="text-amber-300 font-semibold text-[9px]">(Scanning)</span>
                             </>
                           ) : (
                             <>
-                              <span>⚔️ VS {activeOpponent.name.toUpperCase()}</span>
-                              <span className="text-amber-300 font-semibold text-[10.5px]">
+                              <span>⚔️ VS {isOpponentShadow ? 'SHADOW ' : ''}{activeOpponent.name.toUpperCase()}</span>
+                              <span className="text-amber-300 font-semibold text-[9.5px]">
                                 ({oppFastTurns}t {activeOpponent.defaultFastMove.name})
                               </span>
                             </>
@@ -770,8 +795,11 @@ export default function App() {
                           <div className="relative">
                             <select
                               value={selectedPresetId}
-                              onChange={(e) => setSelectedPresetId(e.target.value)}
-                              className="bg-slate-900/90 text-emerald-400 border border-white/20 rounded text-[9.5px] px-1.5 py-0.5 font-bold outline-none cursor-pointer max-w-[85px] truncate"
+                              onChange={(e) => {
+                                setSelectedPresetId(e.target.value);
+                                setActiveUserSlotIndex(0);
+                              }}
+                              className="bg-slate-900/90 text-emerald-400 border border-white/20 rounded text-[9.5px] px-1.5 py-0.5 font-bold outline-none cursor-pointer max-w-[92px] truncate"
                             >
                               {presets.map(p => (
                                 <option key={p.id} value={p.id} className="bg-slate-900 text-white">
@@ -780,41 +808,56 @@ export default function App() {
                               ))}
                             </select>
                           </div>
-                          <button
-                            onClick={() => setLayoutMode('option2')}
-                            className="bg-white/15 hover:bg-white/25 active:scale-95 text-white font-bold text-[9px] px-1.5 py-0.5 rounded border border-white/25 transition"
-                          >
-                            ⇄ Opt 2
-                          </button>
                         </div>
                       </div>
 
-                      {/* Action Toolbar */}
-                      <div className="flex items-center justify-between gap-1.5 bg-black/35 p-1 rounded border border-white/10 my-1">
+                      {/* Action Toolbar: Start, Shadow Toggle, Form Cycler, and Active Lead Switch */}
+                      <div className="flex items-center justify-between gap-1 bg-black/35 p-1 rounded border border-white/10 my-1">
                         <div className="flex items-center gap-1">
                           <button
                             onClick={handleStartBattle}
-                            className="bg-red-500/30 hover:bg-red-500/50 active:scale-95 text-red-200 border border-red-500/50 font-bold text-[9.5px] px-2 py-0.5 rounded transition flex items-center gap-1"
+                            className="bg-red-500/30 hover:bg-red-500/50 active:scale-95 text-red-200 border border-red-500/50 font-bold text-[8.5px] px-1.5 py-0.5 rounded transition"
                             title="Clear previous opponents and reset waiting HUD"
                           >
-                            ⚔️ Start Battle
+                            ⚔️ Start
                           </button>
                           <button
-                            onClick={() => setShowOpponentPicker(!showOpponentPicker)}
-                            className="bg-sky-500/25 hover:bg-sky-500/40 active:scale-95 text-sky-200 border border-sky-400/50 font-bold text-[9px] px-1.5 py-0.5 rounded transition"
-                            title="Pick opponent manually"
+                            onClick={() => setIsOpponentShadow(!isOpponentShadow)}
+                            className={`font-bold text-[8.5px] px-1.5 py-0.5 rounded border transition active:scale-95 ${
+                              isOpponentShadow
+                                ? 'bg-purple-600/50 text-purple-100 border-purple-400 shadow-[0_0_6px_rgba(168,85,247,0.5)]'
+                                : 'bg-purple-500/20 text-purple-200 border-purple-400/40 hover:bg-purple-500/30'
+                            }`}
+                            title="Toggle 1.2x Attack / 0.833x Defense Shadow modifier"
                           >
-                            🔍 Pick Opp
+                            Shadow: {isOpponentShadow ? 'ON' : 'OFF'}
+                          </button>
+                          <button
+                            onClick={handleCycleForm}
+                            disabled={availableForms.length <= 1 || isWaitingOpponent}
+                            className={`font-bold text-[8.5px] px-1.5 py-0.5 rounded border transition ${
+                              availableForms.length > 1 && !isWaitingOpponent
+                                ? 'bg-amber-500/25 hover:bg-amber-500/40 text-amber-200 border-amber-400/50 active:scale-95 cursor-pointer'
+                                : 'bg-slate-800/40 text-slate-500 border-slate-700/50 opacity-45 cursor-not-allowed'
+                            }`}
+                            title="Cycle regional or alternate form"
+                          >
+                            Form: {activeOpponent.formLabel || 'Base'}
                           </button>
                         </div>
-                        <div className="flex items-center gap-1">
-                          {activePreset.pokemon.map(member => (
-                            <span
+                        <div className="flex items-center gap-0.5">
+                          {activePreset.pokemon.map((member, idx) => (
+                            <button
                               key={member.id}
-                              className="text-[8.5px] font-bold px-1.5 py-0.5 rounded bg-slate-800 text-emerald-300 border border-emerald-500/40"
+                              onClick={() => setActiveUserSlotIndex(idx)}
+                              className={`text-[8px] font-bold px-1 py-0.5 rounded border transition ${
+                                activeUserSlotIndex === idx
+                                  ? 'bg-emerald-500/35 text-white border-emerald-400'
+                                  : 'bg-slate-800/80 text-emerald-300/80 border-emerald-500/30 hover:bg-slate-700'
+                              }`}
                             >
-                              {member.name.split(' ')[0]}
-                            </span>
+                              {member.name.replace('Shadow ', '').split(' ')[0].slice(0, 5)}
+                            </button>
                           ))}
                         </div>
                       </div>
@@ -824,7 +867,7 @@ export default function App() {
                         {isWaitingOpponent || scannedOpponents.length === 0 ? (
                           <div className="text-[9.5px] text-slate-300 flex items-center gap-1.5 py-0.5">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                            <span>Scanner active! Ready for opponent spawn or tap <strong>Pick Opp</strong></span>
+                            <span>Live OCR active! Monitoring top-left & top-right battle headers...</span>
                           </div>
                         ) : (
                           scannedOpponents.map((oppName) => {
@@ -879,10 +922,10 @@ export default function App() {
                         </span>
                       </div>
 
-                      {/* Charged Move Damage Counter */}
+                      {/* Charged Move Damage Matrix (Opponent Dmg to My Mon & My Dmg to Opponent Mon) */}
                       <div className="flex flex-col gap-0.5 text-[9.5px] text-slate-200 leading-tight">
                         <div className="flex items-center gap-1 flex-wrap">
-                          <span>💥 <strong>{isWaitingOpponent || scannedOpponents.length === 0 ? 'Awaiting Opponent' : activeOpponent.name}</strong> Dmg to {userActivePokemon.name.split(' ')[0]}:</span>
+                          <span>💥 <strong>{isWaitingOpponent || scannedOpponents.length === 0 ? 'Opponent' : `${isOpponentShadow ? 'Shad ' : ''}${activeOpponent.name}`}</strong> Dmg to <span className="text-sky-300 font-bold">{userActivePokemon.name.split(' ')[0]}</span>:</span>
                           {isWaitingOpponent || scannedOpponents.length === 0 ? (
                             <span className="text-slate-400">—</span>
                           ) : (
@@ -891,8 +934,24 @@ export default function App() {
                                 key={dmg.move.name}
                                 className={dmg.isReady ? 'text-emerald-400 font-bold' : 'text-amber-300 font-medium'}
                               >
-                                {dmg.move.code} ({dmg.percentage}% • {dmg.isReady ? 'Ready' : `${dmg.tapsNeeded} taps`})
+                                {dmg.move.name} ({dmg.percentage}%)
                                 {idx === 0 && oppDamageData.length > 1 ? ' | ' : ''}
+                              </span>
+                            ))
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 flex-wrap">
+                          <span>⚔️ My Dmg to <strong className="text-amber-200">{isWaitingOpponent || scannedOpponents.length === 0 ? 'Opponent' : `${isOpponentShadow ? 'Shad ' : ''}${activeOpponent.name}`}</strong>:</span>
+                          {isWaitingOpponent || scannedOpponents.length === 0 ? (
+                            <span className="text-slate-400">—</span>
+                          ) : (
+                            myDamageData.slice(0, 2).map((dmg, idx) => (
+                              <span 
+                                key={dmg.move.name}
+                                className={idx === 0 ? 'text-emerald-400 font-bold' : 'text-amber-300 font-semibold'}
+                              >
+                                {dmg.move.name} ({dmg.percentage}%)
+                                {idx === 0 && myDamageData.length > 1 ? ' | ' : ''}
                               </span>
                             ))
                           )}
@@ -900,7 +959,7 @@ export default function App() {
                         <div className="text-slate-300/80 text-[8.5px] truncate">
                           {isWaitingOpponent || scannedOpponents.length === 0
                             ? 'Opponent Bench: Awaiting detection...'
-                            : '💥 Bench: Yvl [DP: 42% | OW: 68%] • Zac [CC: 44%]'}
+                            : '💥 Bench: Yvl [Dark Pulse (42%) | Oblivion Wing (40%)]'}
                         </div>
                       </div>
                     </div>

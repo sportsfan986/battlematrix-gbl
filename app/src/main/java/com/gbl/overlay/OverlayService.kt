@@ -18,6 +18,7 @@ import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Handler
+import android.os.HandlerThread
 import android.os.IBinder
 import android.os.Looper
 import android.view.Gravity
@@ -34,6 +35,7 @@ import androidx.lifecycle.lifecycleScope
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.Text
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import kotlinx.coroutines.Dispatchers
@@ -41,16 +43,20 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 /**
  * OverlayService:
  * Floating HUD and real-time screen analysis for Pokémon GO Battle League.
- * - Start Battle reset (clears opponents & resets waiting HUD)
- * - Automatic OCR detection for Opponent Pokémon (top-right header, e.g. Zacian, Raikou)
- * - Automatic OCR detection for Player Pokémon Switches (top-left header & lower move buttons, e.g. Lugia, Dialga)
- * - Turn alignment (zero-sneak attack timing) & damage counters
+ * - Android 14+ compliant MediaProjection callback registration & background frame reader
+ * - Real-time OCR detection for Opponent Pokémon (Top-Right nameplate region) with fuzzy matching
+ * - Real-time OCR detection for Player Active Switch (Top-Left nameplate & Bottom move buttons)
+ * - League-aware FormResolver (Ninetales, Giratina, Zacian, Deoxys, Dialga, Palkia, Landorus, Necrozma)
+ * - Shadow modifier toggle (1.2x Attack / 0.833x Defense) & Form cycling
+ * - Exact PvPoke Charged Move damage calculation (Player -> Opponent & Opponent -> Player)
  */
 class OverlayService : LifecycleService() {
 
@@ -68,9 +74,17 @@ class OverlayService : LifecycleService() {
         private const val NOTIFICATION_CHANNEL_ID = "gbl_battle_overlay_channel"
         private const val NOTIFICATION_ID = 2001
 
+        data class MoveStats(
+            val name: String,
+            val type: String,
+            val power: Int
+        )
+
         data class PokemonMeta(
             val name: String,
             val speciesId: String,
+            val baseSpecies: String,
+            val formLabel: String,
             val types: List<String>,
             val defaultCp: Int,
             val defaultFastMove: String,
@@ -78,77 +92,195 @@ class OverlayService : LifecycleService() {
             val chargedMove1: String,
             val chargedMove2: String,
             val c1Dmg: Int = 35,
-            val c2Dmg: Int = 50
+            val c2Dmg: Int = 50,
+            val atk: Double = 210.0,
+            val def: Double = 190.0,
+            val hp: Int = 180,
+            val glRank: Int = 500,
+            val ulRank: Int = 500,
+            val mlRank: Int = 500
         )
 
-        // Comprehensive database of 200+ top meta Pokémon across Master, Ultra, and Great League
+        val MOVE_DATABASE: Map<String, MoveStats> = mapOf(
+            "Roar of Time" to MoveStats("Roar of Time", "dragon", 150),
+            "Iron Head" to MoveStats("Iron Head", "steel", 70),
+            "Draco Meteor" to MoveStats("Draco Meteor", "dragon", 150),
+            "Thunder" to MoveStats("Thunder", "electric", 100),
+            "Aeroblast" to MoveStats("Aeroblast", "flying", 170),
+            "Sky Attack" to MoveStats("Sky Attack", "flying", 75),
+            "Future Sight" to MoveStats("Future Sight", "psychic", 120),
+            "Surf" to MoveStats("Surf", "water", 65),
+            "Origin Pulse" to MoveStats("Origin Pulse", "water", 130),
+            "Hydro Pump" to MoveStats("Hydro Pump", "water", 130),
+            "Blizzard" to MoveStats("Blizzard", "ice", 140),
+            "Close Combat" to MoveStats("Close Combat", "fighting", 100),
+            "Brave Bird" to MoveStats("Brave Bird", "flying", 130),
+            "Play Rough" to MoveStats("Play Rough", "fairy", 90),
+            "Wild Charge" to MoveStats("Wild Charge", "electric", 100),
+            "Shadow Ball" to MoveStats("Shadow Ball", "ghost", 100),
+            "Ominous Wind" to MoveStats("Ominous Wind", "ghost", 45),
+            "Dragon Claw" to MoveStats("Dragon Claw", "dragon", 50),
+            "Ancient Power" to MoveStats("Ancient Power", "rock", 60),
+            "Shadow Force" to MoveStats("Shadow Force", "ghost", 140),
+            "Spacial Rend" to MoveStats("Spacial Rend", "dragon", 95),
+            "Aqua Tail" to MoveStats("Aqua Tail", "water", 50),
+            "Precipice Blades" to MoveStats("Precipice Blades", "ground", 130),
+            "Fire Punch" to MoveStats("Fire Punch", "fire", 55),
+            "Psystrike" to MoveStats("Psystrike", "psychic", 90),
+            "Ice Beam" to MoveStats("Ice Beam", "ice", 90),
+            "Moonblast" to MoveStats("Moonblast", "fairy", 110),
+            "Dark Pulse" to MoveStats("Dark Pulse", "dark", 80),
+            "Oblivion Wing" to MoveStats("Oblivion Wing", "flying", 85),
+            "Crunch" to MoveStats("Crunch", "dark", 70),
+            "Earthquake" to MoveStats("Earthquake", "ground", 110),
+            "Sandsear Storm" to MoveStats("Sandsear Storm", "ground", 60),
+            "Stone Edge" to MoveStats("Stone Edge", "rock", 100),
+            "Superpower" to MoveStats("Superpower", "fighting", 85),
+            "Sacred Fire" to MoveStats("Sacred Fire", "fire", 130),
+            "Sunsteel Strike" to MoveStats("Sunsteel Strike", "steel", 135),
+            "Moongeist Beam" to MoveStats("Moongeist Beam", "ghost", 135),
+            "Rock Slide" to MoveStats("Rock Slide", "rock", 75),
+            "Earth Power" to MoveStats("Earth Power", "ground", 90),
+            "Outrage" to MoveStats("Outrage", "dragon", 110),
+            "Meteor Mash" to MoveStats("Meteor Mash", "steel", 100),
+            "Drill Run" to MoveStats("Drill Run", "ground", 80),
+            "Rock Wrecker" to MoveStats("Rock Wrecker", "rock", 110),
+            "Breaking Swipe" to MoveStats("Breaking Swipe", "dragon", 35),
+            "Avalanche" to MoveStats("Avalanche", "ice", 90),
+            "High Horsepower" to MoveStats("High Horsepower", "ground", 100),
+            "Ice Punch" to MoveStats("Ice Punch", "ice", 55),
+            "Fusion Flare" to MoveStats("Fusion Flare", "fire", 90),
+            "Overheat" to MoveStats("Overheat", "fire", 130),
+            "Fusion Bolt" to MoveStats("Fusion Bolt", "electric", 90),
+            "Glaciate" to MoveStats("Glaciate", "ice", 60),
+            "Disarming Voice" to MoveStats("Disarming Voice", "fairy", 70),
+            "Hydro Cannon" to MoveStats("Hydro Cannon", "water", 80),
+            "Weather Ball" to MoveStats("Weather Ball", "ice", 55),
+            "Dazzling Gleam" to MoveStats("Dazzling Gleam", "fairy", 100),
+            "Scorching Sands" to MoveStats("Scorching Sands", "ground", 80),
+            "Psycho Boost" to MoveStats("Psycho Boost", "psychic", 70),
+            "Thunderbolt" to MoveStats("Thunderbolt", "electric", 90),
+            "Grass Knot" to MoveStats("Grass Knot", "grass", 90),
+            "Sacred Sword" to MoveStats("Sacred Sword", "fighting", 60),
+            "Leaf Blade" to MoveStats("Leaf Blade", "grass", 70),
+            "Aerial Ace" to MoveStats("Aerial Ace", "flying", 55),
+            "Fly" to MoveStats("Fly", "flying", 80),
+            "Flame Charge" to MoveStats("Flame Charge", "fire", 65),
+            "Blast Burn" to MoveStats("Blast Burn", "fire", 110),
+            "Feather Dance" to MoveStats("Feather Dance", "flying", 35),
+            "Shadow Sneak" to MoveStats("Shadow Sneak", "ghost", 50)
+        )
+
         val POKEMON_META_DATABASE = listOf(
-            // --- Master League Meta & Legendaries ---
-            PokemonMeta("Raikou", "raikou", listOf("electric"), 4138, "Thunder Shock", 2, "Wild Charge", "Shadow Ball", 48, 44),
-            PokemonMeta("Suicune", "suicune", listOf("water"), 3372, "Snarl", 3, "Bubble Beam", "Hydro Pump", 25, 52),
-            PokemonMeta("Entei", "entei", listOf("fire"), 3926, "Fire Fang", 2, "Flame Charge", "Overheat", 28, 72),
-            PokemonMeta("Zapdos", "zapdos", listOf("electric", "flying"), 4004, "Thunder Shock", 2, "Drill Peck", "Thunderbolt", 42, 46),
-            PokemonMeta("Moltres", "moltres", listOf("fire", "flying"), 3917, "Wing Attack", 2, "Sky Attack", "Overheat", 46, 70),
-            PokemonMeta("Articuno", "articuno", listOf("ice", "flying"), 3450, "Ice Shard", 3, "Icy Wind", "Ancient Power", 34, 28),
-            PokemonMeta("Rayquaza", "rayquaza", listOf("dragon", "flying"), 4335, "Dragon Tail", 3, "Breaking Swipe", "Hurricane", 34, 52),
-            PokemonMeta("Dialga (Origin)", "dialga_origin", listOf("steel", "dragon"), 4624, "Dragon Breath", 1, "Roar of Time", "Iron Head", 42, 28),
-            PokemonMeta("Dialga", "dialga", listOf("steel", "dragon"), 4565, "Dragon Breath", 1, "Draco Meteor", "Iron Head", 48, 28),
-            PokemonMeta("Palkia (Origin)", "palkia_origin", listOf("water", "dragon"), 4610, "Dragon Breath", 1, "Spacial Rend", "Aqua Tail", 44, 25),
-            PokemonMeta("Palkia", "palkia", listOf("water", "dragon"), 4545, "Dragon Breath", 1, "Aqua Tail", "Draco Meteor", 25, 48),
-            PokemonMeta("Giratina (Origin)", "giratina_origin", listOf("ghost", "dragon"), 4164, "Shadow Claw", 2, "Shadow Ball", "Ominous Wind", 46, 22),
-            PokemonMeta("Giratina (Altered)", "giratina_altered", listOf("ghost", "dragon"), 3820, "Shadow Claw", 2, "Dragon Claw", "Ancient Power", 28, 26),
-            PokemonMeta("Lugia", "lugia", listOf("psychic", "flying"), 4179, "Dragon Tail", 3, "Aeroblast", "Sky Attack", 52, 34),
-            PokemonMeta("Kyogre", "kyogre", listOf("water"), 4652, "Waterfall", 3, "Surf", "Origin Pulse", 32, 54),
-            PokemonMeta("Groudon", "groudon", listOf("ground"), 4652, "Mud Shot", 2, "Precipice Blades", "Fire Punch", 55, 26),
-            PokemonMeta("Mewtwo", "mewtwo", listOf("psychic"), 4724, "Psycho Cut", 2, "Psystrike", "Shadow Ball", 48, 44),
-            PokemonMeta("Zacian (Crowned)", "zacian_crowned", listOf("fairy", "steel"), 4620, "Quick Attack", 1, "Close Combat", "Brave Bird", 44, 48),
-            PokemonMeta("Zacian", "zacian", listOf("fairy"), 4329, "Quick Attack", 1, "Close Combat", "Play Rough", 44, 40),
-            PokemonMeta("Zamazenta", "zamazenta", listOf("fighting"), 4329, "Quick Attack", 1, "Close Combat", "Moonblast", 44, 48),
-            PokemonMeta("Xerneas", "xerneas", listOf("fairy"), 4275, "Geomancy", 3, "Close Combat", "Moonblast", 44, 48),
-            PokemonMeta("Yveltal", "yveltal", listOf("dark", "flying"), 4275, "Snarl", 2, "Dark Pulse", "Oblivion Wing", 42, 40),
-            PokemonMeta("Zygarde", "zygarde_complete", listOf("dragon", "ground"), 4209, "Dragon Tail", 3, "Crunch", "Earthquake", 32, 52),
-            PokemonMeta("Landorus (Therian)", "landorus_therian", listOf("ground", "flying"), 4434, "Mud Shot", 2, "Sandsear Storm", "Stone Edge", 42, 44),
-            PokemonMeta("Landorus", "landorus", listOf("ground", "flying"), 4434, "Mud Shot", 2, "Sandsear Storm", "Stone Edge", 42, 44),
-            PokemonMeta("Thundurus (Therian)", "thundurus_therian", listOf("electric", "flying"), 4137, "Volt Switch", 4, "Wild Charge", "Sludge Wave", 48, 50),
-            PokemonMeta("Tornadus", "tornadus", listOf("flying"), 3782, "Gust", 4, "Bleakwind Storm", "Grass Knot", 44, 38),
-            PokemonMeta("Ho-Oh", "ho_oh", listOf("fire", "flying"), 4367, "Incinerate", 5, "Sacred Fire", "Brave Bird", 54, 52),
-            PokemonMeta("Solgaleo", "solgaleo", listOf("psychic", "steel"), 4545, "Fire Spin", 3, "Psychic Fangs", "Iron Head", 24, 30),
-            PokemonMeta("Lunala", "lunala", listOf("psychic", "ghost"), 4545, "Confusion", 4, "Shadow Ball", "Moonblast", 48, 48),
-            PokemonMeta("Necrozma (Dusk Mane)", "necrozma_dusk_mane", listOf("psychic", "steel"), 4634, "Shadow Claw", 2, "Sunsteel Strike", "Dark Pulse", 54, 40),
-            PokemonMeta("Necrozma (Dawn Wings)", "necrozma_dawn_wings", listOf("psychic", "ghost"), 4634, "Shadow Claw", 2, "Moongeist Beam", "Dark Pulse", 54, 40),
-            PokemonMeta("Necrozma", "necrozma", listOf("psychic"), 4163, "Shadow Claw", 2, "Dark Pulse", "Iron Head", 38, 30),
-            PokemonMeta("Melmetal", "melmetal", listOf("steel"), 4144, "Thunder Shock", 2, "Superpower", "Rock Slide", 42, 34),
-            PokemonMeta("Dragonite", "dragonite", listOf("dragon", "flying"), 4287, "Dragon Breath", 1, "Dragon Claw", "Superpower", 30, 42),
-            PokemonMeta("Garchomp", "garchomp", listOf("dragon", "ground"), 4479, "Mud Shot", 2, "Earth Power", "Outrage", 48, 48),
-            PokemonMeta("Tyranitar", "tyranitar", listOf("rock", "dark"), 4335, "Smack Down", 3, "Stone Edge", "Brutal Swing", 48, 34),
-            PokemonMeta("Gyarados", "gyarados", listOf("water", "flying"), 3834, "Dragon Breath", 1, "Aqua Tail", "Crunch", 28, 34),
-            PokemonMeta("Togekiss", "togekiss", listOf("fairy", "flying"), 3767, "Charm", 3, "Ancient Power", "Flamethrower", 26, 38),
-            PokemonMeta("Metagross", "metagross", listOf("steel", "psychic"), 4286, "Bullet Punch", 2, "Meteor Mash", "Earthquake", 48, 52),
-            PokemonMeta("Excadrill", "excadrill", listOf("ground", "steel"), 3667, "Mud Shot", 2, "Drill Run", "Rock Slide", 40, 32),
-            PokemonMeta("Rhyperior", "rhyperior", listOf("ground", "rock"), 4221, "Mud-Slap", 3, "Rock Wrecker", "Breaking Swipe", 52, 25),
-            PokemonMeta("Mamoswine", "mamoswine", listOf("ice", "ground"), 3763, "Powder Snow", 2, "Avalanche", "High Horsepower", 44, 48),
-            PokemonMeta("Annihilape", "annihilape", listOf("fighting", "ghost"), 3695, "Counter", 2, "Shadow Ball", "Ice Punch", 44, 30),
-            PokemonMeta("Reshiram", "reshiram", listOf("dragon", "fire"), 4565, "Dragon Breath", 1, "Fusion Flare", "Overheat", 52, 70),
-            PokemonMeta("Zekrom", "zekrom", listOf("dragon", "electric"), 4565, "Dragon Breath", 1, "Fusion Bolt", "Crunch", 50, 32),
-            PokemonMeta("Kyurem", "kyurem", listOf("dragon", "ice"), 4041, "Dragon Breath", 1, "Glaciate", "Dragon Claw", 42, 28),
-            PokemonMeta("Florges", "florges", listOf("fairy"), 3657, "Fairy Wind", 2, "Disarming Voice", "Moonblast", 30, 48),
-            PokemonMeta("Primarina", "primarina", listOf("water", "fairy"), 3618, "Charm", 3, "Hydro Cannon", "Moonblast", 42, 48),
-            PokemonMeta("Heatran", "heatran", listOf("fire", "steel"), 4307, "Fire Spin", 3, "Magma Storm", "Earth Power", 44, 48),
-            PokemonMeta("Darkrai", "darkrai", listOf("dark"), 4268, "Snarl", 2, "Dark Pulse", "Shadow Ball", 42, 46),
+            // --- Multi-Form & Regional Variants ---
+            PokemonMeta("Zacian (Crowned)", "zacian_crowned", "zacian", "Crowned", listOf("fairy", "steel"), 4620, "Quick Attack", 1, "Close Combat", "Brave Bird", 48, 52, atk = 264.0, def = 216.0, hp = 173, glRank = 400, ulRank = 300, mlRank = 2),
+            PokemonMeta("Zacian (Hero)", "zacian_hero", "zacian", "Hero", listOf("fairy"), 4329, "Quick Attack", 1, "Close Combat", "Play Rough", 44, 42, atk = 232.0, def = 215.0, hp = 173, glRank = 420, ulRank = 310, mlRank = 18),
+            PokemonMeta("Giratina (Origin)", "giratina_origin", "giratina", "Origin", listOf("ghost", "dragon"), 4164, "Shadow Claw", 2, "Shadow Ball", "Ominous Wind", 46, 22, atk = 206.0, def = 172.0, hp = 247, glRank = 180, ulRank = 35, mlRank = 9),
+            PokemonMeta("Giratina (Altered)", "giratina_altered", "giratina", "Altered", listOf("ghost", "dragon"), 3820, "Shadow Claw", 2, "Dragon Claw", "Ancient Power", 28, 26, atk = 171.0, def = 206.0, hp = 247, glRank = 190, ulRank = 3, mlRank = 26),
+            PokemonMeta("Ninetales (Alolan)", "ninetales_alolan", "ninetales", "Alolan", listOf("ice", "fairy"), 2610, "Powder Snow", 2, "Weather Ball", "Dazzling Gleam", 34, 46, atk = 116.0, def = 138.0, hp = 126, glRank = 16, ulRank = 32, mlRank = 320),
+            PokemonMeta("Kanto Ninetales", "ninetales", "ninetales", "Kanto", listOf("fire"), 1498, "Fire Spin", 3, "Weather Ball", "Scorching Sands", 34, 42, atk = 115.0, def = 138.0, hp = 127, glRank = 58, ulRank = 88, mlRank = 350),
+            PokemonMeta("Deoxys (Defense)", "deoxys_defense", "deoxys", "Defense", listOf("psychic"), 2570, "Counter", 2, "Psycho Boost", "Thunderbolt", 36, 44, atk = 102.0, def = 228.0, hp = 98, glRank = 24, ulRank = 48, mlRank = 390),
+            PokemonMeta("Deoxys (Normal)", "deoxys_normal", "deoxys", "Normal", listOf("psychic"), 3573, "Counter", 2, "Psycho Boost", "Thunderbolt", 48, 56, atk = 240.0, def = 86.0, hp = 98, glRank = 650, ulRank = 600, mlRank = 450),
+            PokemonMeta("Dialga (Origin)", "dialga_origin", "dialga", "Origin", listOf("steel", "dragon"), 4624, "Dragon Breath", 1, "Roar of Time", "Iron Head", 52, 34, atk = 241.0, def = 204.0, hp = 184, glRank = 350, ulRank = 240, mlRank = 3),
+            PokemonMeta("Dialga", "dialga", "dialga", "Altered", listOf("steel", "dragon"), 4565, "Dragon Breath", 1, "Draco Meteor", "Iron Head", 50, 32, atk = 246.0, def = 190.0, hp = 184, glRank = 360, ulRank = 250, mlRank = 14),
+            PokemonMeta("Palkia (Origin)", "palkia_origin", "palkia", "Origin", listOf("water", "dragon"), 4683, "Dragon Breath", 1, "Spacial Rend", "Aqua Tail", 46, 28, atk = 259.0, def = 202.0, hp = 169, glRank = 330, ulRank = 210, mlRank = 1),
+            PokemonMeta("Palkia", "palkia", "palkia", "Altered", listOf("water", "dragon"), 4512, "Dragon Breath", 1, "Aqua Tail", "Draco Meteor", 28, 52, atk = 252.0, def = 195.0, hp = 169, glRank = 340, ulRank = 230, mlRank = 22),
+            PokemonMeta("Landorus (Therian)", "landorus_therian", "landorus", "Therian", listOf("ground", "flying"), 4434, "Mud Shot", 2, "Sandsear Storm", "Stone Edge", 42, 46, atk = 259.0, def = 164.0, hp = 182, glRank = 280, ulRank = 190, mlRank = 5),
+            PokemonMeta("Landorus (Incarnate)", "landorus", "landorus", "Incarnate", listOf("ground", "flying"), 4057, "Mud Shot", 2, "Earth Power", "Rock Slide", 44, 36, atk = 235.0, def = 164.0, hp = 182, glRank = 310, ulRank = 210, mlRank = 42),
+            PokemonMeta("Necrozma (Dusk Mane)", "necrozma_dusk_mane", "necrozma", "Dusk Mane", listOf("psychic", "steel"), 4634, "Shadow Claw", 2, "Sunsteel Strike", "Dark Pulse", 54, 40, atk = 249.0, def = 200.0, hp = 179, glRank = 400, ulRank = 280, mlRank = 4),
+            PokemonMeta("Necrozma (Dawn Wings)", "necrozma_dawn_wings", "necrozma", "Dawn Wings", listOf("psychic", "ghost"), 4634, "Shadow Claw", 2, "Moongeist Beam", "Dark Pulse", 54, 40, atk = 249.0, def = 200.0, hp = 179, glRank = 405, ulRank = 285, mlRank = 6),
+            PokemonMeta("Necrozma", "necrozma", "necrozma", "Base", listOf("psychic"), 4163, "Shadow Claw", 2, "Dark Pulse", "Iron Head", 38, 30, atk = 225.0, def = 176.0, hp = 179, glRank = 450, ulRank = 310, mlRank = 65),
 
-            // --- Great League & Ultra League Meta ---
-            PokemonMeta("Clodsire", "clodsire", listOf("poison", "ground"), 1494, "Poison Sting", 2, "Earthquake", "Stone Edge", 46, 42),
-            PokemonMeta("Feraligatr", "feraligatr", listOf("water"), 2488, "Shadow Claw", 2, "Hydro Cannon", "Ice Beam", 44, 38),
-            PokemonMeta("Mandibuzz", "mandibuzz", listOf("dark", "flying"), 2490, "Snarl", 2, "Dark Pulse", "Aerial Ace", 38, 28),
-            PokemonMeta("Cresselia", "cresselia", listOf("psychic"), 2488, "Psycho Cut", 2, "Grass Knot", "Moonblast", 36, 46),
-            PokemonMeta("Cobalion", "cobalion", listOf("steel", "fighting"), 2492, "Double Kick", 3, "Sacred Sword", "Stone Edge", 38, 42),
-            PokemonMeta("Virizion", "virizion", listOf("grass", "fighting"), 2490, "Double Kick", 3, "Sacred Sword", "Leaf Blade", 38, 36),
-            PokemonMeta("Terrakion", "terrakion", listOf("rock", "fighting"), 4221, "Double Kick", 3, "Sacred Sword", "Rock Slide", 42, 38),
-            PokemonMeta("Swampert", "swampert", listOf("water", "ground"), 2495, "Mud Shot", 2, "Hydro Cannon", "Earthquake", 44, 52),
-            PokemonMeta("Talonflame", "talonflame", listOf("fire", "flying"), 2493, "Incinerate", 5, "Fly", "Flame Charge", 42, 28),
-            PokemonMeta("Charizard", "charizard", listOf("fire", "flying"), 2494, "Wing Attack", 2, "Blast Burn", "Dragon Claw", 50, 26),
-            PokemonMeta("Skeledirge", "skeledirge", listOf("fire", "ghost"), 2491, "Incinerate", 5, "Disarming Voice", "Shadow Ball", 32, 46)
+            // --- User Custom Great & Ultra League Team Pokémon ---
+            PokemonMeta("Fearow", "fearow", "fearow", "Base", listOf("normal", "flying"), 1500, "Peck", 2, "Sky Attack", "Drill Run", 38, 42, atk = 131.0, def = 96.0, hp = 120, glRank = 85, ulRank = 250, mlRank = 420),
+            PokemonMeta("Shadow Pidgeot", "pidgeot_shadow", "pidgeot", "Shadow", listOf("normal", "flying"), 1490, "Wing Attack", 2, "Feather Dance", "Brave Bird", 24, 62, atk = 117.0, def = 112.0, hp = 142, glRank = 28, ulRank = 18, mlRank = 310),
+            PokemonMeta("Pidgeot", "pidgeot", "pidgeot", "Base", listOf("normal", "flying"), 1490, "Wing Attack", 2, "Feather Dance", "Brave Bird", 20, 52, atk = 117.0, def = 112.0, hp = 142, glRank = 32, ulRank = 15, mlRank = 300),
+            PokemonMeta("Zygarde", "zygarde_complete", "zygarde", "Complete", listOf("dragon", "ground"), 2472, "Dragon Tail", 3, "Crunch", "Earthquake", 32, 52, atk = 169.0, def = 186.0, hp = 338, glRank = 80, ulRank = 1, mlRank = 5),
+            PokemonMeta("Corviknight", "corviknight", "corviknight", "Base", listOf("flying", "steel"), 2499, "Sand Attack", 1, "Sky Attack", "Iron Head", 36, 34, atk = 148.0, def = 178.0, hp = 202, glRank = 14, ulRank = 7, mlRank = 120),
+            PokemonMeta("Mimikyu", "mimikyu", "mimikyu", "Disguised", listOf("ghost", "fairy"), 2497, "Shadow Claw", 2, "Play Rough", "Shadow Sneak", 44, 28, atk = 162.0, def = 184.0, hp = 138, glRank = 40, ulRank = 25, mlRank = 210),
+
+            // --- Master League & Core Meta ---
+            PokemonMeta("Lugia", "lugia", "lugia", "Base", listOf("psychic", "flying"), 4179, "Dragon Tail", 3, "Aeroblast", "Sky Attack", 54, 34, atk = 176.0, def = 274.0, hp = 211, glRank = 75, ulRank = 45, mlRank = 12),
+            PokemonMeta("Kyogre", "kyogre", "kyogre", "Base", listOf("water"), 4652, "Waterfall", 3, "Surf", "Origin Pulse", 34, 56, atk = 243.0, def = 204.0, hp = 184, glRank = 310, ulRank = 180, mlRank = 10),
+            PokemonMeta("Groudon", "groudon", "groudon", "Base", listOf("ground"), 4652, "Mud Shot", 2, "Precipice Blades", "Fire Punch", 55, 26, atk = 243.0, def = 204.0, hp = 184, glRank = 300, ulRank = 175, mlRank = 11),
+            PokemonMeta("Ho-Oh", "ho_oh", "ho-oh", "Base", listOf("fire", "flying"), 4367, "Incinerate", 5, "Sacred Fire", "Brave Bird", 54, 52, atk = 216.0, def = 219.0, hp = 193, glRank = 140, ulRank = 70, mlRank = 7),
+            PokemonMeta("Yveltal", "yveltal", "yveltal", "Base", listOf("dark", "flying"), 4275, "Snarl", 3, "Dark Pulse", "Oblivion Wing", 42, 42, atk = 225.0, def = 169.0, hp = 226, glRank = 260, ulRank = 95, mlRank = 8),
+            PokemonMeta("Xerneas", "xerneas", "xerneas", "Base", listOf("fairy"), 4275, "Geomancy", 3, "Close Combat", "Moonblast", 44, 48, atk = 225.0, def = 169.0, hp = 226, glRank = 270, ulRank = 98, mlRank = 13),
+            PokemonMeta("Solgaleo", "solgaleo", "solgaleo", "Base", listOf("psychic", "steel"), 4545, "Fire Spin", 3, "Psychic Fangs", "Iron Head", 24, 32, atk = 229.0, def = 174.0, hp = 234, glRank = 290, ulRank = 120, mlRank = 15),
+            PokemonMeta("Mewtwo", "mewtwo", "mewtwo", "Base", listOf("psychic"), 4724, "Psycho Cut", 2, "Psystrike", "Shadow Ball", 48, 44, atk = 266.0, def = 166.0, hp = 193, glRank = 380, ulRank = 210, mlRank = 16),
+            PokemonMeta("Rhyperior", "rhyperior", "rhyperior", "Base", listOf("ground", "rock"), 4221, "Mud-Slap", 3, "Rock Wrecker", "Breaking Swipe", 52, 25, atk = 216.0, def = 174.0, hp = 219, glRank = 210, ulRank = 110, mlRank = 9),
+            PokemonMeta("Dragonite", "dragonite", "dragonite", "Base", listOf("dragon", "flying"), 4287, "Dragon Breath", 1, "Dragon Claw", "Superpower", 30, 42, atk = 235.0, def = 181.0, hp = 188, glRank = 95, ulRank = 52, mlRank = 19),
+            PokemonMeta("Garchomp", "garchomp", "garchomp", "Base", listOf("dragon", "ground"), 4479, "Mud Shot", 2, "Earth Power", "Outrage", 48, 48, atk = 233.0, def = 176.0, hp = 214, glRank = 220, ulRank = 130, mlRank = 24),
+            PokemonMeta("Metagross", "metagross", "metagross", "Base", listOf("steel", "psychic"), 4286, "Bullet Punch", 2, "Meteor Mash", "Earthquake", 48, 52, atk = 229.0, def = 204.0, hp = 172, glRank = 290, ulRank = 160, mlRank = 25),
+            PokemonMeta("Melmetal", "melmetal", "melmetal", "Base", listOf("steel"), 4144, "Thunder Shock", 2, "Superpower", "Rock Slide", 42, 34, atk = 204.0, def = 174.0, hp = 234, glRank = 130, ulRank = 65, mlRank = 23),
+            PokemonMeta("Florges", "florges", "florges", "Base", listOf("fairy"), 3657, "Fairy Wind", 2, "Disarming Voice", "Moonblast", 30, 48, atk = 191.0, def = 218.0, hp = 169, glRank = 110, ulRank = 38, mlRank = 20),
+            PokemonMeta("Primarina", "primarina", "primarina", "Base", listOf("water", "fairy"), 3618, "Charm", 3, "Hydro Cannon", "Moonblast", 42, 48, atk = 206.0, def = 178.0, hp = 172, glRank = 90, ulRank = 42, mlRank = 21),
+            PokemonMeta("Mamoswine", "mamoswine", "mamoswine", "Base", listOf("ice", "ground"), 3763, "Powder Snow", 2, "Avalanche", "High Horsepower", 44, 48, atk = 221.0, def = 138.0, hp = 215, glRank = 190, ulRank = 120, mlRank = 27),
+            PokemonMeta("Excadrill", "excadrill", "excadrill", "Base", listOf("ground", "steel"), 3667, "Mud Shot", 2, "Drill Run", "Rock Slide", 40, 32, atk = 228.0, def = 125.0, hp = 215, glRank = 230, ulRank = 140, mlRank = 28),
+            PokemonMeta("Reshiram", "reshiram", "reshiram", "Base", listOf("dragon", "fire"), 4565, "Dragon Breath", 1, "Fusion Flare", "Overheat", 52, 70, atk = 246.0, def = 190.0, hp = 184, glRank = 350, ulRank = 220, mlRank = 29),
+            PokemonMeta("Zekrom", "zekrom", "zekrom", "Base", listOf("dragon", "electric"), 4565, "Dragon Breath", 1, "Fusion Bolt", "Crunch", 50, 32, atk = 246.0, def = 190.0, hp = 184, glRank = 345, ulRank = 215, mlRank = 30),
+            PokemonMeta("Raikou", "raikou", "raikou", "Base", listOf("electric"), 3902, "Thunder Shock", 2, "Wild Charge", "Shadow Ball", 48, 44, atk = 216.0, def = 178.0, hp = 188, glRank = 180, ulRank = 115, mlRank = 45),
+            PokemonMeta("Entei", "entei", "entei", "Base", listOf("fire"), 3926, "Fire Fang", 2, "Flame Charge", "Overheat", 28, 72, atk = 211.0, def = 161.0, hp = 223, glRank = 240, ulRank = 165, mlRank = 55),
+            PokemonMeta("Suicune", "suicune", "suicune", "Base", listOf("water"), 3372, "Snarl", 3, "Ice Beam", "Hydro Pump", 36, 52, atk = 166.0, def = 211.0, hp = 205, glRank = 170, ulRank = 95, mlRank = 75),
+
+            // --- Great League & Ultra League Core Meta ---
+            PokemonMeta("Clodsire", "clodsire", "clodsire", "Base", listOf("poison", "ground"), 1494, "Poison Sting", 2, "Earthquake", "Stone Edge", 46, 42, atk = 89.0, def = 123.0, hp = 222, glRank = 1, ulRank = 90, mlRank = 400),
+            PokemonMeta("Feraligatr", "feraligatr", "feraligatr", "Base", listOf("water"), 2488, "Shadow Claw", 2, "Hydro Cannon", "Ice Beam", 44, 38, atk = 164.0, def = 155.0, hp = 161, glRank = 2, ulRank = 2, mlRank = 85),
+            PokemonMeta("Mandibuzz", "mandibuzz", "mandibuzz", "Base", listOf("dark", "flying"), 2417, "Snarl", 3, "Dark Pulse", "Aerial Ace", 38, 28, atk = 118.0, def = 191.0, hp = 208, glRank = 3, ulRank = 12, mlRank = 280),
+            PokemonMeta("Cresselia", "cresselia", "cresselia", "Base", listOf("psychic"), 2488, "Psycho Cut", 2, "Grass Knot", "Moonblast", 36, 46, atk = 124.0, def = 215.0, hp = 197, glRank = 11, ulRank = 4, mlRank = 110),
+            PokemonMeta("Cobalion", "cobalion", "cobalion", "Base", listOf("steel", "fighting"), 2492, "Double Kick", 3, "Sacred Sword", "Stone Edge", 38, 42, atk = 152.0, def = 182.0, hp = 169, glRank = 95, ulRank = 6, mlRank = 90),
+            PokemonMeta("Virizion", "virizion", "virizion", "Base", listOf("grass", "fighting"), 2490, "Double Kick", 3, "Sacred Sword", "Leaf Blade", 38, 36, atk = 152.0, def = 182.0, hp = 169, glRank = 110, ulRank = 8, mlRank = 95),
+            PokemonMeta("Swampert", "swampert", "swampert", "Base", listOf("water", "ground"), 2495, "Mud Shot", 2, "Hydro Cannon", "Earthquake", 44, 52, atk = 167.0, def = 143.0, hp = 175, glRank = 15, ulRank = 14, mlRank = 60),
+            PokemonMeta("Talonflame", "talonflame", "talonflame", "Base", listOf("fire", "flying"), 2493, "Incinerate", 5, "Fly", "Flame Charge", 42, 28, atk = 159.0, def = 143.0, hp = 169, glRank = 18, ulRank = 10, mlRank = 180),
+            PokemonMeta("Annihilape", "annihilape", "annihilape", "Base", listOf("fighting", "ghost"), 3695, "Counter", 2, "Shadow Ball", "Ice Punch", 44, 30, atk = 198.0, def = 162.0, hp = 215, glRank = 8, ulRank = 9, mlRank = 32),
+            PokemonMeta("Skeledirge", "skeledirge", "skeledirge", "Base", listOf("fire", "ghost"), 2491, "Incinerate", 5, "Disarming Voice", "Shadow Ball", 32, 46, atk = 158.0, def = 144.0, hp = 184, glRank = 22, ulRank = 15, mlRank = 70)
         )
+
+        /**
+         * FormResolver:
+         * Resolves multi-form and regional species to the highest-ranked PvPoke variant
+         * for the currently active league, and provides cycling across valid forms.
+         */
+        object FormResolver {
+            fun getVariantsForSpecies(speciesOrName: String, activeLeague: String): List<PokemonMeta> {
+                val base = extractBaseSpecies(speciesOrName)
+                val variants = POKEMON_META_DATABASE.filter { it.baseSpecies.equals(base, ignoreCase = true) }
+                if (variants.isEmpty()) return emptyList()
+
+                return variants.sortedBy { meta ->
+                    when {
+                        activeLeague.contains("GREAT", ignoreCase = true) -> meta.glRank
+                        activeLeague.contains("ULTRA", ignoreCase = true) -> meta.ulRank
+                        else -> meta.mlRank
+                    }
+                }
+            }
+
+            fun resolveBestDefaultVariant(detectedMeta: PokemonMeta, rawText: String, activeLeague: String): PokemonMeta {
+                val lowerRaw = rawText.lowercase()
+                val variants = getVariantsForSpecies(detectedMeta.baseSpecies, activeLeague)
+                if (variants.size <= 1) return detectedMeta
+
+                // Check if OCR explicitly read a form keyword
+                for (variant in variants) {
+                    val labelLower = variant.formLabel.lowercase()
+                    if (labelLower != "base" && lowerRaw.contains(labelLower)) {
+                        return variant
+                    }
+                }
+                // Otherwise default to the #1 highest-ranked variant for the active league
+                return variants.first()
+            }
+
+            fun extractBaseSpecies(name: String): String {
+                return name.lowercase()
+                    .replace(Regex("\\(.*?\\)"), "")
+                    .replace("shadow", "")
+                    .trim()
+                    .split(" ")
+                    .firstOrNull() ?: name.lowercase()
+            }
+        }
     }
 
     private lateinit var windowManager: WindowManager
@@ -161,6 +293,8 @@ class OverlayService : LifecycleService() {
     private var mediaProjection: MediaProjection? = null
     private var virtualDisplay: VirtualDisplay? = null
     private var imageReader: ImageReader? = null
+    private var imageReaderThread: HandlerThread? = null
+    private var imageReaderHandler: Handler? = null
 
     private var screenWidth = 1080
     private var screenHeight = 2400
@@ -171,6 +305,11 @@ class OverlayService : LifecycleService() {
 
     private var currentPreset: TeamPreset? = null
     private var activeOpponentName: String = "Waiting..."
+    private var activeOpponentSpecies: String = ""
+    private var isOpponentShadow: Boolean = false
+    private var availableOpponentForms: List<PokemonMeta> = emptyList()
+    private var currentFormIndex: Int = 0
+
     private var activeUserPokemonName: String? = null
     private val detectedOpponents = mutableListOf<String>()
     private var isWaitingForOpponent = true
@@ -193,6 +332,9 @@ class OverlayService : LifecycleService() {
         screenHeight = metrics.heightPixels
         screenDensity = metrics.densityDpi
 
+        imageReaderThread = HandlerThread("GBLImageReaderThread").apply { start() }
+        imageReaderHandler = Handler(imageReaderThread!!.looper)
+
         createNotificationChannel()
         setupDefaultPresetsIfNeeded()
         setupOverlayView()
@@ -210,22 +352,22 @@ class OverlayService : LifecycleService() {
                     ), true
                 ),
                 TeamPreset(
-                    "preset-ul-1", "Ultra: Giratina-A / Cresselia / Cobalion", "ULTRA LEAGUE", listOf(
-                        TeamMember("Giratina (Altered)", 2488, "Shadow Claw", "Dragon Claw", "Ancient Power"),
-                        TeamMember("Cresselia", 2488, "Psycho Cut", "Grass Knot", "Moonblast"),
-                        TeamMember("Cobalion", 2492, "Double Kick", "Sacred Sword", "Stone Edge")
+                    "preset-ul-1", "Ultra: Zygarde / Corviknight / Mimikyu", "ULTRA LEAGUE", listOf(
+                        TeamMember("Zygarde", 2472, "Dragon Tail", "Crunch", "Earthquake"),
+                        TeamMember("Corviknight", 2499, "Sand Attack", "Sky Attack", "Iron Head"),
+                        TeamMember("Mimikyu", 2497, "Shadow Claw", "Play Rough", "Shadow Sneak")
                     ), false
                 ),
                 TeamPreset(
-                    "preset-gl-1", "Great: Clodsire / Feraligatr / Mandibuzz", "GREAT LEAGUE", listOf(
-                        TeamMember("Clodsire", 1494, "Poison Sting", "Earthquake", "Stone Edge"),
-                        TeamMember("Feraligatr", 1488, "Shadow Claw", "Hydro Cannon", "Ice Beam"),
-                        TeamMember("Mandibuzz", 1490, "Snarl", "Dark Pulse", "Aerial Ace")
+                    "preset-gl-1", "Great: Kanto Ninetales / Fearow / Shadow Pidgeot", "GREAT LEAGUE", listOf(
+                        TeamMember("Kanto Ninetales", 1498, "Fire Spin", "Weather Ball", "Scorching Sands"),
+                        TeamMember("Fearow", 1500, "Peck", "Sky Attack", "Drill Run"),
+                        TeamMember("Shadow Pidgeot", 1490, "Wing Attack", "Feather Dance", "Brave Bird")
                     ), false
                 )
             )
             val json = gson.toJson(defaults)
-            prefs.edit().putString("gbl_team_presets_v1", json).apply()
+            prefs.edit().putString("gbl_team_presets_v2", json).apply()
             currentPreset = defaults[0]
             activeUserPokemonName = defaults[0].pokemon[0].name
         } else {
@@ -266,7 +408,7 @@ class OverlayService : LifecycleService() {
             format = PixelFormat.TRANSLUCENT
             gravity = Gravity.TOP or Gravity.START
             x = (8 * density).toInt()
-            y = (130 * density).toInt()
+            y = (135 * density).toInt()
             width = min((screenWidth * 0.78f).toInt(), (310 * density).toInt())
             height = WindowManager.LayoutParams.WRAP_CONTENT
         }
@@ -315,6 +457,15 @@ class OverlayService : LifecycleService() {
         when (action) {
             ACTION_START_OVERLAY -> {
                 startForegroundNotification()
+                intent?.getStringExtra(EXTRA_PRESET_JSON)?.let { presetJson ->
+                    try {
+                        val incoming = gson.fromJson(presetJson, TeamPreset::class.java)
+                        if (incoming != null && incoming.pokemon.isNotEmpty()) {
+                            currentPreset = incoming
+                            activeUserPokemonName = incoming.pokemon.first().name
+                        }
+                    } catch (_: Exception) {}
+                }
                 val resultCode = intent?.getIntExtra(EXTRA_RESULT_CODE, 0) ?: 0
                 val resultData = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     intent?.getParcelableExtra(EXTRA_RESULT_DATA, Intent::class.java)
@@ -326,6 +477,21 @@ class OverlayService : LifecycleService() {
                 if (resultCode != 0 && resultData != null) {
                     initMediaProjection(resultCode, resultData)
                     startBattleOcrLoop()
+                } else if (mediaProjection != null) {
+                    startBattleOcrLoop()
+                }
+                recalculateAndPushBattleData()
+            }
+            ACTION_UPDATE_PRESET -> {
+                intent?.getStringExtra(EXTRA_PRESET_JSON)?.let { presetJson ->
+                    try {
+                        val incoming = gson.fromJson(presetJson, TeamPreset::class.java)
+                        if (incoming != null && incoming.pokemon.isNotEmpty()) {
+                            currentPreset = incoming
+                            activeUserPokemonName = incoming.pokemon.first().name
+                            loadInitialDataIntoOverlay()
+                        }
+                    } catch (_: Exception) {}
                 }
             }
             ACTION_START_BATTLE -> startNewBattle()
@@ -347,7 +513,7 @@ class OverlayService : LifecycleService() {
 
         val notification: Notification = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
             .setContentTitle("GBL Battle Assistant Active")
-            .setContentText("Zero-sneak timing & auto opponent matrix running...")
+            .setContentText("Live OCR monitoring opponent & player switches...")
             .setSmallIcon(android.R.drawable.ic_menu_compass)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop Overlay", pendingIntent)
@@ -386,7 +552,7 @@ class OverlayService : LifecycleService() {
         } else {
             layoutParams.gravity = Gravity.TOP or Gravity.START
             layoutParams.x = (8 * density).toInt()
-            layoutParams.y = (130 * density).toInt()
+            layoutParams.y = (135 * density).toInt()
             layoutParams.width = min((screenWidth * 0.78f).toInt(), (310 * density).toInt())
             layoutParams.height = WindowManager.LayoutParams.WRAP_CONTENT
         }
@@ -407,7 +573,21 @@ class OverlayService : LifecycleService() {
     @SuppressLint("WrongConstant")
     private fun initMediaProjection(resultCode: Int, data: Intent) {
         try {
+            virtualDisplay?.release()
+            imageReader?.close()
+            mediaProjection?.stop()
+
             mediaProjection = mediaProjectionManager?.getMediaProjection(resultCode, data)
+
+            // CRITICAL FOR ANDROID 14+ (API 34+): Must register callback before createVirtualDisplay
+            mediaProjection?.registerCallback(object : MediaProjection.Callback() {
+                override fun onStop() {
+                    super.onStop()
+                    virtualDisplay?.release()
+                    virtualDisplay = null
+                }
+            }, Handler(Looper.getMainLooper()))
+
             imageReader = ImageReader.newInstance(screenWidth, screenHeight, PixelFormat.RGBA_8888, 2)
             virtualDisplay = mediaProjection?.createVirtualDisplay(
                 "GBLScreenCapture",
@@ -417,7 +597,7 @@ class OverlayService : LifecycleService() {
                 DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
                 imageReader?.surface,
                 null,
-                null
+                imageReaderHandler
             )
         } catch (e: Exception) {
             e.printStackTrace()
@@ -435,16 +615,16 @@ class OverlayService : LifecycleService() {
                         val buffer = plane.buffer
                         val pixelStride = plane.pixelStride
                         val rowStride = plane.rowStride
-                        val offset = rowStride - pixelStride * screenWidth
+                        val rowPadding = rowStride - pixelStride * screenWidth
 
                         val fullBitmap = Bitmap.createBitmap(
-                            screenWidth + offset / pixelStride,
+                            screenWidth + rowPadding / pixelStride,
                             screenHeight,
                             Bitmap.Config.ARGB_8888
                         )
                         fullBitmap.copyPixelsFromBuffer(buffer)
 
-                        val clean = if (offset == 0) {
+                        val clean = if (rowPadding == 0) {
                             fullBitmap
                         } else {
                             val cropped = Bitmap.createBitmap(fullBitmap, 0, 0, screenWidth, screenHeight)
@@ -472,15 +652,16 @@ class OverlayService : LifecycleService() {
 
     /**
      * LIVE BATTLE OCR LOOP:
-     * 1. Scans top-right opponent header (e.g. CP 4947 Zacian)
-     * 2. Scans top-left player header (e.g. Lugia CP 4179)
-     * 3. Scans lower move buttons (e.g. Aeroblast, Roar of Time, Surf) to detect player switches
+     * Runs every 950ms to detect:
+     * 1. Top-Right Opponent Pokémon nameplate (X: 44%..99%, Y: 2%..18%)
+     * 2. Top-Left Player Active Switch nameplate (X: 1%..52%, Y: 2%..18%)
+     * 3. Bottom Charged Move Buttons (Y: 68%..96%) for instant player switch confirmation
      */
     private fun startBattleOcrLoop() {
         battleLoopJob?.cancel()
         battleLoopJob = lifecycleScope.launch(Dispatchers.Default) {
             while (isActive) {
-                delay(1200)
+                delay(950)
                 try {
                     captureAndProcessBattleRegions()
                 } catch (_: Exception) {}
@@ -488,57 +669,40 @@ class OverlayService : LifecycleService() {
         }
     }
 
+    private fun cropNormalizedRegion(
+        source: Bitmap,
+        leftRatio: Float,
+        topRatio: Float,
+        rightRatio: Float,
+        bottomRatio: Float
+    ): Bitmap? {
+        if (source.isRecycled) return null
+        val x = (source.width * leftRatio).toInt().coerceIn(0, source.width - 1)
+        val y = (source.height * topRatio).toInt().coerceIn(0, source.height - 1)
+        val w = ((source.width * (rightRatio - leftRatio)).toInt()).coerceIn(1, source.width - x)
+        val h = ((source.height * (bottomRatio - topRatio)).toInt()).coerceIn(1, source.height - y)
+        return try {
+            Bitmap.createBitmap(source, x, y, w, h)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     private suspend fun captureAndProcessBattleRegions() {
         val bitmap = captureCleanScreenBitmap() ?: return
 
-        // 1. OPPONENT HEADER CROP (Top-Right: X 45%..98%, Y 2.5%..14.0%)
-        val oppX = (bitmap.width * 0.45f).toInt()
-        val oppY = (bitmap.height * 0.025f).toInt()
-        val oppW = (bitmap.width * 0.53f).toInt()
-        val oppH = (bitmap.height * 0.115f).toInt()
+        // 1. TOP-RIGHT OPPONENT NAMEPLATE REGION (Normalized X: 0.44..0.99, Y: 0.02..0.18)
+        val oppCropped = cropNormalizedRegion(bitmap, 0.44f, 0.02f, 0.99f, 0.18f)
 
-        val safeOppX = max(0, min(oppX, bitmap.width - 1))
-        val safeOppY = max(0, min(oppY, bitmap.height - 1))
-        val safeOppW = min(oppW, bitmap.width - safeOppX)
-        val safeOppH = min(oppH, bitmap.height - safeOppY)
+        // 2. TOP-LEFT PLAYER ACTIVE SWITCH NAMEPLATE REGION (Normalized X: 0.01..0.52, Y: 0.02..0.18)
+        val playerCropped = cropNormalizedRegion(bitmap, 0.01f, 0.02f, 0.52f, 0.18f)
 
-        // 2. PLAYER HEADER CROP (Top-Left: X 2%..52%, Y 2.5%..14.0%)
-        val playerX = (bitmap.width * 0.02f).toInt()
-        val playerY = (bitmap.height * 0.025f).toInt()
-        val playerW = (bitmap.width * 0.50f).toInt()
-        val playerH = (bitmap.height * 0.115f).toInt()
-
-        val safePlayerX = max(0, min(playerX, bitmap.width - 1))
-        val safePlayerY = max(0, min(playerY, bitmap.height - 1))
-        val safePlayerW = min(playerW, bitmap.width - safePlayerX)
-        val safePlayerH = min(playerH, bitmap.height - safePlayerY)
-
-        // 3. LOWER MOVE BUTTONS CROP (Y 70%..98%, X 0%..100%)
-        val moveX = 0
-        val moveY = (bitmap.height * 0.70f).toInt()
-        val moveW = bitmap.width
-        val moveH = (bitmap.height * 0.28f).toInt()
-
-        val safeMoveX = max(0, min(moveX, bitmap.width - 1))
-        val safeMoveY = max(0, min(moveY, bitmap.height - 1))
-        val safeMoveW = min(moveW, bitmap.width - safeMoveX)
-        val safeMoveH = min(moveH, bitmap.height - safeMoveY)
-
-        val oppCropped = try {
-            Bitmap.createBitmap(bitmap, safeOppX, safeOppY, safeOppW, safeOppH)
-        } catch (_: Exception) { null }
-
-        val playerCropped = try {
-            Bitmap.createBitmap(bitmap, safePlayerX, safePlayerY, safePlayerW, safePlayerH)
-        } catch (_: Exception) { null }
-
-        val moveCropped = try {
-            Bitmap.createBitmap(bitmap, safeMoveX, safeMoveY, safeMoveW, safeMoveH)
-        } catch (_: Exception) { null }
+        // 3. BOTTOM CHARGED MOVE BUTTONS REGION (Normalized X: 0.05..0.95, Y: 0.68..0.96)
+        val moveCropped = cropNormalizedRegion(bitmap, 0.05f, 0.68f, 0.95f, 0.96f)
 
         bitmap.recycle()
 
-        // Process Opponent Header OCR
+        // Process Top-Right Opponent OCR
         if (oppCropped != null) {
             val oppInput = InputImage.fromBitmap(oppCropped, 0)
             textRecognizer.process(oppInput)
@@ -549,30 +713,44 @@ class OverlayService : LifecycleService() {
                 .addOnFailureListener { oppCropped.recycle() }
         }
 
-        // Process Player Header & Move OCR
+        // Process Top-Left Player Nameplate OCR
         if (playerCropped != null) {
             val playerInput = InputImage.fromBitmap(playerCropped, 0)
             textRecognizer.process(playerInput)
                 .addOnSuccessListener { visionText ->
                     playerCropped.recycle()
-                    handleRecognizedPlayerSwitchText(visionText)
+                    handleRecognizedPlayerSwitchText(visionText, isFromTopLeftHeader = true)
                 }
                 .addOnFailureListener { playerCropped.recycle() }
         }
 
+        // Process Bottom Move Buttons OCR
         if (moveCropped != null) {
             val moveInput = InputImage.fromBitmap(moveCropped, 0)
             textRecognizer.process(moveInput)
                 .addOnSuccessListener { visionText ->
                     moveCropped.recycle()
-                    handleRecognizedPlayerSwitchText(visionText)
+                    handleRecognizedPlayerSwitchText(visionText, isFromTopLeftHeader = false)
                 }
                 .addOnFailureListener { moveCropped.recycle() }
         }
     }
 
-    private fun handleRecognizedOpponentText(visionText: com.google.mlkit.vision.text.Text) {
+    private fun isOverlayHudSelfText(lower: String): Boolean {
+        return lower.contains("waiting") ||
+                lower.contains("scanning") ||
+                lower.contains("zero-sneak") ||
+                lower.contains("awaiting") ||
+                lower.contains("shadow:") ||
+                lower.contains("form:") ||
+                lower.contains("dmg to") ||
+                lower.contains("throw:")
+    }
+
+    private fun handleRecognizedOpponentText(visionText: Text) {
+        val activeLeague = currentPreset?.league ?: "MASTER LEAGUE"
         var detected: PokemonMeta? = null
+        var rawMatchedLine = ""
 
         for (block in visionText.textBlocks) {
             for (line in block.lines) {
@@ -580,19 +758,12 @@ class OverlayService : LifecycleService() {
                 if (text.length < 3) continue
 
                 val lower = text.lowercase()
-                if (lower.contains("waiting") ||
-                    lower.contains("scanning") ||
-                    lower.contains("battle") ||
-                    lower.contains("pick opp") ||
-                    lower.contains("zero-sneak") ||
-                    lower.contains("awaiting")
-                ) {
-                    continue
-                }
+                if (isOverlayHudSelfText(lower)) continue
 
-                val matched = findPokemonInText(text)
-                if (matched != null) {
-                    detected = matched
+                val candidate = findPokemonInText(text)
+                if (candidate != null) {
+                    detected = FormResolver.resolveBestDefaultVariant(candidate, text, activeLeague)
+                    rawMatchedLine = text
                     break
                 }
             }
@@ -601,18 +772,30 @@ class OverlayService : LifecycleService() {
 
         if (detected != null) {
             val matched = detected
-            if (isWaitingForOpponent || matched.name != activeOpponentName) {
+            val newBaseSpecies = matched.baseSpecies
+
+            // Trigger immediately when opponent spawns or switches/faints into a new species
+            if (isWaitingForOpponent || !newBaseSpecies.equals(activeOpponentSpecies, ignoreCase = true)) {
                 isWaitingForOpponent = false
+                activeOpponentSpecies = newBaseSpecies
+                availableOpponentForms = FormResolver.getVariantsForSpecies(newBaseSpecies, activeLeague)
+                currentFormIndex = availableOpponentForms.indexOfFirst { it.name == matched.name }.coerceAtLeast(0)
                 activeOpponentName = matched.name
+
+                if (rawMatchedLine.contains("shadow", ignoreCase = true)) {
+                    isOpponentShadow = true
+                }
+
                 if (!detectedOpponents.contains(matched.name)) {
                     detectedOpponents.add(0, matched.name)
                     if (detectedOpponents.size > 3) detectedOpponents.removeAt(detectedOpponents.lastIndex)
                 }
+
                 recalculateAndPushBattleData()
                 Handler(Looper.getMainLooper()).post {
                     Toast.makeText(
                         this,
-                        "⚔️ Opponent Detected: ${matched.name} (${matched.fastTurns}t ${matched.defaultFastMove})",
+                        "⚔️ Opponent: ${matched.name} (${matched.fastTurns}t ${matched.defaultFastMove})",
                         Toast.LENGTH_SHORT
                     ).show()
                 }
@@ -621,9 +804,10 @@ class OverlayService : LifecycleService() {
     }
 
     /**
-     * Detects player switches during battle by matching player header or move buttons OCR against active team members
+     * Detects player switches automatically via Top-Left Player Nameplate OR Bottom Charged Move buttons.
+     * Immediately updates internal state, re-indexes current matchups, and refreshes UI without manual party tap.
      */
-    private fun handleRecognizedPlayerSwitchText(visionText: com.google.mlkit.vision.text.Text) {
+    private fun handleRecognizedPlayerSwitchText(visionText: Text, isFromTopLeftHeader: Boolean) {
         val preset = currentPreset ?: return
 
         for (block in visionText.textBlocks) {
@@ -632,49 +816,53 @@ class OverlayService : LifecycleService() {
                 if (lineText.length < 3) continue
 
                 val lowerLine = lineText.lowercase()
-                if (lowerLine.contains("waiting") ||
-                    lowerLine.contains("scanning") ||
-                    lowerLine.contains("battle") ||
-                    lowerLine.contains("pick opp") ||
-                    lowerLine.contains("zero-sneak") ||
-                    lowerLine.contains("awaiting")
-                ) {
-                    continue
-                }
+                if (isOverlayHudSelfText(lowerLine)) continue
 
-                val upperLine = lineText.uppercase()
+                val normalizedLine = normalizeOcrToken(lineText)
 
+                // 1. Direct or fuzzy species match against user's 3 team members
                 for (slot in preset.pokemon) {
-                    val speciesBase = slot.name.split(" ").first().uppercase()
+                    val speciesBase = FormResolver.extractBaseSpecies(slot.name)
                     val cpStr = slot.cp.toString()
                     val meta = getPokemonMeta(slot.name)
 
-                    // Collect move keywords belonging to this slot
-                    val moveKeywords = mutableSetOf<String>()
-                    fun addKw(move: String) {
-                        if (move.isNotBlank() && !move.equals("Fast Attack", true) && !move.equals("Charged Move 1", true) && !move.equals("Move 1", true)) {
-                            val parts = move.uppercase().split(" ").filter { it.length >= 3 && it != "MOVE" && it != "THE" && it != "OF" }
-                            moveKeywords.addAll(parts)
-                        }
-                    }
-                    addKw(slot.fastMove)
-                    addKw(slot.chargedMove1)
-                    addKw(slot.chargedMove2)
-                    addKw(meta.defaultFastMove)
-                    addKw(meta.chargedMove1)
-                    addKw(meta.chargedMove2)
-
                     var isMatched = false
 
-                    // 1. Check species name or exact CP
-                    if (speciesBase.length >= 3 && upperLine.contains(speciesBase)) {
+                    if (speciesBase.length >= 3 && normalizedLine.contains(speciesBase)) {
                         isMatched = true
-                    } else if (cpStr.length >= 3 && upperLine.contains(cpStr)) {
+                    } else if (cpStr.length >= 3 && lineText.contains(cpStr)) {
                         isMatched = true
-                    } else {
-                        // 2. Check move name keywords (e.g. AEROBLAST, ROAR, SURF, EARTH POWER)
+                    } else if (isFromTopLeftHeader) {
+                        // Fuzzy Levenshtein check on top-left nameplate tokens
+                        val tokens = lineText.replace(Regex("[^a-zA-Z\\s]"), " ")
+                            .split("\\s+".toRegex())
+                            .filter { it.length >= 4 }
+                        for (token in tokens) {
+                            val normTok = normalizeOcrToken(token)
+                            if (levenshteinDistance(normTok, speciesBase) <= 2) {
+                                isMatched = true
+                                break
+                            }
+                        }
+                    }
+
+                    if (!isMatched && !isFromTopLeftHeader) {
+                        // Check Charged Move signature keywords on bottom move buttons
+                        val moveKeywords = mutableSetOf<String>()
+                        fun addMoveKw(move: String) {
+                            if (move.isNotBlank()) {
+                                move.lowercase().split(" ")
+                                    .filter { it.length >= 4 && it != "move" && it != "fast" }
+                                    .forEach { moveKeywords.add(it) }
+                            }
+                        }
+                        addMoveKw(slot.chargedMove1)
+                        addMoveKw(slot.chargedMove2)
+                        addMoveKw(meta.chargedMove1)
+                        addMoveKw(meta.chargedMove2)
+
                         for (kw in moveKeywords) {
-                            if (kw.length >= 3 && upperLine.contains(kw)) {
+                            if (lowerLine.contains(kw)) {
                                 isMatched = true
                                 break
                             }
@@ -682,14 +870,36 @@ class OverlayService : LifecycleService() {
                     }
 
                     if (isMatched) {
-                        if (activeUserPokemonName != slot.name) {
+                        if (!slot.name.equals(activeUserPokemonName, ignoreCase = true)) {
                             activeUserPokemonName = slot.name
                             recalculateAndPushBattleData()
                             Handler(Looper.getMainLooper()).post {
-                                Toast.makeText(this, "🔄 Active Lead: ${slot.name}", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(this, "🔄 Player Switch: ${slot.name}", Toast.LENGTH_SHORT).show()
                             }
                         }
                         return
+                    }
+                }
+
+                // 2. If top-left header detected a valid meta Pokémon not in preset, still update active lead
+                if (isFromTopLeftHeader) {
+                    val detectedPlayerMon = findPokemonInText(lineText)
+                    if (detectedPlayerMon != null &&
+                        !detectedPlayerMon.baseSpecies.equals(activeOpponentSpecies, ignoreCase = true)
+                    ) {
+                        val resolved = FormResolver.resolveBestDefaultVariant(
+                            detectedPlayerMon,
+                            lineText,
+                            preset.league
+                        )
+                        if (!resolved.name.equals(activeUserPokemonName, ignoreCase = true)) {
+                            activeUserPokemonName = resolved.name
+                            recalculateAndPushBattleData()
+                            Handler(Looper.getMainLooper()).post {
+                                Toast.makeText(this, "🔄 Active Lead: ${resolved.name}", Toast.LENGTH_SHORT).show()
+                            }
+                            return
+                        }
                     }
                 }
             }
@@ -698,22 +908,59 @@ class OverlayService : LifecycleService() {
 
     /**
      * ACTION: START NEW BATTLE
-     * Clears previous opponents, resets waiting state, and prepares for next opponent spawn
+     * Clears previous opponents, resets Shadow/Form state, and prepares for next opponent spawn
      */
     fun startNewBattle() {
         detectedOpponents.clear()
         isWaitingForOpponent = true
         activeOpponentName = "Waiting..."
+        activeOpponentSpecies = ""
+        isOpponentShadow = false
+        availableOpponentForms = emptyList()
+        currentFormIndex = 0
         activeUserPokemonName = currentPreset?.pokemon?.getOrNull(0)?.name ?: "Dialga (Origin)"
         recalculateAndPushBattleData()
         Handler(Looper.getMainLooper()).post {
-            Toast.makeText(this, "⚔️ Opponents cleared! Waiting for battle spawn...", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "⚔️ New Battle! Scanning top-left & top-right headers...", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    fun toggleShadowModifier() {
+        isOpponentShadow = !isOpponentShadow
+        recalculateAndPushBattleData()
+    }
+
+    fun cycleActiveOpponentForm() {
+        if (availableOpponentForms.size <= 1) return
+        currentFormIndex = (currentFormIndex + 1) % availableOpponentForms.size
+        val nextVariant = availableOpponentForms[currentFormIndex]
+        val previousName = activeOpponentName
+        activeOpponentName = nextVariant.name
+
+        val idx = detectedOpponents.indexOf(previousName)
+        if (idx >= 0) {
+            detectedOpponents[idx] = nextVariant.name
+        } else if (!detectedOpponents.contains(nextVariant.name)) {
+            detectedOpponents.add(0, nextVariant.name)
+        }
+        recalculateAndPushBattleData()
+    }
+
+    private fun normalizeOcrToken(input: String): String {
+        return input.lowercase()
+            .replace("0", "o")
+            .replace("1", "i")
+            .replace("!", "i")
+            .replace("|", "l")
+            .replace("5", "s")
+            .replace("8", "b")
+            .replace(Regex("[^a-z]"), "")
     }
 
     private fun findPokemonInText(rawText: String): PokemonMeta? {
         val cleaned = rawText
-            .replace(Regex("(?i)\\b(?:shadow|purified|forme|form|cp|iv|cp\\s*\\d+)\\b"), " ")
+            .replace(Regex("(?i)\\b(?:shadow|purified|forme|form|cp|iv|lv|level)\\b"), " ")
+            .replace(Regex("\\d+"), " ")
             .replace(Regex("[^a-zA-Z\\s-]"), " ")
             .trim()
 
@@ -721,69 +968,83 @@ class OverlayService : LifecycleService() {
 
         val lowerCleaned = cleaned.lowercase()
 
+        // 1. Direct substring match against species base names
         for (meta in POKEMON_META_DATABASE) {
-            val baseName = meta.name.split(" ").first().lowercase()
-            if (baseName.length >= 3 && lowerCleaned.contains(baseName)) {
+            if (meta.baseSpecies.length >= 4 && lowerCleaned.contains(meta.baseSpecies)) {
                 return meta
             }
         }
 
+        // 2. Token-level exact & normalized OCR confusable match
         val tokens = cleaned.split("\\s+".toRegex()).filter { it.length >= 3 }
         for (token in tokens) {
-            val direct = POKEMON_META_DATABASE.find {
-                it.name.equals(token, ignoreCase = true) ||
-                        it.speciesId.equals(token, ignoreCase = true) ||
-                        it.name.split(" ").first().equals(token, ignoreCase = true)
+            val normToken = normalizeOcrToken(token)
+            if (normToken.length < 4) continue
+
+            val exactOrNorm = POKEMON_META_DATABASE.find {
+                it.baseSpecies.equals(token, ignoreCase = true) ||
+                        normalizeOcrToken(it.baseSpecies) == normToken
             }
-            if (direct != null) return direct
+            if (exactOrNorm != null) return exactOrNorm
         }
+
+        // 3. Prefix match for partially clipped long names (e.g. "Feraliga", "Giratin", "Zacia")
+        for (token in tokens) {
+            val normToken = normalizeOcrToken(token)
+            if (normToken.length < 5) continue
+            val prefixMatch = POKEMON_META_DATABASE.find {
+                normalizeOcrToken(it.baseSpecies).startsWith(normToken) ||
+                        normToken.startsWith(normalizeOcrToken(it.baseSpecies))
+            }
+            if (prefixMatch != null) return prefixMatch
+        }
+
+        // 4. Fuzzy Levenshtein match against meta dictionary
+        var bestMatch: PokemonMeta? = null
+        var bestDistance = Int.MAX_VALUE
 
         for (token in tokens) {
-            val prefix = POKEMON_META_DATABASE.find {
-                it.name.startsWith(token, ignoreCase = true) ||
-                        token.startsWith(it.name.split(" ").first(), ignoreCase = true)
-            }
-            if (prefix != null) return prefix
-        }
+            val normToken = normalizeOcrToken(token)
+            if (normToken.length < 4) continue
+            val maxAllowedDist = if (normToken.length >= 7) 2 else 1
 
-        for (token in tokens) {
-            val t = token.lowercase()
-            if (t.length < 4) continue
-            val fuzzy = POKEMON_META_DATABASE.find { meta ->
-                val m = meta.name.split(" ").first().lowercase()
-                m.length >= 4 && (levenshteinDistance(m, t) <= 2)
-            }
-            if (fuzzy != null) return fuzzy
-        }
-
-        for (token in tokens) {
-            if (token.length in 4..12 && token.first().isUpperCase()) {
-                val capitalized = token.lowercase().replaceFirstChar { it.uppercase() }
-                return PokemonMeta(
-                    name = capitalized,
-                    speciesId = token.lowercase(),
-                    types = listOf("normal"),
-                    defaultCp = 2500,
-                    defaultFastMove = "Fast Attack",
-                    fastTurns = 2,
-                    chargedMove1 = "Charged Move 1",
-                    chargedMove2 = "Charged Move 2",
-                    c1Dmg = 35,
-                    c2Dmg = 45
-                )
+            for (meta in POKEMON_META_DATABASE) {
+                val target = normalizeOcrToken(meta.baseSpecies)
+                if (kotlin.math.abs(target.length - normToken.length) > maxAllowedDist) continue
+                val dist = levenshteinDistance(normToken, target)
+                if (dist <= maxAllowedDist && dist < bestDistance) {
+                    bestDistance = dist
+                    bestMatch = meta
+                }
             }
         }
 
-        return null
+        return bestMatch
     }
 
     private fun getPokemonMeta(name: String): PokemonMeta {
-        val found = POKEMON_META_DATABASE.find {
-            it.name.equals(name, ignoreCase = true) ||
-                    name.contains(it.name.split(" ").first(), ignoreCase = true) ||
-                    it.speciesId.equals(name, ignoreCase = true)
-        }
-        return found ?: PokemonMeta(name, name.lowercase(), listOf("normal"), 2500, "Fast Attack", 2, "Move 1", "Move 2", 35, 45)
+        val exact = POKEMON_META_DATABASE.find { it.name.equals(name, ignoreCase = true) }
+        if (exact != null) return exact
+
+        val base = FormResolver.extractBaseSpecies(name)
+        val activeLeague = currentPreset?.league ?: "MASTER LEAGUE"
+        val variants = FormResolver.getVariantsForSpecies(base, activeLeague)
+        if (variants.isNotEmpty()) return variants.first()
+
+        return PokemonMeta(
+            name = name,
+            speciesId = base,
+            baseSpecies = base,
+            formLabel = "Base",
+            types = listOf("normal"),
+            defaultCp = 2500,
+            defaultFastMove = "Fast Attack",
+            fastTurns = 2,
+            chargedMove1 = "Charged Move 1",
+            chargedMove2 = "Charged Move 2",
+            c1Dmg = 35,
+            c2Dmg = 45
+        )
     }
 
     private fun levenshteinDistance(s1: String, s2: String): Int {
@@ -800,8 +1061,65 @@ class OverlayService : LifecycleService() {
     }
 
     /**
+     * PvPoke Type Effectiveness Multiplier (Pokémon GO combat chart: 1.6x SE, 0.625x NVE, 0.390625x Immune)
+     */
+    private fun getTypeEffectiveness(moveType: String, defenderTypes: List<String>): Double {
+        var multiplier = 1.0
+        val atk = moveType.lowercase()
+        for (def in defenderTypes.map { it.lowercase() }) {
+            val eff = when (atk) {
+                "normal" -> when (def) { "rock", "steel" -> 0.625; "ghost" -> 0.390625; else -> 1.0 }
+                "fire" -> when (def) { "grass", "ice", "bug", "steel" -> 1.6; "fire", "water", "rock", "dragon" -> 0.625; else -> 1.0 }
+                "water" -> when (def) { "fire", "ground", "rock" -> 1.6; "water", "grass", "dragon" -> 0.625; else -> 1.0 }
+                "electric" -> when (def) { "water", "flying" -> 1.6; "electric", "grass", "dragon" -> 0.625; "ground" -> 0.390625; else -> 1.0 }
+                "grass" -> when (def) { "water", "ground", "rock" -> 1.6; "fire", "grass", "poison", "flying", "bug", "dragon", "steel" -> 0.625; else -> 1.0 }
+                "ice" -> when (def) { "grass", "ground", "flying", "dragon" -> 1.6; "fire", "water", "ice", "steel" -> 0.625; else -> 1.0 }
+                "fighting" -> when (def) { "normal", "ice", "rock", "dark", "steel" -> 1.6; "poison", "flying", "psychic", "bug", "fairy" -> 0.625; "ghost" -> 0.390625; else -> 1.0 }
+                "poison" -> when (def) { "grass", "fairy" -> 1.6; "poison", "ground", "rock", "ghost" -> 0.625; "steel" -> 0.390625; else -> 1.0 }
+                "ground" -> when (def) { "fire", "electric", "poison", "rock", "steel" -> 1.6; "grass", "bug" -> 0.625; "flying" -> 0.390625; else -> 1.0 }
+                "flying" -> when (def) { "grass", "fighting", "bug" -> 1.6; "electric", "rock", "steel" -> 0.625; else -> 1.0 }
+                "psychic" -> when (def) { "fighting", "poison" -> 1.6; "psychic", "steel" -> 0.625; "dark" -> 0.390625; else -> 1.0 }
+                "bug" -> when (def) { "grass", "psychic", "dark" -> 1.6; "fire", "fighting", "poison", "flying", "ghost", "steel", "fairy" -> 0.625; else -> 1.0 }
+                "rock" -> when (def) { "fire", "ice", "flying", "bug" -> 1.6; "fighting", "ground", "steel" -> 0.625; else -> 1.0 }
+                "ghost" -> when (def) { "psychic", "ghost" -> 1.6; "dark" -> 0.625; "normal" -> 0.390625; else -> 1.0 }
+                "dragon" -> when (def) { "dragon" -> 1.6; "steel" -> 0.625; "fairy" -> 0.390625; else -> 1.0 }
+                "dark" -> when (def) { "psychic", "ghost" -> 1.6; "fighting", "dark", "fairy" -> 0.625; else -> 1.0 }
+                "steel" -> when (def) { "ice", "rock", "fairy" -> 1.6; "fire", "water", "electric", "steel" -> 0.625; else -> 1.0 }
+                "fairy" -> when (def) { "fighting", "dragon", "dark" -> 1.6; "fire", "poison", "steel" -> 0.625; else -> 1.0 }
+                else -> 1.0
+            }
+            multiplier *= eff
+        }
+        return multiplier
+    }
+
+    /**
+     * Computes exact PvPoke Charged Move damage percentage dealt to defender's total HP pool:
+     * Damage = floor(0.5 * Power * (EffectiveAtk / EffectiveDef) * STAB * TypeEffectiveness * 1.3) + 1
+     * Accounts for STAB (1.2x), Type Effectiveness, and Shadow modifiers (1.2x Atk / 0.8333333x Def).
+     */
+    private fun calculateChargedMoveDamagePercent(
+        attacker: PokemonMeta,
+        defender: PokemonMeta,
+        moveName: String,
+        isAttackerShadow: Boolean,
+        isDefenderShadow: Boolean
+    ): Int {
+        val moveStats = MOVE_DATABASE[moveName] ?: MoveStats(moveName, attacker.types.firstOrNull() ?: "normal", 80)
+        val stab = if (attacker.types.any { it.equals(moveStats.type, ignoreCase = true) }) 1.2 else 1.0
+        val typeEff = getTypeEffectiveness(moveStats.type, defender.types)
+
+        val effectiveAtk = attacker.atk * (if (isAttackerShadow) 1.2 else 1.0)
+        val effectiveDef = defender.def * (if (isDefenderShadow) 0.8333333 else 1.0)
+
+        val rawDamage = floor(0.5 * moveStats.power * (effectiveAtk / effectiveDef) * stab * typeEff * 1.3) + 1.0
+        val pct = ((rawDamage / defender.hp.toDouble()) * 100.0).roundToInt()
+        return pct.coerceIn(5, 100)
+    }
+
+    /**
      * BATTLE CALCULATIONS:
-     * Calculates turn alignment & damage counters specifically for activeUserPokemonName!
+     * Calculates turn alignment, opponent incoming damage, and player outgoing damage ("My Dmg to [Opponent]")
      */
     private fun recalculateAndPushBattleData() {
         val p1 = currentPreset?.pokemon?.getOrNull(0)
@@ -813,6 +1131,7 @@ class OverlayService : LifecycleService() {
         val p3Name = p3?.name ?: "Kyogre"
 
         val activePlayerName = activeUserPokemonName ?: p1Name
+        val activeSlot = currentPreset?.pokemon?.find { it.name.equals(activePlayerName, ignoreCase = true) }
 
         val teamData = listOf(
             mapOf("initial" to (p1Name.firstOrNull()?.uppercase() ?: "P1"), "name" to p1Name),
@@ -825,7 +1144,12 @@ class OverlayService : LifecycleService() {
                 "activeOpponent" to "Waiting...",
                 "activeOpponentFastMove" to "Scanning Header...",
                 "activeOpponentTurns" to 0,
+                "isOpponentShadow" to isOpponentShadow,
+                "currentFormLabel" to "Base",
+                "availableForms" to emptyList<String>(),
                 "userActivePokemon" to activePlayerName,
+                "myMove1Summary" to "—",
+                "myMove2Summary" to "—",
                 "throwAlignmentText" to "Waiting for Opponent spawn",
                 "throwHorizonText" to "—",
                 "team" to teamData,
@@ -841,6 +1165,28 @@ class OverlayService : LifecycleService() {
         val oppMeta = getPokemonMeta(activeOpponentName)
         val userMeta = getPokemonMeta(activePlayerName)
 
+        val userMove1Name = activeSlot?.chargedMove1 ?: userMeta.chargedMove1
+        val userMove2Name = activeSlot?.chargedMove2 ?: userMeta.chargedMove2
+
+        // Calculate Player Active Pokémon's Charged Move Damage % to Opponent (accounting for STAB, Typing, and Opponent Shadow 0.833x Def)
+        val myMove1Pct = calculateChargedMoveDamagePercent(
+            attacker = userMeta,
+            defender = oppMeta,
+            moveName = userMove1Name,
+            isAttackerShadow = activePlayerName.contains("Shadow", ignoreCase = true),
+            isDefenderShadow = isOpponentShadow
+        )
+        val myMove2Pct = calculateChargedMoveDamagePercent(
+            attacker = userMeta,
+            defender = oppMeta,
+            moveName = userMove2Name,
+            isAttackerShadow = activePlayerName.contains("Shadow", ignoreCase = true),
+            isDefenderShadow = isOpponentShadow
+        )
+
+        val myMove1Summary = "$userMove1Name ($myMove1Pct%)"
+        val myMove2Summary = "$userMove2Name ($myMove2Pct%)"
+
         val userFastTurns = userMeta.fastTurns
         val oppFastTurns = oppMeta.fastTurns
 
@@ -854,25 +1200,50 @@ class OverlayService : LifecycleService() {
             displayList.add(it)
         }
 
-        val scannedOpponentsData = displayList.map { opp ->
+        val scannedOpponentsData = displayList.mapIndexed { idx, opp ->
             val meta = getPokemonMeta(opp)
+            val isThisOppShadow = if (idx == 0) isOpponentShadow else false
+            val oppC1Pct = calculateChargedMoveDamagePercent(
+                attacker = meta,
+                defender = userMeta,
+                moveName = meta.chargedMove1,
+                isAttackerShadow = isThisOppShadow,
+                isDefenderShadow = activePlayerName.contains("Shadow", ignoreCase = true)
+            )
+            val oppC2Pct = calculateChargedMoveDamagePercent(
+                attacker = meta,
+                defender = userMeta,
+                moveName = meta.chargedMove2,
+                isAttackerShadow = isThisOppShadow,
+                isDefenderShadow = activePlayerName.contains("Shadow", ignoreCase = true)
+            )
             val matrix = calculate3v3Matrix(opp, p1Name, p2Name, p3Name)
             mapOf(
                 "name" to meta.name,
                 "code" to meta.name.split(" ").first().take(3),
                 "turns" to meta.fastTurns,
-                "c1" to "${meta.chargedMove1.split(" ").first()} (${meta.c1Dmg}%)",
-                "c2" to "${meta.chargedMove2.split(" ").first()} (${meta.c2Dmg}%)",
+                "c1" to "${meta.chargedMove1} ($oppC1Pct%)",
+                "c2" to "${meta.chargedMove2} ($oppC2Pct%)",
                 "matrix" to matrix
             )
+        }
+
+        val activeLeague = currentPreset?.league ?: "MASTER LEAGUE"
+        if (availableOpponentForms.isEmpty()) {
+            availableOpponentForms = FormResolver.getVariantsForSpecies(oppMeta.baseSpecies, activeLeague)
         }
 
         val battlePayload = mapOf(
             "activeOpponent" to oppMeta.name,
             "activeOpponentFastMove" to oppMeta.defaultFastMove,
             "activeOpponentTurns" to oppMeta.fastTurns,
+            "isOpponentShadow" to isOpponentShadow,
+            "currentFormLabel" to oppMeta.formLabel,
+            "availableForms" to availableOpponentForms.map { it.formLabel },
             "userActivePokemon" to userMeta.name,
             "userFastMoveTurns" to userMeta.fastTurns,
+            "myMove1Summary" to myMove1Summary,
+            "myMove2Summary" to myMove2Summary,
             "throwAlignmentText" to throwAlignmentText,
             "throwHorizonText" to throwHorizonText,
             "team" to teamData,
@@ -909,9 +1280,9 @@ class OverlayService : LifecycleService() {
                     else -> "🟡🟢🔴"
                 }
                 o.contains("zacian") -> when {
-                    l.contains("dialga") -> "🔴🔴🔴"
+                    l.contains("dialga") -> if (o.contains("crowned")) "🟡🔴🔴" else "🔴🔴🔴"
                     l.contains("lugia") -> "🟡🟡🔴"
-                    l.contains("kyogre") -> "🟢🟢🟡"
+                    l.contains("kyogre") || l.contains("ho-oh") -> "🟢🟢🟡"
                     else -> "🟡🔴🟢"
                 }
                 o.contains("entei") -> when {
@@ -956,7 +1327,7 @@ class OverlayService : LifecycleService() {
     }
 
     private fun loadPresets(): List<TeamPreset> {
-        val json = prefs.getString("gbl_team_presets_v1", null) ?: return emptyList()
+        val json = prefs.getString("gbl_team_presets_v2", null) ?: return emptyList()
         val type = object : TypeToken<List<TeamPreset>>() {}.type
         return gson.fromJson(json, type) ?: emptyList()
     }
@@ -972,6 +1343,8 @@ class OverlayService : LifecycleService() {
             mediaProjection = null
             imageReader?.close()
             imageReader = null
+            imageReaderThread?.quitSafely()
+            imageReaderThread = null
             cachedScreenBitmap?.recycle()
             cachedScreenBitmap = null
         } catch (_: Exception) {}
@@ -1024,20 +1397,22 @@ class OverlayService : LifecycleService() {
 
         @JavascriptInterface
         fun startNewBattle() {
-            startNewBattle()
+            Handler(Looper.getMainLooper()).post {
+                this@OverlayService.startNewBattle()
+            }
         }
 
         @JavascriptInterface
-        fun setOpponentManually(pokemonName: String) {
-            isWaitingForOpponent = false
-            activeOpponentName = pokemonName
-            if (!detectedOpponents.contains(pokemonName)) {
-                detectedOpponents.add(0, pokemonName)
-                if (detectedOpponents.size > 3) detectedOpponents.removeAt(detectedOpponents.lastIndex)
-            }
-            recalculateAndPushBattleData()
+        fun toggleOpponentShadow() {
             Handler(Looper.getMainLooper()).post {
-                Toast.makeText(this@OverlayService, "⚔️ Opponent Set: $pokemonName", Toast.LENGTH_SHORT).show()
+                this@OverlayService.toggleShadowModifier()
+            }
+        }
+
+        @JavascriptInterface
+        fun cycleOpponentForm() {
+            Handler(Looper.getMainLooper()).post {
+                this@OverlayService.cycleActiveOpponentForm()
             }
         }
 

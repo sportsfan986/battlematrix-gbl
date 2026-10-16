@@ -69,7 +69,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnAddPreset: Button
     private lateinit var presetsContainer: LinearLayout
 
-    private val PREFS_KEY_PRESETS = "gbl_team_presets_v1"
+    private val PREFS_KEY_PRESETS = "gbl_team_presets_v2"
     private val PREFS_KEY_SELECTED_PRESET = "gbl_selected_preset_id"
     private val GAMEMASTER_URL = "https://raw.githubusercontent.com/pvpoke/pvpoke/master/src/data/gamemaster.json"
 
@@ -97,7 +97,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        prefs = getSharedPreferences("GBL_Overlay_Prefs", Context.MODE_PRIVATE)
+        prefs = getSharedPreferences("gbl_overlay_prefs", Context.MODE_PRIVATE)
         projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as? MediaProjectionManager
 
         initViews()
@@ -252,22 +252,22 @@ class MainActivity : AppCompatActivity() {
                 ),
                 TeamPreset(
                     id = "preset-ul-1",
-                    name = "Ultra: Giratina-A / Cresselia / Cobalion",
+                    name = "Ultra: Zygarde / Corviknight / Mimikyu",
                     league = "ULTRA LEAGUE",
                     pokemon = listOf(
-                        PokemonSlot("Giratina (Altered)", 2496, "Shadow Claw", "Dragon Claw", "Ancient Power"),
-                        PokemonSlot("Cresselia", 2488, "Psycho Cut", "Grass Knot", "Moonblast"),
-                        PokemonSlot("Cobalion", 2492, "Double Kick", "Sacred Sword", "Stone Edge")
+                        PokemonSlot("Zygarde", 2472, "Dragon Tail", "Crunch", "Earthquake"),
+                        PokemonSlot("Corviknight", 2499, "Sand Attack", "Sky Attack", "Iron Head"),
+                        PokemonSlot("Mimikyu", 2497, "Shadow Claw", "Play Rough", "Shadow Sneak")
                     )
                 ),
                 TeamPreset(
                     id = "preset-gl-1",
-                    name = "Great: Clodsire / Feraligatr / Mandibuzz",
+                    name = "Great: Kanto Ninetales / Fearow / Shadow Pidgeot",
                     league = "GREAT LEAGUE",
                     pokemon = listOf(
-                        PokemonSlot("Clodsire", 1494, "Poison Sting", "Earthquake", "Stone Edge"),
-                        PokemonSlot("Feraligatr", 1488, "Shadow Claw", "Hydro Cannon", "Ice Beam"),
-                        PokemonSlot("Mandibuzz", 1497, "Snarl", "Dark Pulse", "Aerial Ace")
+                        PokemonSlot("Kanto Ninetales", 1498, "Fire Spin", "Weather Ball", "Scorching Sands"),
+                        PokemonSlot("Fearow", 1500, "Peck", "Sky Attack", "Drill Run"),
+                        PokemonSlot("Shadow Pidgeot", 1490, "Wing Attack", "Feather Dance", "Brave Bird")
                     )
                 )
             )

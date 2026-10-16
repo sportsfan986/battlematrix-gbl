@@ -116,10 +116,10 @@
             background: rgba(255, 255, 255, 0.15);
             border: 1px solid rgba(255, 255, 255, 0.25);
             color: #ffffff;
-            font-size: 9px;
+            font-size: 8.5px;
             font-weight: 700;
             border-radius: 3px;
-            padding: 2px 5px;
+            padding: 2px 4.5px;
             cursor: pointer;
             outline: none;
             transition: all 0.1s ease;
@@ -137,10 +137,32 @@
             color: #fecaca;
         }
 
-        .hud-btn.btn-pick {
-            background: rgba(56, 189, 248, 0.3);
+        .hud-btn.btn-shadow {
+            background: rgba(147, 51, 234, 0.25);
+            border-color: rgba(192, 132, 252, 0.5);
+            color: #e9d5ff;
+        }
+
+        .hud-btn.btn-shadow.active {
+            background: rgba(168, 85, 247, 0.55);
+            border-color: #d8b4fe;
+            color: #ffffff;
+            box-shadow: 0 0 6px rgba(168, 85, 247, 0.5);
+        }
+
+        .hud-btn.btn-form {
+            background: rgba(56, 189, 248, 0.28);
             border-color: rgba(125, 211, 252, 0.6);
             color: #bae6fd;
+        }
+
+        .hud-btn.btn-form:disabled,
+        .hud-btn.btn-form.disabled {
+            background: rgba(100, 116, 139, 0.18);
+            border-color: rgba(148, 163, 184, 0.2);
+            color: #64748b;
+            cursor: default;
+            transform: none;
         }
 
         .preset-select {
@@ -291,55 +313,6 @@
             white-space: nowrap;
         }
 
-        /* Quick Picker Modal */
-        #picker-modal {
-            position: absolute;
-            top: 4px;
-            left: 4px;
-            right: 4px;
-            background: rgba(15, 23, 42, 0.98);
-            border: 1px solid #38bdf8;
-            border-radius: 6px;
-            padding: 6px;
-            z-index: 100;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.8);
-        }
-
-        #picker-modal input {
-            width: 100%;
-            background: #0f172a;
-            border: 1px solid #334155;
-            color: #fff;
-            padding: 4px 6px;
-            border-radius: 3px;
-            font-size: 10px;
-            outline: none;
-            margin-bottom: 4px;
-        }
-
-        #picker-modal .quick-picks {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 3px;
-            max-height: 90px;
-            overflow-y: auto;
-        }
-
-        #picker-modal .quick-btn {
-            background: #1e293b;
-            border: 1px solid #334155;
-            color: #e2e8f0;
-            font-size: 9px;
-            padding: 2px 5px;
-            border-radius: 3px;
-            cursor: pointer;
-        }
-
-        #picker-modal .quick-btn:hover {
-            background: #0284c7;
-            color: white;
-        }
-
         /* Utility classes */
         .hidden {
             display: none !important;
@@ -347,18 +320,6 @@
     </style>
 </head>
 <body>
-
-    <!-- Quick Opponent Picker Modal -->
-    <div id="picker-modal" class="hidden">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-            <span style="font-weight:bold; color:#38bdf8; font-size:10px;">Select Opponent</span>
-            <button class="hud-btn" onclick="closePicker()" style="padding:1px 4px;">✕</button>
-        </div>
-        <input type="text" id="picker-search" placeholder="Type Pokémon name..." oninput="filterQuickPicks(this.value)">
-        <div class="quick-picks" id="picker-items">
-            <!-- Populated via JS -->
-        </div>
-    </div>
 
     <!-- OPTION 1: Top-Left Sky Trench (Clean, borderless, no handle bar) -->
     <div id="mode-sky-trench" class="glass-panel">
@@ -370,21 +331,24 @@
             </div>
             <div class="controls-row">
                 <select id="preset-selector-sky" class="preset-select" onchange="onSelectPreset(this.value)">
-                    <option value="preset-1">Master: Dialga-O / Lugia / Kyogre</option>
-                    <option value="preset-2">Ultra: Giratina-A / Cresselia / Cobalion</option>
-                    <option value="preset-3">Great: Clodsire / Feraligatr / Mandibuzz</option>
+                    <option value="preset-ml-1">Master: Dialga-O / Lugia / Kyogre</option>
+                    <option value="preset-ul-1">Ultra: Zygarde / Corviknight / Mimikyu</option>
+                    <option value="preset-gl-1">Great: Kanto Ninetales / Fearow / Shadow Pidgeot</option>
                 </select>
             </div>
         </div>
 
-        <!-- Toolbar: Start Battle, Pick Opponent, and Active Team Member Chips -->
+        <!-- Toolbar: Start Battle, Shadow Toggle, Form Cycler, and Active Team Chips -->
         <div class="action-toolbar">
-            <div style="display:flex; gap:3px;">
+            <div style="display:flex; gap:3px; align-items:center;">
                 <button id="btn-start-battle" class="hud-btn btn-battle" onclick="triggerStartBattle()" title="Clear previous opponents and start fresh match">
-                    ⚔️ Start Battle
+                    ⚔️ Start
                 </button>
-                <button class="hud-btn btn-pick" onclick="openPicker()" title="Manually search or select opponent">
-                    🔍 Pick Opp
+                <button id="btn-toggle-shadow" class="hud-btn btn-shadow" onclick="toggleShadow()" title="Toggle 1.2x Atk / 0.833x Def Shadow modifier">
+                    Shadow: OFF
+                </button>
+                <button id="btn-cycle-form" class="hud-btn btn-form disabled" onclick="cycleForm()" disabled title="Cycle regional or alternate form">
+                    Form: Base
                 </button>
             </div>
             <div id="sky-team-chips" class="team-chips-group">
@@ -395,7 +359,7 @@
         <!-- 3v3 Matchup Matrix Dots -->
         <div class="matrix-container" id="sky-matrix-body">
             <div style="font-size:9px; color:#94a3b8; text-align:center; padding:3px 0;">
-                ⚔️ Tap "Start Battle" when match starts
+                ⚔️ Tap "Start" when match begins
             </div>
         </div>
 
@@ -409,8 +373,12 @@
         <!-- Damage Counter & Energy Taps -->
         <div class="damage-rows">
             <div class="dmg-line" id="sky-dmg-active">
-                💥 <strong id="sky-opp-short">Awaiting Opponent</strong> Dmg to <span id="sky-active-pokemon" style="color:#38bdf8; font-weight:bold;">My Lead</span>: 
+                💥 <strong id="sky-opp-short">Opponent</strong> Dmg to <span id="sky-active-pokemon" style="color:#38bdf8; font-weight:bold;">My Lead</span>: 
                 <span class="dmg-taps" id="sky-dmg-values">—</span>
+            </div>
+            <div class="dmg-line" id="sky-my-dmg-active">
+                ⚔️ My Dmg to <strong id="sky-my-dmg-target" style="color:#fef08a;">Opponent</strong>: 
+                <span class="dmg-taps" id="sky-my-dmg-values">—</span>
             </div>
             <div class="dmg-line" id="sky-dmg-bench" style="opacity: 0.85;">
                 Opponent Bench: Awaiting detection...
@@ -440,29 +408,20 @@
     </div>
 
     <script>
-        let currentMode = "option1"; // "option1" or "option2"
+        let currentMode = "option1";
         let isWaiting = true;
-
-        const QUICK_POKEMON_LIST = [
-            "Raikou", "Entei", "Suicune", "Zapdos", "Moltres", "Articuno", "Rayquaza",
-            "Dialga (Origin)", "Dialga", "Palkia (Origin)", "Lugia", "Kyogre", "Groudon",
-            "Mewtwo", "Zacian (Crowned)", "Zacian", "Xerneas", "Yveltal", "Zygarde",
-            "Giratina (Origin)", "Giratina (Altered)", "Landorus (Therian)", "Ho-Oh",
-            "Solgaleo", "Lunala", "Necrozma (Dusk Mane)", "Necrozma (Dawn Wings)",
-            "Dragonite", "Garchomp", "Tyranitar", "Metagross", "Excadrill", "Rhyperior",
-            "Mamoswine", "Togekiss", "Primarina", "Annihilape", "Heatran", "Florges",
-            "Clodsire", "Feraligatr", "Mandibuzz", "Cresselia", "Cobalion", "Virizion",
-            "Talonflame", "Swampert", "Whiscash", "Skarmory", "Azumarill", "Bastiodon",
-            "Serperior", "Charizard", "Skeledirge", "Poliwrath", "Machamp", "Lanturn"
-        ];
 
         let battleData = {
             activeOpponent: "Waiting...",
             activeOpponentFastMove: "Scanning Header...",
             activeOpponentTurns: 0,
-            activeOpponentEnergyPerMove: 0,
+            isOpponentShadow: false,
+            currentFormLabel: "Base",
+            availableForms: [],
             userActivePokemon: "My Lead",
             userFastMoveTurns: 2,
+            myMove1Summary: "—",
+            myMove2Summary: "—",
             team: [
                 { initial: "P1", name: "Dialga (Origin)" },
                 { initial: "P2", name: "Lugia" },
@@ -472,18 +431,6 @@
             throwAlignmentText: "Waiting for Opponent spawn",
             throwHorizonText: "—"
         };
-
-        function toggleLayoutMode() {
-            if (currentMode === "option1") {
-                setLayoutMode("option2");
-            } else {
-                setLayoutMode("option1");
-            }
-            if (window.AndroidOverlay && window.AndroidOverlay.onLayoutSwitched) {
-                window.AndroidOverlay.onLayoutSwitched(currentMode);
-            }
-            notifyHeight();
-        }
 
         function setLayoutMode(mode) {
             currentMode = mode;
@@ -510,20 +457,22 @@
             } catch(e) {}
         }
 
-        // TRIGGER START BATTLE ACTION (Clears opponents)
         function triggerStartBattle() {
             const btn = document.getElementById("btn-start-battle");
             if (btn) {
                 btn.textContent = "⚔️ Ready!";
                 setTimeout(() => {
-                    btn.textContent = "⚔️ Start Battle";
-                }, 1800);
+                    btn.textContent = "⚔️ Start";
+                }, 1500);
             }
 
             isWaiting = true;
             battleData.activeOpponent = "Waiting...";
             battleData.activeOpponentFastMove = "Scanning Header...";
             battleData.activeOpponentTurns = 0;
+            battleData.isOpponentShadow = false;
+            battleData.currentFormLabel = "Base";
+            battleData.availableForms = [];
             battleData.scannedOpponents = [];
             battleData.throwAlignmentText = "Waiting for Opponent spawn";
             battleData.throwHorizonText = "—";
@@ -531,6 +480,21 @@
 
             if (window.AndroidOverlay && window.AndroidOverlay.startNewBattle) {
                 window.AndroidOverlay.startNewBattle();
+            }
+        }
+
+        function toggleShadow() {
+            battleData.isOpponentShadow = !battleData.isOpponentShadow;
+            render();
+            if (window.AndroidOverlay && window.AndroidOverlay.toggleOpponentShadow) {
+                window.AndroidOverlay.toggleOpponentShadow();
+            }
+        }
+
+        function cycleForm() {
+            if (!battleData.availableForms || battleData.availableForms.length <= 1) return;
+            if (window.AndroidOverlay && window.AndroidOverlay.cycleOpponentForm) {
+                window.AndroidOverlay.cycleOpponentForm();
             }
         }
 
@@ -548,7 +512,6 @@
             }
         }
 
-        // Bridge function called by Android Service
         function updateBattleData(dataJson) {
             try {
                 const data = typeof dataJson === "string" ? JSON.parse(dataJson) : dataJson;
@@ -560,7 +523,6 @@
             }
         }
 
-        // Bridge function to update presets in dropdown
         function updatePresets(presetsJson) {
             try {
                 const presets = typeof presetsJson === "string" ? JSON.parse(presetsJson) : presetsJson;
@@ -580,61 +542,52 @@
             }
         }
 
-        // Manual Opponent Picker logic
-        function openPicker() {
-            const modal = document.getElementById("picker-modal");
-            modal.classList.remove("hidden");
-            filterQuickPicks("");
-            document.getElementById("picker-search").focus();
-        }
-
-        function closePicker() {
-            document.getElementById("picker-modal").classList.add("hidden");
-        }
-
-        function filterQuickPicks(query) {
-            const container = document.getElementById("picker-items");
-            container.innerHTML = "";
-            const filtered = QUICK_POKEMON_LIST.filter(name => 
-                name.toLowerCase().includes(query.toLowerCase())
-            );
-            filtered.forEach(name => {
-                const btn = document.createElement("button");
-                btn.className = "quick-btn";
-                btn.textContent = name;
-                btn.onclick = () => selectManualOpponent(name);
-                container.appendChild(btn);
-            });
-        }
-
-        function selectManualOpponent(name) {
-            closePicker();
-            if (window.AndroidOverlay && window.AndroidOverlay.setOpponentManually) {
-                window.AndroidOverlay.setOpponentManually(name);
-            }
-        }
-
         function render() {
             const isWaitingState = (battleData.activeOpponent === "Waiting..." || !battleData.activeOpponent);
 
-            // Render active team chips for 1-tap player switches
+            // Update Shadow Toggle Button
+            const shadowBtn = document.getElementById("btn-toggle-shadow");
+            if (shadowBtn) {
+                const isShad = !!battleData.isOpponentShadow;
+                shadowBtn.textContent = `Shadow: ${isShad ? "ON" : "OFF"}`;
+                if (isShad) shadowBtn.classList.add("active");
+                else shadowBtn.classList.remove("active");
+            }
+
+            // Update Form Cycle Button
+            const formBtn = document.getElementById("btn-cycle-form");
+            if (formBtn) {
+                const forms = battleData.availableForms || [];
+                const formLabel = battleData.currentFormLabel || "Base";
+                formBtn.textContent = `Form: ${formLabel}`;
+                if (forms.length > 1 && !isWaitingState) {
+                    formBtn.disabled = false;
+                    formBtn.classList.remove("disabled");
+                } else {
+                    formBtn.disabled = true;
+                    formBtn.classList.add("disabled");
+                }
+            }
+
+            // Render active team chips for player switches
             const teamChipsContainer = document.getElementById("sky-team-chips");
             if (teamChipsContainer && battleData.team) {
                 teamChipsContainer.innerHTML = battleData.team.map(member => {
                     const fullName = member.name || "Pokemon";
                     const shortName = fullName.split(" ")[0].substring(0, 7);
                     const isActive = (fullName.toLowerCase() === (battleData.userActivePokemon || "").toLowerCase());
-                    return `<button class="chip-btn ${isActive ? 'active' : ''}" onclick="selectUserPokemon('${fullName}')" title="Switch active lead to ${fullName}">${shortName}</button>`;
+                    return `<button class="chip-btn ${isActive ? 'active' : ''}" onclick="selectUserPokemon('${fullName}')" title="Active lead: ${fullName}">${shortName}</button>`;
                 }).join("");
             }
 
-            // Render Option 1 (Sky Trench)
             const oppNameEl = document.getElementById("sky-opp-name");
             const oppMoveEl = document.getElementById("sky-opp-fastmove");
             const throwTimingEl = document.getElementById("sky-throw-timing");
             const userPokeEl = document.getElementById("sky-active-pokemon");
             const oppShortEl = document.getElementById("sky-opp-short");
             const dmgValuesEl = document.getElementById("sky-dmg-values");
+            const myDmgTargetEl = document.getElementById("sky-my-dmg-target");
+            const myDmgValuesEl = document.getElementById("sky-my-dmg-values");
             const benchDmgEl = document.getElementById("sky-dmg-bench");
             const matrixBody = document.getElementById("sky-matrix-body");
 
@@ -646,21 +599,30 @@
                 throwTimingEl.textContent = "Waiting for Opponent spawn";
                 oppShortEl.textContent = "Opponent";
                 dmgValuesEl.textContent = "Awaiting spawn...";
+                myDmgTargetEl.textContent = "Opponent";
+                myDmgValuesEl.textContent = "Awaiting spawn...";
                 benchDmgEl.textContent = "Opponent Bench: Awaiting detection...";
 
                 matrixBody.innerHTML = `
                     <div style="display:flex; align-items:center; gap:6px; color:#cbd5e1; font-size:9.5px; padding:3px 0;">
                         <span class="scan-indicator"></span>
-                        <span>Scanner active! Spawn opponent in battle or tap <strong>Pick Opp</strong></span>
+                        <span>Live OCR active! Monitoring top-left & top-right battle headers...</span>
                     </div>
                 `;
             } else {
-                oppNameEl.textContent = "VS " + battleData.activeOpponent.toUpperCase();
+                const shadPrefix = battleData.isOpponentShadow ? "SHADOW " : "";
+                oppNameEl.textContent = "VS " + shadPrefix + battleData.activeOpponent.toUpperCase();
                 oppMoveEl.textContent = `(${battleData.activeOpponentTurns || 2}t ${battleData.activeOpponentFastMove || "Fast Attack"})`;
                 throwTimingEl.textContent = battleData.throwAlignmentText || "3rd, 5th, or 7th Attack";
-                oppShortEl.textContent = battleData.activeOpponent;
+                oppShortEl.textContent = (battleData.isOpponentShadow ? "Shad " : "") + battleData.activeOpponent;
+                myDmgTargetEl.textContent = (battleData.isOpponentShadow ? "Shad " : "") + battleData.activeOpponent;
 
-                // Render Active Opponent Dmg & Bench
+                if (battleData.myMove1Summary && battleData.myMove2Summary) {
+                    myDmgValuesEl.innerHTML = `<span class="dmg-ready">${battleData.myMove1Summary}</span> | <span class="dmg-taps">${battleData.myMove2Summary}</span>`;
+                } else {
+                    myDmgValuesEl.textContent = "—";
+                }
+
                 if (battleData.scannedOpponents && battleData.scannedOpponents.length > 0) {
                     const activeOpp = battleData.scannedOpponents[0];
                     dmgValuesEl.innerHTML = `<span class="dmg-ready">${activeOpp.c1 || "C1 (30%)"}</span> | <span class="dmg-taps">${activeOpp.c2 || "C2 (50%)"}</span>`;
@@ -672,7 +634,6 @@
                         benchDmgEl.innerHTML = "Opponent Bench: Awaiting switch...";
                     }
 
-                    // Render 3v3 Matchup Matrix
                     const teamInitials = (battleData.team && battleData.team.length >= 3) 
                         ? battleData.team 
                         : [{ initial: "P1" }, { initial: "P2" }, { initial: "P3" }];
@@ -711,14 +672,13 @@
                         <strong>${opp.code}</strong> ${opp.matrix ? (opp.matrix.p1 || opp.matrix.d || '🟢🟡🔴') : '🟢🟡🔴'}
                         ${idx < battleData.scannedOpponents.length - 1 ? ' • ' : ''}
                     `).join("");
-                    horizonDmg.textContent = `Dmg: ${battleData.scannedOpponents.map(o => `${o.code} [${o.c1}]`).join(" • ")}`;
+                    horizonDmg.textContent = `Opp: ${battleData.scannedOpponents[0].c1} • My: ${battleData.myMove1Summary || '—'}`;
                 }
             }
 
             setTimeout(notifyHeight, 50);
         }
 
-        // Initial setup
         window.onload = function() {
             render();
             if (window.AndroidOverlay && window.AndroidOverlay.onOverlayReady) {
