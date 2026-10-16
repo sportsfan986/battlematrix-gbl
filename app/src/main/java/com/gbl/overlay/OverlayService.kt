@@ -10,7 +10,10 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.PixelFormat
+import android.graphics.Rect
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
 import android.media.ImageReader
@@ -43,6 +46,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
 import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
@@ -168,12 +173,60 @@ class OverlayService : LifecycleService() {
             "Flame Charge" to MoveStats("Flame Charge", "fire", 65),
             "Blast Burn" to MoveStats("Blast Burn", "fire", 110),
             "Feather Dance" to MoveStats("Feather Dance", "flying", 35),
-            "Shadow Sneak" to MoveStats("Shadow Sneak", "ghost", 50)
+            "Shadow Sneak" to MoveStats("Shadow Sneak", "ghost", 50),
+            "Twister" to MoveStats("Twister", "dragon", 50),
+            "Air Cutter" to MoveStats("Air Cutter", "flying", 60),
+            "Payback" to MoveStats("Payback", "dark", 110)
+        )
+
+        val FAST_MOVE_TURNS: Map<String, Int> = mapOf(
+            "dragon breath" to 1,
+            "sand attack" to 1,
+            "quick attack" to 1,
+            "lock-on" to 1,
+            "water gun" to 1,
+            "lick" to 1,
+            "bite" to 1,
+            "tackle" to 1,
+            "psycho cut" to 2,
+            "mud shot" to 2,
+            "shadow claw" to 2,
+            "counter" to 2,
+            "powder snow" to 2,
+            "wing attack" to 2,
+            "peck" to 2,
+            "poison sting" to 2,
+            "thunder shock" to 2,
+            "fairy wind" to 2,
+            "bullet punch" to 2,
+            "fire fang" to 2,
+            "vine whip" to 2,
+            "karate chop" to 2,
+            "metal claw" to 2,
+            "fury cutter" to 1,
+            "dragon tail" to 3,
+            "waterfall" to 3,
+            "fire spin" to 3,
+            "snarl" to 3,
+            "geomancy" to 3,
+            "mud-slap" to 3,
+            "charm" to 3,
+            "double kick" to 3,
+            "air slash" to 3,
+            "ice shard" to 3,
+            "bubble" to 3,
+            "rollout" to 3,
+            "smack down" to 3,
+            "gust" to 4,
+            "confusion" to 4,
+            "volt switch" to 4,
+            "astonish" to 3,
+            "incinerate" to 5
         )
 
         val POKEMON_META_DATABASE = listOf(
             // --- Multi-Form & Regional Variants ---
-            PokemonMeta("Zacian (Crowned)", "zacian_crowned", "zacian", "Crowned", listOf("fairy", "steel"), 4620, "Quick Attack", 1, "Close Combat", "Brave Bird", 48, 52, atk = 264.0, def = 216.0, hp = 173, glRank = 400, ulRank = 300, mlRank = 2),
+            PokemonMeta("Zacian (Crowned)", "zacian_crowned", "zacian", "Crowned", listOf("fairy", "steel"), 4620, "Metal Claw", 2, "Close Combat", "Play Rough", 48, 52, atk = 264.0, def = 216.0, hp = 173, glRank = 400, ulRank = 300, mlRank = 2),
             PokemonMeta("Zacian (Hero)", "zacian_hero", "zacian", "Hero", listOf("fairy"), 4329, "Quick Attack", 1, "Close Combat", "Play Rough", 44, 42, atk = 232.0, def = 215.0, hp = 173, glRank = 420, ulRank = 310, mlRank = 18),
             PokemonMeta("Giratina (Origin)", "giratina_origin", "giratina", "Origin", listOf("ghost", "dragon"), 4164, "Shadow Claw", 2, "Shadow Ball", "Ominous Wind", 46, 22, atk = 206.0, def = 172.0, hp = 247, glRank = 180, ulRank = 35, mlRank = 9),
             PokemonMeta("Giratina (Altered)", "giratina_altered", "giratina", "Altered", listOf("ghost", "dragon"), 3820, "Shadow Claw", 2, "Dragon Claw", "Ancient Power", 28, 26, atk = 171.0, def = 206.0, hp = 247, glRank = 190, ulRank = 3, mlRank = 26),
@@ -193,8 +246,8 @@ class OverlayService : LifecycleService() {
 
             // --- User Custom Great & Ultra League Team Pokémon ---
             PokemonMeta("Fearow", "fearow", "fearow", "Base", listOf("normal", "flying"), 1500, "Peck", 2, "Sky Attack", "Drill Run", 38, 42, atk = 131.0, def = 96.0, hp = 120, glRank = 85, ulRank = 250, mlRank = 420),
-            PokemonMeta("Shadow Pidgeot", "pidgeot_shadow", "pidgeot", "Shadow", listOf("normal", "flying"), 1490, "Wing Attack", 2, "Feather Dance", "Brave Bird", 24, 62, atk = 117.0, def = 112.0, hp = 142, glRank = 28, ulRank = 18, mlRank = 310),
-            PokemonMeta("Pidgeot", "pidgeot", "pidgeot", "Base", listOf("normal", "flying"), 1490, "Wing Attack", 2, "Feather Dance", "Brave Bird", 20, 52, atk = 117.0, def = 112.0, hp = 142, glRank = 32, ulRank = 15, mlRank = 300),
+            PokemonMeta("Shadow Pidgeot", "pidgeot_shadow", "pidgeot", "Shadow", listOf("normal", "flying"), 1490, "Gust", 4, "Twister", "Brave Bird", 28, 62, atk = 117.0, def = 112.0, hp = 142, glRank = 28, ulRank = 18, mlRank = 310),
+            PokemonMeta("Pidgeot", "pidgeot", "pidgeot", "Base", listOf("normal", "flying"), 1490, "Gust", 4, "Twister", "Brave Bird", 24, 52, atk = 117.0, def = 112.0, hp = 142, glRank = 32, ulRank = 15, mlRank = 300),
             PokemonMeta("Zygarde", "zygarde_complete", "zygarde", "Complete", listOf("dragon", "ground"), 2472, "Dragon Tail", 3, "Crunch", "Earthquake", 32, 52, atk = 169.0, def = 186.0, hp = 338, glRank = 80, ulRank = 1, mlRank = 5),
             PokemonMeta("Corviknight", "corviknight", "corviknight", "Base", listOf("flying", "steel"), 2499, "Sand Attack", 1, "Sky Attack", "Iron Head", 36, 34, atk = 148.0, def = 178.0, hp = 202, glRank = 14, ulRank = 7, mlRank = 120),
             PokemonMeta("Mimikyu", "mimikyu", "mimikyu", "Disguised", listOf("ghost", "fairy"), 2497, "Shadow Claw", 2, "Play Rough", "Shadow Sneak", 44, 28, atk = 162.0, def = 184.0, hp = 138, glRank = 40, ulRank = 25, mlRank = 210),
@@ -312,6 +365,8 @@ class OverlayService : LifecycleService() {
 
     private var activeUserPokemonName: String? = null
     private val detectedOpponents = mutableListOf<String>()
+    private val manualFormOverrides = mutableMapOf<String, String>()
+    private val manualShadowOverrides = mutableMapOf<String, Boolean>()
     private var isWaitingForOpponent = true
 
     private var currentLayoutMode = "option1"
@@ -338,6 +393,7 @@ class OverlayService : LifecycleService() {
         createNotificationChannel()
         setupDefaultPresetsIfNeeded()
         setupOverlayView()
+        startBattleOcrLoop()
     }
 
     private fun setupDefaultPresetsIfNeeded() {
@@ -359,15 +415,15 @@ class OverlayService : LifecycleService() {
                     ), false
                 ),
                 TeamPreset(
-                    "preset-gl-1", "Great: Kanto Ninetales / Fearow / Shadow Pidgeot", "GREAT LEAGUE", listOf(
+                    "preset-gl-1", "Great: Kanto Ninetales / Fearow / S-Pidgeot", "GREAT LEAGUE", listOf(
                         TeamMember("Kanto Ninetales", 1498, "Fire Spin", "Weather Ball", "Scorching Sands"),
                         TeamMember("Fearow", 1500, "Peck", "Sky Attack", "Drill Run"),
-                        TeamMember("Shadow Pidgeot", 1490, "Wing Attack", "Feather Dance", "Brave Bird")
+                        TeamMember("Shadow Pidgeot", 1490, "Gust", "Twister", "Brave Bird")
                     ), false
                 )
             )
             val json = gson.toJson(defaults)
-            prefs.edit().putString("gbl_team_presets_v2", json).apply()
+            prefs.edit().putString("gbl_team_presets_v4", json).apply()
             currentPreset = defaults[0]
             activeUserPokemonName = defaults[0].pokemon[0].name
         } else {
@@ -408,7 +464,7 @@ class OverlayService : LifecycleService() {
             format = PixelFormat.TRANSLUCENT
             gravity = Gravity.TOP or Gravity.START
             x = (8 * density).toInt()
-            y = (135 * density).toInt()
+            y = (142 * density).toInt()
             width = min((screenWidth * 0.78f).toInt(), (310 * density).toInt())
             height = WindowManager.LayoutParams.WRAP_CONTENT
         }
@@ -651,89 +707,111 @@ class OverlayService : LifecycleService() {
     }
 
     /**
-     * LIVE BATTLE OCR LOOP:
-     * Runs every 950ms to detect:
-     * 1. Top-Right Opponent Pokémon nameplate (X: 44%..99%, Y: 2%..18%)
-     * 2. Top-Left Player Active Switch nameplate (X: 1%..52%, Y: 2%..18%)
-     * 3. Bottom Charged Move Buttons (Y: 68%..96%) for instant player switch confirmation
+     * ALWAYS-ON 1+ HZ BATTLE OCR LOOP:
+     * Continuously scans screen regions whenever the overlay service is active.
+     * Stitches 3 battle regions (Top-Right Opponent Nameplate, Top-Left Player Nameplate, Bottom Move Buttons)
+     * into a single compact composite bitmap and awaits 1 ML Kit OCR pass per cycle (~100ms inference, zero queue lag).
      */
     private fun startBattleOcrLoop() {
-        battleLoopJob?.cancel()
+        if (battleLoopJob?.isActive == true) return
         battleLoopJob = lifecycleScope.launch(Dispatchers.Default) {
             while (isActive) {
-                delay(950)
                 try {
                     captureAndProcessBattleRegions()
                 } catch (_: Exception) {}
+                delay(650)
             }
         }
     }
 
-    private fun cropNormalizedRegion(
-        source: Bitmap,
-        leftRatio: Float,
-        topRatio: Float,
-        rightRatio: Float,
-        bottomRatio: Float
-    ): Bitmap? {
-        if (source.isRecycled) return null
-        val x = (source.width * leftRatio).toInt().coerceIn(0, source.width - 1)
-        val y = (source.height * topRatio).toInt().coerceIn(0, source.height - 1)
-        val w = ((source.width * (rightRatio - leftRatio)).toInt()).coerceIn(1, source.width - x)
-        val h = ((source.height * (bottomRatio - topRatio)).toInt()).coerceIn(1, source.height - y)
-        return try {
-            Bitmap.createBitmap(source, x, y, w, h)
-        } catch (_: Exception) {
-            null
-        }
-    }
-
     private suspend fun captureAndProcessBattleRegions() {
-        val bitmap = captureCleanScreenBitmap() ?: return
+        val screen = captureCleanScreenBitmap() ?: return
+        if (screen.isRecycled) return
 
-        // 1. TOP-RIGHT OPPONENT NAMEPLATE REGION (Normalized X: 0.44..0.99, Y: 0.02..0.18)
-        val oppCropped = cropNormalizedRegion(bitmap, 0.44f, 0.02f, 0.99f, 0.18f)
+        val w = screen.width
+        val h = screen.height
 
-        // 2. TOP-LEFT PLAYER ACTIVE SWITCH NAMEPLATE REGION (Normalized X: 0.01..0.52, Y: 0.02..0.18)
-        val playerCropped = cropNormalizedRegion(bitmap, 0.01f, 0.02f, 0.52f, 0.18f)
+        // Strict Y bounds (0.03..0.125) for top headers so the overlay HUD (at Y ~ 0.145) is NEVER inside the top crops
+        val srcOpp = Rect(
+            (w * 0.48f).toInt().coerceIn(0, w - 1),
+            (h * 0.03f).toInt().coerceIn(0, h - 1),
+            (w * 0.99f).toInt().coerceIn(1, w),
+            (h * 0.125f).toInt().coerceIn(1, h)
+        )
+        val srcPlayer = Rect(
+            (w * 0.01f).toInt().coerceIn(0, w - 1),
+            (h * 0.03f).toInt().coerceIn(0, h - 1),
+            (w * 0.46f).toInt().coerceIn(1, w),
+            (h * 0.125f).toInt().coerceIn(1, h)
+        )
+        val srcMoves = Rect(
+            (w * 0.08f).toInt().coerceIn(0, w - 1),
+            (h * 0.80f).toInt().coerceIn(0, h - 1),
+            (w * 0.92f).toInt().coerceIn(1, w),
+            (h * 0.95f).toInt().coerceIn(1, h)
+        )
 
-        // 3. BOTTOM CHARGED MOVE BUTTONS REGION (Normalized X: 0.05..0.95, Y: 0.68..0.96)
-        val moveCropped = cropNormalizedRegion(bitmap, 0.05f, 0.68f, 0.95f, 0.96f)
+        val oppH = srcOpp.height().coerceAtLeast(1)
+        val playerH = srcPlayer.height().coerceAtLeast(1)
+        val movesH = srcMoves.height().coerceAtLeast(1)
+        val gap = 28
 
-        bitmap.recycle()
+        val compW = max(max(srcOpp.width(), srcPlayer.width()), srcMoves.width()).coerceAtLeast(100)
+        val compH = oppH + gap + playerH + gap + movesH
 
-        // Process Top-Right Opponent OCR
-        if (oppCropped != null) {
-            val oppInput = InputImage.fromBitmap(oppCropped, 0)
-            textRecognizer.process(oppInput)
-                .addOnSuccessListener { visionText ->
-                    oppCropped.recycle()
-                    handleRecognizedOpponentText(visionText)
-                }
-                .addOnFailureListener { oppCropped.recycle() }
+        val composite = try {
+            Bitmap.createBitmap(compW, compH, Bitmap.Config.ARGB_8888)
+        } catch (_: Exception) {
+            screen.recycle()
+            return
         }
 
-        // Process Top-Left Player Nameplate OCR
-        if (playerCropped != null) {
-            val playerInput = InputImage.fromBitmap(playerCropped, 0)
-            textRecognizer.process(playerInput)
-                .addOnSuccessListener { visionText ->
-                    playerCropped.recycle()
-                    handleRecognizedPlayerSwitchText(visionText, isFromTopLeftHeader = true)
+        val canvas = Canvas(composite)
+        canvas.drawColor(Color.BLACK)
+
+        val dstOpp = Rect(0, 0, srcOpp.width(), oppH)
+        val dstPlayer = Rect(0, oppH + gap, srcPlayer.width(), oppH + gap + playerH)
+        val dstMoves = Rect(0, oppH + gap + playerH + gap, srcMoves.width(), compH)
+
+        canvas.drawBitmap(screen, srcOpp, dstOpp, null)
+        canvas.drawBitmap(screen, srcPlayer, dstPlayer, null)
+        canvas.drawBitmap(screen, srcMoves, dstMoves, null)
+        screen.recycle()
+
+        val visionText = suspendCancellableCoroutine<Text?> { cont ->
+            val input = InputImage.fromBitmap(composite, 0)
+            textRecognizer.process(input)
+                .addOnSuccessListener { result ->
+                    if (cont.isActive) cont.resume(result)
                 }
-                .addOnFailureListener { playerCropped.recycle() }
+                .addOnFailureListener {
+                    if (cont.isActive) cont.resume(null)
+                }
+        }
+        composite.recycle()
+
+        if (visionText == null) return
+
+        val yDivider1 = oppH + gap / 2
+        val yDivider2 = oppH + gap + playerH + gap / 2
+
+        val oppLines = mutableListOf<Text.Line>()
+        val playerTopLines = mutableListOf<Text.Line>()
+        val playerMoveLines = mutableListOf<Text.Line>()
+
+        for (block in visionText.textBlocks) {
+            for (line in block.lines) {
+                val cy = line.boundingBox?.centerY() ?: continue
+                when {
+                    cy < yDivider1 -> oppLines.add(line)
+                    cy < yDivider2 -> playerTopLines.add(line)
+                    else -> playerMoveLines.add(line)
+                }
+            }
         }
 
-        // Process Bottom Move Buttons OCR
-        if (moveCropped != null) {
-            val moveInput = InputImage.fromBitmap(moveCropped, 0)
-            textRecognizer.process(moveInput)
-                .addOnSuccessListener { visionText ->
-                    moveCropped.recycle()
-                    handleRecognizedPlayerSwitchText(visionText, isFromTopLeftHeader = false)
-                }
-                .addOnFailureListener { moveCropped.recycle() }
-        }
+        handleOpponentLines(oppLines)
+        handlePlayerSwitchLines(playerTopLines, playerMoveLines)
     }
 
     private fun isOverlayHudSelfText(lower: String): Boolean {
@@ -743,38 +821,58 @@ class OverlayService : LifecycleService() {
                 lower.contains("awaiting") ||
                 lower.contains("shadow:") ||
                 lower.contains("form:") ||
-                lower.contains("dmg to") ||
-                lower.contains("throw:")
+                lower.contains("reset opp") ||
+                lower.contains("dmg") ||
+                lower.contains("throw on") ||
+                lower.contains("1 hz") ||
+                lower.contains("bench:") ||
+                lower.contains("→")
     }
 
-    private fun handleRecognizedOpponentText(visionText: Text) {
+    private fun upsertDetectedOpponentBySpecies(fullName: String, baseSpecies: String) {
+        val existingIdx = detectedOpponents.indexOfFirst {
+            FormResolver.extractBaseSpecies(it).equals(baseSpecies, ignoreCase = true)
+        }
+        if (existingIdx >= 0) {
+            detectedOpponents.removeAt(existingIdx)
+        }
+        detectedOpponents.add(0, fullName)
+        while (detectedOpponents.size > 3) {
+            detectedOpponents.removeAt(detectedOpponents.lastIndex)
+        }
+    }
+
+    private fun handleOpponentLines(oppLines: List<Text.Line>) {
         val activeLeague = currentPreset?.league ?: "MASTER LEAGUE"
         var detected: PokemonMeta? = null
         var rawMatchedLine = ""
 
-        for (block in visionText.textBlocks) {
-            for (line in block.lines) {
-                val text = line.text.trim()
-                if (text.length < 3) continue
+        for (line in oppLines) {
+            val text = line.text.trim()
+            if (text.length < 3) continue
 
-                val lower = text.lowercase()
-                if (isOverlayHudSelfText(lower)) continue
+            val lower = text.lowercase()
+            if (isOverlayHudSelfText(lower)) continue
 
-                val candidate = findPokemonInText(text)
-                if (candidate != null) {
-                    detected = FormResolver.resolveBestDefaultVariant(candidate, text, activeLeague)
-                    rawMatchedLine = text
-                    break
+            val candidate = findPokemonInText(text)
+            if (candidate != null) {
+                val base = candidate.baseSpecies.lowercase()
+                val manualFormName = manualFormOverrides[base]
+                detected = if (manualFormName != null) {
+                    getPokemonMeta(manualFormName)
+                } else {
+                    FormResolver.resolveBestDefaultVariant(candidate, text, activeLeague)
                 }
+                rawMatchedLine = text
+                break
             }
-            if (detected != null) break
         }
 
         if (detected != null) {
             val matched = detected
-            val newBaseSpecies = matched.baseSpecies
+            val newBaseSpecies = matched.baseSpecies.lowercase()
 
-            // Trigger immediately when opponent spawns or switches/faints into a new species
+            // Trigger immediately when opponent spawns or switches/faints into a different species
             if (isWaitingForOpponent || !newBaseSpecies.equals(activeOpponentSpecies, ignoreCase = true)) {
                 isWaitingForOpponent = false
                 activeOpponentSpecies = newBaseSpecies
@@ -782,14 +880,17 @@ class OverlayService : LifecycleService() {
                 currentFormIndex = availableOpponentForms.indexOfFirst { it.name == matched.name }.coerceAtLeast(0)
                 activeOpponentName = matched.name
 
-                if (rawMatchedLine.contains("shadow", ignoreCase = true)) {
-                    isOpponentShadow = true
+                isOpponentShadow = when {
+                    manualShadowOverrides.containsKey(newBaseSpecies) -> manualShadowOverrides[newBaseSpecies]!!
+                    rawMatchedLine.contains("shadow", ignoreCase = true) -> {
+                        manualShadowOverrides[newBaseSpecies] = true
+                        true
+                    }
+                    else -> false
                 }
 
-                if (!detectedOpponents.contains(matched.name)) {
-                    detectedOpponents.add(0, matched.name)
-                    if (detectedOpponents.size > 3) detectedOpponents.removeAt(detectedOpponents.lastIndex)
-                }
+                // 1-per-species deduplication on opponent team
+                upsertDetectedOpponentBySpecies(matched.name, newBaseSpecies)
 
                 recalculateAndPushBattleData()
                 Handler(Looper.getMainLooper()).post {
@@ -807,99 +908,118 @@ class OverlayService : LifecycleService() {
      * Detects player switches automatically via Top-Left Player Nameplate OR Bottom Charged Move buttons.
      * Immediately updates internal state, re-indexes current matchups, and refreshes UI without manual party tap.
      */
-    private fun handleRecognizedPlayerSwitchText(visionText: Text, isFromTopLeftHeader: Boolean) {
+    private fun handlePlayerSwitchLines(playerTopLines: List<Text.Line>, playerMoveLines: List<Text.Line>) {
         val preset = currentPreset ?: return
 
-        for (block in visionText.textBlocks) {
-            for (line in block.lines) {
-                val lineText = line.text.trim()
-                if (lineText.length < 3) continue
+        // 1. Check Top-Left Player Nameplate lines first
+        for (line in playerTopLines) {
+            val lineText = line.text.trim()
+            if (lineText.length < 3) continue
+            val lowerLine = lineText.lowercase()
+            if (isOverlayHudSelfText(lowerLine)) continue
 
-                val lowerLine = lineText.lowercase()
-                if (isOverlayHudSelfText(lowerLine)) continue
+            val normalizedLine = normalizeOcrToken(lineText)
 
-                val normalizedLine = normalizeOcrToken(lineText)
+            // Guard against any accidental multi-chip line
+            val matchCountInLine = preset.pokemon.count { slot ->
+                val base = FormResolver.extractBaseSpecies(slot.name)
+                base.length >= 3 && normalizedLine.contains(base)
+            }
+            if (matchCountInLine > 1) continue
 
-                // 1. Direct or fuzzy species match against user's 3 team members
-                for (slot in preset.pokemon) {
-                    val speciesBase = FormResolver.extractBaseSpecies(slot.name)
-                    val cpStr = slot.cp.toString()
-                    val meta = getPokemonMeta(slot.name)
+            for (slot in preset.pokemon) {
+                val speciesBase = FormResolver.extractBaseSpecies(slot.name)
+                val cpStr = slot.cp.toString()
 
-                    var isMatched = false
-
-                    if (speciesBase.length >= 3 && normalizedLine.contains(speciesBase)) {
-                        isMatched = true
-                    } else if (cpStr.length >= 3 && lineText.contains(cpStr)) {
-                        isMatched = true
-                    } else if (isFromTopLeftHeader) {
-                        // Fuzzy Levenshtein check on top-left nameplate tokens
-                        val tokens = lineText.replace(Regex("[^a-zA-Z\\s]"), " ")
-                            .split("\\s+".toRegex())
-                            .filter { it.length >= 4 }
-                        for (token in tokens) {
-                            val normTok = normalizeOcrToken(token)
-                            if (levenshteinDistance(normTok, speciesBase) <= 2) {
-                                isMatched = true
-                                break
-                            }
+                var isMatched = false
+                if (speciesBase.length >= 3 && normalizedLine.contains(speciesBase)) {
+                    isMatched = true
+                } else if (cpStr.length >= 3 && lineText.contains(cpStr)) {
+                    isMatched = true
+                } else {
+                    val tokens = lineText.replace(Regex("[^a-zA-Z\\s]"), " ")
+                        .split("\\s+".toRegex())
+                        .filter { it.length >= 4 }
+                    for (token in tokens) {
+                        val normTok = normalizeOcrToken(token)
+                        if (levenshteinDistance(normTok, speciesBase) <= 2) {
+                            isMatched = true
+                            break
                         }
-                    }
-
-                    if (!isMatched && !isFromTopLeftHeader) {
-                        // Check Charged Move signature keywords on bottom move buttons
-                        val moveKeywords = mutableSetOf<String>()
-                        fun addMoveKw(move: String) {
-                            if (move.isNotBlank()) {
-                                move.lowercase().split(" ")
-                                    .filter { it.length >= 4 && it != "move" && it != "fast" }
-                                    .forEach { moveKeywords.add(it) }
-                            }
-                        }
-                        addMoveKw(slot.chargedMove1)
-                        addMoveKw(slot.chargedMove2)
-                        addMoveKw(meta.chargedMove1)
-                        addMoveKw(meta.chargedMove2)
-
-                        for (kw in moveKeywords) {
-                            if (lowerLine.contains(kw)) {
-                                isMatched = true
-                                break
-                            }
-                        }
-                    }
-
-                    if (isMatched) {
-                        if (!slot.name.equals(activeUserPokemonName, ignoreCase = true)) {
-                            activeUserPokemonName = slot.name
-                            recalculateAndPushBattleData()
-                            Handler(Looper.getMainLooper()).post {
-                                Toast.makeText(this, "🔄 Player Switch: ${slot.name}", Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                        return
                     }
                 }
 
-                // 2. If top-left header detected a valid meta Pokémon not in preset, still update active lead
-                if (isFromTopLeftHeader) {
-                    val detectedPlayerMon = findPokemonInText(lineText)
-                    if (detectedPlayerMon != null &&
-                        !detectedPlayerMon.baseSpecies.equals(activeOpponentSpecies, ignoreCase = true)
-                    ) {
-                        val resolved = FormResolver.resolveBestDefaultVariant(
-                            detectedPlayerMon,
-                            lineText,
-                            preset.league
-                        )
-                        if (!resolved.name.equals(activeUserPokemonName, ignoreCase = true)) {
-                            activeUserPokemonName = resolved.name
-                            recalculateAndPushBattleData()
-                            Handler(Looper.getMainLooper()).post {
-                                Toast.makeText(this, "🔄 Active Lead: ${resolved.name}", Toast.LENGTH_SHORT).show()
-                            }
-                            return
+                if (isMatched) {
+                    if (!slot.name.equals(activeUserPokemonName, ignoreCase = true)) {
+                        activeUserPokemonName = slot.name
+                        recalculateAndPushBattleData()
+                        Handler(Looper.getMainLooper()).post {
+                            Toast.makeText(this, "🔄 Player Switch: ${slot.name}", Toast.LENGTH_SHORT).show()
                         }
+                    }
+                    return
+                }
+            }
+
+            // Fallback: if top-left header detected a valid meta Pokémon not in preset
+            val detectedPlayerMon = findPokemonInText(lineText)
+            if (detectedPlayerMon != null &&
+                !detectedPlayerMon.baseSpecies.equals(activeOpponentSpecies, ignoreCase = true)
+            ) {
+                val resolved = FormResolver.resolveBestDefaultVariant(detectedPlayerMon, lineText, preset.league)
+                if (!resolved.name.equals(activeUserPokemonName, ignoreCase = true)) {
+                    activeUserPokemonName = resolved.name
+                    recalculateAndPushBattleData()
+                    Handler(Looper.getMainLooper()).post {
+                        Toast.makeText(this, "🔄 Active Lead: ${resolved.name}", Toast.LENGTH_SHORT).show()
+                    }
+                    return
+                }
+            }
+        }
+
+        // 2. Check Bottom Charged Move Buttons across all bottom move lines
+        if (playerMoveLines.isNotEmpty()) {
+            val combinedBottomNorm = playerMoveLines.joinToString(" ") { normalizeOcrToken(it.text) }
+            val combinedBottomLower = playerMoveLines.joinToString(" ") { it.text.lowercase() }
+
+            var bestSlot: TeamMember? = null
+            var bestScore = 0
+
+            for (slot in preset.pokemon) {
+                val meta = getPokemonMeta(slot.name)
+                val candidateMoves = listOf(slot.chargedMove1, slot.chargedMove2, meta.chargedMove1, meta.chargedMove2)
+                    .map { it.trim() }
+                    .filter { it.isNotEmpty() }
+                    .distinct()
+
+                var score = 0
+                for (move in candidateMoves) {
+                    val normMove = normalizeOcrToken(move)
+                    if (normMove.length >= 3 && combinedBottomNorm.contains(normMove)) {
+                        score += 3
+                    } else {
+                        val words = move.lowercase().split(" ").filter { it.length >= 4 && it != "attack" && it != "ball" }
+                        for (w in words) {
+                            if (combinedBottomLower.contains(w)) {
+                                score += 1
+                            }
+                        }
+                    }
+                }
+
+                if (score > bestScore) {
+                    bestScore = score
+                    bestSlot = slot
+                }
+            }
+
+            if (bestSlot != null && bestScore >= 2) {
+                if (!bestSlot.name.equals(activeUserPokemonName, ignoreCase = true)) {
+                    activeUserPokemonName = bestSlot.name
+                    recalculateAndPushBattleData()
+                    Handler(Looper.getMainLooper()).post {
+                        Toast.makeText(this, "🔄 Player Switch: ${bestSlot.name}", Toast.LENGTH_SHORT).show()
                     }
                 }
             }
@@ -907,26 +1027,31 @@ class OverlayService : LifecycleService() {
     }
 
     /**
-     * ACTION: START NEW BATTLE
-     * Clears previous opponents, resets Shadow/Form state, and prepares for next opponent spawn
+     * ACTION: RESET OPPONENT (Start New Battle)
+     * Clears opponent team & manual form/shadow overrides while keeping 1 Hz OCR continuously active
      */
     fun startNewBattle() {
         detectedOpponents.clear()
+        manualFormOverrides.clear()
+        manualShadowOverrides.clear()
         isWaitingForOpponent = true
         activeOpponentName = "Waiting..."
         activeOpponentSpecies = ""
         isOpponentShadow = false
         availableOpponentForms = emptyList()
         currentFormIndex = 0
-        activeUserPokemonName = currentPreset?.pokemon?.getOrNull(0)?.name ?: "Dialga (Origin)"
+        startBattleOcrLoop()
         recalculateAndPushBattleData()
         Handler(Looper.getMainLooper()).post {
-            Toast.makeText(this, "⚔️ New Battle! Scanning top-left & top-right headers...", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "↺ Opponent Reset — 1 Hz OCR Active", Toast.LENGTH_SHORT).show()
         }
     }
 
     fun toggleShadowModifier() {
         isOpponentShadow = !isOpponentShadow
+        if (activeOpponentSpecies.isNotBlank()) {
+            manualShadowOverrides[activeOpponentSpecies.lowercase()] = isOpponentShadow
+        }
         recalculateAndPushBattleData()
     }
 
@@ -934,14 +1059,18 @@ class OverlayService : LifecycleService() {
         if (availableOpponentForms.size <= 1) return
         currentFormIndex = (currentFormIndex + 1) % availableOpponentForms.size
         val nextVariant = availableOpponentForms[currentFormIndex]
-        val previousName = activeOpponentName
+        val baseKey = nextVariant.baseSpecies.lowercase()
         activeOpponentName = nextVariant.name
+        manualFormOverrides[baseKey] = nextVariant.name
 
-        val idx = detectedOpponents.indexOf(previousName)
-        if (idx >= 0) {
-            detectedOpponents[idx] = nextVariant.name
-        } else if (!detectedOpponents.contains(nextVariant.name)) {
-            detectedOpponents.add(0, nextVariant.name)
+        // Update existing species entry in-place (only 1 per species allowed on a team)
+        val existingIdx = detectedOpponents.indexOfFirst {
+            FormResolver.extractBaseSpecies(it).equals(baseKey, ignoreCase = true)
+        }
+        if (existingIdx >= 0) {
+            detectedOpponents[existingIdx] = nextVariant.name
+        } else {
+            upsertDetectedOpponentBySpecies(nextVariant.name, baseKey)
         }
         recalculateAndPushBattleData()
     }
@@ -1187,22 +1316,37 @@ class OverlayService : LifecycleService() {
         val myMove1Summary = "$userMove1Name ($myMove1Pct%)"
         val myMove2Summary = "$userMove2Name ($myMove2Pct%)"
 
-        val userFastTurns = userMeta.fastTurns
+        val userFastMoveName = activeSlot?.fastMove?.takeIf { it.isNotBlank() } ?: userMeta.defaultFastMove
+        val userFastTurns = FAST_MOVE_TURNS[userFastMoveName.lowercase().trim()] ?: userMeta.fastTurns
         val oppFastTurns = oppMeta.fastTurns
 
-        val zeroSneakAttacks = calculateZeroSneakThrows(userFastTurns, oppFastTurns)
-        val throwAlignmentText = zeroSneakAttacks.joinToString(", ") { "${it}th" } + " Attack"
-        val throwHorizonText = zeroSneakAttacks.joinToString(", ")
+        fun formatOrdinal(n: Int): String = when {
+            n % 100 in 11..13 -> "${n}th"
+            n % 10 == 1 -> "${n}st"
+            n % 10 == 2 -> "${n}nd"
+            n % 10 == 3 -> "${n}rd"
+            else -> "${n}th"
+        }
 
+        val zeroSneakAttacks = calculateZeroSneakThrows(userFastTurns, oppFastTurns)
+        val throwAlignmentText = zeroSneakAttacks.joinToString(", ") { formatOrdinal(it) }
+        val throwHorizonText = throwAlignmentText
+
+        // Ensure 1-per-species deduplication in displayList
         val displayList = mutableListOf<String>()
-        displayList.add(activeOpponentName)
-        detectedOpponents.filter { it != activeOpponentName }.take(2).forEach {
-            displayList.add(it)
+        val seenSpecies = mutableSetOf<String>()
+        for (opp in listOf(activeOpponentName) + detectedOpponents) {
+            val base = FormResolver.extractBaseSpecies(opp).lowercase()
+            if (seenSpecies.add(base)) {
+                displayList.add(opp)
+            }
+            if (displayList.size >= 3) break
         }
 
         val scannedOpponentsData = displayList.mapIndexed { idx, opp ->
             val meta = getPokemonMeta(opp)
-            val isThisOppShadow = if (idx == 0) isOpponentShadow else false
+            val baseKey = meta.baseSpecies.lowercase()
+            val isThisOppShadow = manualShadowOverrides[baseKey] ?: (if (idx == 0) isOpponentShadow else false)
             val oppC1Pct = calculateChargedMoveDamagePercent(
                 attacker = meta,
                 defender = userMeta,
@@ -1240,8 +1384,8 @@ class OverlayService : LifecycleService() {
             "isOpponentShadow" to isOpponentShadow,
             "currentFormLabel" to oppMeta.formLabel,
             "availableForms" to availableOpponentForms.map { it.formLabel },
-            "userActivePokemon" to userMeta.name,
-            "userFastMoveTurns" to userMeta.fastTurns,
+            "userActivePokemon" to activePlayerName,
+            "userFastMoveTurns" to userFastTurns,
             "myMove1Summary" to myMove1Summary,
             "myMove2Summary" to myMove2Summary,
             "throwAlignmentText" to throwAlignmentText,
@@ -1265,7 +1409,7 @@ class OverlayService : LifecycleService() {
             }
             if (list.size >= 3) break
         }
-        return if (list.isNotEmpty()) list else listOf(3, 5, 7)
+        return if (list.isNotEmpty()) list else listOf(1, 3, 5)
     }
 
     private fun calculate3v3Matrix(opp: String, p1: String, p2: String, p3: String): Map<String, String> {
@@ -1327,7 +1471,7 @@ class OverlayService : LifecycleService() {
     }
 
     private fun loadPresets(): List<TeamPreset> {
-        val json = prefs.getString("gbl_team_presets_v2", null) ?: return emptyList()
+        val json = prefs.getString("gbl_team_presets_v4", null) ?: return emptyList()
         val type = object : TypeToken<List<TeamPreset>>() {}.type
         return gson.fromJson(json, type) ?: emptyList()
     }

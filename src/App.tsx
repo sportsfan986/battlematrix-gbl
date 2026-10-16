@@ -36,7 +36,7 @@ import { ANDROID_FILES, downloadAndroidProjectZip, AndroidProjectFile } from './
 
 export default function App() {
   // Navigation tabs
-  const [activeTab, setActiveTab] = useState<'simulator' | 'presets' | 'ocr_scan' | 'turn_matrix' | 'android_code'>('simulator');
+  const [activeTab, setActiveTab] = useState<'simulator' | 'presets' | 'turn_matrix' | 'android_code'>('simulator');
 
   // Overlay Mode: Option 1 (Top-Left Sky Trench) vs Option 2 (Bottom Horizon Belt)
   const [layoutMode, setLayoutMode] = useState<'option1' | 'option2'>('option1');
@@ -83,9 +83,9 @@ export default function App() {
     setIsDragging(false);
   };
 
-  // Team Presets State (stored in localStorage v2 with updated Great & Ultra League defaults)
+  // Team Presets State (stored in localStorage v4 with updated Great & Ultra League defaults)
   const [presets, setPresets] = useState<TeamPreset[]>(() => {
-    const saved = localStorage.getItem('gbl_team_presets_v2');
+    const saved = localStorage.getItem('gbl_team_presets_v4');
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -102,7 +102,7 @@ export default function App() {
 
   // Save presets whenever updated
   useEffect(() => {
-    localStorage.setItem('gbl_team_presets_v2', JSON.stringify(presets));
+    localStorage.setItem('gbl_team_presets_v4', JSON.stringify(presets));
   }, [presets]);
 
   useEffect(() => {
@@ -124,39 +124,56 @@ export default function App() {
   const [userShields, setUserShields] = useState<number>(2);
   const [oppShields, setOppShields] = useState<number>(2);
 
-  // Scanned Opponents (Simulating ML Kit 0.95s OCR detection)
+  // Scanned Opponents (1-per-species deduplicated)
   const [scannedOpponents, setScannedOpponents] = useState<string[]>(['Zacian (Crowned)', 'Yveltal', 'Entei']);
   const [isWaitingOpponent, setIsWaitingOpponent] = useState<boolean>(false);
   const [showOpponentPicker, setShowOpponentPicker] = useState<boolean>(false);
 
-  // Preset Dialog State
+  // Preset Create / Edit Dialog State
   const [isNewPresetOpen, setIsNewPresetOpen] = useState(false);
+  const [editingPresetId, setEditingPresetId] = useState<string | null>(null);
   const [newPresetName, setNewPresetName] = useState('');
-  const [newPresetLeague, setNewPresetLeague] = useState<'MASTER LEAGUE' | 'ULTRA LEAGUE' | 'GREAT LEAGUE'>('MASTER LEAGUE');
-  const [p1Name, setP1Name] = useState('Dialga (Origin)');
-  const [p1Cp, setP1Cp] = useState(4624);
-  const [p2Name, setP2Name] = useState('Lugia');
-  const [p2Cp, setP2Cp] = useState(4179);
-  const [p3Name, setP3Name] = useState('Kyogre');
-  const [p3Cp, setP3Cp] = useState(4652);
+  const [newPresetLeague, setNewPresetLeague] = useState<'MASTER LEAGUE' | 'ULTRA LEAGUE' | 'GREAT LEAGUE'>('GREAT LEAGUE');
+  const [p1Name, setP1Name] = useState('Kanto Ninetales');
+  const [p1Cp, setP1Cp] = useState(1498);
+  const [p1Fast, setP1Fast] = useState('Fire Spin');
+  const [p1C1, setP1C1] = useState('Weather Ball');
+  const [p1C2, setP1C2] = useState('Scorching Sands');
+
+  const [p2Name, setP2Name] = useState('Fearow');
+  const [p2Cp, setP2Cp] = useState(1500);
+  const [p2Fast, setP2Fast] = useState('Peck');
+  const [p2C1, setP2C1] = useState('Sky Attack');
+  const [p2C2, setP2C2] = useState('Drill Run');
+
+  const [p3Name, setP3Name] = useState('Shadow Pidgeot');
+  const [p3Cp, setP3Cp] = useState(1490);
+  const [p3Fast, setP3Fast] = useState('Gust');
+  const [p3C1, setP3C1] = useState('Twister');
+  const [p3C2, setP3C2] = useState('Brave Bird');
 
   // Code Viewer State
   const [selectedFileIndex, setSelectedFileIndex] = useState<number>(0);
   const [copiedFile, setCopiedFile] = useState(false);
   const [isDownloadingZip, setIsDownloadingZip] = useState(false);
 
-  // OCR Party scan simulation
-  const [isScanningParty, setIsScanningParty] = useState(false);
-  const [scanResult, setScanResult] = useState<{
-    league: string;
-    members: { name: string; cp: number; confidence: number }[];
-  } | null>(null);
+  const getBaseSpeciesKey = (name: string) => {
+    const dbEntry = POKEMON_DATABASE[name];
+    if (dbEntry?.baseSpecies) return dbEntry.baseSpecies.toLowerCase();
+    return name
+      .replace(/^Shadow\s+/i, '')
+      .replace(/^Kanto\s+/i, '')
+      .replace(/^Alolan\s+/i, '')
+      .split(' ')[0]
+      .toLowerCase();
+  };
 
-  // Actions for Overlay: Start Battle (clears opponents) & Scan Team (creates scanned team)
+  // Actions for Overlay: Reset Opponent (clears opponents while keeping 1 Hz OCR active)
   const handleStartBattle = () => {
     setScannedOpponents([]);
     setIsWaitingOpponent(true);
     setActiveOpponentKey('Waiting...');
+    setIsOpponentShadow(false);
     setUserTurnsElapsed(0);
     setOppTurnsElapsed(0);
     setUserEnergy(0);
@@ -167,60 +184,22 @@ export default function App() {
     setActiveOpponentKey(name);
     setIsWaitingOpponent(false);
     setShowOpponentPicker(false);
+    const targetBase = getBaseSpeciesKey(name);
     setScannedOpponents(prev => {
-      if (prev.includes(name)) return prev;
-      return [name, ...prev.filter(n => n !== name).slice(0, 2)];
+      const existingIdx = prev.findIndex(n => getBaseSpeciesKey(n) === targetBase);
+      if (existingIdx >= 0) {
+        const updated = [...prev];
+        updated[existingIdx] = name;
+        return updated;
+      }
+      return [name, ...prev.slice(0, 2)];
     });
-  };
-
-  const handleScanTeam = () => {
-    setIsScanningParty(true);
-    setTimeout(() => {
-      const sampleTeams = [
-        {
-          name: 'Great: Clodsire / Feraligatr / Mandibuzz',
-          league: 'GREAT LEAGUE' as const,
-          pokemon: [
-            { id: 'scan-1', name: 'Clodsire', cp: 1494, fastMove: 'Poison Sting', chargedMove1: 'Earthquake', chargedMove2: 'Stone Edge' },
-            { id: 'scan-2', name: 'Feraligatr', cp: 1488, fastMove: 'Shadow Claw', chargedMove1: 'Hydro Cannon', chargedMove2: 'Ice Beam' },
-            { id: 'scan-3', name: 'Mandibuzz', cp: 1490, fastMove: 'Snarl', chargedMove1: 'Dark Pulse', chargedMove2: 'Aerial Ace' }
-          ]
-        },
-        {
-          name: 'Ultra: Giratina-A / Cresselia / Cobalion',
-          league: 'ULTRA LEAGUE' as const,
-          pokemon: [
-            { id: 'scan-4', name: 'Giratina (Altered)', cp: 2488, fastMove: 'Shadow Claw', chargedMove1: 'Dragon Claw', chargedMove2: 'Ancient Power' },
-            { id: 'scan-5', name: 'Cresselia', cp: 2488, fastMove: 'Psycho Cut', chargedMove1: 'Grass Knot', chargedMove2: 'Moonblast' },
-            { id: 'scan-6', name: 'Cobalion', cp: 2492, fastMove: 'Double Kick', chargedMove1: 'Sacred Sword', chargedMove2: 'Stone Edge' }
-          ]
-        },
-        {
-          name: 'Master: Dialga-O / Lugia / Kyogre',
-          league: 'MASTER LEAGUE' as const,
-          pokemon: [
-            { id: 'scan-7', name: 'Dialga (Origin)', cp: 4624, fastMove: 'Dragon Breath', chargedMove1: 'Roar of Time', chargedMove2: 'Iron Head' },
-            { id: 'scan-8', name: 'Lugia', cp: 4179, fastMove: 'Dragon Tail', chargedMove1: 'Aeroblast', chargedMove2: 'Sky Attack' },
-            { id: 'scan-9', name: 'Kyogre', cp: 4652, fastMove: 'Waterfall', chargedMove1: 'Surf', chargedMove2: 'Origin Pulse' }
-          ]
-        }
-      ];
-      const picked = sampleTeams[Math.floor(Math.random() * sampleTeams.length)];
-      const scannedPreset: TeamPreset = {
-        id: `scanned-${Date.now()}`,
-        name: `Scanned: ${picked.pokemon.map(p => p.name.split(' ')[0]).join('/')}`,
-        league: picked.league,
-        pokemon: picked.pokemon
-      };
-      setPresets(prev => [scannedPreset, ...prev]);
-      setSelectedPresetId(scannedPreset.id);
-      setIsScanningParty(false);
-    }, 1000);
   };
 
   // Active Pokémon stats
   const activeOpponent = POKEMON_DATABASE[activeOpponentKey] || POKEMON_DATABASE['Zacian (Crowned)'];
-  const userLeadName = activePreset?.pokemon[activeUserSlotIndex]?.name || activePreset?.pokemon[0]?.name || 'Dialga (Origin)';
+  const activeUserSlot = activePreset?.pokemon[activeUserSlotIndex] || activePreset?.pokemon[0];
+  const userLeadName = activeUserSlot?.name || 'Dialga (Origin)';
   const userActivePokemon = POKEMON_DATABASE[userLeadName] || POKEMON_DATABASE['Lugia'] || POKEMON_DATABASE['Dialga (Origin)'];
   const isUserShadow = userLeadName.toLowerCase().includes('shadow');
 
@@ -235,12 +214,86 @@ export default function App() {
     handleSelectOpponent(nextForm);
   };
 
-  // Calculations
-  const userFastTurns = userActivePokemon?.defaultFastMove?.turns || 3;
+  // Calculations (respecting custom fast move turns if edited)
+  const FAST_MOVE_TURN_LOOKUP: Record<string, number> = {
+    'dragon breath': 1,
+    'sand attack': 1,
+    'quick attack': 1,
+    'lock-on': 1,
+    'psycho cut': 2,
+    'mud shot': 2,
+    'shadow claw': 2,
+    'counter': 2,
+    'powder snow': 2,
+    'wing attack': 2,
+    'peck': 2,
+    'poison sting': 2,
+    'thunder shock': 2,
+    'metal claw': 2,
+    'fire fang': 2,
+    'dragon tail': 3,
+    'waterfall': 3,
+    'fire spin': 3,
+    'snarl': 3,
+    'charm': 3,
+    'double kick': 3,
+    'gust': 4,
+    'confusion': 4,
+    'volt switch': 4,
+    'incinerate': 5
+  };
+
+  const userFastMoveName = activeUserSlot?.fastMove || userActivePokemon?.defaultFastMove?.name || 'Fast Move';
+  const userFastTurns = FAST_MOVE_TURN_LOOKUP[userFastMoveName.toLowerCase().trim()] || userActivePokemon?.defaultFastMove?.turns || 3;
   const oppFastTurns = activeOpponent?.defaultFastMove?.turns || 2;
   const turnAlignInfo = calculateTurnAlignment(userFastTurns, oppFastTurns);
 
-  // Damage Calculations (Opponent -> Player & Player -> Opponent with Shadow modifiers)
+  const MOVE_ABBR_MAP: Record<string, string> = {
+    'Roar of Time': 'Roar.T',
+    'Iron Head': 'Iron.Hd',
+    'Draco Meteor': 'Draco.M',
+    'Aeroblast': 'Aeroblst',
+    'Sky Attack': 'Sky.Atk',
+    'Origin Pulse': 'Orig.Pls',
+    'Close Combat': 'Cls.Cmb',
+    'Brave Bird': 'Brv.Brd',
+    'Play Rough': 'Play.Rgh',
+    'Wild Charge': 'Wld.Chg',
+    'Shadow Ball': 'Shd.Ball',
+    'Ominous Wind': 'Om.Wind',
+    'Dragon Claw': 'Drg.Claw',
+    'Ancient Power': 'Anc.Pwr',
+    'Weather Ball': 'Wth.Ball',
+    'Scorching Sands': 'Scr.Snd',
+    'Dazzling Gleam': 'Dzl.Glm',
+    'Feather Dance': 'Fth.Dnc',
+    'Shadow Sneak': 'Shd.Snk',
+    'Drill Run': 'Drl.Run',
+    'Earthquake': 'Earthqk',
+    'Flame Charge': 'Flm.Chg',
+    'Overheat': 'Ovrheat',
+    'Dark Pulse': 'Drk.Pls',
+    'Oblivion Wing': 'Obl.Wng',
+    'Hydro Cannon': 'Hyd.Can',
+    'Sacred Sword': 'Sac.Swd'
+  };
+
+  const abbrPoke3 = (name: string, isShad: boolean = false) => {
+    const clean = name
+      .replace(/^Shadow\s+/i, '')
+      .replace(/^Kanto\s+/i, '')
+      .replace(/^Alolan\s+/i, '')
+      .split(' ')[0]
+      .slice(0, 3);
+    const prefix = isShad || /^Shadow\s+/i.test(name) ? 'S-' : '';
+    return prefix + clean;
+  };
+
+  const abbrMoveName = (name: string) => {
+    return MOVE_ABBR_MAP[name] || (name.length > 8 ? name.slice(0, 7) + '.' : name);
+  };
+
+  // Damage Calculations (Opponent -> Player & Player -> Opponent with Shadow modifiers & custom moves)
   const oppDamageData = useMemo(() => {
     return activeOpponent.chargedMoves.map(move => {
       const calc = calculateChargedDamage(activeOpponent, userActivePokemon, move, isOpponentShadow, isUserShadow);
@@ -255,14 +308,46 @@ export default function App() {
   }, [activeOpponent, userActivePokemon, oppEnergy, isOpponentShadow, isUserShadow]);
 
   const myDamageData = useMemo(() => {
-    return userActivePokemon.chargedMoves.map(move => {
-      const calc = calculateChargedDamage(userActivePokemon, activeOpponent, move, isUserShadow, isOpponentShadow);
+    const customMoveNames = [
+      activeUserSlot?.chargedMove1 || userActivePokemon.chargedMoves[0]?.name || 'Move 1',
+      activeUserSlot?.chargedMove2 || userActivePokemon.chargedMoves[1]?.name || 'Move 2'
+    ];
+    const CUSTOM_MOVE_STATS: Record<string, { type: string; power: number }> = {
+      'Twister': { type: 'dragon', power: 50 },
+      'Brave Bird': { type: 'flying', power: 130 },
+      'Feather Dance': { type: 'flying', power: 35 },
+      'Weather Ball': { type: 'fire', power: 55 },
+      'Scorching Sands': { type: 'ground', power: 80 },
+      'Sky Attack': { type: 'flying', power: 75 },
+      'Drill Run': { type: 'ground', power: 80 },
+      'Crunch': { type: 'dark', power: 70 },
+      'Earthquake': { type: 'ground', power: 110 },
+      'Iron Head': { type: 'steel', power: 70 },
+      'Play Rough': { type: 'fairy', power: 90 },
+      'Shadow Sneak': { type: 'ghost', power: 50 },
+      'Roar of Time': { type: 'dragon', power: 150 },
+      'Aeroblast': { type: 'flying', power: 170 },
+      'Surf': { type: 'water', power: 65 },
+      'Origin Pulse': { type: 'water', power: 130 }
+    };
+    return customMoveNames.map((mName, idx) => {
+      const existingMove = userActivePokemon.chargedMoves.find(m => m.name.toLowerCase() === mName.toLowerCase()) ||
+        userActivePokemon.chargedMoves[idx];
+      const override = CUSTOM_MOVE_STATS[mName];
+      const moveObj = {
+        name: mName,
+        code: mName.slice(0, 2).toUpperCase(),
+        type: override?.type || existingMove?.type || userActivePokemon.types[0] || 'normal',
+        power: override?.power || existingMove?.power || 80,
+        energyCost: existingMove?.energyCost || 50
+      };
+      const calc = calculateChargedDamage(userActivePokemon, activeOpponent, moveObj, isUserShadow, isOpponentShadow);
       return {
-        move,
+        move: moveObj,
         ...calc
       };
     });
-  }, [userActivePokemon, activeOpponent, isUserShadow, isOpponentShadow]);
+  }, [userActivePokemon, activeOpponent, isUserShadow, isOpponentShadow, activeUserSlot]);
 
   // Fast move click handler in simulator
   const handleFastAttack = () => {
@@ -275,52 +360,107 @@ export default function App() {
     setOppEnergy(prev => Math.min(100, prev + (activeOpponent.defaultFastMove.energyGain || 8)));
   };
 
-  const isCurrentTurnZeroSneak = useMemo(() => {
-    if (userTurnsElapsed === 0) return false;
-    const totalHalfSeconds = userTurnsElapsed * userFastTurns;
-    return totalHalfSeconds % oppFastTurns !== 0;
-  }, [userTurnsElapsed, userFastTurns, oppFastTurns]);
+  const openCreatePresetModal = () => {
+    setEditingPresetId(null);
+    setNewPresetName('');
+    setNewPresetLeague('GREAT LEAGUE');
+    setP1Name('Kanto Ninetales');
+    setP1Cp(1498);
+    setP1Fast('Fire Spin');
+    setP1C1('Weather Ball');
+    setP1C2('Scorching Sands');
+    setP2Name('Fearow');
+    setP2Cp(1500);
+    setP2Fast('Peck');
+    setP2C1('Sky Attack');
+    setP2C2('Drill Run');
+    setP3Name('Shadow Pidgeot');
+    setP3Cp(1490);
+    setP3Fast('Gust');
+    setP3C1('Twister');
+    setP3C2('Brave Bird');
+    setIsNewPresetOpen(true);
+  };
 
-  // Handle Preset Creation
+  const openEditPresetModal = (preset: TeamPreset) => {
+    setEditingPresetId(preset.id);
+    setNewPresetName(preset.name);
+    setNewPresetLeague(preset.league);
+    const s1 = preset.pokemon[0];
+    const s2 = preset.pokemon[1];
+    const s3 = preset.pokemon[2];
+    if (s1) {
+      setP1Name(s1.name);
+      setP1Cp(s1.cp);
+      setP1Fast(s1.fastMove);
+      setP1C1(s1.chargedMove1);
+      setP1C2(s1.chargedMove2);
+    }
+    if (s2) {
+      setP2Name(s2.name);
+      setP2Cp(s2.cp);
+      setP2Fast(s2.fastMove);
+      setP2C1(s2.chargedMove1);
+      setP2C2(s2.chargedMove2);
+    }
+    if (s3) {
+      setP3Name(s3.name);
+      setP3Cp(s3.cp);
+      setP3Fast(s3.fastMove);
+      setP3C1(s3.chargedMove1);
+      setP3C2(s3.chargedMove2);
+    }
+    setIsNewPresetOpen(true);
+  };
+
+  // Handle Preset Creation or Editing
   const handleCreatePreset = (e: React.FormEvent) => {
     e.preventDefault();
-    const newId = `preset-${Date.now()}`;
-    const newPreset: TeamPreset = {
-      id: newId,
+    const targetId = editingPresetId || `preset-${Date.now()}`;
+    const savedPreset: TeamPreset = {
+      id: targetId,
       name: newPresetName.trim() || `${newPresetLeague} Custom`,
       league: newPresetLeague,
       pokemon: [
         {
           id: 'p1',
-          name: p1Name.trim() || 'Dialga',
-          cp: p1Cp || 4500,
-          fastMove: 'Dragon Breath',
-          chargedMove1: 'Roar of Time',
-          chargedMove2: 'Iron Head'
+          name: p1Name.trim() || 'Kanto Ninetales',
+          cp: p1Cp || 1498,
+          fastMove: p1Fast.trim() || 'Fire Spin',
+          chargedMove1: p1C1.trim() || 'Weather Ball',
+          chargedMove2: p1C2.trim() || 'Scorching Sands'
         },
         {
           id: 'p2',
-          name: p2Name.trim() || 'Lugia',
-          cp: p2Cp || 4100,
-          fastMove: 'Dragon Tail',
-          chargedMove1: 'Aeroblast',
-          chargedMove2: 'Sky Attack'
+          name: p2Name.trim() || 'Fearow',
+          cp: p2Cp || 1500,
+          fastMove: p2Fast.trim() || 'Peck',
+          chargedMove1: p2C1.trim() || 'Sky Attack',
+          chargedMove2: p2C2.trim() || 'Drill Run'
         },
         {
           id: 'p3',
-          name: p3Name.trim() || 'Kyogre',
-          cp: p3Cp || 4600,
-          fastMove: 'Waterfall',
-          chargedMove1: 'Surf',
-          chargedMove2: 'Origin Pulse'
+          name: p3Name.trim() || 'Shadow Pidgeot',
+          cp: p3Cp || 1490,
+          fastMove: p3Fast.trim() || 'Gust',
+          chargedMove1: p3C1.trim() || 'Twister',
+          chargedMove2: p3C2.trim() || 'Brave Bird'
         }
       ]
     };
 
-    setPresets(prev => [...prev, newPreset]);
-    setSelectedPresetId(newId);
+    setPresets(prev => {
+      const idx = prev.findIndex(p => p.id === targetId);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = savedPreset;
+        return next;
+      }
+      return [...prev, savedPreset];
+    });
+    setSelectedPresetId(targetId);
     setIsNewPresetOpen(false);
-    setNewPresetName('');
+    setEditingPresetId(null);
   };
 
   const handleDeletePreset = (id: string) => {
@@ -361,43 +501,6 @@ export default function App() {
     } finally {
       setIsDownloadingZip(false);
     }
-  };
-
-  // Trigger simulated ML Kit party screen scan
-  const handleScanPartyScreen = () => {
-    setIsScanningParty(true);
-    setTimeout(() => {
-      setIsScanningParty(false);
-      setScanResult({
-        league: 'MASTER LEAGUE',
-        members: [
-          { name: 'Dialga (Origin)', cp: 4624, confidence: 0.99 },
-          { name: 'Lugia', cp: 4179, confidence: 0.98 },
-          { name: 'Kyogre', cp: 4652, confidence: 0.99 }
-        ]
-      });
-    }, 1100);
-  };
-
-  const handleApplyScannedParty = () => {
-    if (!scanResult) return;
-    const newId = `preset-scanned-${Date.now()}`;
-    const scannedPreset: TeamPreset = {
-      id: newId,
-      name: `Scanned: ${scanResult.members.map(m => m.name.split(' ')[0]).join('/')}`,
-      league: 'MASTER LEAGUE',
-      pokemon: scanResult.members.map((m, idx) => ({
-        id: `scanned-${idx}`,
-        name: m.name,
-        cp: m.cp,
-        fastMove: 'Fast Move',
-        chargedMove1: 'Move 1',
-        chargedMove2: 'Move 2'
-      }))
-    };
-    setPresets(prev => [...prev, scannedPreset]);
-    setSelectedPresetId(newId);
-    setActiveTab('simulator');
   };
 
   return (
@@ -448,17 +551,6 @@ export default function App() {
               <span className="ml-0.5 px-1.5 py-0.2 rounded-full bg-slate-800 text-[10px] text-sky-400 border border-slate-700">
                 {presets.length}
               </span>
-            </button>
-            <button
-              onClick={() => setActiveTab('ocr_scan')}
-              className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition ${
-                activeTab === 'ocr_scan'
-                  ? 'bg-sky-500 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-              }`}
-            >
-              <Scan className="w-3.5 h-3.5" />
-              <span>Party OCR</span>
             </button>
             <button
               onClick={() => setActiveTab('turn_matrix')}
@@ -727,59 +819,31 @@ export default function App() {
 
                   {/* =========================================================================
                       FLOATING OVERLAY OPTION 1: Top-Left Sky Trench
-                      (Anchored at X: 8px, Y: 38px, 272px wide - elevated clear of Opponent HP bar)
+                      (Ultra-transparent, full-width header, Reset Opp, 1-per-species full names, 3-letter damage rows)
                      ========================================================================= */}
                   {isOverlayVisible && layoutMode === 'option1' && (
                     <div 
-                      className={`absolute z-30 rounded-lg p-2 border border-white/20 shadow-2xl transition-all ${
+                      className={`absolute z-30 rounded-lg p-1.5 border border-white/15 shadow-lg transition-all ${
                         isDragging ? 'ring-2 ring-sky-400 scale-[1.01]' : ''
                       }`}
                       style={{
                         top: `${overlayPos.y}px`,
                         left: `${overlayPos.x}px`,
-                        width: '272px',
-                        background: 'rgba(10, 14, 22, 0.44)',
-                        backdropFilter: 'blur(8px)',
-                        WebkitBackdropFilter: 'blur(8px)',
-                        textShadow: '0 1px 2px rgba(0, 0, 0, 0.95), 0 0 4px rgba(0, 0, 0, 0.9)'
+                        width: '286px',
+                        background: 'rgba(10, 14, 22, 0.26)',
+                        backdropFilter: 'blur(3px)',
+                        WebkitBackdropFilter: 'blur(3px)',
+                        textShadow: '0 1px 2px rgba(0, 0, 0, 0.98), 0 0 4px rgba(0, 0, 0, 0.95)'
                       }}
                     >
-
-
-                      {/* Quick manual opponent picker popup */}
-                      {showOpponentPicker && (
-                        <div className="absolute top-10 left-2 right-2 bg-slate-900 border border-sky-400 rounded-lg p-2 z-50 shadow-2xl">
-                          <div className="flex justify-between items-center mb-1.5">
-                            <span className="text-[10px] font-bold text-sky-400">Select Opponent Pokémon</span>
-                            <button 
-                              onClick={() => setShowOpponentPicker(false)}
-                              className="text-slate-400 hover:text-white text-xs px-1"
-                            >
-                              ✕
-                            </button>
-                          </div>
-                          <div className="grid grid-cols-2 gap-1 max-h-36 overflow-y-auto pr-0.5">
-                            {['Raikou', 'Entei', 'Suicune', 'Dialga (Origin)', 'Lugia', 'Kyogre', 'Clodsire', 'Feraligatr', 'Mandibuzz', 'Giratina (Altered)', 'Cresselia', 'Cobalion', 'Talonflame', 'Serperior', 'Annihilape', 'Azumarill', 'Skarmory', 'Whiscash', 'Swampert', 'Zacian (Crowned)', 'Groudon', 'Mewtwo'].map(name => (
-                              <button
-                                key={name}
-                                onClick={() => handleSelectOpponent(name)}
-                                className="text-left text-[9.5px] px-1.5 py-1 rounded bg-slate-800 hover:bg-sky-600 text-slate-200 hover:text-white font-medium truncate"
-                              >
-                                {name}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Header row */}
-                      <div className="flex items-center justify-between pb-1.5 border-b border-white/15">
-                        <div className="font-extrabold text-[11px] text-amber-100 flex items-center gap-1 truncate">
+                      {/* Header row (Full width, no redundant preset dropdown) */}
+                      <div className="flex items-center justify-between pb-1 border-b border-white/15">
+                        <div className="font-extrabold text-[11px] text-amber-100 flex items-center gap-1 truncate w-full">
                           {isWaitingOpponent || scannedOpponents.length === 0 ? (
                             <>
                               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping inline-block" />
                               <span className="text-emerald-200">WAITING FOR OPPONENT...</span>
-                              <span className="text-amber-300 font-semibold text-[9px]">(Scanning)</span>
+                              <span className="text-amber-300 font-semibold text-[9px]">(1 Hz OCR Active)</span>
                             </>
                           ) : (
                             <>
@@ -790,43 +854,24 @@ export default function App() {
                             </>
                           )}
                         </div>
-                        <div className="flex items-center gap-1">
-                          {/* Team preset quick picker */}
-                          <div className="relative">
-                            <select
-                              value={selectedPresetId}
-                              onChange={(e) => {
-                                setSelectedPresetId(e.target.value);
-                                setActiveUserSlotIndex(0);
-                              }}
-                              className="bg-slate-900/90 text-emerald-400 border border-white/20 rounded text-[9.5px] px-1.5 py-0.5 font-bold outline-none cursor-pointer max-w-[92px] truncate"
-                            >
-                              {presets.map(p => (
-                                <option key={p.id} value={p.id} className="bg-slate-900 text-white">
-                                  {p.name.split(':')[0]}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        </div>
                       </div>
 
-                      {/* Action Toolbar: Start, Shadow Toggle, Form Cycler, and Active Lead Switch */}
-                      <div className="flex items-center justify-between gap-1 bg-black/35 p-1 rounded border border-white/10 my-1">
+                      {/* Action Toolbar: Reset Opp, Shadow Toggle, Form Cycler, and Active Lead Switch */}
+                      <div className="flex items-center justify-between gap-1 bg-black/20 p-1 rounded border border-white/10 my-1">
                         <div className="flex items-center gap-1">
                           <button
                             onClick={handleStartBattle}
-                            className="bg-red-500/30 hover:bg-red-500/50 active:scale-95 text-red-200 border border-red-500/50 font-bold text-[8.5px] px-1.5 py-0.5 rounded transition"
-                            title="Clear previous opponents and reset waiting HUD"
+                            className="bg-red-500/35 hover:bg-red-500/50 active:scale-95 text-red-100 border border-red-400/60 font-bold text-[8px] px-1.5 py-0.5 rounded transition"
+                            title="Reset opponent team & manual overrides (1 Hz OCR remains active)"
                           >
-                            ⚔️ Start
+                            ↺ Reset Opp
                           </button>
                           <button
                             onClick={() => setIsOpponentShadow(!isOpponentShadow)}
-                            className={`font-bold text-[8.5px] px-1.5 py-0.5 rounded border transition active:scale-95 ${
+                            className={`font-bold text-[8px] px-1.5 py-0.5 rounded border transition active:scale-95 ${
                               isOpponentShadow
-                                ? 'bg-purple-600/50 text-purple-100 border-purple-400 shadow-[0_0_6px_rgba(168,85,247,0.5)]'
-                                : 'bg-purple-500/20 text-purple-200 border-purple-400/40 hover:bg-purple-500/30'
+                                ? 'bg-purple-600/60 text-white border-purple-300 shadow-[0_0_5px_rgba(168,85,247,0.5)]'
+                                : 'bg-purple-500/25 text-purple-200 border-purple-400/50 hover:bg-purple-500/35'
                             }`}
                             title="Toggle 1.2x Attack / 0.833x Defense Shadow modifier"
                           >
@@ -835,10 +880,10 @@ export default function App() {
                           <button
                             onClick={handleCycleForm}
                             disabled={availableForms.length <= 1 || isWaitingOpponent}
-                            className={`font-bold text-[8.5px] px-1.5 py-0.5 rounded border transition ${
+                            className={`font-bold text-[8px] px-1.5 py-0.5 rounded border transition ${
                               availableForms.length > 1 && !isWaitingOpponent
-                                ? 'bg-amber-500/25 hover:bg-amber-500/40 text-amber-200 border-amber-400/50 active:scale-95 cursor-pointer'
-                                : 'bg-slate-800/40 text-slate-500 border-slate-700/50 opacity-45 cursor-not-allowed'
+                                ? 'bg-sky-500/30 hover:bg-sky-500/45 text-sky-100 border-sky-300/60 active:scale-95 cursor-pointer'
+                                : 'bg-slate-800/30 text-slate-500 border-slate-700/40 opacity-50 cursor-not-allowed'
                             }`}
                             title="Cycle regional or alternate form"
                           >
@@ -852,46 +897,48 @@ export default function App() {
                               onClick={() => setActiveUserSlotIndex(idx)}
                               className={`text-[8px] font-bold px-1 py-0.5 rounded border transition ${
                                 activeUserSlotIndex === idx
-                                  ? 'bg-emerald-500/35 text-white border-emerald-400'
-                                  : 'bg-slate-800/80 text-emerald-300/80 border-emerald-500/30 hover:bg-slate-700'
+                                  ? 'bg-emerald-500/40 text-white border-emerald-400'
+                                  : 'bg-slate-900/50 text-slate-200 border-white/20 hover:bg-slate-800'
                               }`}
                             >
-                              {member.name.replace('Shadow ', '').split(' ')[0].slice(0, 5)}
+                              {member.name.replace(/^Shadow\s+/i, 'S-').replace(/^Kanto\s+/i, '').split(' ')[0].slice(0, 5)}
                             </button>
                           ))}
                         </div>
                       </div>
 
-                      {/* 3v3 Matchup Matrix Dots */}
-                      <div className="my-1 py-1 px-1.5 bg-black/20 rounded flex flex-col gap-1 text-[10px]">
+                      {/* 3v3 Matchup Matrix Dots (Full Pokémon Names, 1 per species) */}
+                      <div className="my-1 py-1 px-1.5 bg-black/20 rounded flex flex-col gap-0.5 text-[9.5px]">
                         {isWaitingOpponent || scannedOpponents.length === 0 ? (
-                          <div className="text-[9.5px] text-slate-300 flex items-center gap-1.5 py-0.5">
+                          <div className="text-[9px] text-slate-200 flex items-center gap-1.5 py-0.5">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                            <span>Live OCR active! Monitoring top-left & top-right battle headers...</span>
+                            <span>1 Hz OCR scanning opponent & active lead...</span>
                           </div>
                         ) : (
-                          scannedOpponents.map((oppName) => {
+                          scannedOpponents.map((oppName, idx) => {
                             const matrix = calculateShieldMatrix(
                               oppName,
                               activePreset.pokemon.map(p => p.name)
                             );
-                            const shortOpp = oppName.substring(0, 3);
+                            const fullOppDisplay = (idx === 0 && isOpponentShadow ? 'S-' : '') + oppName;
                             const p1Init = activePreset.pokemon[0]?.name.charAt(0) || 'D';
                             const p2Init = activePreset.pokemon[1]?.name.charAt(0) || 'L';
                             const p3Init = activePreset.pokemon[2]?.name.charAt(0) || 'K';
 
                             return (
-                              <div key={oppName} className="flex items-center justify-between font-mono">
-                                <span className="font-bold text-slate-200 w-7">{shortOpp}</span>
-                                <div className="flex items-center gap-1 text-[9.5px]">
-                                  <span className="font-bold text-slate-400">{p1Init}:</span>
-                                  <span>{matrix.p1 || '🟢🟡🔴'}</span>
-                                  <span className="text-white/30">|</span>
-                                  <span className="font-bold text-slate-400">{p2Init}:</span>
-                                  <span>{matrix.p2 || '🔴🔴🔴'}</span>
-                                  <span className="text-white/30">|</span>
-                                  <span className="font-bold text-slate-400">{p3Init}:</span>
-                                  <span>{matrix.p3 || '🟢🟢🟢'}</span>
+                              <div key={oppName} className="flex items-center justify-between gap-1">
+                                <span className="font-bold text-slate-100 truncate max-w-[115px] text-[9.5px]" title={fullOppDisplay}>
+                                  {fullOppDisplay}
+                                </span>
+                                <div className="flex items-center gap-0.5 text-[9px] font-mono shrink-0">
+                                  <span className="font-bold text-slate-300">{p1Init}:</span>
+                                  <span className="tracking-tighter">{matrix.p1 || '🟢🟡🔴'}</span>
+                                  <span className="text-white/25 mx-0.5">|</span>
+                                  <span className="font-bold text-slate-300">{p2Init}:</span>
+                                  <span className="tracking-tighter">{matrix.p2 || '🔴🔴🔴'}</span>
+                                  <span className="text-white/25 mx-0.5">|</span>
+                                  <span className="font-bold text-slate-300">{p3Init}:</span>
+                                  <span className="tracking-tighter">{matrix.p3 || '🟢🟢🟢'}</span>
                                 </div>
                               </div>
                             );
@@ -899,67 +946,65 @@ export default function App() {
                         )}
                       </div>
 
-                      {/* Optimal Fast Move Turn Alignment Box */}
-                      <div className={`p-1.5 rounded flex items-center justify-between text-[10.5px] font-bold border-l-2 mb-1.5 ${
-                        isWaitingOpponent || scannedOpponents.length === 0
-                          ? 'bg-slate-800/60 border-slate-600 text-slate-300'
-                          : isCurrentTurnZeroSneak 
-                            ? 'bg-emerald-500/25 border-emerald-400 text-emerald-200 animate-pulse'
-                            : 'bg-red-500/20 border-red-500 text-orange-200'
-                      }`}>
-                        <div className="flex items-center gap-1.5">
-                          <span>🎯 THROW:</span>
-                          <span className="underline decoration-orange-400 font-extrabold text-white">
+                      {/* Static Visual Turn Reminder Box */}
+                      <div className="py-0.5 px-1.5 rounded flex items-center justify-between text-[9.5px] font-bold border-l-2 border-emerald-400 bg-emerald-500/15 text-emerald-200 mb-1">
+                        <div className="flex items-center gap-1">
+                          <span>🎯 THROW ON:</span>
+                          <span className="font-extrabold text-white">
                             {isWaitingOpponent || scannedOpponents.length === 0
-                              ? 'Waiting for Opponent spawn'
-                              : turnAlignInfo.optimalThrowText}
+                              ? '—'
+                              : turnAlignInfo.horizonText}
                           </span>
                         </div>
-                        <span className="text-[8.5px] font-semibold text-slate-300">
+                        <span className="text-[8px] font-semibold text-emerald-100/80">
                           {isWaitingOpponent || scannedOpponents.length === 0
-                            ? 'Awaiting Fast Attack'
-                            : isCurrentTurnZeroSneak ? '✨ SNEAK-FREE WINDOW' : '(Zero-Sneak)'}
+                            ? '(Zero-Sneak)'
+                            : `(${userFastTurns}t vs ${oppFastTurns}t)`}
                         </span>
                       </div>
 
-                      {/* Charged Move Damage Matrix (Opponent Dmg to My Mon & My Dmg to Opponent Mon) */}
-                      <div className="flex flex-col gap-0.5 text-[9.5px] text-slate-200 leading-tight">
-                        <div className="flex items-center gap-1 flex-wrap">
-                          <span>💥 <strong>{isWaitingOpponent || scannedOpponents.length === 0 ? 'Opponent' : `${isOpponentShadow ? 'Shad ' : ''}${activeOpponent.name}`}</strong> Dmg to <span className="text-sky-300 font-bold">{userActivePokemon.name.split(' ')[0]}</span>:</span>
+                      {/* Charged Move Damage Rows (3-Letter Pokémon Codes & Compact Abbreviated Moves) */}
+                      <div className="bg-black/20 rounded px-1.5 py-1 flex flex-col gap-0.5 text-[9px] text-slate-100 leading-tight">
+                        <div className="flex items-center gap-1 whitespace-nowrap overflow-hidden text-ellipsis">
+                          <span>
+                            💥 <strong>{isWaitingOpponent || scannedOpponents.length === 0 ? 'Opp' : abbrPoke3(activeOpponent.name, isOpponentShadow)}</strong>→<strong className="text-sky-300">{abbrPoke3(userLeadName, false)}</strong>:
+                          </span>
                           {isWaitingOpponent || scannedOpponents.length === 0 ? (
                             <span className="text-slate-400">—</span>
                           ) : (
                             oppDamageData.slice(0, 2).map((dmg, idx) => (
                               <span 
                                 key={dmg.move.name}
-                                className={dmg.isReady ? 'text-emerald-400 font-bold' : 'text-amber-300 font-medium'}
+                                className={idx === 0 ? 'text-emerald-300 font-bold' : 'text-sky-300 font-semibold'}
                               >
-                                {dmg.move.name} ({dmg.percentage}%)
+                                {abbrMoveName(dmg.move.name)} ({dmg.percentage}%)
                                 {idx === 0 && oppDamageData.length > 1 ? ' | ' : ''}
                               </span>
                             ))
                           )}
                         </div>
-                        <div className="flex items-center gap-1 flex-wrap">
-                          <span>⚔️ My Dmg to <strong className="text-amber-200">{isWaitingOpponent || scannedOpponents.length === 0 ? 'Opponent' : `${isOpponentShadow ? 'Shad ' : ''}${activeOpponent.name}`}</strong>:</span>
+                        <div className="flex items-center gap-1 whitespace-nowrap overflow-hidden text-ellipsis">
+                          <span>
+                            ⚔️ <strong className="text-sky-300">{abbrPoke3(userLeadName, false)}</strong>→<strong className="text-amber-200">{isWaitingOpponent || scannedOpponents.length === 0 ? 'Opp' : abbrPoke3(activeOpponent.name, isOpponentShadow)}</strong>:
+                          </span>
                           {isWaitingOpponent || scannedOpponents.length === 0 ? (
                             <span className="text-slate-400">—</span>
                           ) : (
                             myDamageData.slice(0, 2).map((dmg, idx) => (
                               <span 
                                 key={dmg.move.name}
-                                className={idx === 0 ? 'text-emerald-400 font-bold' : 'text-amber-300 font-semibold'}
+                                className={idx === 0 ? 'text-emerald-300 font-bold' : 'text-sky-300 font-semibold'}
                               >
-                                {dmg.move.name} ({dmg.percentage}%)
+                                {abbrMoveName(dmg.move.name)} ({dmg.percentage}%)
                                 {idx === 0 && myDamageData.length > 1 ? ' | ' : ''}
                               </span>
                             ))
                           )}
                         </div>
-                        <div className="text-slate-300/80 text-[8.5px] truncate">
+                        <div className="text-slate-300/90 text-[8.5px] truncate">
                           {isWaitingOpponent || scannedOpponents.length === 0
-                            ? 'Opponent Bench: Awaiting detection...'
-                            : '💥 Bench: Yvl [Dark Pulse (42%) | Oblivion Wing (40%)]'}
+                            ? 'Bench: Awaiting switch...'
+                            : '💥 Bench: Yvl: Drk.Pls (42%) | Obl.Wng (40%)'}
                         </div>
                       </div>
                     </div>
@@ -967,16 +1012,15 @@ export default function App() {
 
                   {/* =========================================================================
                       FLOATING OVERLAY OPTION 2: Bottom Horizon Belt Fallback
-                      (Wide single-line horizontal ticker between sprites and charge buttons)
                      ========================================================================= */}
                   {isOverlayVisible && layoutMode === 'option2' && (
                     <div 
-                      className="absolute bottom-[108px] left-[8px] right-[8px] z-30 rounded-lg p-2 border border-white/20 shadow-2xl transition-all"
+                      className="absolute bottom-[108px] left-[8px] right-[8px] z-30 rounded-lg p-2 border border-white/15 shadow-lg transition-all"
                       style={{
-                        background: 'rgba(10, 14, 22, 0.42)',
-                        backdropFilter: 'blur(8px)',
-                        WebkitBackdropFilter: 'blur(8px)',
-                        textShadow: '0 1px 2px rgba(0, 0, 0, 0.95), 0 0 4px rgba(0, 0, 0, 0.9)'
+                        background: 'rgba(10, 14, 22, 0.28)',
+                        backdropFilter: 'blur(3px)',
+                        WebkitBackdropFilter: 'blur(3px)',
+                        textShadow: '0 1px 2px rgba(0, 0, 0, 0.98), 0 0 4px rgba(0, 0, 0, 0.95)'
                       }}
                     >
                       <div className="flex items-center justify-between gap-1 text-[10px]">
@@ -985,35 +1029,22 @@ export default function App() {
                             <>
                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                               <strong className="text-emerald-300">[Waiting for Opponent]</strong>
-                              <span className="text-slate-400">Scanning top battle header...</span>
+                              <span className="text-slate-300">1 Hz OCR active...</span>
                             </>
                           ) : (
                             <>
                               <strong>[{activeOpponent.name}: {oppFastTurns}t]</strong>
                               <span>D: 🟢🟡🔴 | L: 🔴🔴🔴 | K: 🟢🟢🟢</span>
-                              <span className="text-white/30">•</span>
-                              <strong>[Yveltal]</strong>
-                              <span>D: 🟢🟢🔴 | L: 🔴🔴🔴</span>
-                              <span className="text-white/30">•</span>
-                              <strong>[Zac-C]</strong>
-                              <span>D: 🔴🔴🔴</span>
                             </>
                           )}
                         </div>
                         <div className="flex items-center gap-1 shrink-0 ml-1">
-
                           <button
                             onClick={handleStartBattle}
-                            className="bg-red-500/30 hover:bg-red-500/50 text-red-200 text-[8.5px] font-bold px-1.5 py-0.5 rounded"
-                            title="Start fresh battle"
+                            className="bg-red-500/35 hover:bg-red-500/50 text-red-100 text-[8.5px] font-bold px-1.5 py-0.5 rounded border border-red-400/50"
+                            title="Reset opponent"
                           >
-                            ⚔️ New
-                          </button>
-                          <button
-                            onClick={() => setLayoutMode('option1')}
-                            className="bg-white/15 hover:bg-white/25 active:scale-95 text-white font-bold text-[8.5px] px-1.5 py-0.5 rounded border border-white/25"
-                          >
-                            ⇄ Opt 1
+                            ↺ Reset Opp
                           </button>
                         </div>
                       </div>
@@ -1022,7 +1053,7 @@ export default function App() {
                         <div>
                           🎯 <strong className="text-white">THROW ON:</strong> {isWaitingOpponent || scannedOpponents.length === 0 ? '—' : turnAlignInfo.horizonText}
                           <span className="mx-1 text-white/30">•</span>
-                          <span>{isWaitingOpponent || scannedOpponents.length === 0 ? 'Awaiting opponent spawn...' : `💥 Dmg to ${userActivePokemon.name.split(' ')[0]}: Ent [FC: 28% / OH: 72%] • Yvl [DP: 42%]`}</span>
+                          <span>{isWaitingOpponent || scannedOpponents.length === 0 ? 'Awaiting opponent...' : `💥 ${abbrPoke3(activeOpponent.name, isOpponentShadow)}→${abbrPoke3(userLeadName)}: ${abbrMoveName(oppDamageData[0]?.move.name || 'Move')} (${oppDamageData[0]?.percentage || 40}%)`}</span>
                         </div>
                       </div>
                     </div>
@@ -1240,7 +1271,7 @@ export default function App() {
                 </p>
               </div>
               <button
-                onClick={() => setIsNewPresetOpen(true)}
+                onClick={openCreatePresetModal}
                 className="py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-emerald-600/25 transition shrink-0"
               >
                 <Plus className="w-4 h-4" />
@@ -1268,7 +1299,7 @@ export default function App() {
                             ? 'bg-purple-500/10 text-purple-300 border-purple-500/20'
                             : preset.league === 'ULTRA LEAGUE'
                             ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
-                            : 'bg-blue-500/10 text-blue-300 border-blue-500/20'
+                            : 'bg-sky-500/15 text-sky-300 border-sky-400/30'
                         }`}>
                           {preset.league}
                         </span>
@@ -1288,6 +1319,13 @@ export default function App() {
                             </button>
                           )}
                           <button
+                            onClick={() => openEditPresetModal(preset)}
+                            className="text-xs text-amber-300 hover:text-white font-semibold px-2 py-0.5 rounded bg-slate-800 hover:bg-amber-600 border border-slate-700 transition"
+                            title="Edit Team & Moves"
+                          >
+                            Edit Moves
+                          </button>
+                          <button
                             onClick={() => handleDeletePreset(preset.id)}
                             className="text-slate-400 hover:text-rose-400 p-1 rounded hover:bg-rose-500/10 transition"
                             title="Delete Preset"
@@ -1301,22 +1339,28 @@ export default function App() {
                         {preset.name}
                       </h3>
 
-                      {/* 3 Pokémon Slots */}
+                      {/* 3 Pokémon Slots with Movesets */}
                       <div className="space-y-2">
                         {preset.pokemon.map((member, index) => (
                           <div
                             key={member.id || index}
-                            className="flex items-center justify-between p-2 rounded-lg bg-slate-950/50 border border-slate-800/80 text-xs"
+                            className="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800/80 text-xs space-y-1"
                           >
-                            <div className="flex items-center gap-2">
-                              <span className="text-[10px] font-bold text-slate-500">
-                                #{index + 1}
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-bold text-slate-500">
+                                  #{index + 1}
+                                </span>
+                                <span className="font-semibold text-slate-100">{member.name}</span>
+                              </div>
+                              <span className="text-[11px] font-mono font-bold text-sky-400">
+                                CP {member.cp}
                               </span>
-                              <span className="font-semibold text-slate-200">{member.name}</span>
                             </div>
-                            <span className="text-[11px] font-mono font-bold text-sky-400">
-                              CP {member.cp}
-                            </span>
+                            <div className="text-[10.5px] text-slate-400 pl-5 flex items-center justify-between">
+                              <span>Fast: <strong className="text-slate-200">{member.fastMove}</strong></span>
+                              <span>Charged: <strong className="text-amber-300">{member.chargedMove1}</strong> / <strong className="text-sky-300">{member.chargedMove2}</strong></span>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -1324,70 +1368,81 @@ export default function App() {
 
                     <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs">
                       <span className="text-slate-400 text-[11px]">
-                        Fast Moves: {preset.pokemon.map(p => p.fastMove).join(', ')}
+                        League: <strong className="text-slate-200">{preset.league}</strong>
                       </span>
+                      <button
+                        onClick={() => openEditPresetModal(preset)}
+                        className="text-sky-400 hover:text-sky-300 font-semibold text-[11px]"
+                      >
+                        ✎ Edit Team & Moves
+                      </button>
                     </div>
                   </div>
                 );
               })}
             </div>
 
-            {/* Modal Dialog for Creating New Preset */}
+            {/* Modal Dialog for Creating or Editing Preset & Moves */}
             {isNewPresetOpen && (
-              <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-                <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl animate-in fade-in zoom-in-95">
+              <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+                <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl animate-in fade-in zoom-in-95 my-8">
                   <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
                     <h3 className="font-bold text-base text-white flex items-center gap-2">
                       <Plus className="w-4 h-4 text-emerald-400" />
-                      <span>Create New GBL Team Preset</span>
+                      <span>{editingPresetId ? 'Edit Team & Moves' : 'Create Custom GBL Team Preset'}</span>
                     </h3>
                     <button
-                      onClick={() => setIsNewPresetOpen(false)}
+                      onClick={() => {
+                        setIsNewPresetOpen(false);
+                        setEditingPresetId(null);
+                      }}
                       className="text-slate-400 hover:text-white text-lg font-bold"
                     >
                       ✕
                     </button>
                   </div>
 
-                  <form onSubmit={handleCreatePreset} className="space-y-4">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">
-                        Preset Name
-                      </label>
-                      <input
-                        type="text"
-                        value={newPresetName}
-                        onChange={(e) => setNewPresetName(e.target.value)}
-                        placeholder="e.g. Master: Dialga-O / Lugia / Kyogre"
-                        required
-                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-sky-400"
-                      />
-                    </div>
+                  <form onSubmit={handleCreatePreset} className="space-y-3.5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-300 mb-1">
+                          Preset Name
+                        </label>
+                        <input
+                          type="text"
+                          value={newPresetName}
+                          onChange={(e) => setNewPresetName(e.target.value)}
+                          placeholder="e.g. Great League Team"
+                          required
+                          className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-400"
+                        />
+                      </div>
 
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">
-                        League Category
-                      </label>
-                      <select
-                        value={newPresetLeague}
-                        onChange={(e) => setNewPresetLeague(e.target.value as any)}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-sky-400"
-                      >
-                        <option value="MASTER LEAGUE">MASTER LEAGUE (No CP Limit)</option>
-                        <option value="ULTRA LEAGUE">ULTRA LEAGUE (Max 2500 CP)</option>
-                        <option value="GREAT LEAGUE">GREAT LEAGUE (Max 1500 CP)</option>
-                      </select>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-300 mb-1">
+                          League Category
+                        </label>
+                        <select
+                          value={newPresetLeague}
+                          onChange={(e) => setNewPresetLeague(e.target.value as any)}
+                          className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-400"
+                        >
+                          <option value="GREAT LEAGUE">GREAT LEAGUE (Max 1500 CP)</option>
+                          <option value="ULTRA LEAGUE">ULTRA LEAGUE (Max 2500 CP)</option>
+                          <option value="MASTER LEAGUE">MASTER LEAGUE (No CP Limit)</option>
+                        </select>
+                      </div>
                     </div>
 
                     {/* Slot 1 */}
                     <div className="p-3 bg-slate-950/70 border border-slate-800 rounded-xl space-y-2">
-                      <span className="text-xs font-bold text-sky-400 block">Slot 1 (Lead Pokémon)</span>
+                      <span className="text-xs font-bold text-sky-400 block">Slot 1 (Lead Pokémon & Moveset)</span>
                       <div className="grid grid-cols-3 gap-2">
                         <input
                           type="text"
                           value={p1Name}
                           onChange={(e) => setP1Name(e.target.value)}
-                          placeholder="Name (e.g. Dialga)"
+                          placeholder="Name (e.g. Kanto Ninetales)"
                           className="col-span-2 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white"
                           required
                         />
@@ -1400,17 +1455,40 @@ export default function App() {
                           required
                         />
                       </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <input
+                          type="text"
+                          value={p1Fast}
+                          onChange={(e) => setP1Fast(e.target.value)}
+                          placeholder="Fast Move"
+                          className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white"
+                        />
+                        <input
+                          type="text"
+                          value={p1C1}
+                          onChange={(e) => setP1C1(e.target.value)}
+                          placeholder="Charged Move 1"
+                          className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white"
+                        />
+                        <input
+                          type="text"
+                          value={p1C2}
+                          onChange={(e) => setP1C2(e.target.value)}
+                          placeholder="Charged Move 2"
+                          className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white"
+                        />
+                      </div>
                     </div>
 
                     {/* Slot 2 */}
                     <div className="p-3 bg-slate-950/70 border border-slate-800 rounded-xl space-y-2">
-                      <span className="text-xs font-bold text-purple-400 block">Slot 2 (Safe Swap)</span>
+                      <span className="text-xs font-bold text-purple-400 block">Slot 2 (Safe Swap & Moveset)</span>
                       <div className="grid grid-cols-3 gap-2">
                         <input
                           type="text"
                           value={p2Name}
                           onChange={(e) => setP2Name(e.target.value)}
-                          placeholder="Name (e.g. Lugia)"
+                          placeholder="Name (e.g. Fearow)"
                           className="col-span-2 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white"
                           required
                         />
@@ -1423,17 +1501,40 @@ export default function App() {
                           required
                         />
                       </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <input
+                          type="text"
+                          value={p2Fast}
+                          onChange={(e) => setP2Fast(e.target.value)}
+                          placeholder="Fast Move"
+                          className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white"
+                        />
+                        <input
+                          type="text"
+                          value={p2C1}
+                          onChange={(e) => setP2C1(e.target.value)}
+                          placeholder="Charged Move 1"
+                          className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white"
+                        />
+                        <input
+                          type="text"
+                          value={p2C2}
+                          onChange={(e) => setP2C2(e.target.value)}
+                          placeholder="Charged Move 2"
+                          className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white"
+                        />
+                      </div>
                     </div>
 
                     {/* Slot 3 */}
                     <div className="p-3 bg-slate-950/70 border border-slate-800 rounded-xl space-y-2">
-                      <span className="text-xs font-bold text-amber-400 block">Slot 3 (Closer)</span>
+                      <span className="text-xs font-bold text-amber-400 block">Slot 3 (Closer & Moveset)</span>
                       <div className="grid grid-cols-3 gap-2">
                         <input
                           type="text"
                           value={p3Name}
                           onChange={(e) => setP3Name(e.target.value)}
-                          placeholder="Name (e.g. Kyogre)"
+                          placeholder="Name (e.g. Shadow Pidgeot)"
                           className="col-span-2 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white"
                           required
                         />
@@ -1446,21 +1547,47 @@ export default function App() {
                           required
                         />
                       </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <input
+                          type="text"
+                          value={p3Fast}
+                          onChange={(e) => setP3Fast(e.target.value)}
+                          placeholder="Fast Move (e.g. Gust)"
+                          className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white"
+                        />
+                        <input
+                          type="text"
+                          value={p3C1}
+                          onChange={(e) => setP3C1(e.target.value)}
+                          placeholder="Charged 1 (e.g. Twister)"
+                          className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white"
+                        />
+                        <input
+                          type="text"
+                          value={p3C2}
+                          onChange={(e) => setP3C2(e.target.value)}
+                          placeholder="Charged 2 (e.g. Brave Bird)"
+                          className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white"
+                        />
+                      </div>
                     </div>
 
                     <div className="flex justify-end gap-3 pt-3 border-t border-slate-800">
                       <button
                         type="button"
-                        onClick={() => setIsNewPresetOpen(false)}
+                        onClick={() => {
+                          setIsNewPresetOpen(false);
+                          setEditingPresetId(null);
+                        }}
                         className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold hover:bg-slate-700"
                       >
                         Cancel
                       </button>
                       <button
                         type="submit"
-                        className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-600/30"
+                        className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-600/20"
                       >
-                        Save Preset Locally
+                        {editingPresetId ? 'Save Team & Moves' : 'Create Preset'}
                       </button>
                     </div>
                   </form>
@@ -1471,187 +1598,7 @@ export default function App() {
         )}
 
         {/* =========================================================================
-            TAB 3: PARTY SCREEN OCR SCANNER MODULE
-           ========================================================================= */}
-        {activeTab === 'ocr_scan' && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            
-            {/* Visual Screen Reference Replicating user's screenshot */}
-            <div className="lg:col-span-6 flex flex-col items-center">
-              <div className="text-xs font-semibold text-slate-300 mb-2">
-                Party Screen OCR Crop Regions (Green: League, Blue: 3 Team Members)
-              </div>
-
-              <div className="relative w-full max-w-[340px] h-[680px] rounded-[32px] border-4 border-slate-800 bg-slate-950 overflow-hidden shadow-2xl flex flex-col justify-between p-4">
-                
-                {/* Header with back icon and bag */}
-                <div className="flex justify-between items-center text-slate-300 text-xs">
-                  <span className="p-1 rounded-full bg-slate-800/80">⇦</span>
-                  <span className="p-1 rounded-full bg-slate-800/80">🎒</span>
-                </div>
-
-                {/* Trainer Avatar & Badge */}
-                <div className="flex flex-col items-center my-2">
-                  <div className="w-16 h-16 rounded-full bg-indigo-500/20 flex items-center justify-center text-3xl">
-                    🧢
-                  </div>
-                  <div className="w-12 h-10 mt-1 bg-gradient-to-tr from-purple-600 to-indigo-500 clip-triangle flex items-center justify-center text-xs">
-                    ⚔️
-                  </div>
-                </div>
-
-                {/* GREEN REGION CROP: Active League */}
-                <div className="relative border-4 border-emerald-500 rounded-3xl p-3 bg-slate-900/60 backdrop-blur text-center my-2 shadow-[0_0_20px_rgba(16,185,129,0.3)]">
-                  <span className="absolute -top-3 left-4 bg-emerald-500 text-slate-950 text-[9px] font-extrabold px-1.5 py-0.5 rounded">
-                    ML Kit OCR: League Region
-                  </span>
-                  <h3 className="font-black text-lg text-white tracking-wide">MASTER LEAGUE</h3>
-                  <p className="text-[11px] text-slate-300">Max CP per Pokémon: No limit</p>
-                  <div className="w-12 h-1 bg-white/40 mx-auto mt-2 rounded-full" />
-                </div>
-
-                <div className="text-center text-xs font-bold text-slate-300 my-1">
-                  CHOOSE YOUR PARTY
-                </div>
-
-                {/* BLUE REGION CROP: Party Members */}
-                <div className="relative border-4 border-sky-400 rounded-2xl p-3 bg-white/95 text-slate-900 shadow-[0_0_20px_rgba(56,189,248,0.3)]">
-                  <span className="absolute -top-3 left-4 bg-sky-500 text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded">
-                    ML Kit OCR: Party Crop Region
-                  </span>
-
-                  <div className="text-center font-bold text-sm text-slate-800 border-b border-slate-200 pb-1 mb-2">
-                    New Party
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="flex flex-col items-center">
-                      <span className="text-[11px] font-bold text-slate-700">CP 4624</span>
-                      <div className="w-12 h-12 rounded-lg bg-sky-100 flex items-center justify-center text-2xl my-1 border border-sky-200">
-                        🦕
-                      </div>
-                      <span className="text-[9px] font-bold text-slate-800 text-center truncate w-full">
-                        Dialga-O
-                      </span>
-                    </div>
-
-                    <div className="flex flex-col items-center">
-                      <span className="text-[11px] font-bold text-slate-700">CP 4179</span>
-                      <div className="w-12 h-12 rounded-lg bg-purple-100 flex items-center justify-center text-2xl my-1 border border-purple-200">
-                        🕊️
-                      </div>
-                      <span className="text-[9px] font-bold text-slate-800 text-center truncate w-full">
-                        Lugia
-                      </span>
-                    </div>
-
-                    <div className="flex flex-col items-center">
-                      <span className="text-[11px] font-bold text-slate-700">CP 4652</span>
-                      <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center text-2xl my-1 border border-blue-200">
-                        🐋
-                      </div>
-                      <span className="text-[9px] font-bold text-slate-800 text-center truncate w-full">
-                        Kyogre
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Bottom button */}
-                <div className="py-2">
-                  <div className="w-full py-2.5 rounded-full bg-emerald-500 text-white font-bold text-xs text-center uppercase tracking-wider">
-                    Use This Party
-                  </div>
-                </div>
-
-              </div>
-            </div>
-
-            {/* OCR Engine Details & Test Action */}
-            <div className="lg:col-span-6 flex flex-col gap-5">
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
-                <div className="flex items-center gap-2 mb-3">
-                  <Scan className="w-5 h-5 text-sky-400" />
-                  <h3 className="font-bold text-base text-white">Party Screen Scanner Engine</h3>
-                </div>
-
-                <p className="text-xs text-slate-300 leading-relaxed mb-4">
-                  Using Android's <code>MediaProjection</code> and <code>ImageReader</code>, screen frames are captured strictly in-memory into a Direct ByteBuffer (zero disk writes). The overlay runs two separate ML Kit Text Recognition passes:
-                </p>
-
-                <div className="space-y-3 text-xs mb-5">
-                  <div className="p-3 rounded-xl bg-slate-950/60 border border-emerald-500/30">
-                    <strong className="text-emerald-400 block mb-1">Pass 1: League Crop (Y: 22% - 32%)</strong>
-                    <span className="text-slate-400">
-                      Crops the upper-center bounding box to identify active Battle League rules ("MASTER LEAGUE", "ULTRA LEAGUE", "GREAT LEAGUE").
-                    </span>
-                  </div>
-
-                  <div className="p-3 rounded-xl bg-slate-950/60 border border-sky-500/30">
-                    <strong className="text-sky-400 block mb-1">Pass 2: Team Members Crop (Y: 55% - 72%)</strong>
-                    <span className="text-slate-400">
-                      Crops the 3 team member slots, extracting CP numbers and fuzzy-matching Pokémon nicknames (e.g. "☆B-DayRoT100" → Dialga-Origin, "Lugia151415" → Lugia, "☆M²Kvogre" → Kyogre).
-                    </span>
-                  </div>
-                </div>
-
-                <button
-                  onClick={handleScanPartyScreen}
-                  disabled={isScanningParty}
-                  className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-sky-500/25 flex items-center justify-center gap-2 transition"
-                >
-                  {isScanningParty ? (
-                    <>
-                      <RotateCcw className="w-4 h-4 animate-spin" />
-                      <span>Processing In-Memory OCR Frame...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="w-4 h-4" />
-                      <span>Run ML Kit Party Scan Test</span>
-                    </>
-                  )}
-                </button>
-
-                {scanResult && (
-                  <div className="mt-5 p-4 rounded-xl bg-slate-950 border border-sky-400/50 animate-in fade-in">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-bold text-emerald-400 flex items-center gap-1">
-                        <Check className="w-3.5 h-3.5" />
-                        <span>OCR Extraction Successful</span>
-                      </span>
-                      <span className="text-[10px] text-slate-400 font-mono">Latency: 142ms</span>
-                    </div>
-
-                    <div className="text-xs text-white font-semibold mb-2">
-                      Active League: <span className="text-sky-400">{scanResult.league}</span>
-                    </div>
-
-                    <div className="space-y-1.5 text-xs text-slate-300 mb-3">
-                      {scanResult.members.map((m, i) => (
-                        <div key={i} className="flex justify-between items-center py-1 border-b border-slate-800">
-                          <span>Slot {i + 1}: <strong>{m.name}</strong></span>
-                          <span className="text-sky-300 font-mono">CP {m.cp} ({(m.confidence * 100).toFixed(0)}% conf)</span>
-                        </div>
-                      ))}
-                    </div>
-
-                    <button
-                      onClick={handleApplyScannedParty}
-                      className="w-full py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition"
-                    >
-                      Save As Team Preset & Apply to Overlay
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-
-          </div>
-        )}
-
-        {/* =========================================================================
-            TAB 4: FAST MOVE TURN ALIGNMENT & SNEAK MECHANICS
+            TAB 3: FAST MOVE TURN ALIGNMENT & SNEAK MECHANICS
            ========================================================================= */}
         {activeTab === 'turn_matrix' && (
           <div className="space-y-6">

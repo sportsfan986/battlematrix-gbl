@@ -265,9 +265,9 @@ export const POKEMON_DATABASE: Record<string, PokemonStats> = {
     formLabel: "Shadow",
     types: ["normal", "flying"],
     baseStats: { atk: 117, def: 112, hp: 142 },
-    defaultFastMove: { name: "Wing Attack", type: "flying", turns: 2, power: 6, energyGain: 7 },
+    defaultFastMove: { name: "Gust", type: "flying", turns: 4, power: 16, energyGain: 12 },
     chargedMoves: [
-      { name: "Feather Dance", code: "FD", type: "flying", power: 35, energyCost: 50 },
+      { name: "Twister", code: "Tw", type: "dragon", power: 50, energyCost: 45 },
       { name: "Brave Bird", code: "BB", type: "flying", power: 130, energyCost: 55 }
     ],
     color: "#a855f7"
@@ -528,7 +528,7 @@ export const INITIAL_PRESETS: TeamPreset[] = [
   },
   {
     id: "preset-gl-1",
-    name: "Great: Kanto Ninetales / Fearow / Shadow Pidgeot",
+    name: "Great: Kanto Ninetales / Fearow / S-Pidgeot",
     league: "GREAT LEAGUE",
     pokemon: [
       {
@@ -551,10 +551,11 @@ export const INITIAL_PRESETS: TeamPreset[] = [
         id: "g3",
         name: "Shadow Pidgeot",
         cp: 1490,
-        fastMove: "Wing Attack",
-        chargedMove1: "Feather Dance",
+        fastMove: "Gust",
+        chargedMove1: "Twister",
         chargedMove2: "Brave Bird"
       }
     ]
   }
 ];
+
