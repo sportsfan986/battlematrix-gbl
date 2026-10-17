@@ -427,21 +427,22 @@ export default function App() {
     : activeOpponentKey;
   const rawActiveOpponent = POKEMON_DATABASE[activeOpponentName] || POKEMON_DATABASE[activeOpponentKey] || POKEMON_DATABASE['Zacian (Crowned)'];
   const activeOpponent = useMemo(() => {
-    return computeEffectiveStatsForLeague(rawActiveOpponent, activeOpponentLeague);
-  }, [rawActiveOpponent, activeOpponentLeague]);
+    return computeEffectiveStatsForLeague(rawActiveOpponent, activeOpponentLeague, undefined, undefined, isOpponentShadow);
+  }, [rawActiveOpponent, activeOpponentLeague, isOpponentShadow, pvPokeSyncStatus]);
 
   const activeUserSlot = activePreset?.pokemon[activeUserSlotIndex] || activePreset?.pokemon[0];
   const userLeadName = activeUserSlot?.name || 'Palkia (Origin)';
+  const isUserShadow = userLeadName.toLowerCase().includes('shadow');
   const rawUserActivePokemon = POKEMON_DATABASE[userLeadName] || POKEMON_DATABASE['Palkia (Origin)'] || POKEMON_DATABASE['Dialga (Origin)'];
   const userActivePokemon = useMemo(() => {
     return computeEffectiveStatsForLeague(
       rawUserActivePokemon,
       activePreset?.league || activeOpponentLeague,
       activeUserSlot?.cp,
-      activeUserSlot?.ivs
+      activeUserSlot?.ivs,
+      isUserShadow
     );
-  }, [rawUserActivePokemon, activePreset?.league, activeOpponentLeague, activeUserSlot?.cp, activeUserSlot?.ivs]);
-  const isUserShadow = userLeadName.toLowerCase().includes('shadow');
+  }, [rawUserActivePokemon, activePreset?.league, activeOpponentLeague, activeUserSlot?.cp, activeUserSlot?.ivs, isUserShadow, pvPokeSyncStatus]);
 
   const availableForms = useMemo(() => {
     return getAvailableFormsForPokemon(activeOpponent.name);

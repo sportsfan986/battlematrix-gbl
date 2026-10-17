@@ -230,8 +230,16 @@ class OverlayService : LifecycleService() {
             "talonflame" to Triple("Fly", "Flame Charge", "Brave Bird"),
             "Serperior" to Triple("Frenzy Plant", "Aerial Ace", "Leaf Tornado"),
             "serperior" to Triple("Frenzy Plant", "Aerial Ace", "Leaf Tornado"),
-            "Skeledirge" to Triple("Disarming Voice", "Shadow Ball", "Overheat"),
-            "skeledirge" to Triple("Disarming Voice", "Shadow Ball", "Overheat"),
+            "Skeledirge" to Triple("Torch Song", "Shadow Ball", "Disarming Voice"),
+            "skeledirge" to Triple("Torch Song", "Shadow Ball", "Disarming Voice"),
+            "Snorlax" to Triple("Body Slam", "Earthquake", "Superpower"),
+            "snorlax" to Triple("Body Slam", "Earthquake", "Superpower"),
+            "Shadow Snorlax" to Triple("Body Slam", "Superpower", "Earthquake"),
+            "snorlax_shadow" to Triple("Body Slam", "Superpower", "Earthquake"),
+            "Greninja" to Triple("Hydro Cannon", "Brutal Swing", "Night Slash"),
+            "greninja" to Triple("Hydro Cannon", "Brutal Swing", "Night Slash"),
+            "Shadow Greninja" to Triple("Hydro Cannon", "Night Slash", "Brutal Swing"),
+            "greninja_shadow" to Triple("Hydro Cannon", "Night Slash", "Brutal Swing"),
             "Lickilicky" to Triple("Body Slam", "Shadow Ball", "Earthquake"),
             "lickilicky" to Triple("Body Slam", "Shadow Ball", "Earthquake"),
             "Lickitung" to Triple("Body Slam", "Power Whip", "Stomp"),
@@ -373,7 +381,9 @@ class OverlayService : LifecycleService() {
             "Jellicent" to "Ice Beam",
             "Drifblim" to "Mystical Fire",
             "Froslass" to "Crunch",
-            "Skeledirge" to "Torch Song",
+            "Skeledirge" to "Disarming Voice",
+            "Snorlax" to "Superpower",
+            "Shadow Snorlax" to "Earthquake",
             "Typhlosion" to "Solar Beam",
             "Goodra" to "Power Whip",
             "Guzzlord" to "Sludge Bomb",
@@ -399,7 +409,8 @@ class OverlayService : LifecycleService() {
             "Stunfisk (Galarian)" to "Flash Cannon",
             "Steelix" to "Heavy Slam",
             "Empoleon" to "Blizzard",
-            "Greninja" to "Aerial Ace",
+            "Greninja" to "Night Slash",
+            "Shadow Greninja" to "Brutal Swing",
             "Samurott" to "Blizzard",
             "Golisopod" to "Aerial Ace",
             "Araquanid" to "Water Pulse",
@@ -562,6 +573,8 @@ class OverlayService : LifecycleService() {
             "Hyper Beam" to MoveStats("Hyper Beam", "normal", 150),
             "Aura Wheel" to MoveStats("Aura Wheel", "electric", 100),
             "Rage Fist" to MoveStats("Rage Fist", "ghost", 50),
+            "Torch Song" to MoveStats("Torch Song", "fire", 70, 45),
+            "Super Power" to MoveStats("Superpower", "fighting", 85, 40),
             "Drum Beating" to MoveStats("Drum Beating", "grass", 60, 35),
             "Gigaton Hammer" to MoveStats("Gigaton Hammer", "steel", 130, 60),
             "Bulldoze" to MoveStats("Bulldoze", "ground", 80, 55),
@@ -707,7 +720,7 @@ class OverlayService : LifecycleService() {
             PokemonMeta("Ursaluna", "ursaluna", "ursaluna", "Base", listOf("ground", "normal"), 4358, "Tackle", 1, "Ice Punch", "High Horsepower", 30, 50, atk = 216.0, def = 176.0, hp = 246, glRank = 250, ulRank = 130, mlRank = 21),
             PokemonMeta("Togekiss", "togekiss", "togekiss", "Base", listOf("fairy", "flying"), 3767, "Charm", 3, "Ancient Power", "Aura Sphere", 30, 46, atk = 201.0, def = 195.0, hp = 178, glRank = 150, ulRank = 48, mlRank = 24),
             PokemonMeta("Gyarados", "gyarados", "gyarados", "Base", listOf("water", "flying"), 3834, "Dragon Breath", 1, "Aqua Tail", "Crunch", 28, 34, atk = 212.0, def = 168.0, hp = 193, glRank = 160, ulRank = 42, mlRank = 26),
-            PokemonMeta("Snorlax", "snorlax", "snorlax", "Base", listOf("normal"), 3647, "Lick", 1, "Body Slam", "Superpower", 26, 40, atk = 171.0, def = 154.0, hp = 285, glRank = 95, ulRank = 38, mlRank = 30),
+            PokemonMeta("Snorlax", "snorlax", "snorlax", "Base", listOf("normal"), 3647, "Psywave", 1, "Body Slam", "Earthquake", 26, 52, atk = 171.0, def = 154.0, hp = 285, glRank = 95, ulRank = 38, mlRank = 30, chargedMove3 = "Superpower"),
             PokemonMeta("Gholdengo", "gholdengo", "gholdengo", "Base", listOf("steel", "ghost"), 3976, "Hex", 3, "Shadow Ball", "Focus Blast", 46, 56, atk = 226.0, def = 175.0, hp = 181, glRank = 280, ulRank = 140, mlRank = 23),
             PokemonMeta("Baxcalibur", "baxcalibur", "baxcalibur", "Base", listOf("dragon", "ice"), 4286, "Dragon Breath", 1, "Avalanche", "Dragon Claw", 44, 28, atk = 228.0, def = 154.0, hp = 218, glRank = 90, ulRank = 55, mlRank = 22),
             PokemonMeta("Tapu Bulu", "tapu_bulu", "tapu bulu", "Base", listOf("grass", "fairy"), 3865, "Bullet Seed", 3, "Nature's Madness", "Grass Knot", 42, 44, atk = 222.0, def = 191.0, hp = 158, glRank = 290, ulRank = 110, mlRank = 14),
@@ -734,7 +747,7 @@ class OverlayService : LifecycleService() {
             PokemonMeta("Serperior", "serperior", "serperior", "Base", listOf("grass"), 2480, "Vine Whip", 2, "Frenzy Plant", "Aerial Ace", 44, 28, atk = 110.0, def = 162.0, hp = 142, glRank = 20, ulRank = 26, mlRank = 310),
             PokemonMeta("Wigglytuff", "wigglytuff", "wigglytuff", "Base", listOf("normal", "fairy"), 1499, "Charm", 3, "Icy Wind", "Swift", 30, 32, atk = 109.0, def = 82.0, hp = 225, glRank = 21, ulRank = 320, mlRank = 480),
             PokemonMeta("Clefable", "clefable", "clefable", "Base", listOf("fairy"), 2488, "Fairy Wind", 2, "Meteor Mash", "Swift", 46, 30, atk = 148.0, def = 144.0, hp = 176, glRank = 23, ulRank = 13, mlRank = 240),
-            PokemonMeta("Skeledirge", "skeledirge", "skeledirge", "Base", listOf("fire", "ghost"), 2491, "Incinerate", 5, "Disarming Voice", "Shadow Ball", 32, 46, atk = 158.0, def = 144.0, hp = 184, glRank = 22, ulRank = 15, mlRank = 70),
+            PokemonMeta("Skeledirge", "skeledirge", "skeledirge", "Base", listOf("fire", "ghost"), 2491, "Incinerate", 5, "Torch Song", "Shadow Ball", 38, 46, atk = 158.0, def = 144.0, hp = 184, glRank = 22, ulRank = 15, mlRank = 70, chargedMove3 = "Disarming Voice"),
             PokemonMeta("Lickilicky", "lickilicky", "lickilicky", "Base", listOf("normal"), 2488, "Rollout", 3, "Body Slam", "Shadow Ball", 26, 44, atk = 136.0, def = 152.0, hp = 190, glRank = 27, ulRank = 8, mlRank = 210),
             PokemonMeta("Lickitung", "lickitung", "lickitung", "Base", listOf("normal"), 1499, "Lick", 1, "Body Slam", "Power Whip", 26, 42, atk = 96.0, def = 126.0, hp = 184, glRank = 29, ulRank = 400, mlRank = 500),
             PokemonMeta("Bastiodon", "bastiodon", "bastiodon", "Base", listOf("rock", "steel"), 1499, "Smack Down", 3, "Stone Edge", "Flamethrower", 42, 38, atk = 84.0, def = 238.0, hp = 138, glRank = 31, ulRank = 400, mlRank = 500),
@@ -770,7 +783,7 @@ class OverlayService : LifecycleService() {
             PokemonMeta("Venusaur", "venusaur", "venusaur", "Base", listOf("grass", "poison"), 2495, "Vine Whip", 2, "Frenzy Plant", "Sludge Bomb", 46, 40, atk = 158.0, def = 156.0, hp = 162, glRank = 72, ulRank = 44, mlRank = 220),
             PokemonMeta("Charizard", "charizard", "charizard", "Base", listOf("fire", "flying"), 2495, "Wing Attack", 2, "Blast Burn", "Dragon Claw", 50, 28, atk = 172.0, def = 142.0, hp = 158, glRank = 78, ulRank = 46, mlRank = 190),
             PokemonMeta("Blastoise", "blastoise", "blastoise", "Base", listOf("water"), 2466, "Rollout", 3, "Hydro Cannon", "Ice Beam", 44, 38, atk = 142.0, def = 176.0, hp = 162, glRank = 62, ulRank = 43, mlRank = 250),
-            PokemonMeta("Greninja", "greninja", "greninja", "Base", listOf("water", "dark"), 2492, "Water Shuriken", 3, "Hydro Cannon", "Night Slash", 44, 28, atk = 178.0, def = 128.0, hp = 148, glRank = 74, ulRank = 35, mlRank = 210),
+            PokemonMeta("Greninja", "greninja", "greninja", "Base", listOf("water", "dark"), 2492, "Water Shuriken", 3, "Hydro Cannon", "Brutal Swing", 44, 34, atk = 178.0, def = 128.0, hp = 148, glRank = 74, ulRank = 35, mlRank = 210, chargedMove3 = "Night Slash"),
             PokemonMeta("Chesnaught", "chesnaught", "chesnaught", "Base", listOf("grass", "fighting"), 2492, "Vine Whip", 2, "Frenzy Plant", "Superpower", 46, 42, atk = 158.0, def = 166.0, hp = 168, glRank = 67, ulRank = 50, mlRank = 160),
             PokemonMeta("Typhlosion", "typhlosion", "typhlosion", "Base", listOf("fire"), 2495, "Incinerate", 5, "Blast Burn", "Thunder Punch", 50, 30, atk = 172.0, def = 142.0, hp = 158, glRank = 76, ulRank = 47, mlRank = 230),
             PokemonMeta("Decidueye", "decidueye", "decidueye", "Base", listOf("grass", "ghost"), 2492, "Astonish", 3, "Frenzy Plant", "Spirit Shackle", 46, 36, atk = 166.0, def = 146.0, hp = 158, glRank = 79, ulRank = 54, mlRank = 240),
@@ -1006,7 +1019,9 @@ class OverlayService : LifecycleService() {
             "Swift" to 35,
             "Hyper Beam" to 80,
             "Aura Wheel" to 45,
-            "Rage Fist" to 35
+            "Rage Fist" to 35,
+            "Torch Song" to 45,
+            "Super Power" to 40
         )
 
         fun getAllPokemonMeta(): List<PokemonMeta> {
@@ -1084,7 +1099,8 @@ class OverlayService : LifecycleService() {
             val speciesId: String,
             val score: Double,
             val moves: RankingMoves,
-            val moveCount: List<Int>? = null
+            val moveCount: List<Int>? = null,
+            val moveset: List<String>? = null
         )
 
         data class PokemonAutocompleteSuggestion(
@@ -1103,9 +1119,44 @@ class OverlayService : LifecycleService() {
         val LIVE_RANKINGS_MAP = java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.ConcurrentHashMap<String, PokemonRankingEntry>>()
         val DYNAMIC_MOVE_ID_TO_NAME = java.util.concurrent.ConcurrentHashMap<String, String>()
 
+        val CANONICAL_MOVE_ID_MAP: Map<String, String> = mapOf(
+            "SUPER_POWER" to "Superpower",
+            "LOCK_ON" to "Lock-On",
+            "MUD_SLAP" to "Mud-Slap",
+            "POWER_UP_PUNCH" to "Power-Up Punch",
+            "X_SCISSOR" to "X-Scissor",
+            "NATURES_MADNESS" to "Nature's Madness",
+            "TORCH_SONG" to "Torch Song",
+            "BRUTAL_SWING" to "Brutal Swing",
+            "WATER_SHURIKEN" to "Water Shuriken",
+            "PSYWAVE" to "Psywave",
+            "DISARMING_VOICE" to "Disarming Voice",
+            "HYDRO_CANNON" to "Hydro Cannon",
+            "NIGHT_SLASH" to "Night Slash",
+            "BODY_SLAM" to "Body Slam",
+            "EARTHQUAKE" to "Earthquake",
+            "SHADOW_BALL" to "Shadow Ball",
+            "INCINERATE" to "Incinerate",
+            "WEATHER_BALL_FIRE" to "Weather Ball",
+            "WEATHER_BALL_ICE" to "Weather Ball",
+            "WEATHER_BALL_WATER" to "Weather Ball",
+            "WEATHER_BALL_ROCK" to "Weather Ball",
+            "WEATHER_BALL_NORMAL" to "Weather Ball",
+            "FUTURE_SIGHT" to "Future Sight",
+            "ROAR_OF_TIME" to "Roar of Time",
+            "FREEZE_SHOCK" to "Freeze Shock",
+            "ICE_BURN" to "Ice Burn",
+            "FUSION_BOLT" to "Fusion Bolt",
+            "FUSION_FLARE" to "Fusion Flare",
+            "SPACIAL_REND" to "Spacial Rend"
+        )
+
         fun formatMoveIdDisplay(moveId: String): String {
             if (moveId.isBlank()) return ""
+            val upper = moveId.trim().uppercase()
+            CANONICAL_MOVE_ID_MAP[upper]?.let { return it }
             DYNAMIC_MOVE_ID_TO_NAME[moveId]?.let { return it }
+            DYNAMIC_MOVE_ID_TO_NAME[upper]?.let { return it }
             return moveId.lowercase().split("_").joinToString(" ") { w ->
                 w.replaceFirstChar { c -> c.uppercase() }
             }
@@ -1148,15 +1199,19 @@ class OverlayService : LifecycleService() {
                     }
                     chargedList.sortByDescending { it.uses ?: 0 }
 
-                    // Fallback to moveset array if moves object is empty
+                    val movesetList = mutableListOf<String>()
                     val movesetArr = obj.getAsJsonArray("moveset")
                     if (movesetArr != null && movesetArr.size() > 0) {
-                        if (fastList.isEmpty()) {
-                            fastList.add(MoveUsage(movesetArr.get(0).asString, 100))
+                        for (i in 0 until movesetArr.size()) {
+                            val msId = movesetArr.get(i)?.asString
+                            if (!msId.isNullOrBlank()) movesetList.add(msId)
                         }
-                        if (chargedList.isEmpty() && movesetArr.size() > 1) {
-                            for (i in 1 until movesetArr.size()) {
-                                chargedList.add(MoveUsage(movesetArr.get(i).asString, 100 - i))
+                        if (fastList.isEmpty() && movesetList.isNotEmpty()) {
+                            fastList.add(MoveUsage(movesetList[0], 100))
+                        }
+                        if (chargedList.isEmpty() && movesetList.size > 1) {
+                            for (i in 1 until movesetList.size) {
+                                chargedList.add(MoveUsage(movesetList[i], 100 - i))
                             }
                         }
                     }
@@ -1173,7 +1228,8 @@ class OverlayService : LifecycleService() {
                         speciesId = speciesId,
                         score = score,
                         moves = RankingMoves(fastMoves = fastList, chargedMoves = chargedList),
-                        moveCount = moveCountList.takeIf { it.isNotEmpty() }
+                        moveCount = moveCountList.takeIf { it.isNotEmpty() },
+                        moveset = movesetList.takeIf { it.isNotEmpty() }
                     )
                 }
                 LIVE_RANKINGS_MAP[leagueKey.uppercase()] = leagueMap
@@ -1183,31 +1239,75 @@ class OverlayService : LifecycleService() {
             }
         }
 
-        private fun applyRankingMovesForLeague(meta: PokemonMeta, league: String, isShadow: Boolean = false): PokemonMeta {
+        fun applyRankingMovesForLeague(meta: PokemonMeta, league: String, isShadow: Boolean = false): PokemonMeta {
             val normLeague = when {
                 league.contains("MEGA", ignoreCase = true) -> "MEGA MASTER LEAGUE"
                 league.contains("GREAT", ignoreCase = true) -> "GREAT LEAGUE"
                 league.contains("ULTRA", ignoreCase = true) -> "ULTRA LEAGUE"
                 else -> "MASTER LEAGUE"
             }
-            val map = LIVE_RANKINGS_MAP[normLeague] ?: return meta
-            val baseKey = meta.speciesId.lowercase().removeSuffix("_shadow")
-            val entry = if (isShadow || meta.name.startsWith("Shadow ", ignoreCase = true) || meta.speciesId.endsWith("_shadow", ignoreCase = true)) {
-                map["${baseKey}_shadow"] ?: map[baseKey]
-            } else {
-                map[baseKey] ?: map["${baseKey}_shadow"]
-            } ?: return meta
+            val isSkeledirge = meta.baseSpecies.equals("skeledirge", ignoreCase = true) ||
+                meta.speciesId.startsWith("skeledirge", ignoreCase = true)
 
-            val topFastId = entry.moves.fastMoves.firstOrNull()?.moveId
-            val topC1Id = entry.moves.chargedMoves.getOrNull(0)?.moveId
-            val topC2Id = entry.moves.chargedMoves.getOrNull(1)?.moveId
-            val topC3Id = entry.moves.chargedMoves.getOrNull(2)?.moveId
+            val map = LIVE_RANKINGS_MAP[normLeague]
+            val baseKey = meta.speciesId.lowercase().removeSuffix("_shadow")
+            val effectiveShadow = isShadow || meta.name.startsWith("Shadow ", ignoreCase = true) || meta.speciesId.endsWith("_shadow", ignoreCase = true)
+            val entry = if (map != null) {
+                if (effectiveShadow) {
+                    map["${baseKey}_shadow"] ?: map[baseKey]
+                } else {
+                    map[baseKey] ?: map["${baseKey}_shadow"]
+                }
+            } else null
+
+            if (entry == null) {
+                if (isSkeledirge) {
+                    return meta.copy(
+                        defaultFastMove = "Incinerate",
+                        fastTurns = 5,
+                        chargedMove1 = "Torch Song",
+                        chargedMove2 = "Shadow Ball",
+                        chargedMove3 = "Disarming Voice"
+                    )
+                }
+                return meta
+            }
+
+            // Priority 1: Official recommended moveset[0] for Fast Move, fallback to highest-uses fastMoves[0]
+            val topFastId = entry.moveset?.getOrNull(0)?.takeIf { it.isNotBlank() }
+                ?: entry.moves.fastMoves.firstOrNull()?.moveId
+
+            // Priority 2: Official recommended moveset[1..2] for Charged Moves 1 & 2, then top-usage chargedMoves for 3rd move
+            val orderedChargedNames = mutableListOf<String>()
+            entry.moveset?.drop(1)?.forEach { mId ->
+                val formatted = formatMoveIdDisplay(mId)
+                if (formatted.isNotBlank() && orderedChargedNames.none { it.equals(formatted, ignoreCase = true) }) {
+                    orderedChargedNames.add(formatted)
+                }
+            }
+            entry.moves.chargedMoves.forEach { cm ->
+                val formatted = formatMoveIdDisplay(cm.moveId)
+                if (formatted.isNotBlank() && orderedChargedNames.none { it.equals(formatted, ignoreCase = true) }) {
+                    orderedChargedNames.add(formatted)
+                }
+            }
 
             val fastName = topFastId?.let { formatMoveIdDisplay(it) }?.takeIf { it.isNotBlank() } ?: meta.defaultFastMove
             val fastTurns = DYNAMIC_FAST_TURNS[fastName.lowercase()] ?: FAST_MOVE_TURNS[fastName.lowercase()] ?: meta.fastTurns
-            val c1Name = topC1Id?.let { formatMoveIdDisplay(it) }?.takeIf { it.isNotBlank() } ?: meta.chargedMove1
-            val c2Name = topC2Id?.let { formatMoveIdDisplay(it) }?.takeIf { it.isNotBlank() } ?: meta.chargedMove2
-            val c3Name = topC3Id?.let { formatMoveIdDisplay(it) } ?: meta.chargedMove3
+
+            if (isSkeledirge) {
+                return meta.copy(
+                    defaultFastMove = fastName,
+                    fastTurns = fastTurns,
+                    chargedMove1 = "Torch Song",
+                    chargedMove2 = "Shadow Ball",
+                    chargedMove3 = "Disarming Voice"
+                )
+            }
+
+            val c1Name = orderedChargedNames.getOrNull(0) ?: meta.chargedMove1
+            val c2Name = orderedChargedNames.getOrNull(1) ?: meta.chargedMove2
+            val c3Name = orderedChargedNames.getOrNull(2) ?: meta.chargedMove3
 
             return meta.copy(
                 defaultFastMove = fastName,
@@ -1562,7 +1662,8 @@ class OverlayService : LifecycleService() {
                             ?: LIVE_RANKINGS_MAP["MEGA MASTER LEAGUE"]?.get(speciesId.lowercase())
 
                         val fastMovesArr = obj.getAsJsonArray("fastMoves")
-                        val firstFastId = rankEntry?.moves?.fastMoves?.firstOrNull()?.moveId
+                        val firstFastId = rankEntry?.moveset?.getOrNull(0)?.takeIf { it.isNotBlank() }
+                            ?: rankEntry?.moves?.fastMoves?.firstOrNull()?.moveId
                             ?: if (fastMovesArr != null && fastMovesArr.size() > 0) fastMovesArr.get(0).asString else "TACKLE"
                         val fastMoveName = fastMoveNames[firstFastId]
                             ?: formatMoveIdDisplay(firstFastId)
@@ -1572,6 +1673,11 @@ class OverlayService : LifecycleService() {
                         val chargedArr = obj.getAsJsonArray("chargedMoves")
                         val eliteArr = obj.getAsJsonArray("eliteMoves")
                         val orderedChargedIds = mutableListOf<String>()
+                        rankEntry?.moveset?.drop(1)?.forEach { msId ->
+                            if (msId.isNotBlank() && !orderedChargedIds.contains(msId)) {
+                                orderedChargedIds.add(msId)
+                            }
+                        }
                         rankEntry?.moves?.chargedMoves?.forEach { cm ->
                             if (cm.moveId.isNotBlank() && !orderedChargedIds.contains(cm.moveId)) {
                                 orderedChargedIds.add(cm.moveId)
@@ -1751,6 +1857,9 @@ class OverlayService : LifecycleService() {
                 }
                 if (!jsonStr.isNullOrBlank()) {
                     parseGamemasterJson(jsonStr)
+                }
+                withContext(Dispatchers.Main) {
+                    recalculateAndPushBattleData()
                 }
             } catch (_: Exception) {}
         }
@@ -2344,10 +2453,12 @@ class OverlayService : LifecycleService() {
             if (candidate != null) {
                 val base = candidate.baseSpecies.lowercase()
                 val manualFormName = manualFormOverrides[base]
+                val isLineShadow = manualShadowOverrides[base] ?: text.contains("shadow", ignoreCase = true)
                 val resolved = if (manualFormName != null) {
-                    getPokemonMeta(manualFormName)
+                    getPokemonMeta(manualFormName, activeLeague, isLineShadow)
                 } else {
-                    FormResolver.resolveBestDefaultVariant(candidate, text, activeLeague)
+                    val bestVar = FormResolver.resolveBestDefaultVariant(candidate, text, activeLeague)
+                    applyRankingMovesForLeague(applyRecommendedMoves(bestVar), activeLeague, isLineShadow)
                 }
                 matchedCandidates.add(resolved to text)
             }
@@ -2719,14 +2830,26 @@ class OverlayService : LifecycleService() {
         return bestMatch
     }
 
-    private fun getPokemonMeta(name: String): PokemonMeta {
+    private fun getPokemonMeta(
+        name: String,
+        leagueOverride: String? = null,
+        isShadowOverride: Boolean? = null
+    ): PokemonMeta {
+        val activeLeague = leagueOverride ?: currentPreset?.league ?: "MASTER LEAGUE"
+        val cleanNoShadow = name.replace(Regex("^Shadow\\s+", RegexOption.IGNORE_CASE), "").trim()
+        val base = FormResolver.extractBaseSpecies(cleanNoShadow)
+        val isShadow = isShadowOverride ?: (name.contains("Shadow", ignoreCase = true) ||
+            manualShadowOverrides[base.lowercase()] == true ||
+            (name.equals(activeOpponentName, ignoreCase = true) && isOpponentShadow))
+
         val allMeta = getAllPokemonMeta()
-        val exact = allMeta.find { it.name.equals(name, ignoreCase = true) }
+        val exact = allMeta.find {
+            it.name.equals(name, ignoreCase = true) ||
+                it.name.equals(cleanNoShadow, ignoreCase = true)
+        }
         val found = if (exact != null) {
             exact
         } else {
-            val base = FormResolver.extractBaseSpecies(name)
-            val activeLeague = currentPreset?.league ?: "MASTER LEAGUE"
             val variants = FormResolver.getVariantsForSpecies(base, activeLeague)
             variants.firstOrNull() ?: PokemonMeta(
                 name = name,
@@ -2743,7 +2866,7 @@ class OverlayService : LifecycleService() {
                 c2Dmg = 45
             )
         }
-        return applyRecommendedMoves(found)
+        return applyRankingMovesForLeague(applyRecommendedMoves(found), activeLeague, isShadow)
     }
 
     private fun levenshteinDistance(s1: String, s2: String): Int {
@@ -2975,7 +3098,9 @@ class OverlayService : LifecycleService() {
         "Trailblaze" to "Trlb",
         "Nature's Madness" to "NM",
         "Rage Fist" to "RgF",
-        "Aura Wheel" to "AuW"
+        "Aura Wheel" to "AuW",
+        "Torch Song" to "TrS",
+        "Super Power" to "SpP"
     )
 
     private val fastMovePowerMap = mapOf(
@@ -3231,14 +3356,14 @@ class OverlayService : LifecycleService() {
         }
 
         val activeLeague = currentPreset?.league ?: "MASTER LEAGUE"
-        val oppMeta = computeEffectiveCombatStats(getPokemonMeta(activeOpponentName), activeLeague)
+        val isUserShadow = activePlayerName.contains("Shadow", ignoreCase = true)
+        val oppMeta = computeEffectiveCombatStats(getPokemonMeta(activeOpponentName, activeLeague, isOpponentShadow), activeLeague)
         val userMeta = computeEffectiveCombatStats(
-            getPokemonMeta(activePlayerName),
+            getPokemonMeta(activePlayerName, activeLeague, isUserShadow),
             activeLeague,
             activeSlot?.cp,
             activeSlot?.ivs
         )
-        val isUserShadow = activePlayerName.contains("Shadow", ignoreCase = true)
 
         val userMove1Name = activeSlot?.chargedMove1?.takeIf { it.isNotBlank() } ?: userMeta.chargedMove1
         val userMove2Name = activeSlot?.chargedMove2?.takeIf { it.isNotBlank() } ?: userMeta.chargedMove2
@@ -3319,9 +3444,10 @@ class OverlayService : LifecycleService() {
         }
 
         val scannedOpponentsData = displayList.mapIndexed { idx, opp ->
-            val meta = computeEffectiveCombatStats(getPokemonMeta(opp), activeLeague)
+            val rawBaseKey = FormResolver.extractBaseSpecies(opp).lowercase()
+            val isThisOppShadow = manualShadowOverrides[rawBaseKey] ?: (if (idx == 0) isOpponentShadow else opp.contains("Shadow", ignoreCase = true))
+            val meta = computeEffectiveCombatStats(getPokemonMeta(opp, activeLeague, isThisOppShadow), activeLeague)
             val baseKey = meta.baseSpecies.lowercase()
-            val isThisOppShadow = manualShadowOverrides[baseKey] ?: (if (idx == 0) isOpponentShadow else false)
             val oppC1Pct = calculateChargedMoveDamagePercent(
                 attacker = meta,
                 defender = userMeta,
@@ -3660,9 +3786,10 @@ class OverlayService : LifecycleService() {
             val oppDamages = (0..2).map { slotIdx ->
                 if (slotIdx < displayList.size) {
                     val oppNameSlot = displayList[slotIdx]
-                    val oppMetaSlot = computeEffectiveCombatStats(getPokemonMeta(oppNameSlot), activeLeague)
+                    val rawBaseKeySlot = FormResolver.extractBaseSpecies(oppNameSlot).lowercase()
+                    val isSlotShadow = manualShadowOverrides[rawBaseKeySlot] ?: (if (slotIdx == 0) isOpponentShadow else oppNameSlot.contains("Shadow", ignoreCase = true))
+                    val oppMetaSlot = computeEffectiveCombatStats(getPokemonMeta(oppNameSlot, activeLeague, isSlotShadow), activeLeague)
                     val baseKeySlot = oppMetaSlot.baseSpecies.lowercase()
-                    val isSlotShadow = manualShadowOverrides[baseKeySlot] ?: (if (slotIdx == 0) isOpponentShadow else false)
                     val oDmgPct = calculateChargedMoveDamagePercent(
                         attacker = userMeta,
                         defender = oppMetaSlot,

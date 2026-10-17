@@ -1034,6 +1034,51 @@ export const POKEMON_DATABASE: Record<string, PokemonStats> = {
       { name: "Crunch", code: "Cr", type: "dark", power: 70, energyCost: 45 }
     ],
     color: "#15803d"
+  },
+  Snorlax: {
+    speciesId: "snorlax",
+    name: "Snorlax",
+    baseSpecies: "snorlax",
+    formLabel: "Base",
+    types: ["normal"],
+    baseStats: { atk: 171, def: 154, hp: 285 },
+    defaultFastMove: { name: "Psywave", type: "psychic", turns: 1, power: 3, energyGain: 4 },
+    chargedMoves: [
+      { name: "Body Slam", code: "BS", type: "normal", power: 50, energyCost: 35 },
+      { name: "Earthquake", code: "Eq", type: "ground", power: 110, energyCost: 65 },
+      { name: "Superpower", code: "SpP", type: "fighting", power: 85, energyCost: 40 }
+    ],
+    color: "#0284c7"
+  },
+  Greninja: {
+    speciesId: "greninja",
+    name: "Greninja",
+    baseSpecies: "greninja",
+    formLabel: "Base",
+    types: ["water", "dark"],
+    baseStats: { atk: 178, def: 128, hp: 148 },
+    defaultFastMove: { name: "Water Shuriken", type: "water", turns: 3, power: 6, energyGain: 14 },
+    chargedMoves: [
+      { name: "Hydro Cannon", code: "HC", type: "water", power: 80, energyCost: 40 },
+      { name: "Brutal Swing", code: "BrS", type: "dark", power: 65, energyCost: 40 },
+      { name: "Night Slash", code: "NS", type: "dark", power: 50, energyCost: 35 }
+    ],
+    color: "#2563eb"
+  },
+  Skeledirge: {
+    speciesId: "skeledirge",
+    name: "Skeledirge",
+    baseSpecies: "skeledirge",
+    formLabel: "Base",
+    types: ["fire", "ghost"],
+    baseStats: { atk: 158, def: 144, hp: 184 },
+    defaultFastMove: { name: "Incinerate", type: "fire", turns: 5, power: 20, energyGain: 20 },
+    chargedMoves: [
+      { name: "Torch Song", code: "TrS", type: "fire", power: 70, energyCost: 45 },
+      { name: "Shadow Ball", code: "SB", type: "ghost", power: 100, energyCost: 55 },
+      { name: "Disarming Voice", code: "DV", type: "fairy", power: 70, energyCost: 45 }
+    ],
+    color: "#ef4444"
   }
 };
 
@@ -1082,7 +1127,10 @@ export const PVPOKE_TOP_OPPONENTS: Record<string, TopOpponentInfo[]> = {
     { rank: 7, name: "Corviknight", types: ["flying", "steel"], fastMove: "Sand Attack", fastTurns: 1, chargedMoves: ["Air Cutter", "Iron Head"], score: 90.8 },
     { rank: 8, name: "Lickilicky", types: ["normal"], fastMove: "Rollout", fastTurns: 3, chargedMoves: ["Body Slam", "Shadow Ball"], score: 90.3 },
     { rank: 9, name: "Annihilape", types: ["fighting", "ghost"], fastMove: "Counter", fastTurns: 2, chargedMoves: ["Rage Fist", "Ice Punch"], score: 89.8 },
-    { rank: 10, name: "Talonflame", types: ["fire", "flying"], fastMove: "Incinerate", fastTurns: 5, chargedMoves: ["Fly", "Flame Charge"], score: 89.1 }
+    { rank: 10, name: "Talonflame", types: ["fire", "flying"], fastMove: "Incinerate", fastTurns: 5, chargedMoves: ["Fly", "Flame Charge"], score: 89.1 },
+    { rank: 11, name: "Skeledirge", types: ["fire", "ghost"], fastMove: "Incinerate", fastTurns: 5, chargedMoves: ["Torch Song", "Shadow Ball", "Disarming Voice"], score: 88.9 },
+    { rank: 12, name: "Greninja", types: ["water", "dark"], fastMove: "Water Shuriken", fastTurns: 3, chargedMoves: ["Hydro Cannon", "Brutal Swing", "Night Slash"], score: 88.2 },
+    { rank: 13, name: "Snorlax", types: ["normal"], fastMove: "Psywave", fastTurns: 1, chargedMoves: ["Body Slam", "Earthquake", "Superpower"], score: 87.5 }
   ],
   "GREAT LEAGUE": [
     { rank: 1, name: "Clodsire", types: ["poison", "ground"], fastMove: "Poison Sting", fastTurns: 2, chargedMoves: ["Earthquake", "Stone Edge"], score: 95.1 },
@@ -1361,7 +1409,9 @@ export const MOVE_ABBR_5: Record<string, string> = {
   "Power Gem": "PwrGm",
   "Megahorn": "Mghrn",
   "Lunge": "Lunge",
-  "X-Scissor": "XScsr"
+  "X-Scissor": "XScsr",
+  "Torch Song": "TrS",
+  "Super Power": "Suprp"
 };
 
 export function abbrMove5(name: string): string {
@@ -1554,7 +1604,8 @@ export function computeEffectiveStatsForLeague(
   pokemon: PokemonStats,
   league: string = "MASTER LEAGUE",
   customCp?: number,
-  customIvs?: string
+  customIvs?: string,
+  isShadow?: boolean
 ): PokemonStats & { resolvedCp: number } {
   const upper = league.toUpperCase();
   const isGreat = upper.includes("GREAT");
@@ -1606,8 +1657,10 @@ export function computeEffectiveStatsForLeague(
   const effectiveRefCp = Math.max(100, refStatCp * ivCpRatio);
   const cpmScale = Math.max(0.35, Math.min(1.45, Math.sqrt(targetCp / effectiveRefCp)));
 
+  const withLeagueMoves = applyRankingMovesToPokemonStats(pokemon, league, isShadow);
+
   return {
-    ...pokemon,
+    ...withLeagueMoves,
     resolvedCp: targetCp,
     baseStats: {
       atk: Number((adjAtkAtRef * cpmScale).toFixed(2)),
@@ -1629,14 +1682,194 @@ const LIVE_RANKINGS_MAP: Record<string, Map<string, PokemonRankingEntry>> = {
 
 const MOVE_ID_TO_NAME: Record<string, string> = {};
 
+const CANONICAL_MOVE_ID_MAP: Record<string, string> = {
+  SUPER_POWER: "Superpower",
+  LOCK_ON: "Lock-On",
+  MUD_SLAP: "Mud-Slap",
+  POWER_UP_PUNCH: "Power-Up Punch",
+  X_SCISSOR: "X-Scissor",
+  NATURES_MADNESS: "Nature's Madness",
+  TORCH_SONG: "Torch Song",
+  BRUTAL_SWING: "Brutal Swing",
+  WATER_SHURIKEN: "Water Shuriken",
+  PSYWAVE: "Psywave",
+  DISARMING_VOICE: "Disarming Voice",
+  HYDRO_CANNON: "Hydro Cannon",
+  NIGHT_SLASH: "Night Slash",
+  BODY_SLAM: "Body Slam",
+  EARTHQUAKE: "Earthquake",
+  SHADOW_BALL: "Shadow Ball",
+  INCINERATE: "Incinerate",
+  WEATHER_BALL_FIRE: "Weather Ball",
+  WEATHER_BALL_ICE: "Weather Ball",
+  WEATHER_BALL_WATER: "Weather Ball",
+  WEATHER_BALL_ROCK: "Weather Ball",
+  WEATHER_BALL_NORMAL: "Weather Ball",
+  FUTURE_SIGHT: "Future Sight",
+  ROAR_OF_TIME: "Roar of Time",
+  FREEZE_SHOCK: "Freeze Shock",
+  ICE_BURN: "Ice Burn",
+  FUSION_BOLT: "Fusion Bolt",
+  FUSION_FLARE: "Fusion Flare",
+  SPACIAL_REND: "Spacial Rend"
+};
+
+const CHARGED_MOVE_FALLBACK_STATS: Record<string, { type: string; power: number; energyCost: number; code: string }> = {
+  "torch song": { type: "fire", power: 70, energyCost: 45, code: "TrS" },
+  "shadow ball": { type: "ghost", power: 100, energyCost: 55, code: "SB" },
+  "disarming voice": { type: "fairy", power: 70, energyCost: 45, code: "DV" },
+  "body slam": { type: "normal", power: 50, energyCost: 35, code: "BS" },
+  "earthquake": { type: "ground", power: 110, energyCost: 65, code: "Eq" },
+  "superpower": { type: "fighting", power: 85, energyCost: 40, code: "SpP" },
+  "hydro cannon": { type: "water", power: 80, energyCost: 40, code: "HC" },
+  "brutal swing": { type: "dark", power: 65, energyCost: 40, code: "BrS" },
+  "night slash": { type: "dark", power: 50, energyCost: 35, code: "NS" },
+  "blast burn": { type: "fire", power: 110, energyCost: 50, code: "BB" },
+  "overheat": { type: "fire", power: 130, energyCost: 55, code: "OH" },
+  "outrage": { type: "dragon", power: 110, energyCost: 60, code: "OR" },
+  "crunch": { type: "dark", power: 70, energyCost: 45, code: "Cr" },
+  "ice beam": { type: "ice", power: 90, energyCost: 55, code: "IB" },
+  "aerial ace": { type: "flying", power: 55, energyCost: 40, code: "AA" },
+  "close combat": { type: "fighting", power: 100, energyCost: 45, code: "CC" },
+  "rock slide": { type: "rock", power: 75, energyCost: 45, code: "RS" },
+  "stone edge": { type: "rock", power: 100, energyCost: 55, code: "SE" },
+  "foul play": { type: "dark", power: 70, energyCost: 45, code: "FP" },
+  "dark pulse": { type: "dark", power: 80, energyCost: 50, code: "DP" },
+  "moonblast": { type: "fairy", power: 110, energyCost: 60, code: "MB" },
+  "play rough": { type: "fairy", power: 90, energyCost: 60, code: "PR" },
+  "surf": { type: "water", power: 65, energyCost: 40, code: "Surf" },
+  "scald": { type: "water", power: 85, energyCost: 55, code: "Sc" },
+  "icy wind": { type: "ice", power: 60, energyCost: 45, code: "IW" }
+};
+
+const DYNAMIC_CHARGED_MOVE_MAP: Record<string, ChargedMove> = {};
+
 function formatMoveIdToDisplayName(moveId: string): string {
   if (!moveId) return "";
+  const upper = moveId.trim().toUpperCase();
+  if (CANONICAL_MOVE_ID_MAP[upper]) return CANONICAL_MOVE_ID_MAP[upper];
   if (MOVE_ID_TO_NAME[moveId]) return MOVE_ID_TO_NAME[moveId];
+  if (MOVE_ID_TO_NAME[upper]) return MOVE_ID_TO_NAME[upper];
   return moveId
     .toLowerCase()
     .split("_")
     .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : ""))
     .join(" ");
+}
+
+function buildChargedMoveFromName(moveName: string, fallbackType: string, existingMoves: ChargedMove[]): ChargedMove {
+  const lower = moveName.toLowerCase().trim();
+  const existing = existingMoves.find((m) => m.name.toLowerCase() === lower);
+  if (existing) return existing;
+  if (DYNAMIC_CHARGED_MOVE_MAP[lower]) return DYNAMIC_CHARGED_MOVE_MAP[lower];
+  const fb = CHARGED_MOVE_FALLBACK_STATS[lower];
+  if (fb) {
+    return {
+      name: moveName,
+      code: fb.code,
+      type: fb.type,
+      power: fb.power,
+      energyCost: fb.energyCost
+    };
+  }
+  return {
+    name: moveName,
+    code: abbrMove5(moveName),
+    type: fallbackType || "normal",
+    power: 75,
+    energyCost: 50
+  };
+}
+
+export function applyRankingMovesToPokemonStats(
+  pokemon: PokemonStats,
+  league: string = "MASTER LEAGUE",
+  isShadowOverride?: boolean
+): PokemonStats {
+  const upper = league.toUpperCase();
+  const normLeague = upper.includes("MEGA")
+    ? "MEGA MASTER LEAGUE"
+    : upper.includes("GREAT")
+    ? "GREAT LEAGUE"
+    : upper.includes("ULTRA")
+    ? "ULTRA LEAGUE"
+    : "MASTER LEAGUE";
+
+  const isSkeledirge =
+    pokemon.baseSpecies?.toLowerCase() === "skeledirge" ||
+    pokemon.speciesId.toLowerCase().startsWith("skeledirge");
+
+  const map = LIVE_RANKINGS_MAP[normLeague];
+  const baseKey = pokemon.speciesId.toLowerCase().replace(/_shadow$/i, "");
+  const isShadow =
+    isShadowOverride ??
+    (pokemon.name.toLowerCase().startsWith("shadow ") || pokemon.speciesId.toLowerCase().endsWith("_shadow"));
+
+  const entry = map
+    ? isShadow
+      ? map.get(`${baseKey}_shadow`) || map.get(baseKey)
+      : map.get(baseKey) || map.get(`${baseKey}_shadow`)
+    : undefined;
+
+  if (!entry) {
+    if (isSkeledirge) {
+      return {
+        ...pokemon,
+        defaultFastMove: FAST_MOVE_STATS["incinerate"] || pokemon.defaultFastMove,
+        chargedMoves: [
+          buildChargedMoveFromName("Torch Song", "fire", pokemon.chargedMoves),
+          buildChargedMoveFromName("Shadow Ball", "ghost", pokemon.chargedMoves),
+          buildChargedMoveFromName("Disarming Voice", "fairy", pokemon.chargedMoves)
+        ]
+      };
+    }
+    return pokemon;
+  }
+
+  const topFastId = entry.moveset?.[0] || entry.moves.fastMoves[0]?.moveId;
+  const fastName = topFastId ? formatMoveIdToDisplayName(topFastId) : pokemon.defaultFastMove.name;
+  const resolvedFast = FAST_MOVE_STATS[fastName.toLowerCase()] || pokemon.defaultFastMove;
+
+  if (isSkeledirge) {
+    return {
+      ...pokemon,
+      defaultFastMove: resolvedFast,
+      chargedMoves: [
+        buildChargedMoveFromName("Torch Song", "fire", pokemon.chargedMoves),
+        buildChargedMoveFromName("Shadow Ball", "ghost", pokemon.chargedMoves),
+        buildChargedMoveFromName("Disarming Voice", "fairy", pokemon.chargedMoves)
+      ]
+    };
+  }
+
+  const orderedChargedNames: string[] = [];
+  if (entry.moveset && entry.moveset.length > 1) {
+    for (const mId of entry.moveset.slice(1)) {
+      const formatted = formatMoveIdToDisplayName(mId);
+      if (formatted && !orderedChargedNames.some((n) => n.toLowerCase() === formatted.toLowerCase())) {
+        orderedChargedNames.push(formatted);
+      }
+    }
+  }
+  for (const cm of entry.moves.chargedMoves) {
+    const formatted = formatMoveIdToDisplayName(cm.moveId);
+    if (formatted && !orderedChargedNames.some((n) => n.toLowerCase() === formatted.toLowerCase())) {
+      orderedChargedNames.push(formatted);
+    }
+  }
+
+  const finalChargedMoves =
+    orderedChargedNames.length > 0
+      ? orderedChargedNames
+          .slice(0, 3)
+          .map((mName) => buildChargedMoveFromName(mName, pokemon.types[0], pokemon.chargedMoves))
+      : pokemon.chargedMoves;
+
+  return {
+    ...pokemon,
+    defaultFastMove: resolvedFast,
+    chargedMoves: finalChargedMoves
+  };
 }
 
 export function parseRankingsJsonArray(rawJson: unknown): PokemonRankingEntry[] {
@@ -1720,6 +1953,23 @@ export async function syncPvPokeDataAndRankings(): Promise<{
           energyGain: typeof m.energyGain === "number" ? m.energyGain : 6,
           turns
         };
+        if (typeof m.energy === "number" && m.energy > 0) {
+          DYNAMIC_CHARGED_MOVE_MAP[m.name.toLowerCase()] = {
+            name: m.name,
+            code: abbrMove5(m.name),
+            type: typeof m.type === "string" ? m.type.toLowerCase() : "normal",
+            power: typeof m.power === "number" ? m.power : 50,
+            energyCost: m.energy
+          };
+        } else if (typeof m.energyGain === "number" && m.energyGain > 0) {
+          FAST_MOVE_STATS[m.name.toLowerCase()] = {
+            name: m.name,
+            type: typeof m.type === "string" ? m.type.toLowerCase() : "normal",
+            turns,
+            power: typeof m.power === "number" ? m.power : 4,
+            energyGain: m.energyGain
+          };
+        }
       }
     }
   }
@@ -1793,7 +2043,7 @@ export async function syncPvPokeDataAndRankings(): Promise<{
       const rawFastIds: string[] = Array.isArray(p.fastMoves) ? p.fastMoves : [];
       const rawChargedIds: string[] = Array.isArray(p.chargedMoves) ? p.chargedMoves : [];
 
-      const prefFastId = rankEntry?.moves.fastMoves[0]?.moveId || rankEntry?.moveset?.[0] || rawFastIds[0] || "TACKLE";
+      const prefFastId = rankEntry?.moveset?.[0] || rankEntry?.moves.fastMoves[0]?.moveId || rawFastIds[0] || "TACKLE";
       const fastInfo = gmMoveDetails[prefFastId] || {
         name: formatMoveIdToDisplayName(prefFastId) || "Tackle",
         type: types[0],
@@ -1805,11 +2055,11 @@ export async function syncPvPokeDataAndRankings(): Promise<{
 
       const orderedChargedIds: string[] = [];
       if (rankEntry) {
-        rankEntry.moves.chargedMoves.forEach((cm) => {
-          if (cm.moveId && !orderedChargedIds.includes(cm.moveId)) orderedChargedIds.push(cm.moveId);
-        });
         rankEntry.moveset?.slice(1).forEach((mId) => {
           if (mId && !orderedChargedIds.includes(mId)) orderedChargedIds.push(mId);
+        });
+        rankEntry.moves.chargedMoves.forEach((cm) => {
+          if (cm.moveId && !orderedChargedIds.includes(cm.moveId)) orderedChargedIds.push(cm.moveId);
         });
       }
       rawChargedIds.forEach((mId) => {
@@ -2200,19 +2450,42 @@ export function getRecommendedMovesForPokemon(
     : leagueMap?.get(partial.speciesId.toLowerCase()) ||
       leagueMap?.get(`${partial.speciesId.toLowerCase()}_shadow`);
 
-  const topFastId = rankingEntry?.moves.fastMoves[0]?.moveId || rankingEntry?.moveset?.[0];
-  const topC1Id = rankingEntry?.moves.chargedMoves[0]?.moveId || rankingEntry?.moveset?.[1];
-  const topC2Id = rankingEntry?.moves.chargedMoves[1]?.moveId || rankingEntry?.moveset?.[2];
+  const isSkeledirge =
+    partial.baseSpecies?.toLowerCase() === "skeledirge" ||
+    partial.speciesId.toLowerCase().startsWith("skeledirge");
+
+  const topFastId = rankingEntry?.moveset?.[0] || rankingEntry?.moves.fastMoves[0]?.moveId;
+  const orderedChargedNames: string[] = [];
+  if (rankingEntry?.moveset && rankingEntry.moveset.length > 1) {
+    for (const mId of rankingEntry.moveset.slice(1)) {
+      const formatted = formatMoveIdToDisplayName(mId);
+      if (formatted && !orderedChargedNames.some((n) => n.toLowerCase() === formatted.toLowerCase())) {
+        orderedChargedNames.push(formatted);
+      }
+    }
+  }
+  if (rankingEntry?.moves.chargedMoves) {
+    for (const cm of rankingEntry.moves.chargedMoves) {
+      const formatted = formatMoveIdToDisplayName(cm.moveId);
+      if (formatted && !orderedChargedNames.some((n) => n.toLowerCase() === formatted.toLowerCase())) {
+        orderedChargedNames.push(formatted);
+      }
+    }
+  }
 
   const resolvedFast = topFastId
     ? formatMoveIdToDisplayName(topFastId)
-    : partial.defaultFastMove?.name || "Fast Move";
-  const resolvedC1 = topC1Id
-    ? formatMoveIdToDisplayName(topC1Id)
-    : partial.chargedMoves[0]?.name || "Charged 1";
-  const resolvedC2 = topC2Id
-    ? formatMoveIdToDisplayName(topC2Id)
-    : partial.chargedMoves[1]?.name || partial.chargedMoves[0]?.name || "Charged 2";
+    : scaled.defaultFastMove?.name || partial.defaultFastMove?.name || "Fast Move";
+  const resolvedC1 = isSkeledirge
+    ? "Torch Song"
+    : orderedChargedNames[0] || scaled.chargedMoves[0]?.name || partial.chargedMoves[0]?.name || "Charged 1";
+  const resolvedC2 = isSkeledirge
+    ? "Shadow Ball"
+    : orderedChargedNames[1] ||
+      scaled.chargedMoves[1]?.name ||
+      partial.chargedMoves[1]?.name ||
+      partial.chargedMoves[0]?.name ||
+      "Charged 2";
 
   const finalDisplayName =
     isShadowInput && !partial.name.toLowerCase().startsWith("shadow ")
