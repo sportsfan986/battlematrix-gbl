@@ -1226,75 +1226,97 @@ class OverlayService : LifecycleService() {
             }
         }
 
+        private fun com.google.gson.JsonObject.optString(key: String): String? =
+            get(key)?.takeIf { !it.isJsonNull && it.isJsonPrimitive }?.let { runCatching { it.asString }.getOrNull() }
+
+        private fun com.google.gson.JsonObject.optInt(key: String): Int? =
+            get(key)?.takeIf { !it.isJsonNull && it.isJsonPrimitive }?.let { runCatching { it.asDouble.toInt() }.getOrNull() }
+
+        private fun com.google.gson.JsonObject.optDouble(key: String): Double? =
+            get(key)?.takeIf { !it.isJsonNull && it.isJsonPrimitive }?.let { runCatching { it.asDouble }.getOrNull() }
+
+        private fun com.google.gson.JsonObject.optJsonArray(key: String): com.google.gson.JsonArray? =
+            get(key)?.takeIf { !it.isJsonNull && it.isJsonArray }?.asJsonArray
+
+        private fun com.google.gson.JsonObject.optJsonObject(key: String): com.google.gson.JsonObject? =
+            get(key)?.takeIf { !it.isJsonNull && it.isJsonObject }?.asJsonObject
+
         fun parseRankingsJsonStatic(leagueKey: String, jsonStr: String): Int {
             return try {
                 val arr = JsonParser.parseString(jsonStr).asJsonArray
                 val leagueMap = java.util.concurrent.ConcurrentHashMap<String, PokemonRankingEntry>()
                 for (el in arr) {
-                    if (!el.isJsonObject) continue
-                    val obj = el.asJsonObject
-                    val speciesId = obj.get("speciesId")?.asString ?: continue
-                    val score = obj.get("score")?.asDouble ?: 80.0
-                    val movesObj = obj.getAsJsonObject("moves")
+                    try {
+                        if (!el.isJsonObject) continue
+                        val obj = el.asJsonObject
+                        val speciesId = obj.optString("speciesId")?.takeIf { it.isNotBlank() } ?: continue
+                        val score = obj.optDouble("score") ?: 80.0
+                        val movesObj = obj.optJsonObject("moves")
 
-                    val fastList = mutableListOf<MoveUsage>()
-                    val rawFast = movesObj?.getAsJsonArray("fastMoves")
-                    if (rawFast != null) {
-                        for (fm in rawFast) {
-                            if (!fm.isJsonObject) continue
-                            val fmObj = fm.asJsonObject
-                            val mId = fmObj.get("moveId")?.asString ?: continue
-                            val uses = fmObj.get("uses")?.asInt
-                            fastList.add(MoveUsage(mId, uses))
-                        }
-                    }
-                    fastList.sortByDescending { it.uses ?: 0 }
-
-                    val chargedList = mutableListOf<MoveUsage>()
-                    val rawCharged = movesObj?.getAsJsonArray("chargedMoves")
-                    if (rawCharged != null) {
-                        for (cm in rawCharged) {
-                            if (!cm.isJsonObject) continue
-                            val cmObj = cm.asJsonObject
-                            val mId = cmObj.get("moveId")?.asString ?: continue
-                            val uses = cmObj.get("uses")?.asInt
-                            chargedList.add(MoveUsage(mId, uses))
-                        }
-                    }
-                    chargedList.sortByDescending { it.uses ?: 0 }
-
-                    val movesetList = mutableListOf<String>()
-                    val movesetArr = obj.getAsJsonArray("moveset")
-                    if (movesetArr != null && movesetArr.size() > 0) {
-                        for (i in 0 until movesetArr.size()) {
-                            val msId = movesetArr.get(i)?.asString
-                            if (!msId.isNullOrBlank()) movesetList.add(msId)
-                        }
-                        if (fastList.isEmpty() && movesetList.isNotEmpty()) {
-                            fastList.add(MoveUsage(movesetList[0], 100))
-                        }
-                        if (chargedList.isEmpty() && movesetList.size > 1) {
-                            for (i in 1 until movesetList.size) {
-                                chargedList.add(MoveUsage(movesetList[i], 100 - i))
+                        val fastList = mutableListOf<MoveUsage>()
+                        val rawFast = movesObj?.optJsonArray("fastMoves")
+                        if (rawFast != null) {
+                            for (fm in rawFast) {
+                                if (!fm.isJsonObject) continue
+                                val fmObj = fm.asJsonObject
+                                val mId = fmObj.optString("moveId")?.takeIf { it.isNotBlank() } ?: continue
+                                val uses = fmObj.optInt("uses")
+                                fastList.add(MoveUsage(mId, uses))
                             }
                         }
-                    }
+                        fastList.sortByDescending { it.uses ?: 0 }
 
-                    val moveCountList = mutableListOf<Int>()
-                    val mcArr = obj.getAsJsonArray("moveCount")
-                    if (mcArr != null) {
-                        for (mc in mcArr) {
-                            moveCountList.add(mc.asInt)
+                        val chargedList = mutableListOf<MoveUsage>()
+                        val rawCharged = movesObj?.optJsonArray("chargedMoves")
+                        if (rawCharged != null) {
+                            for (cm in rawCharged) {
+                                if (!cm.isJsonObject) continue
+                                val cmObj = cm.asJsonObject
+                                val mId = cmObj.optString("moveId")?.takeIf { it.isNotBlank() } ?: continue
+                                val uses = cmObj.optInt("uses")
+                                chargedList.add(MoveUsage(mId, uses))
+                            }
                         }
-                    }
+                        chargedList.sortByDescending { it.uses ?: 0 }
 
-                    leagueMap[speciesId.lowercase()] = PokemonRankingEntry(
-                        speciesId = speciesId,
-                        score = score,
-                        moves = RankingMoves(fastMoves = fastList, chargedMoves = chargedList),
-                        moveCount = moveCountList.takeIf { it.isNotEmpty() },
-                        moveset = movesetList.takeIf { it.isNotEmpty() }
-                    )
+                        val movesetList = mutableListOf<String>()
+                        val movesetArr = obj.optJsonArray("moveset")
+                        if (movesetArr != null && movesetArr.size() > 0) {
+                            for (i in 0 until movesetArr.size()) {
+                                val msEl = movesetArr.get(i)
+                                val msId = if (msEl != null && !msEl.isJsonNull && msEl.isJsonPrimitive) msEl.asString else null
+                                if (!msId.isNullOrBlank()) movesetList.add(msId)
+                            }
+                            if (fastList.isEmpty() && movesetList.isNotEmpty()) {
+                                fastList.add(MoveUsage(movesetList[0], 100))
+                            }
+                            if (chargedList.isEmpty() && movesetList.size > 1) {
+                                for (i in 1 until movesetList.size) {
+                                    chargedList.add(MoveUsage(movesetList[i], 100 - i))
+                                }
+                            }
+                        }
+
+                        val moveCountList = mutableListOf<Int>()
+                        val mcArr = obj.optJsonArray("moveCount")
+                        if (mcArr != null) {
+                            for (mc in mcArr) {
+                                if (mc != null && !mc.isJsonNull && mc.isJsonPrimitive) {
+                                    runCatching { mc.asDouble.toInt() }.getOrNull()?.let { moveCountList.add(it) }
+                                }
+                            }
+                        }
+
+                        leagueMap[speciesId.lowercase()] = PokemonRankingEntry(
+                            speciesId = speciesId,
+                            score = score,
+                            moves = RankingMoves(fastMoves = fastList, chargedMoves = chargedList),
+                            moveCount = moveCountList.takeIf { it.isNotEmpty() },
+                            moveset = movesetList.takeIf { it.isNotEmpty() }
+                        )
+                    } catch (_: Exception) {
+                        // Skip individual malformed entry without aborting league parsing
+                    }
                 }
                 LIVE_RANKINGS_MAP[leagueKey.uppercase()] = leagueMap
                 leagueMap.size
@@ -1641,162 +1663,178 @@ class OverlayService : LifecycleService() {
         fun parseGamemasterJsonStatic(jsonStr: String) {
             try {
                 val root = JsonParser.parseString(jsonStr).asJsonObject
-                val movesArr: JsonArray? = root.getAsJsonArray("moves")
+                val movesArr: JsonArray? = root.optJsonArray("moves")
                 val fastMoveNames = HashMap<String, String>()
                 if (movesArr != null) {
                     for (el in movesArr) {
-                        val obj = el.asJsonObject
-                        val moveId = obj.get("moveId")?.asString ?: continue
-                        val rawName = obj.get("name")?.asString ?: moveId
-                        val name = CANONICAL_MOVE_ID_MAP[moveId.uppercase()] ?: rawName
-                        val type = obj.get("type")?.asString?.lowercase() ?: "normal"
-                        val power = obj.get("power")?.asInt ?: 50
-                        val energyGain = obj.get("energyGain")?.asInt ?: 0
-                        val energyCost = obj.get("energy")?.asInt ?: 50
-                        val turns = ((obj.get("cooldown")?.asInt ?: 1000) / 500).coerceIn(1, 5)
-                        DYNAMIC_MOVE_ID_TO_NAME[moveId] = name
-                        if (energyGain > 0) {
-                            fastMoveNames[moveId] = name
-                            DYNAMIC_FAST_TURNS[name.lowercase()] = turns
-                            DYNAMIC_FAST_TURNS[moveId.lowercase()] = turns
-                            DYNAMIC_FAST_ENERGY[name.lowercase()] = energyGain
-                            DYNAMIC_FAST_ENERGY[moveId.lowercase()] = energyGain
-                        } else {
-                            DYNAMIC_MOVE_DATABASE[name] = MoveStats(name, type, power, energyCost)
-                        }
+                        try {
+                            if (!el.isJsonObject) continue
+                            val obj = el.asJsonObject
+                            val moveId = obj.optString("moveId")?.takeIf { it.isNotBlank() } ?: continue
+                            val rawName = obj.optString("name")?.takeIf { it.isNotBlank() } ?: moveId
+                            val name = CANONICAL_MOVE_ID_MAP[moveId.uppercase()] ?: rawName
+                            val type = obj.optString("type")?.lowercase() ?: "normal"
+                            val power = obj.optInt("power") ?: 50
+                            val energyGain = obj.optInt("energyGain") ?: 0
+                            val energyCost = obj.optInt("energy") ?: 50
+                            val turns = ((obj.optInt("cooldown") ?: 1000) / 500).coerceIn(1, 5)
+                            DYNAMIC_MOVE_ID_TO_NAME[moveId] = name
+                            if (energyGain > 0) {
+                                fastMoveNames[moveId] = name
+                                DYNAMIC_FAST_TURNS[name.lowercase()] = turns
+                                DYNAMIC_FAST_TURNS[moveId.lowercase()] = turns
+                                DYNAMIC_FAST_ENERGY[name.lowercase()] = energyGain
+                                DYNAMIC_FAST_ENERGY[moveId.lowercase()] = energyGain
+                            } else {
+                                DYNAMIC_MOVE_DATABASE[name] = MoveStats(name, type, power, energyCost)
+                            }
+                        } catch (_: Exception) {}
                     }
                 }
 
-                val pokemonArr: JsonArray? = root.getAsJsonArray("pokemon")
+                val pokemonArr: JsonArray? = root.optJsonArray("pokemon")
                 if (pokemonArr != null) {
                     val existingIds = POKEMON_META_DATABASE.map { it.speciesId.lowercase() }.toSet()
                     val parsedList = mutableListOf<PokemonMeta>()
                     for (el in pokemonArr) {
-                        val obj = el.asJsonObject
-                        val speciesId = obj.get("speciesId")?.asString ?: continue
-                        if (existingIds.contains(speciesId.lowercase())) continue
+                        try {
+                            if (!el.isJsonObject) continue
+                            val obj = el.asJsonObject
+                            val speciesId = obj.optString("speciesId")?.takeIf { it.isNotBlank() } ?: continue
+                            if (existingIds.contains(speciesId.lowercase())) continue
 
-                        val rawSpeciesName = obj.get("speciesName")?.asString ?: continue
-                        val speciesName = if (rawSpeciesName.endsWith(" (Shadow)")) {
-                            "Shadow " + rawSpeciesName.removeSuffix(" (Shadow)").trim()
-                        } else {
-                            rawSpeciesName
-                        }
-                        val baseSpecies = speciesName.lowercase()
-                            .replace(Regex("\\(.*?\\)"), " ")
-                            .replace(Regex("\\b(?:shadow|purified|alolan|galarian|hisuian|paldean|mega|primal)\\b"), " ")
-                            .replace(Regex("\\s+"), " ")
-                            .trim()
-                            .let { if (it.startsWith("tapu ")) it else it.split(" ").firstOrNull() ?: speciesName.lowercase() }
-
-                        val formLabel = Regex("\\((.*?)\\)").find(rawSpeciesName)?.groupValues?.getOrNull(1)
-                            ?: if (speciesName.startsWith("Mega ", ignoreCase = true)) "Mega"
-                            else if (speciesName.startsWith("Primal ", ignoreCase = true)) "Primal"
-                            else "Base"
-
-                        val typesArr = obj.getAsJsonArray("types")
-                        val types = mutableListOf<String>()
-                        if (typesArr != null) {
-                            for (t in typesArr) {
-                                val ts = t.asString
-                                if (ts != "none") types.add(ts.lowercase())
+                            val rawSpeciesName = obj.optString("speciesName")?.takeIf { it.isNotBlank() } ?: continue
+                            val speciesName = if (rawSpeciesName.endsWith(" (Shadow)")) {
+                                "Shadow " + rawSpeciesName.removeSuffix(" (Shadow)").trim()
+                            } else {
+                                rawSpeciesName
                             }
-                        }
-                        if (types.isEmpty()) types.add("normal")
+                            val baseSpecies = speciesName.lowercase()
+                                .replace(Regex("\\(.*?\\)"), " ")
+                                .replace(Regex("\\b(?:shadow|purified|alolan|galarian|hisuian|paldean|mega|primal)\\b"), " ")
+                                .replace(Regex("\\s+"), " ")
+                                .trim()
+                                .let { if (it.startsWith("tapu ")) it else it.split(" ").firstOrNull() ?: speciesName.lowercase() }
 
-                        val baseStats = obj.getAsJsonObject("baseStats")
-                        val atk = baseStats?.get("atk")?.asDouble ?: 180.0
-                        val def = baseStats?.get("def")?.asDouble ?: 170.0
-                        val hp = baseStats?.get("hp")?.asInt ?: 160
+                            val formLabel = Regex("\\((.*?)\\)").find(rawSpeciesName)?.groupValues?.getOrNull(1)
+                                ?: if (speciesName.startsWith("Mega ", ignoreCase = true)) "Mega"
+                                else if (speciesName.startsWith("Primal ", ignoreCase = true)) "Primal"
+                                else "Base"
 
-                        var defaultIvsGl = "1/15/15"
-                        var defaultIvsUl = "1/15/15"
-                        val defaultIvsObj = obj.getAsJsonObject("defaultIVs")
-                        if (defaultIvsObj != null) {
-                            val cp1500 = defaultIvsObj.getAsJsonArray("cp1500")
-                            if (cp1500 != null && cp1500.size() >= 4) {
-                                defaultIvsGl = "${cp1500.get(1).asInt}/${cp1500.get(2).asInt}/${cp1500.get(3).asInt}"
-                            }
-                            val cp2500 = defaultIvsObj.getAsJsonArray("cp2500")
-                            if (cp2500 != null && cp2500.size() >= 4) {
-                                defaultIvsUl = "${cp2500.get(1).asInt}/${cp2500.get(2).asInt}/${cp2500.get(3).asInt}"
-                            }
-                        }
-
-                        val rankEntry = LIVE_RANKINGS_MAP["GREAT LEAGUE"]?.get(speciesId.lowercase())
-                            ?: LIVE_RANKINGS_MAP["ULTRA LEAGUE"]?.get(speciesId.lowercase())
-                            ?: LIVE_RANKINGS_MAP["MASTER LEAGUE"]?.get(speciesId.lowercase())
-                            ?: LIVE_RANKINGS_MAP["MEGA MASTER LEAGUE"]?.get(speciesId.lowercase())
-
-                        val fastMovesArr = obj.getAsJsonArray("fastMoves")
-                        val firstFastId = rankEntry?.moveset?.getOrNull(0)?.takeIf { it.isNotBlank() }
-                            ?: rankEntry?.moves?.fastMoves?.firstOrNull()?.moveId
-                            ?: if (fastMovesArr != null && fastMovesArr.size() > 0) fastMovesArr.get(0).asString else "TACKLE"
-                        val fastMoveName = fastMoveNames[firstFastId]
-                            ?: formatMoveIdDisplay(firstFastId)
-                        val fastTurns = DYNAMIC_FAST_TURNS[fastMoveName.lowercase()]
-                            ?: FAST_MOVE_TURNS[fastMoveName.lowercase()] ?: 2
-
-                        val chargedArr = obj.getAsJsonArray("chargedMoves")
-                        val eliteArr = obj.getAsJsonArray("eliteMoves")
-                        val orderedChargedIds = mutableListOf<String>()
-                        rankEntry?.moveset?.drop(1)?.forEach { msId ->
-                            if (msId.isNotBlank() && !orderedChargedIds.contains(msId)) {
-                                orderedChargedIds.add(msId)
-                            }
-                        }
-                        rankEntry?.moves?.chargedMoves?.forEach { cm ->
-                            if (cm.moveId.isNotBlank() && !orderedChargedIds.contains(cm.moveId)) {
-                                orderedChargedIds.add(cm.moveId)
-                            }
-                        }
-                        if (eliteArr != null) {
-                            for (em in eliteArr) {
-                                val emId = em.asString
-                                if (!fastMoveNames.containsKey(emId) && !orderedChargedIds.contains(emId)) {
-                                    orderedChargedIds.add(emId)
+                            val typesArr = obj.optJsonArray("types")
+                            val types = mutableListOf<String>()
+                            if (typesArr != null) {
+                                for (t in typesArr) {
+                                    if (t != null && !t.isJsonNull && t.isJsonPrimitive) {
+                                        val ts = t.asString
+                                        if (ts != "none") types.add(ts.lowercase())
+                                    }
                                 }
                             }
-                        }
-                        if (chargedArr != null) {
-                            for (cm in chargedArr) {
-                                val cmId = cm.asString
-                                if (!orderedChargedIds.contains(cmId)) {
-                                    orderedChargedIds.add(cmId)
+                            if (types.isEmpty()) types.add("normal")
+
+                            val baseStats = obj.optJsonObject("baseStats")
+                            val atk = baseStats?.optDouble("atk") ?: 180.0
+                            val def = baseStats?.optDouble("def") ?: 170.0
+                            val hp = baseStats?.optInt("hp") ?: 160
+
+                            var defaultIvsGl = "1/15/15"
+                            var defaultIvsUl = "1/15/15"
+                            val defaultIvsObj = obj.optJsonObject("defaultIVs")
+                            if (defaultIvsObj != null) {
+                                val cp1500 = defaultIvsObj.optJsonArray("cp1500")
+                                if (cp1500 != null && cp1500.size() >= 4) {
+                                    runCatching {
+                                        defaultIvsGl = "${cp1500.get(1).asDouble.toInt()}/${cp1500.get(2).asDouble.toInt()}/${cp1500.get(3).asDouble.toInt()}"
+                                    }
+                                }
+                                val cp2500 = defaultIvsObj.optJsonArray("cp2500")
+                                if (cp2500 != null && cp2500.size() >= 4) {
+                                    runCatching {
+                                        defaultIvsUl = "${cp2500.get(1).asDouble.toInt()}/${cp2500.get(2).asDouble.toInt()}/${cp2500.get(3).asDouble.toInt()}"
+                                    }
                                 }
                             }
-                        }
 
-                        val c1Id = orderedChargedIds.getOrNull(0) ?: "BODY_SLAM"
-                        val c2Id = orderedChargedIds.getOrNull(1) ?: c1Id
-                        val c3Id = orderedChargedIds.getOrNull(2) ?: ""
-                        val c4Id = orderedChargedIds.getOrNull(3) ?: ""
-                        val c1Name = formatMoveIdDisplay(c1Id)
-                        val c2Name = formatMoveIdDisplay(c2Id)
-                        val c3Name = if (c3Id.isNotBlank()) formatMoveIdDisplay(c3Id) else ""
-                        val c4Name = if (c4Id.isNotBlank()) formatMoveIdDisplay(c4Id) else ""
+                            val rankEntry = LIVE_RANKINGS_MAP["GREAT LEAGUE"]?.get(speciesId.lowercase())
+                                ?: LIVE_RANKINGS_MAP["ULTRA LEAGUE"]?.get(speciesId.lowercase())
+                                ?: LIVE_RANKINGS_MAP["MASTER LEAGUE"]?.get(speciesId.lowercase())
+                                ?: LIVE_RANKINGS_MAP["MEGA MASTER LEAGUE"]?.get(speciesId.lowercase())
 
-                        val baseMeta = PokemonMeta(
-                            name = speciesName,
-                            speciesId = speciesId,
-                            baseSpecies = baseSpecies,
-                            formLabel = formLabel,
-                            types = types,
-                            defaultCp = 2500,
-                            defaultFastMove = fastMoveName,
-                            fastTurns = fastTurns,
-                            chargedMove1 = c1Name,
-                            chargedMove2 = c2Name,
-                            atk = atk,
-                            def = def,
-                            hp = hp,
-                            chargedMove3 = c3Name,
-                            chargedMove4 = c4Name,
-                            isRawBaseStats = true,
-                            defaultIvsGl = defaultIvsGl,
-                            defaultIvsUl = defaultIvsUl
-                        )
-                        parsedList.add(applyRecommendedMoves(baseMeta))
+                            val fastMovesArr = obj.optJsonArray("fastMoves")
+                            val firstFastId = rankEntry?.moveset?.getOrNull(0)?.takeIf { it.isNotBlank() }
+                                ?: rankEntry?.moves?.fastMoves?.firstOrNull()?.moveId
+                                ?: if (fastMovesArr != null && fastMovesArr.size() > 0 && !fastMovesArr.get(0).isJsonNull) fastMovesArr.get(0).asString else "TACKLE"
+                            val fastMoveName = fastMoveNames[firstFastId]
+                                ?: formatMoveIdDisplay(firstFastId)
+                            val fastTurns = DYNAMIC_FAST_TURNS[fastMoveName.lowercase()]
+                                ?: FAST_MOVE_TURNS[fastMoveName.lowercase()] ?: 2
+
+                            val chargedArr = obj.optJsonArray("chargedMoves")
+                            val eliteArr = obj.optJsonArray("eliteMoves")
+                            val orderedChargedIds = mutableListOf<String>()
+                            rankEntry?.moveset?.drop(1)?.forEach { msId ->
+                                if (msId.isNotBlank() && !orderedChargedIds.contains(msId)) {
+                                    orderedChargedIds.add(msId)
+                                }
+                            }
+                            rankEntry?.moves?.chargedMoves?.forEach { cm ->
+                                if (cm.moveId.isNotBlank() && !orderedChargedIds.contains(cm.moveId)) {
+                                    orderedChargedIds.add(cm.moveId)
+                                }
+                            }
+                            if (eliteArr != null) {
+                                for (em in eliteArr) {
+                                    if (em != null && !em.isJsonNull && em.isJsonPrimitive) {
+                                        val emId = em.asString
+                                        if (!fastMoveNames.containsKey(emId) && !orderedChargedIds.contains(emId)) {
+                                            orderedChargedIds.add(emId)
+                                        }
+                                    }
+                                }
+                            }
+                            if (chargedArr != null) {
+                                for (cm in chargedArr) {
+                                    if (cm != null && !cm.isJsonNull && cm.isJsonPrimitive) {
+                                        val cmId = cm.asString
+                                        if (!orderedChargedIds.contains(cmId)) {
+                                            orderedChargedIds.add(cmId)
+                                        }
+                                    }
+                                }
+                            }
+
+                            val c1Id = orderedChargedIds.getOrNull(0) ?: "BODY_SLAM"
+                            val c2Id = orderedChargedIds.getOrNull(1) ?: c1Id
+                            val c3Id = orderedChargedIds.getOrNull(2) ?: ""
+                            val c4Id = orderedChargedIds.getOrNull(3) ?: ""
+                            val c1Name = formatMoveIdDisplay(c1Id)
+                            val c2Name = formatMoveIdDisplay(c2Id)
+                            val c3Name = if (c3Id.isNotBlank()) formatMoveIdDisplay(c3Id) else ""
+                            val c4Name = if (c4Id.isNotBlank()) formatMoveIdDisplay(c4Id) else ""
+
+                            val baseMeta = PokemonMeta(
+                                name = speciesName,
+                                speciesId = speciesId,
+                                baseSpecies = baseSpecies,
+                                formLabel = formLabel,
+                                types = types,
+                                defaultCp = 2500,
+                                defaultFastMove = fastMoveName,
+                                fastTurns = fastTurns,
+                                chargedMove1 = c1Name,
+                                chargedMove2 = c2Name,
+                                atk = atk,
+                                def = def,
+                                hp = hp,
+                                chargedMove3 = c3Name,
+                                chargedMove4 = c4Name,
+                                isRawBaseStats = true,
+                                defaultIvsGl = defaultIvsGl,
+                                defaultIvsUl = defaultIvsUl
+                            )
+                            parsedList.add(applyRecommendedMoves(baseMeta))
+                        } catch (_: Exception) {}
                     }
                     DYNAMIC_POKEMON_DATABASE.clear()
                     DYNAMIC_POKEMON_DATABASE.addAll(parsedList)
