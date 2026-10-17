@@ -899,10 +899,21 @@ class MainActivity : AppCompatActivity() {
             dbStatusText.text = "PvPoke Database & Rankings: Cached (${sizeKb} KB offline ready)"
             lifecycleScope.launch(Dispatchers.IO) {
                 try {
-                    for ((leagueKey, fileName, _) in RANKINGS_ENDPOINTS) {
+                    for ((leagueKey, fileName, url) in RANKINGS_ENDPOINTS) {
                         val rFile = File(filesDir, fileName)
                         if (rFile.exists() && rFile.length() > 200) {
                             OverlayService.parseRankingsJsonStatic(leagueKey, rFile.readText())
+                        } else {
+                            try {
+                                val rReq = Request.Builder().url(url).build()
+                                client.newCall(rReq).execute().use { rResp ->
+                                    val rBody = rResp.body?.string()
+                                    if (rResp.isSuccessful && !rBody.isNullOrBlank()) {
+                                        rFile.writeText(rBody)
+                                        OverlayService.parseRankingsJsonStatic(leagueKey, rBody)
+                                    }
+                                }
+                            } catch (_: Exception) {}
                         }
                     }
                     OverlayService.parseGamemasterJsonStatic(cacheFile.readText())
@@ -910,6 +921,7 @@ class MainActivity : AppCompatActivity() {
             }
         } else {
             dbStatusText.text = "PvPoke Database: Not cached (tap Download to sync)"
+            downloadPvPokeGamemaster()
         }
     }
 

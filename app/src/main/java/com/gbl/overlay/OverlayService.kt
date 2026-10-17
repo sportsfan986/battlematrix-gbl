@@ -137,8 +137,12 @@ class OverlayService : LifecycleService() {
             "rillaboom" to Triple("Drum Beating", "Earth Power", "Frenzy Plant"),
             "Tinkaton" to Triple("Gigaton Hammer", "Bulldoze", "Brutal Swing"),
             "tinkaton" to Triple("Gigaton Hammer", "Bulldoze", "Brutal Swing"),
-            "Kanto Ninetales" to Triple("Weather Ball", "Energy Ball", "Overheat"),
-            "ninetales" to Triple("Weather Ball", "Energy Ball", "Overheat"),
+            "Kanto Ninetales" to Triple("Weather Ball (Fire)", "Energy Ball", "Psyshock"),
+            "ninetales" to Triple("Weather Ball (Fire)", "Energy Ball", "Psyshock"),
+            "Ninetales (Alolan)" to Triple("Weather Ball (Ice)", "Chilling Water", "Psyshock"),
+            "Alolan Ninetales" to Triple("Weather Ball (Ice)", "Chilling Water", "Psyshock"),
+            "ninetales_alolan" to Triple("Weather Ball (Ice)", "Chilling Water", "Psyshock"),
+            "ninetales_alolan_shadow" to Triple("Weather Ball (Ice)", "Chilling Water", "Psyshock"),
             "Corviknight" to Triple("Air Cutter", "Iron Head", "Sky Attack"),
             "corviknight" to Triple("Air Cutter", "Iron Head", "Sky Attack"),
             "Lugia" to Triple("Aeroblast", "Earth Power", "Hydro Pump"),
@@ -271,9 +275,15 @@ class OverlayService : LifecycleService() {
         )
 
         fun applyRecommendedMoves(meta: PokemonMeta): PokemonMeta {
+            val cleanSpeciesId = meta.speciesId.lowercase().removeSuffix("_shadow")
+            val isBaseForm = cleanSpeciesId == meta.baseSpecies.lowercase() &&
+                (meta.formLabel.equals("Base", ignoreCase = true) ||
+                    meta.formLabel.equals("Kanto", ignoreCase = true) ||
+                    meta.formLabel.equals("Shadow", ignoreCase = true))
             val rec = RECOMMENDED_CHARGED_MOVES[meta.name]
-                ?: RECOMMENDED_CHARGED_MOVES[meta.baseSpecies.lowercase()]
                 ?: RECOMMENDED_CHARGED_MOVES[meta.speciesId.lowercase()]
+                ?: RECOMMENDED_CHARGED_MOVES[cleanSpeciesId]
+                ?: if (isBaseForm) RECOMMENDED_CHARGED_MOVES[meta.baseSpecies.lowercase()] else null
             return if (rec != null) {
                 meta.copy(
                     chargedMove1 = rec.first,
@@ -499,8 +509,13 @@ class OverlayService : LifecycleService() {
             "Glaciate" to MoveStats("Glaciate", "ice", 60),
             "Disarming Voice" to MoveStats("Disarming Voice", "fairy", 70),
             "Hydro Cannon" to MoveStats("Hydro Cannon", "water", 80),
-            "Weather Ball" to MoveStats("Weather Ball", "ice", 55),
-            "Dazzling Gleam" to MoveStats("Dazzling Gleam", "fairy", 100),
+            "Weather Ball" to MoveStats("Weather Ball", "ice", 55, 35),
+            "Weather Ball (Ice)" to MoveStats("Weather Ball (Ice)", "ice", 55, 35),
+            "Weather Ball (Fire)" to MoveStats("Weather Ball (Fire)", "fire", 55, 35),
+            "Weather Ball (Water)" to MoveStats("Weather Ball (Water)", "water", 55, 35),
+            "Weather Ball (Rock)" to MoveStats("Weather Ball (Rock)", "rock", 55, 35),
+            "Chilling Water" to MoveStats("Chilling Water", "water", 60, 45),
+            "Dazzling Gleam" to MoveStats("Dazzling Gleam", "fairy", 100, 70),
             "Scorching Sands" to MoveStats("Scorching Sands", "ground", 80),
             "Psycho Boost" to MoveStats("Psycho Boost", "psychic", 70),
             "Thunderbolt" to MoveStats("Thunderbolt", "electric", 90),
@@ -652,8 +667,8 @@ class OverlayService : LifecycleService() {
             PokemonMeta("Keldeo (Ordinary)", "keldeo_ordinary", "keldeo", "Ordinary", listOf("water", "fighting"), 4181, "Low Kick", 2, "Sacred Sword", "Aqua Jet", 38, 38, atk = 234.0, def = 171.0, hp = 188, glRank = 150, ulRank = 70, mlRank = 19, chargedMove3 = "Hydro Pump"),
             PokemonMeta("Giratina (Origin)", "giratina_origin", "giratina", "Origin", listOf("ghost", "dragon"), 4164, "Shadow Claw", 2, "Shadow Ball", "Ominous Wind", 46, 22, atk = 206.0, def = 172.0, hp = 247, glRank = 180, ulRank = 35, mlRank = 9),
             PokemonMeta("Giratina (Altered)", "giratina_altered", "giratina", "Altered", listOf("ghost", "dragon"), 3820, "Shadow Claw", 2, "Dragon Claw", "Ancient Power", 28, 26, atk = 171.0, def = 206.0, hp = 247, glRank = 190, ulRank = 3, mlRank = 26),
-            PokemonMeta("Ninetales (Alolan)", "ninetales_alolan", "ninetales", "Alolan", listOf("ice", "fairy"), 2610, "Powder Snow", 2, "Weather Ball", "Dazzling Gleam", 34, 46, atk = 116.0, def = 138.0, hp = 126, glRank = 16, ulRank = 32, mlRank = 320),
-            PokemonMeta("Kanto Ninetales", "ninetales", "ninetales", "Kanto", listOf("fire"), 1498, "Ember", 2, "Weather Ball", "Energy Ball", 34, 44, atk = 115.0, def = 138.0, hp = 127, glRank = 58, ulRank = 88, mlRank = 350, chargedMove3 = "Overheat"),
+            PokemonMeta("Ninetales (Alolan)", "ninetales_alolan", "ninetales", "Alolan", listOf("ice", "fairy"), 2610, "Powder Snow", 2, "Weather Ball (Ice)", "Chilling Water", 34, 46, atk = 116.0, def = 138.0, hp = 126, glRank = 16, ulRank = 25, mlRank = 320, chargedMove3 = "Psyshock"),
+            PokemonMeta("Kanto Ninetales", "ninetales", "ninetales", "Kanto", listOf("fire"), 1498, "Ember", 2, "Weather Ball (Fire)", "Energy Ball", 34, 44, atk = 115.0, def = 138.0, hp = 127, glRank = 58, ulRank = 34, mlRank = 350, chargedMove3 = "Psyshock"),
             PokemonMeta("Deoxys (Defense)", "deoxys_defense", "deoxys", "Defense", listOf("psychic"), 2570, "Counter", 2, "Psycho Boost", "Thunderbolt", 36, 44, atk = 102.0, def = 228.0, hp = 98, glRank = 24, ulRank = 48, mlRank = 390),
             PokemonMeta("Deoxys (Normal)", "deoxys_normal", "deoxys", "Normal", listOf("psychic"), 3573, "Counter", 2, "Psycho Boost", "Thunderbolt", 48, 56, atk = 240.0, def = 86.0, hp = 98, glRank = 650, ulRank = 600, mlRank = 450),
             PokemonMeta("Dialga (Origin)", "dialga_origin", "dialga", "Origin", listOf("steel", "dragon"), 4624, "Dragon Breath", 1, "Roar of Time", "Iron Head", 52, 34, atk = 241.0, def = 204.0, hp = 184, glRank = 350, ulRank = 240, mlRank = 3),
@@ -948,6 +963,11 @@ class OverlayService : LifecycleService() {
             "Disarming Voice" to 45,
             "Hydro Cannon" to 40,
             "Weather Ball" to 35,
+            "Weather Ball (Ice)" to 35,
+            "Weather Ball (Fire)" to 35,
+            "Weather Ball (Water)" to 35,
+            "Weather Ball (Rock)" to 35,
+            "Chilling Water" to 45,
             "Dazzling Gleam" to 70,
             "Scorching Sands" to 50,
             "Psycho Boost" to 35,
@@ -1041,8 +1061,12 @@ class OverlayService : LifecycleService() {
             fun getVariantsForSpecies(speciesOrName: String, activeLeague: String): List<PokemonMeta> {
                 val base = extractBaseSpecies(speciesOrName)
                 val variants = getAllPokemonMeta()
-                    .filter { it.baseSpecies.equals(base, ignoreCase = true) }
-                    .distinctBy { it.name.lowercase() }
+                    .filter {
+                        it.baseSpecies.equals(base, ignoreCase = true) &&
+                            !it.speciesId.endsWith("_shadow", ignoreCase = true) &&
+                            !it.name.startsWith("Shadow ", ignoreCase = true)
+                    }
+                    .distinctBy { it.speciesId.lowercase() }
                 if (variants.isEmpty()) return emptyList()
 
                 return variants.sortedBy { meta ->
@@ -1057,12 +1081,12 @@ class OverlayService : LifecycleService() {
             fun resolveBestDefaultVariant(detectedMeta: PokemonMeta, rawText: String, activeLeague: String): PokemonMeta {
                 val lowerRaw = rawText.lowercase()
                 val variants = getVariantsForSpecies(detectedMeta.baseSpecies, activeLeague)
-                if (variants.size <= 1) return detectedMeta
+                if (variants.size <= 1) return variants.firstOrNull() ?: detectedMeta
 
-                // Check if OCR explicitly read a form keyword
+                // Check if OCR explicitly read a form keyword (ignoring "base" and "shadow")
                 for (variant in variants) {
                     val labelLower = variant.formLabel.lowercase()
-                    if (labelLower != "base" && lowerRaw.contains(labelLower)) {
+                    if (labelLower != "base" && labelLower != "shadow" && lowerRaw.contains(labelLower)) {
                         return variant
                     }
                 }
@@ -1137,11 +1161,12 @@ class OverlayService : LifecycleService() {
             "EARTHQUAKE" to "Earthquake",
             "SHADOW_BALL" to "Shadow Ball",
             "INCINERATE" to "Incinerate",
-            "WEATHER_BALL_FIRE" to "Weather Ball",
-            "WEATHER_BALL_ICE" to "Weather Ball",
-            "WEATHER_BALL_WATER" to "Weather Ball",
-            "WEATHER_BALL_ROCK" to "Weather Ball",
+            "WEATHER_BALL_FIRE" to "Weather Ball (Fire)",
+            "WEATHER_BALL_ICE" to "Weather Ball (Ice)",
+            "WEATHER_BALL_WATER" to "Weather Ball (Water)",
+            "WEATHER_BALL_ROCK" to "Weather Ball (Rock)",
             "WEATHER_BALL_NORMAL" to "Weather Ball",
+            "CHILLING_WATER" to "Chilling Water",
             "FUTURE_SIGHT" to "Future Sight",
             "ROAR_OF_TIME" to "Roar of Time",
             "FREEZE_SHOCK" to "Freeze Shock",
@@ -1581,7 +1606,8 @@ class OverlayService : LifecycleService() {
                     for (el in movesArr) {
                         val obj = el.asJsonObject
                         val moveId = obj.get("moveId")?.asString ?: continue
-                        val name = obj.get("name")?.asString ?: moveId
+                        val rawName = obj.get("name")?.asString ?: moveId
+                        val name = CANONICAL_MOVE_ID_MAP[moveId.uppercase()] ?: rawName
                         val type = obj.get("type")?.asString?.lowercase() ?: "normal"
                         val power = obj.get("power")?.asInt ?: 50
                         val energyGain = obj.get("energyGain")?.asInt ?: 0
@@ -2037,6 +2063,9 @@ class OverlayService : LifecycleService() {
                     intent?.getParcelableExtra(EXTRA_RESULT_DATA)
                 }
 
+                if (LIVE_RANKINGS_MAP.isEmpty()) {
+                    loadOrFetchGamemasterInBackground()
+                }
                 if (resultCode != 0 && resultData != null) {
                     initMediaProjection(resultCode, resultData)
                     startBattleOcrLoop()
@@ -2842,28 +2871,42 @@ class OverlayService : LifecycleService() {
             manualShadowOverrides[base.lowercase()] == true ||
             (name.equals(activeOpponentName, ignoreCase = true) && isOpponentShadow))
 
+        // Normalize prefix regional forms like "Alolan Ninetales" -> "Ninetales (Alolan)"
+        val regionalMatch = Regex("^(Alolan|Galarian|Hisuian|Paldean)\\s+(.+)$", RegexOption.IGNORE_CASE).find(cleanNoShadow)
+        val normalizedParenName = if (regionalMatch != null) {
+            "${regionalMatch.groupValues[2].trim()} (${regionalMatch.groupValues[1].replaceFirstChar { it.uppercase() }})"
+        } else {
+            cleanNoShadow
+        }
+
         val allMeta = getAllPokemonMeta()
         val exact = allMeta.find {
             it.name.equals(name, ignoreCase = true) ||
-                it.name.equals(cleanNoShadow, ignoreCase = true)
+                it.name.equals(cleanNoShadow, ignoreCase = true) ||
+                it.name.equals(normalizedParenName, ignoreCase = true) ||
+                it.speciesId.equals(cleanNoShadow.replace(" ", "_"), ignoreCase = true)
         }
         val found = if (exact != null) {
             exact
         } else {
             val variants = FormResolver.getVariantsForSpecies(base, activeLeague)
-            variants.firstOrNull() ?: PokemonMeta(
-                name = name,
-                speciesId = base,
-                baseSpecies = base,
-                formLabel = "Base",
-                types = listOf("normal"),
-                defaultCp = 2500,
-                defaultFastMove = "Fast Attack",
-                fastTurns = 2,
-                chargedMove1 = "Charged Move 1",
-                chargedMove2 = "Charged Move 2",
-                c1Dmg = 35,
-                c2Dmg = 45
+            FormResolver.resolveBestDefaultVariant(
+                variants.firstOrNull() ?: PokemonMeta(
+                    name = name,
+                    speciesId = base,
+                    baseSpecies = base,
+                    formLabel = "Base",
+                    types = listOf("normal"),
+                    defaultCp = 2500,
+                    defaultFastMove = "Fast Attack",
+                    fastTurns = 2,
+                    chargedMove1 = "Charged Move 1",
+                    chargedMove2 = "Charged Move 2",
+                    c1Dmg = 35,
+                    c2Dmg = 45
+                ),
+                cleanNoShadow,
+                activeLeague
             )
         }
         return applyRankingMovesForLeague(applyRecommendedMoves(found), activeLeague, isShadow)
@@ -3100,7 +3143,8 @@ class OverlayService : LifecycleService() {
         "Rage Fist" to "RgF",
         "Aura Wheel" to "AuW",
         "Torch Song" to "TrS",
-        "Super Power" to "SpP"
+        "Super Power" to "SpP",
+        "Chilling Water" to "ChW"
     )
 
     private val fastMovePowerMap = mapOf(
