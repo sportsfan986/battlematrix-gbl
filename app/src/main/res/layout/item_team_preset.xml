@@ -8,6 +8,18 @@
     android:padding="12dp"
     android:layout_marginBottom="8dp">
 
+    <TextView
+        android:id="@+id/drag_handle_preset"
+        android:layout_width="24dp"
+        android:layout_height="36dp"
+        android:gravity="center"
+        android:text="⋮⋮"
+        android:textColor="#64748b"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:layout_marginEnd="6dp"
+        android:contentDescription="Hold and drag to rearrange team order" />
+
     <RadioButton
         android:id="@+id/radio_selected"
         android:layout_width="wrap_content"
@@ -59,17 +71,46 @@
             android:id="@+id/text_preset_pokemon"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Kanto Ninetales (1498) • Fearow (1500) • Shadow Pidgeot (1490)"
+            android:text="Clodsire (1494) • Feraligatr (1498) • Mandibuzz (1496)"
             android:textColor="#cbd5e1"
             android:textSize="11.5sp"
             android:layout_marginTop="3dp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_marginStart="4dp">
+
+        <TextView
+            android:id="@+id/btn_move_preset_up"
+            android:layout_width="24dp"
+            android:layout_height="20dp"
+            android:gravity="center"
+            android:text="▲"
+            android:textSize="10sp"
+            android:textColor="#94a3b8"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Move Preset Up" />
+
+        <TextView
+            android:id="@+id/btn_move_preset_down"
+            android:layout_width="24dp"
+            android:layout_height="20dp"
+            android:gravity="center"
+            android:text="▼"
+            android:textSize="10sp"
+            android:textColor="#94a3b8"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Move Preset Down" />
     </LinearLayout>
 
     <ImageButton
         android:id="@+id/btn_edit_preset"
         android:layout_width="32dp"
         android:layout_height="32dp"
-        android:layout_marginStart="4dp"
+        android:layout_marginStart="2dp"
         android:src="@android:drawable/ic_menu_edit"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:contentDescription="Edit Team &amp; Moves" />

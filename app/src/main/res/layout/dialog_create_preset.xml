@@ -40,7 +40,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Tip: Leave Moves or IVs blank to auto-fill PvPoke recommended moves &amp; default IVs."
+            android:text="Tip: Type a base Pokémon name to open the autocomplete dropdown with Base, Shadow, and Alternate Forms, auto-filling PvPoke recommended moves!"
             android:textSize="11sp"
             android:textColor="#64748b"
             android:layout_marginBottom="10dp" />
@@ -59,13 +59,16 @@
             android:layout_height="wrap_content"
             android:orientation="horizontal">
 
-            <EditText
+            <AutoCompleteTextView
                 android:id="@+id/edit_p1_name"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1.8"
+                android:completionThreshold="1"
+                android:dropDownWidth="280dp"
+                android:inputType="textCapWords"
                 android:textSize="13sp"
-                android:hint="Name (e.g. Clodsire)" />
+                android:hint="Name (e.g. Giratina, Clodsire)" />
 
             <EditText
                 android:id="@+id/edit_p1_cp"
@@ -131,13 +134,16 @@
             android:layout_height="wrap_content"
             android:orientation="horizontal">
 
-            <EditText
+            <AutoCompleteTextView
                 android:id="@+id/edit_p2_name"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1.8"
+                android:completionThreshold="1"
+                android:dropDownWidth="280dp"
+                android:inputType="textCapWords"
                 android:textSize="13sp"
-                android:hint="Name (e.g. Feraligatr)" />
+                android:hint="Name (e.g. Feraligatr, Ninetales)" />
 
             <EditText
                 android:id="@+id/edit_p2_cp"
@@ -203,13 +209,16 @@
             android:layout_height="wrap_content"
             android:orientation="horizontal">
 
-            <EditText
+            <AutoCompleteTextView
                 android:id="@+id/edit_p3_name"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1.8"
+                android:completionThreshold="1"
+                android:dropDownWidth="280dp"
+                android:inputType="textCapWords"
                 android:textSize="13sp"
-                android:hint="Name (e.g. Mandibuzz)" />
+                android:hint="Name (e.g. Zacian, Mandibuzz)" />
 
             <EditText
                 android:id="@+id/edit_p3_cp"

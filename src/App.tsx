@@ -20,13 +20,18 @@ import {
   Sparkles,
   Info,
   ChevronDown,
-  Swords
+  Swords,
+  GripVertical,
+  RefreshCw,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import {
   POKEMON_DATABASE,
   INITIAL_PRESETS,
   TeamPreset,
   TeamMember,
+  LeagueType,
   calculateTurnAlignment,
   calculateFastDamage,
   calculateChargedDamage,
@@ -41,7 +46,10 @@ import {
   TopOpponentInfo,
   computeEffectiveStatsForLeague,
   getRecommendedMovesForPokemon,
-  getLeagueTop3Template
+  getLeagueTop3Template,
+  syncPvPokeDataAndRankings,
+  getPokemonAutocompleteSuggestions,
+  PokemonAutocompleteOption
 } from './data/gblData';
 import { ANDROID_FILES, downloadAndroidProjectZip, AndroidProjectFile } from './data/androidFiles';
 
@@ -111,9 +119,20 @@ export default function App() {
   // Navigation tabs
   const [activeTab, setActiveTab] = useState<'simulator' | 'presets' | 'turn_matrix' | 'android_code'>('simulator');
 
-  // Overlay Mode: Option 1 (Top-Left Sky Trench) vs Option 2 (Bottom Horizon Belt)
-  const [layoutMode, setLayoutMode] = useState<'option1' | 'option2'>('option1');
+  // Floating Overlay Visibility
   const [isOverlayVisible, setIsOverlayVisible] = useState(true);
+
+  // PvPoke Gamemaster + League Rankings Sync State
+  const [isSyncingPvPoke, setIsSyncingPvPoke] = useState(false);
+  const [pvPokeSyncStatus, setPvPokeSyncStatus] = useState<string>('Rankings Ready (GL/UL/ML/Mega)');
+
+  // Drag-and-drop state for rearranging Team Presets
+  const [draggedPresetIndex, setDraggedPresetIndex] = useState<number | null>(null);
+  const [dragOverPresetIndex, setDragOverPresetIndex] = useState<number | null>(null);
+
+  // Autocomplete pop-down state for Team Builder UI slots (1, 2, 3)
+  const [activeAutocompleteSlot, setActiveAutocompleteSlot] = useState<1 | 2 | 3 | null>(null);
+  const [autocompleteHighlightIdx, setAutocompleteHighlightIdx] = useState<number>(0);
 
   // App Setting (Not in Overlay): Opponent Fast Move Count Basis ("my_fasts" default vs "opp_fasts")
   const [oppCountMode, setOppCountMode] = useState<OppCountMode>(() => {
@@ -260,13 +279,68 @@ export default function App() {
   const [scannedOpponents, setScannedOpponents] = useState<string[]>(['Zacian (Crowned)', 'Yveltal', 'Entei']);
   const [isWaitingOpponent, setIsWaitingOpponent] = useState<boolean>(false);
   const [showOpponentPicker, setShowOpponentPicker] = useState<boolean>(false);
-  const [selectedOpponentLeague, setSelectedOpponentLeague] = useState<'AUTO' | 'MASTER LEAGUE' | 'ULTRA LEAGUE' | 'GREAT LEAGUE'>('AUTO');
+  const [selectedOpponentLeague, setSelectedOpponentLeague] = useState<'AUTO' | LeagueType>('AUTO');
+
+  // Auto-sync PvPoke gamemaster.json + 4 league rankings JSONs on startup
+  useEffect(() => {
+    let mounted = true;
+    syncPvPokeDataAndRankings()
+      .then((res) => {
+        if (!mounted) return;
+        const totalRanked =
+          (res.rankingsCount['GREAT LEAGUE'] || 0) +
+          (res.rankingsCount['ULTRA LEAGUE'] || 0) +
+          (res.rankingsCount['MASTER LEAGUE'] || 0) +
+          (res.rankingsCount['MEGA MASTER LEAGUE'] || 0);
+        if (totalRanked > 0) {
+          setPvPokeSyncStatus(`PvPoke Synced (${res.syncedCount} Pokémon • ${totalRanked} Rankings)`);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const handleManualPvPokeSync = async () => {
+    setIsSyncingPvPoke(true);
+    setPvPokeSyncStatus('Syncing gamemaster + GL/UL/ML/Mega rankings...');
+    try {
+      const res = await syncPvPokeDataAndRankings();
+      const totalRanked =
+        (res.rankingsCount['GREAT LEAGUE'] || 0) +
+        (res.rankingsCount['ULTRA LEAGUE'] || 0) +
+        (res.rankingsCount['MASTER LEAGUE'] || 0) +
+        (res.rankingsCount['MEGA MASTER LEAGUE'] || 0);
+      setPvPokeSyncStatus(
+        totalRanked > 0
+          ? `Synced ${res.syncedCount} species & ${totalRanked} league rankings!`
+          : `Loaded ${res.syncedCount} species (offline fallback)`
+      );
+    } catch {
+      setPvPokeSyncStatus('Sync failed — using cached rankings');
+    } finally {
+      setIsSyncingPvPoke(false);
+    }
+  };
+
+  const handleMovePreset = (fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0 || fromIndex >= presets.length || toIndex >= presets.length) {
+      return;
+    }
+    setPresets((prev) => {
+      const updated = [...prev];
+      const [moved] = updated.splice(fromIndex, 1);
+      updated.splice(toIndex, 0, moved);
+      return updated;
+    });
+  };
 
   // Preset Create / Edit Dialog State
   const [isNewPresetOpen, setIsNewPresetOpen] = useState(false);
   const [editingPresetId, setEditingPresetId] = useState<string | null>(null);
   const [newPresetName, setNewPresetName] = useState('');
-  const [newPresetLeague, setNewPresetLeague] = useState<'MASTER LEAGUE' | 'ULTRA LEAGUE' | 'GREAT LEAGUE'>('GREAT LEAGUE');
+  const [newPresetLeague, setNewPresetLeague] = useState<LeagueType>('GREAT LEAGUE');
   const [p1Name, setP1Name] = useState('Clodsire');
   const [p1Cp, setP1Cp] = useState(1494);
   const [p1Ivs, setP1Ivs] = useState('');
@@ -558,7 +632,7 @@ export default function App() {
     setOppEnergy(prev => Math.min(100, prev + (activeOpponent.defaultFastMove.energyGain || 8)));
   };
 
-  const applyLeagueTop3TemplateToForm = (league: 'MASTER LEAGUE' | 'ULTRA LEAGUE' | 'GREAT LEAGUE') => {
+  const applyLeagueTop3TemplateToForm = (league: LeagueType) => {
     const top3 = getLeagueTop3Template(league);
     setP1Name(top3[0].name);
     setP1Cp(top3[0].cp);
@@ -585,7 +659,7 @@ export default function App() {
   const handleAutoFillSlotMoves = (
     slotIdx: 1 | 2 | 3,
     rawName: string,
-    league: 'MASTER LEAGUE' | 'ULTRA LEAGUE' | 'GREAT LEAGUE',
+    league: LeagueType,
     customIvs?: string
   ) => {
     const rec = getRecommendedMovesForPokemon(rawName, league, customIvs);
@@ -607,6 +681,50 @@ export default function App() {
       if (!p3Cp || p3Cp <= 0) setP3Cp(rec.cp);
     }
   };
+
+  const handleSelectAutocompletePokemon = (slotIdx: 1 | 2 | 3, opt: PokemonAutocompleteOption) => {
+    const customIvs = slotIdx === 1 ? p1Ivs : slotIdx === 2 ? p2Ivs : p3Ivs;
+    const rec = getRecommendedMovesForPokemon(opt.name, newPresetLeague, customIvs);
+    const fast = rec?.fastMove || opt.fastMove;
+    const c1 = rec?.chargedMove1 || opt.chargedMove1;
+    const c2 = rec?.chargedMove2 || opt.chargedMove2;
+    const cp = rec?.cp || opt.cp;
+
+    if (slotIdx === 1) {
+      setP1Name(opt.name);
+      setP1Fast(fast);
+      setP1C1(c1);
+      setP1C2(c2);
+      setP1Cp(cp);
+    } else if (slotIdx === 2) {
+      setP2Name(opt.name);
+      setP2Fast(fast);
+      setP2C1(c1);
+      setP2C2(c2);
+      setP2Cp(cp);
+    } else {
+      setP3Name(opt.name);
+      setP3Fast(fast);
+      setP3C1(c1);
+      setP3C2(c2);
+      setP3Cp(cp);
+    }
+    setActiveAutocompleteSlot(null);
+    setAutocompleteHighlightIdx(0);
+  };
+
+  const slot1Suggestions = useMemo(
+    () => (activeAutocompleteSlot === 1 ? getPokemonAutocompleteSuggestions(p1Name, newPresetLeague, 18) : []),
+    [activeAutocompleteSlot, p1Name, newPresetLeague]
+  );
+  const slot2Suggestions = useMemo(
+    () => (activeAutocompleteSlot === 2 ? getPokemonAutocompleteSuggestions(p2Name, newPresetLeague, 18) : []),
+    [activeAutocompleteSlot, p2Name, newPresetLeague]
+  );
+  const slot3Suggestions = useMemo(
+    () => (activeAutocompleteSlot === 3 ? getPokemonAutocompleteSuggestions(p3Name, newPresetLeague, 18) : []),
+    [activeAutocompleteSlot, p3Name, newPresetLeague]
+  );
 
   const openCreatePresetModal = () => {
     const defaultLeague = activePreset?.league || 'GREAT LEAGUE';
@@ -761,7 +879,7 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <h1 className="font-bold text-base md:text-lg tracking-tight text-white">BattleMatrix GBL</h1>
                 <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20">
-                  v1.11 • Android Native Overlay
+                  v1.20 • Android Native Overlay
                 </span>
               </div>
               <p className="text-xs text-slate-400 hidden sm:block">
@@ -848,25 +966,10 @@ export default function App() {
             <div className="lg:col-span-7 flex flex-col items-center">
               <div className="w-full flex items-center justify-between mb-3 px-1 text-xs">
                 <div className="flex items-center gap-2">
-                  <span className="font-semibold text-slate-300">Layout Mode:</span>
-                  <div className="inline-flex rounded-lg border border-slate-700 bg-slate-900 p-0.5">
-                    <button
-                      onClick={() => setLayoutMode('option1')}
-                      className={`px-2.5 py-1 rounded text-xs font-semibold transition ${
-                        layoutMode === 'option1' ? 'bg-sky-500 text-white' : 'text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      Option 1 (Sky Trench)
-                    </button>
-                    <button
-                      onClick={() => setLayoutMode('option2')}
-                      className={`px-2.5 py-1 rounded text-xs font-semibold transition ${
-                        layoutMode === 'option2' ? 'bg-sky-500 text-white' : 'text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      Option 2 (Horizon Belt)
-                    </button>
-                  </div>
+                  <span className="font-semibold text-slate-300">Overlay HUD:</span>
+                  <span className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-sky-500/20 text-sky-300 border border-sky-400/40">
+                    Sky Trench 3×3 Matrix
+                  </span>
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -1078,7 +1181,7 @@ export default function App() {
                       FLOATING OVERLAY OPTION 1: Top-Left Sky Trench
                       (Ultra-transparent, full-width header, Reset Opp, 1-per-species full names, 3-letter damage rows)
                      ========================================================================= */}
-                  {isOverlayVisible && layoutMode === 'option1' && (
+                  {isOverlayVisible && (
                     <div 
                       className={`absolute z-30 rounded-lg p-1.5 border border-white/15 shadow-lg transition-all ${
                         isDragging ? 'ring-2 ring-sky-400' : ''
@@ -1566,57 +1669,6 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* =========================================================================
-                      FLOATING OVERLAY OPTION 2: Bottom Horizon Belt Fallback
-                     ========================================================================= */}
-                  {isOverlayVisible && layoutMode === 'option2' && (
-                    <div 
-                      className="absolute bottom-[108px] left-[8px] right-[8px] z-30 rounded-lg p-2 border border-white/15 shadow-lg transition-all"
-                      style={{
-                        background: 'rgba(10, 14, 22, 0.28)',
-                        backdropFilter: 'blur(3px)',
-                        WebkitBackdropFilter: 'blur(3px)',
-                        textShadow: '0 1px 2px rgba(0, 0, 0, 0.98), 0 0 4px rgba(0, 0, 0, 0.95)'
-                      }}
-                    >
-                      <div className="flex items-center justify-between gap-1 text-[10px]">
-                        <div className="flex items-center gap-1.5 overflow-x-auto whitespace-nowrap scrollbar-none font-mono">
-                          {isWaitingOpponent || scannedOpponents.length === 0 ? (
-                            <>
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                              <strong className="text-emerald-300">[Waiting for Opponent]</strong>
-                              <span className="text-slate-300">1 Hz OCR active...</span>
-                            </>
-                          ) : (
-                            <>
-                              <strong>[{activeOpponent.name}: {oppFastInfo.telemetry}]</strong>
-                              <span className="inline-flex items-center gap-1">
-                                D:{renderTierDots('W,N,L')} | L:{renderTierDots('SL,L,L')} | K:{renderTierDots('SW,W,W')}
-                              </span>
-                            </>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1 shrink-0 ml-1">
-                          <button
-                            onClick={handleStartBattle}
-                            className="bg-red-500/35 hover:bg-red-500/50 text-red-100 text-[8.5px] font-bold px-1.5 py-0.5 rounded border border-red-400/50"
-                            title="Reset opponent"
-                          >
-                            ↺ Reset Opp
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="mt-1 pt-1 border-t border-white/10 flex items-center justify-between text-[9px] text-orange-200">
-                        <div>
-                          🎯 <strong className="text-white">THROW ON:</strong> {isWaitingOpponent || scannedOpponents.length === 0 ? '—' : turnAlignInfo.horizonText}
-                          <span className="mx-1 text-white/30">•</span>
-                          <span>{isWaitingOpponent || scannedOpponents.length === 0 ? 'Awaiting opponent...' : `💥 ${abbrPoke3(activeOpponent.name, isOpponentShadow)}→${abbrPoke3(userLeadName)}: ${abbrMoveName(oppDamageData[0]?.move.name || 'Move')} (${oppDamageData[0]?.percentage || 40}%)`}</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
                   {/* Switch Pokémon Bench Icons */}
                   <div className="absolute right-3 bottom-24 flex flex-col gap-2">
                     <button className="w-11 h-11 rounded-full bg-slate-900/80 border border-slate-700 shadow-lg flex flex-col items-center justify-center p-0.5 active:scale-95">
@@ -1813,7 +1865,7 @@ export default function App() {
                     >
                       Auto ({activePreset.league.split(' ')[0]})
                     </button>
-                    {(['MASTER LEAGUE', 'ULTRA LEAGUE', 'GREAT LEAGUE'] as const).map((lg) => (
+                    {(['MEGA MASTER LEAGUE', 'MASTER LEAGUE', 'ULTRA LEAGUE', 'GREAT LEAGUE'] as const).map((lg) => (
                       <button
                         key={lg}
                         onClick={() => setSelectedOpponentLeague(lg)}
@@ -1823,7 +1875,7 @@ export default function App() {
                             : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-slate-200'
                         }`}
                       >
-                        {lg.split(' ')[0]}
+                        {lg === 'MEGA MASTER LEAGUE' ? 'MEGA ML' : lg.split(' ')[0]}
                       </button>
                     ))}
                   </div>
@@ -1998,44 +2050,126 @@ export default function App() {
                   <span>Custom GBL Team Presets</span>
                 </h2>
                 <p className="text-xs text-slate-400 mt-1">
-                  Save, name, and manage custom 3-Pokémon battle league teams. Presets are stored locally on the device (localStorage / SharedPreferences) and instantly update the floating overlay matrix!
+                  Drag cards by the grip handle (or use ↑/↓) to rearrange team order. Type any Pokémon base name in the Team Builder to autocomplete Base, Shadow, and Alternate Forms with PvPoke rankings moves!
                 </p>
+                <div className="mt-2 flex items-center gap-2 text-[11px] text-emerald-400 font-semibold">
+                  <span>✓ {pvPokeSyncStatus}</span>
+                </div>
               </div>
-              <button
-                onClick={openCreatePresetModal}
-                className="py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-emerald-600/25 transition shrink-0"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Create New Preset</span>
-              </button>
+              <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                <button
+                  onClick={handleManualPvPokeSync}
+                  disabled={isSyncingPvPoke}
+                  className="py-2.5 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-sky-300 font-bold text-xs flex items-center gap-1.5 transition"
+                  title="Fetch latest PvPoke gamemaster.json + GL/UL/ML/Mega Master rankings JSONs"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isSyncingPvPoke ? 'animate-spin' : ''}`} />
+                  <span>{isSyncingPvPoke ? 'Syncing Rankings...' : 'Sync PvPoke + Rankings'}</span>
+                </button>
+                <button
+                  onClick={openCreatePresetModal}
+                  className="py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-emerald-600/25 transition shrink-0"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Create New Preset</span>
+                </button>
+              </div>
             </div>
 
-            {/* Presets Grid */}
+            {/* Presets Grid (Supports Drag-and-Drop Reordering) */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              {presets.map((preset) => {
+              {presets.map((preset, presetIdx) => {
                 const isSelected = preset.id === selectedPresetId;
+                const isDragged = draggedPresetIndex === presetIdx;
+                const isDragOver = dragOverPresetIndex === presetIdx && draggedPresetIndex !== presetIdx;
                 return (
                   <div
                     key={preset.id}
-                    className={`rounded-2xl p-5 border transition-all flex flex-col justify-between ${
-                      isSelected
+                    draggable
+                    onDragStart={(e) => {
+                      setDraggedPresetIndex(presetIdx);
+                      e.dataTransfer.effectAllowed = 'move';
+                      e.dataTransfer.setData('text/plain', String(presetIdx));
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'move';
+                      if (dragOverPresetIndex !== presetIdx) {
+                        setDragOverPresetIndex(presetIdx);
+                      }
+                    }}
+                    onDragLeave={() => {
+                      if (dragOverPresetIndex === presetIdx) {
+                        setDragOverPresetIndex(null);
+                      }
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const fromIdx =
+                        draggedPresetIndex !== null
+                          ? draggedPresetIndex
+                          : parseInt(e.dataTransfer.getData('text/plain'), 10);
+                      if (!Number.isNaN(fromIdx) && fromIdx !== presetIdx) {
+                        handleMovePreset(fromIdx, presetIdx);
+                      }
+                      setDraggedPresetIndex(null);
+                      setDragOverPresetIndex(null);
+                    }}
+                    onDragEnd={() => {
+                      setDraggedPresetIndex(null);
+                      setDragOverPresetIndex(null);
+                    }}
+                    className={`rounded-2xl p-5 border transition-all flex flex-col justify-between cursor-grab active:cursor-grabbing ${
+                      isDragged ? 'opacity-45 scale-[0.98]' : ''
+                    } ${
+                      isDragOver
+                        ? 'ring-2 ring-amber-400 border-amber-400 bg-slate-900'
+                        : isSelected
                         ? 'bg-gradient-to-b from-sky-950/60 to-slate-900 border-sky-400 shadow-xl shadow-sky-500/10'
                         : 'bg-slate-900/90 border-slate-800 hover:border-slate-700'
                     }`}
                   >
                     <div>
                       <div className="flex items-start justify-between gap-2 mb-2">
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase ${
-                          preset.league === 'MASTER LEAGUE'
-                            ? 'bg-purple-500/10 text-purple-300 border-purple-500/20'
-                            : preset.league === 'ULTRA LEAGUE'
-                            ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
-                            : 'bg-sky-500/15 text-sky-300 border-sky-400/30'
-                        }`}>
-                          {preset.league}
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className="text-slate-500 hover:text-slate-300 cursor-grab active:cursor-grabbing p-0.5 rounded"
+                            title="Drag to rearrange team preset order"
+                          >
+                            <GripVertical className="w-4 h-4" />
+                          </span>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase ${
+                            preset.league === 'MEGA MASTER LEAGUE'
+                              ? 'bg-fuchsia-500/15 text-fuchsia-300 border-fuchsia-500/30'
+                              : preset.league === 'MASTER LEAGUE'
+                              ? 'bg-purple-500/10 text-purple-300 border-purple-500/20'
+                              : preset.league === 'ULTRA LEAGUE'
+                              ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
+                              : 'bg-sky-500/15 text-sky-300 border-sky-400/30'
+                          }`}>
+                            {preset.league}
+                          </span>
+                        </div>
 
                         <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            disabled={presetIdx === 0}
+                            onClick={() => handleMovePreset(presetIdx, presetIdx - 1)}
+                            className="p-1 rounded bg-slate-800/80 hover:bg-slate-700 text-slate-300 disabled:opacity-30 disabled:cursor-not-allowed transition"
+                            title="Move Team Up"
+                          >
+                            <ArrowUp className="w-3 h-3" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={presetIdx === presets.length - 1}
+                            onClick={() => handleMovePreset(presetIdx, presetIdx + 1)}
+                            className="p-1 rounded bg-slate-800/80 hover:bg-slate-700 text-slate-300 disabled:opacity-30 disabled:cursor-not-allowed transition"
+                            title="Move Team Down"
+                          >
+                            <ArrowDown className="w-3 h-3" />
+                          </button>
                           {isSelected ? (
                             <span className="flex items-center gap-1 text-[11px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
                               <Check className="w-3 h-3" />
@@ -2106,7 +2240,7 @@ export default function App() {
 
                     <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs">
                       <span className="text-slate-400 text-[11px]">
-                        League: <strong className="text-slate-200">{preset.league}</strong>
+                        Order: <strong className="text-slate-200">#{presetIdx + 1}</strong> • League: <strong className="text-slate-200">{preset.league}</strong>
                       </span>
                       <button
                         onClick={() => openEditPresetModal(preset)}
@@ -2120,7 +2254,7 @@ export default function App() {
               })}
             </div>
 
-            {/* Modal Dialog for Creating or Editing Preset & Moves */}
+            {/* Modal Dialog for Creating or Editing Preset & Moves (Team Builder UI with Pop-Down Autocomplete) */}
             {isNewPresetOpen && (
               <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
                 <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl animate-in fade-in zoom-in-95 my-8">
@@ -2133,6 +2267,7 @@ export default function App() {
                       onClick={() => {
                         setIsNewPresetOpen(false);
                         setEditingPresetId(null);
+                        setActiveAutocompleteSlot(null);
                       }}
                       className="text-slate-400 hover:text-white text-lg font-bold"
                     >
@@ -2141,7 +2276,7 @@ export default function App() {
                   </div>
 
                   <p className="text-[11px] text-slate-400 mb-3">
-                    Leave moves or IVs blank to auto-fill PvPoke #1 recommended moves &amp; league-optimal IVs on name entry or save.
+                    Type a Pokémon name (e.g. <strong className="text-sky-300">Giratina</strong>, <strong className="text-sky-300">Ninetales</strong>, <strong className="text-sky-300">Feraligatr</strong>, <strong className="text-sky-300">Zacian</strong>) to open the autocomplete menu with <strong className="text-purple-300">Shadow</strong> and <strong className="text-amber-300">Alternate Form</strong> options and auto-fill PvPoke recommended moves!
                   </p>
 
                   <form onSubmit={handleCreatePreset} className="space-y-3.5">
@@ -2166,7 +2301,7 @@ export default function App() {
                         <select
                           value={newPresetLeague}
                           onChange={(e) => {
-                            const nextL = e.target.value as 'MASTER LEAGUE' | 'ULTRA LEAGUE' | 'GREAT LEAGUE';
+                            const nextL = e.target.value as LeagueType;
                             setNewPresetLeague(nextL);
                             if (!editingPresetId) {
                               applyLeagueTop3TemplateToForm(nextL);
@@ -2177,6 +2312,7 @@ export default function App() {
                           <option value="GREAT LEAGUE">GREAT LEAGUE (Max 1500 CP)</option>
                           <option value="ULTRA LEAGUE">ULTRA LEAGUE (Max 2500 CP)</option>
                           <option value="MASTER LEAGUE">MASTER LEAGUE (No CP Limit)</option>
+                          <option value="MEGA MASTER LEAGUE">MEGA MASTER LEAGUE (Megas &amp; Primals)</option>
                         </select>
                       </div>
                     </div>
@@ -2190,6 +2326,7 @@ export default function App() {
                           onClick={() => {
                             const rec = getRecommendedMovesForPokemon(p1Name, newPresetLeague, p1Ivs);
                             if (rec) {
+                              setP1Name(rec.name);
                               setP1Fast(rec.fastMove);
                               setP1C1(rec.chargedMove1);
                               setP1C2(rec.chargedMove2);
@@ -2202,25 +2339,99 @@ export default function App() {
                         </button>
                       </div>
                       <div className="grid grid-cols-4 gap-2">
-                        <input
-                          type="text"
-                          value={p1Name}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setP1Name(val);
-                            const rec = getRecommendedMovesForPokemon(val, newPresetLeague, p1Ivs);
-                            if (rec) {
-                              if (!p1Fast.trim()) setP1Fast(rec.fastMove);
-                              if (!p1C1.trim()) setP1C1(rec.chargedMove1);
-                              if (!p1C2.trim()) setP1C2(rec.chargedMove2);
-                              if (!p1Cp || p1Cp <= 0) setP1Cp(rec.cp);
-                            }
-                          }}
-                          onBlur={() => handleAutoFillSlotMoves(1, p1Name, newPresetLeague, p1Ivs)}
-                          placeholder="Name (e.g. Clodsire)"
-                          className="col-span-2 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white"
-                          required
-                        />
+                        <div className="col-span-2 relative">
+                          <input
+                            type="text"
+                            value={p1Name}
+                            onFocus={() => {
+                              setActiveAutocompleteSlot(1);
+                              setAutocompleteHighlightIdx(0);
+                            }}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setP1Name(val);
+                              setActiveAutocompleteSlot(1);
+                              setAutocompleteHighlightIdx(0);
+                              const rec = getRecommendedMovesForPokemon(val, newPresetLeague, p1Ivs);
+                              if (rec) {
+                                if (!p1Fast.trim()) setP1Fast(rec.fastMove);
+                                if (!p1C1.trim()) setP1C1(rec.chargedMove1);
+                                if (!p1C2.trim()) setP1C2(rec.chargedMove2);
+                                if (!p1Cp || p1Cp <= 0) setP1Cp(rec.cp);
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (activeAutocompleteSlot !== 1 || slot1Suggestions.length === 0) return;
+                              if (e.key === 'ArrowDown') {
+                                e.preventDefault();
+                                setAutocompleteHighlightIdx((prev) => (prev + 1) % slot1Suggestions.length);
+                              } else if (e.key === 'ArrowUp') {
+                                e.preventDefault();
+                                setAutocompleteHighlightIdx((prev) => (prev - 1 + slot1Suggestions.length) % slot1Suggestions.length);
+                              } else if (e.key === 'Enter') {
+                                const chosen = slot1Suggestions[autocompleteHighlightIdx] || slot1Suggestions[0];
+                                if (chosen) {
+                                  e.preventDefault();
+                                  handleSelectAutocompletePokemon(1, chosen);
+                                }
+                              } else if (e.key === 'Escape') {
+                                setActiveAutocompleteSlot(null);
+                              }
+                            }}
+                            onBlur={() => {
+                              setTimeout(() => {
+                                setActiveAutocompleteSlot((prev) => (prev === 1 ? null : prev));
+                              }, 180);
+                              handleAutoFillSlotMoves(1, p1Name, newPresetLeague, p1Ivs);
+                            }}
+                            placeholder="Type Pokémon (e.g. Giratina, Ninetales)"
+                            autoComplete="off"
+                            className="w-full bg-slate-900 border border-slate-700 focus:border-sky-400 focus:outline-none rounded-lg px-2.5 py-1.5 text-xs text-white"
+                            required
+                          />
+                          {activeAutocompleteSlot === 1 && slot1Suggestions.length > 0 && (
+                            <div className="absolute left-0 right-0 top-full mt-1 z-50 max-h-56 overflow-y-auto rounded-xl bg-slate-900 border border-sky-500/50 shadow-2xl divide-y divide-slate-800/80">
+                              {slot1Suggestions.map((opt, idx) => (
+                                <button
+                                  key={opt.name}
+                                  type="button"
+                                  onMouseDown={(e) => {
+                                    e.preventDefault();
+                                    handleSelectAutocompletePokemon(1, opt);
+                                  }}
+                                  className={`w-full px-2.5 py-1.5 text-left flex items-center justify-between gap-2 transition ${
+                                    idx === autocompleteHighlightIdx
+                                      ? 'bg-sky-500/25 text-white'
+                                      : 'hover:bg-slate-800/90 text-slate-200'
+                                  }`}
+                                >
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span className="font-bold text-xs text-white truncate">{opt.name}</span>
+                                      <span
+                                        className={`text-[9px] font-bold px-1.5 py-0.2 rounded border uppercase ${
+                                          opt.isShadow
+                                            ? 'bg-purple-500/25 text-purple-200 border-purple-400/50'
+                                            : opt.isAlternateForm
+                                            ? 'bg-amber-500/20 text-amber-200 border-amber-400/40'
+                                            : 'bg-slate-800 text-slate-300 border-slate-700'
+                                        }`}
+                                      >
+                                        {opt.formBadge}
+                                      </span>
+                                    </div>
+                                    <div className="text-[10px] text-slate-400 truncate">
+                                      {opt.fastMove} • {opt.chargedMove1} / {opt.chargedMove2}
+                                    </div>
+                                  </div>
+                                  <span className="text-[10px] font-mono font-bold text-sky-400 shrink-0">
+                                    CP {opt.cp}
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                         <input
                           type="number"
                           value={p1Cp || ''}
@@ -2271,6 +2482,7 @@ export default function App() {
                           onClick={() => {
                             const rec = getRecommendedMovesForPokemon(p2Name, newPresetLeague, p2Ivs);
                             if (rec) {
+                              setP2Name(rec.name);
                               setP2Fast(rec.fastMove);
                               setP2C1(rec.chargedMove1);
                               setP2C2(rec.chargedMove2);
@@ -2283,25 +2495,99 @@ export default function App() {
                         </button>
                       </div>
                       <div className="grid grid-cols-4 gap-2">
-                        <input
-                          type="text"
-                          value={p2Name}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setP2Name(val);
-                            const rec = getRecommendedMovesForPokemon(val, newPresetLeague, p2Ivs);
-                            if (rec) {
-                              if (!p2Fast.trim()) setP2Fast(rec.fastMove);
-                              if (!p2C1.trim()) setP2C1(rec.chargedMove1);
-                              if (!p2C2.trim()) setP2C2(rec.chargedMove2);
-                              if (!p2Cp || p2Cp <= 0) setP2Cp(rec.cp);
-                            }
-                          }}
-                          onBlur={() => handleAutoFillSlotMoves(2, p2Name, newPresetLeague, p2Ivs)}
-                          placeholder="Name (e.g. Feraligatr)"
-                          className="col-span-2 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white"
-                          required
-                        />
+                        <div className="col-span-2 relative">
+                          <input
+                            type="text"
+                            value={p2Name}
+                            onFocus={() => {
+                              setActiveAutocompleteSlot(2);
+                              setAutocompleteHighlightIdx(0);
+                            }}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setP2Name(val);
+                              setActiveAutocompleteSlot(2);
+                              setAutocompleteHighlightIdx(0);
+                              const rec = getRecommendedMovesForPokemon(val, newPresetLeague, p2Ivs);
+                              if (rec) {
+                                if (!p2Fast.trim()) setP2Fast(rec.fastMove);
+                                if (!p2C1.trim()) setP2C1(rec.chargedMove1);
+                                if (!p2C2.trim()) setP2C2(rec.chargedMove2);
+                                if (!p2Cp || p2Cp <= 0) setP2Cp(rec.cp);
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (activeAutocompleteSlot !== 2 || slot2Suggestions.length === 0) return;
+                              if (e.key === 'ArrowDown') {
+                                e.preventDefault();
+                                setAutocompleteHighlightIdx((prev) => (prev + 1) % slot2Suggestions.length);
+                              } else if (e.key === 'ArrowUp') {
+                                e.preventDefault();
+                                setAutocompleteHighlightIdx((prev) => (prev - 1 + slot2Suggestions.length) % slot2Suggestions.length);
+                              } else if (e.key === 'Enter') {
+                                const chosen = slot2Suggestions[autocompleteHighlightIdx] || slot2Suggestions[0];
+                                if (chosen) {
+                                  e.preventDefault();
+                                  handleSelectAutocompletePokemon(2, chosen);
+                                }
+                              } else if (e.key === 'Escape') {
+                                setActiveAutocompleteSlot(null);
+                              }
+                            }}
+                            onBlur={() => {
+                              setTimeout(() => {
+                                setActiveAutocompleteSlot((prev) => (prev === 2 ? null : prev));
+                              }, 180);
+                              handleAutoFillSlotMoves(2, p2Name, newPresetLeague, p2Ivs);
+                            }}
+                            placeholder="Type Pokémon (e.g. Feraligatr, Marowak)"
+                            autoComplete="off"
+                            className="w-full bg-slate-900 border border-slate-700 focus:border-purple-400 focus:outline-none rounded-lg px-2.5 py-1.5 text-xs text-white"
+                            required
+                          />
+                          {activeAutocompleteSlot === 2 && slot2Suggestions.length > 0 && (
+                            <div className="absolute left-0 right-0 top-full mt-1 z-50 max-h-56 overflow-y-auto rounded-xl bg-slate-900 border border-purple-500/50 shadow-2xl divide-y divide-slate-800/80">
+                              {slot2Suggestions.map((opt, idx) => (
+                                <button
+                                  key={opt.name}
+                                  type="button"
+                                  onMouseDown={(e) => {
+                                    e.preventDefault();
+                                    handleSelectAutocompletePokemon(2, opt);
+                                  }}
+                                  className={`w-full px-2.5 py-1.5 text-left flex items-center justify-between gap-2 transition ${
+                                    idx === autocompleteHighlightIdx
+                                      ? 'bg-purple-500/25 text-white'
+                                      : 'hover:bg-slate-800/90 text-slate-200'
+                                  }`}
+                                >
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span className="font-bold text-xs text-white truncate">{opt.name}</span>
+                                      <span
+                                        className={`text-[9px] font-bold px-1.5 py-0.2 rounded border uppercase ${
+                                          opt.isShadow
+                                            ? 'bg-purple-500/25 text-purple-200 border-purple-400/50'
+                                            : opt.isAlternateForm
+                                            ? 'bg-amber-500/20 text-amber-200 border-amber-400/40'
+                                            : 'bg-slate-800 text-slate-300 border-slate-700'
+                                        }`}
+                                      >
+                                        {opt.formBadge}
+                                      </span>
+                                    </div>
+                                    <div className="text-[10px] text-slate-400 truncate">
+                                      {opt.fastMove} • {opt.chargedMove1} / {opt.chargedMove2}
+                                    </div>
+                                  </div>
+                                  <span className="text-[10px] font-mono font-bold text-purple-300 shrink-0">
+                                    CP {opt.cp}
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                         <input
                           type="number"
                           value={p2Cp || ''}
@@ -2352,6 +2638,7 @@ export default function App() {
                           onClick={() => {
                             const rec = getRecommendedMovesForPokemon(p3Name, newPresetLeague, p3Ivs);
                             if (rec) {
+                              setP3Name(rec.name);
                               setP3Fast(rec.fastMove);
                               setP3C1(rec.chargedMove1);
                               setP3C2(rec.chargedMove2);
@@ -2364,25 +2651,99 @@ export default function App() {
                         </button>
                       </div>
                       <div className="grid grid-cols-4 gap-2">
-                        <input
-                          type="text"
-                          value={p3Name}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setP3Name(val);
-                            const rec = getRecommendedMovesForPokemon(val, newPresetLeague, p3Ivs);
-                            if (rec) {
-                              if (!p3Fast.trim()) setP3Fast(rec.fastMove);
-                              if (!p3C1.trim()) setP3C1(rec.chargedMove1);
-                              if (!p3C2.trim()) setP3C2(rec.chargedMove2);
-                              if (!p3Cp || p3Cp <= 0) setP3Cp(rec.cp);
-                            }
-                          }}
-                          onBlur={() => handleAutoFillSlotMoves(3, p3Name, newPresetLeague, p3Ivs)}
-                          placeholder="Name (e.g. Mandibuzz)"
-                          className="col-span-2 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white"
-                          required
-                        />
+                        <div className="col-span-2 relative">
+                          <input
+                            type="text"
+                            value={p3Name}
+                            onFocus={() => {
+                              setActiveAutocompleteSlot(3);
+                              setAutocompleteHighlightIdx(0);
+                            }}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setP3Name(val);
+                              setActiveAutocompleteSlot(3);
+                              setAutocompleteHighlightIdx(0);
+                              const rec = getRecommendedMovesForPokemon(val, newPresetLeague, p3Ivs);
+                              if (rec) {
+                                if (!p3Fast.trim()) setP3Fast(rec.fastMove);
+                                if (!p3C1.trim()) setP3C1(rec.chargedMove1);
+                                if (!p3C2.trim()) setP3C2(rec.chargedMove2);
+                                if (!p3Cp || p3Cp <= 0) setP3Cp(rec.cp);
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (activeAutocompleteSlot !== 3 || slot3Suggestions.length === 0) return;
+                              if (e.key === 'ArrowDown') {
+                                e.preventDefault();
+                                setAutocompleteHighlightIdx((prev) => (prev + 1) % slot3Suggestions.length);
+                              } else if (e.key === 'ArrowUp') {
+                                e.preventDefault();
+                                setAutocompleteHighlightIdx((prev) => (prev - 1 + slot3Suggestions.length) % slot3Suggestions.length);
+                              } else if (e.key === 'Enter') {
+                                const chosen = slot3Suggestions[autocompleteHighlightIdx] || slot3Suggestions[0];
+                                if (chosen) {
+                                  e.preventDefault();
+                                  handleSelectAutocompletePokemon(3, chosen);
+                                }
+                              } else if (e.key === 'Escape') {
+                                setActiveAutocompleteSlot(null);
+                              }
+                            }}
+                            onBlur={() => {
+                              setTimeout(() => {
+                                setActiveAutocompleteSlot((prev) => (prev === 3 ? null : prev));
+                              }, 180);
+                              handleAutoFillSlotMoves(3, p3Name, newPresetLeague, p3Ivs);
+                            }}
+                            placeholder="Type Pokémon (e.g. Zacian, Weezing)"
+                            autoComplete="off"
+                            className="w-full bg-slate-900 border border-slate-700 focus:border-amber-400 focus:outline-none rounded-lg px-2.5 py-1.5 text-xs text-white"
+                            required
+                          />
+                          {activeAutocompleteSlot === 3 && slot3Suggestions.length > 0 && (
+                            <div className="absolute left-0 right-0 top-full mt-1 z-50 max-h-56 overflow-y-auto rounded-xl bg-slate-900 border border-amber-500/50 shadow-2xl divide-y divide-slate-800/80">
+                              {slot3Suggestions.map((opt, idx) => (
+                                <button
+                                  key={opt.name}
+                                  type="button"
+                                  onMouseDown={(e) => {
+                                    e.preventDefault();
+                                    handleSelectAutocompletePokemon(3, opt);
+                                  }}
+                                  className={`w-full px-2.5 py-1.5 text-left flex items-center justify-between gap-2 transition ${
+                                    idx === autocompleteHighlightIdx
+                                      ? 'bg-amber-500/25 text-white'
+                                      : 'hover:bg-slate-800/90 text-slate-200'
+                                  }`}
+                                >
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span className="font-bold text-xs text-white truncate">{opt.name}</span>
+                                      <span
+                                        className={`text-[9px] font-bold px-1.5 py-0.2 rounded border uppercase ${
+                                          opt.isShadow
+                                            ? 'bg-purple-500/25 text-purple-200 border-purple-400/50'
+                                            : opt.isAlternateForm
+                                            ? 'bg-amber-500/20 text-amber-200 border-amber-400/40'
+                                            : 'bg-slate-800 text-slate-300 border-slate-700'
+                                        }`}
+                                      >
+                                        {opt.formBadge}
+                                      </span>
+                                    </div>
+                                    <div className="text-[10px] text-slate-400 truncate">
+                                      {opt.fastMove} • {opt.chargedMove1} / {opt.chargedMove2}
+                                    </div>
+                                  </div>
+                                  <span className="text-[10px] font-mono font-bold text-amber-300 shrink-0">
+                                    CP {opt.cp}
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                         <input
                           type="number"
                           value={p3Cp || ''}
@@ -2430,6 +2791,7 @@ export default function App() {
                         onClick={() => {
                           setIsNewPresetOpen(false);
                           setEditingPresetId(null);
+                          setActiveAutocompleteSlot(null);
                         }}
                         className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold hover:bg-slate-700"
                       >

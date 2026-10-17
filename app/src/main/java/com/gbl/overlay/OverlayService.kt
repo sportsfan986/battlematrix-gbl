@@ -1070,12 +1070,262 @@ class OverlayService : LifecycleService() {
             }
         }
 
+        data class MoveUsage(
+            val moveId: String,
+            val uses: Int? = null
+        )
+
+        data class RankingMoves(
+            val fastMoves: List<MoveUsage>,
+            val chargedMoves: List<MoveUsage>
+        )
+
+        data class PokemonRankingEntry(
+            val speciesId: String,
+            val score: Double,
+            val moves: RankingMoves,
+            val moveCount: List<Int>? = null
+        )
+
+        data class PokemonAutocompleteSuggestion(
+            val name: String,
+            val speciesId: String,
+            val baseSpecies: String,
+            val formBadge: String,
+            val cp: Int,
+            val fastMove: String,
+            val chargedMove1: String,
+            val chargedMove2: String,
+            val isShadow: Boolean,
+            val isAlternateForm: Boolean
+        )
+
+        val LIVE_RANKINGS_MAP = java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.ConcurrentHashMap<String, PokemonRankingEntry>>()
+        val DYNAMIC_MOVE_ID_TO_NAME = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+        fun formatMoveIdDisplay(moveId: String): String {
+            if (moveId.isBlank()) return ""
+            DYNAMIC_MOVE_ID_TO_NAME[moveId]?.let { return it }
+            return moveId.lowercase().split("_").joinToString(" ") { w ->
+                w.replaceFirstChar { c -> c.uppercase() }
+            }
+        }
+
+        fun parseRankingsJsonStatic(leagueKey: String, jsonStr: String): Int {
+            return try {
+                val arr = JsonParser.parseString(jsonStr).asJsonArray
+                val leagueMap = java.util.concurrent.ConcurrentHashMap<String, PokemonRankingEntry>()
+                for (el in arr) {
+                    if (!el.isJsonObject) continue
+                    val obj = el.asJsonObject
+                    val speciesId = obj.get("speciesId")?.asString ?: continue
+                    val score = obj.get("score")?.asDouble ?: 80.0
+                    val movesObj = obj.getAsJsonObject("moves")
+
+                    val fastList = mutableListOf<MoveUsage>()
+                    val rawFast = movesObj?.getAsJsonArray("fastMoves")
+                    if (rawFast != null) {
+                        for (fm in rawFast) {
+                            if (!fm.isJsonObject) continue
+                            val fmObj = fm.asJsonObject
+                            val mId = fmObj.get("moveId")?.asString ?: continue
+                            val uses = fmObj.get("uses")?.asInt
+                            fastList.add(MoveUsage(mId, uses))
+                        }
+                    }
+                    fastList.sortByDescending { it.uses ?: 0 }
+
+                    val chargedList = mutableListOf<MoveUsage>()
+                    val rawCharged = movesObj?.getAsJsonArray("chargedMoves")
+                    if (rawCharged != null) {
+                        for (cm in rawCharged) {
+                            if (!cm.isJsonObject) continue
+                            val cmObj = cm.asJsonObject
+                            val mId = cmObj.get("moveId")?.asString ?: continue
+                            val uses = cmObj.get("uses")?.asInt
+                            chargedList.add(MoveUsage(mId, uses))
+                        }
+                    }
+                    chargedList.sortByDescending { it.uses ?: 0 }
+
+                    // Fallback to moveset array if moves object is empty
+                    val movesetArr = obj.getAsJsonArray("moveset")
+                    if (movesetArr != null && movesetArr.size() > 0) {
+                        if (fastList.isEmpty()) {
+                            fastList.add(MoveUsage(movesetArr.get(0).asString, 100))
+                        }
+                        if (chargedList.isEmpty() && movesetArr.size() > 1) {
+                            for (i in 1 until movesetArr.size()) {
+                                chargedList.add(MoveUsage(movesetArr.get(i).asString, 100 - i))
+                            }
+                        }
+                    }
+
+                    val moveCountList = mutableListOf<Int>()
+                    val mcArr = obj.getAsJsonArray("moveCount")
+                    if (mcArr != null) {
+                        for (mc in mcArr) {
+                            moveCountList.add(mc.asInt)
+                        }
+                    }
+
+                    leagueMap[speciesId.lowercase()] = PokemonRankingEntry(
+                        speciesId = speciesId,
+                        score = score,
+                        moves = RankingMoves(fastMoves = fastList, chargedMoves = chargedList),
+                        moveCount = moveCountList.takeIf { it.isNotEmpty() }
+                    )
+                }
+                LIVE_RANKINGS_MAP[leagueKey.uppercase()] = leagueMap
+                leagueMap.size
+            } catch (_: Exception) {
+                0
+            }
+        }
+
+        private fun applyRankingMovesForLeague(meta: PokemonMeta, league: String, isShadow: Boolean = false): PokemonMeta {
+            val normLeague = when {
+                league.contains("MEGA", ignoreCase = true) -> "MEGA MASTER LEAGUE"
+                league.contains("GREAT", ignoreCase = true) -> "GREAT LEAGUE"
+                league.contains("ULTRA", ignoreCase = true) -> "ULTRA LEAGUE"
+                else -> "MASTER LEAGUE"
+            }
+            val map = LIVE_RANKINGS_MAP[normLeague] ?: return meta
+            val baseKey = meta.speciesId.lowercase().removeSuffix("_shadow")
+            val entry = if (isShadow || meta.name.startsWith("Shadow ", ignoreCase = true) || meta.speciesId.endsWith("_shadow", ignoreCase = true)) {
+                map["${baseKey}_shadow"] ?: map[baseKey]
+            } else {
+                map[baseKey] ?: map["${baseKey}_shadow"]
+            } ?: return meta
+
+            val topFastId = entry.moves.fastMoves.firstOrNull()?.moveId
+            val topC1Id = entry.moves.chargedMoves.getOrNull(0)?.moveId
+            val topC2Id = entry.moves.chargedMoves.getOrNull(1)?.moveId
+            val topC3Id = entry.moves.chargedMoves.getOrNull(2)?.moveId
+
+            val fastName = topFastId?.let { formatMoveIdDisplay(it) }?.takeIf { it.isNotBlank() } ?: meta.defaultFastMove
+            val fastTurns = DYNAMIC_FAST_TURNS[fastName.lowercase()] ?: FAST_MOVE_TURNS[fastName.lowercase()] ?: meta.fastTurns
+            val c1Name = topC1Id?.let { formatMoveIdDisplay(it) }?.takeIf { it.isNotBlank() } ?: meta.chargedMove1
+            val c2Name = topC2Id?.let { formatMoveIdDisplay(it) }?.takeIf { it.isNotBlank() } ?: meta.chargedMove2
+            val c3Name = topC3Id?.let { formatMoveIdDisplay(it) } ?: meta.chargedMove3
+
+            return meta.copy(
+                defaultFastMove = fastName,
+                fastTurns = fastTurns,
+                chargedMove1 = c1Name,
+                chargedMove2 = c2Name,
+                chargedMove3 = c3Name
+            )
+        }
+
         /**
-         * Resolves PvPoke recommended Fast Move, Charged Move 1, Charged Move 2, and default CP for a Pokémon name.
+         * Returns autocomplete suggestions for the Team Builder UI.
+         * When typing a base form (e.g. "giratina", "ninetales", "feraligatr", "zacian"),
+         * returns Base + all Alternate Forms + Shadow variants.
+         */
+        fun getAutocompletePokemonSuggestions(
+            rawQuery: String,
+            league: String = "GREAT LEAGUE",
+            limit: Int = 20
+        ): List<PokemonAutocompleteSuggestion> {
+            val query = rawQuery.trim().lowercase()
+            if (query.isEmpty()) return emptyList()
+
+            val isTypingShadow = query.startsWith("shadow") || query.contains(" shadow")
+            val strippedQuery = query.removePrefix("shadow").trim()
+            val searchToken = strippedQuery.ifEmpty { query }
+
+            val allMeta = getAllPokemonMeta()
+            val poolByName = LinkedHashMap<String, PokemonAutocompleteSuggestion>()
+
+            for (meta in allMeta) {
+                val isShadow = meta.name.startsWith("Shadow ", ignoreCase = true) || meta.speciesId.endsWith("_shadow", ignoreCase = true)
+                val isMegaOrPrimal = meta.name.startsWith("Mega ", ignoreCase = true) || meta.name.startsWith("Primal ", ignoreCase = true) || meta.speciesId.contains("_mega") || meta.speciesId.contains("_primal")
+                val baseKey = FormResolver.extractBaseSpecies(meta.name)
+                val rankedMeta = computeEffectiveCombatStats(applyRankingMovesForLeague(applyRecommendedMoves(meta), league, isShadow), league)
+                val badge = when {
+                    isShadow && meta.formLabel != "Base" && meta.formLabel != "Shadow" -> "Shadow • ${meta.formLabel}"
+                    isShadow -> "Shadow"
+                    isMegaOrPrimal -> if (meta.name.startsWith("Primal", ignoreCase = true)) "Primal" else "Mega"
+                    else -> meta.formLabel
+                }
+                val isAlt = badge != "Base" && badge != "Shadow"
+
+                val keyLower = meta.name.lowercase()
+                if (!poolByName.containsKey(keyLower)) {
+                    poolByName[keyLower] = PokemonAutocompleteSuggestion(
+                        name = meta.name,
+                        speciesId = meta.speciesId,
+                        baseSpecies = baseKey,
+                        formBadge = badge,
+                        cp = rankedMeta.defaultCp,
+                        fastMove = rankedMeta.defaultFastMove,
+                        chargedMove1 = rankedMeta.chargedMove1,
+                        chargedMove2 = rankedMeta.chargedMove2,
+                        isShadow = isShadow,
+                        isAlternateForm = isAlt
+                    )
+                }
+
+                // Synthesize Shadow option for eligible non-Shadow, non-Mega/Primal Pokémon
+                if (!isShadow && !isMegaOrPrimal) {
+                    val shadowName = "Shadow ${meta.name}"
+                    val shadowKey = shadowName.lowercase()
+                    if (!poolByName.containsKey(shadowKey)) {
+                        val shadowRanked = computeEffectiveCombatStats(applyRankingMovesForLeague(applyRecommendedMoves(meta), league, true), league)
+                        poolByName[shadowKey] = PokemonAutocompleteSuggestion(
+                            name = shadowName,
+                            speciesId = "${meta.speciesId}_shadow",
+                            baseSpecies = baseKey,
+                            formBadge = if (meta.formLabel != "Base") "Shadow • ${meta.formLabel}" else "Shadow",
+                            cp = shadowRanked.defaultCp,
+                            fastMove = shadowRanked.defaultFastMove,
+                            chargedMove1 = shadowRanked.chargedMove1,
+                            chargedMove2 = shadowRanked.chargedMove2,
+                            isShadow = true,
+                            isAlternateForm = isAlt
+                        )
+                    }
+                }
+            }
+
+            val matchedFamilies = HashSet<String>()
+            for (opt in poolByName.values) {
+                if (opt.baseSpecies.startsWith(searchToken) || opt.baseSpecies.contains(searchToken) || opt.name.lowercase().contains(searchToken)) {
+                    matchedFamilies.add(opt.baseSpecies)
+                }
+            }
+
+            val results = poolByName.values.filter { opt ->
+                matchedFamilies.contains(opt.baseSpecies) || opt.name.lowercase().contains(query)
+            }.sortedWith(
+                Comparator { a, b ->
+                    val aStarts = if (a.baseSpecies.startsWith(searchToken)) 0 else 1
+                    val bStarts = if (b.baseSpecies.startsWith(searchToken)) 0 else 1
+                    if (aStarts != bStarts) return@Comparator aStarts - bStarts
+                    val famCmp = a.baseSpecies.compareTo(b.baseSpecies)
+                    if (famCmp != 0) return@Comparator famCmp
+                    if (isTypingShadow) {
+                        if (a.isShadow != b.isShadow) return@Comparator if (a.isShadow) -1 else 1
+                    } else {
+                        if (a.isShadow != b.isShadow) return@Comparator if (a.isShadow) 1 else -1
+                    }
+                    if (a.isAlternateForm != b.isAlternateForm) return@Comparator if (a.isAlternateForm) 1 else -1
+                    a.name.compareTo(b.name)
+                }
+            )
+
+            return results.take(limit)
+        }
+
+        /**
+         * Resolves PvPoke recommended Fast Move, Charged Move 1, Charged Move 2, and default CP for a Pokémon name,
+         * prioritizing live rankings JSON moves when available.
          */
         fun resolveRecommendedMovesForSpecies(rawName: String, league: String = "GREAT LEAGUE"): PokemonMeta? {
             val trimmed = rawName.trim()
             if (trimmed.isEmpty()) return null
+            val isShadowInput = trimmed.startsWith("Shadow ", ignoreCase = true)
             val cleanNoShadow = trimmed.replace(Regex("^Shadow\\s+", RegexOption.IGNORE_CASE), "").trim()
             val allMeta = getAllPokemonMeta()
 
@@ -1085,21 +1335,26 @@ class OverlayService : LifecycleService() {
                     it.speciesId.equals(trimmed.replace(" ", "_"), ignoreCase = true)
             }
             if (exact != null) {
-                return computeEffectiveCombatStats(applyRecommendedMoves(exact), league)
+                val withRankMoves = applyRankingMovesForLeague(applyRecommendedMoves(exact), league, isShadowInput)
+                return computeEffectiveCombatStats(withRankMoves, league)
             }
 
             val base = FormResolver.extractBaseSpecies(cleanNoShadow)
             val variants = FormResolver.getVariantsForSpecies(base, league)
             if (variants.isNotEmpty()) {
                 val chosen = FormResolver.resolveBestDefaultVariant(variants.first(), trimmed, league)
-                return computeEffectiveCombatStats(applyRecommendedMoves(chosen), league)
+                val withRankMoves = applyRankingMovesForLeague(applyRecommendedMoves(chosen), league, isShadowInput)
+                return computeEffectiveCombatStats(withRankMoves, league)
             }
 
             val partial = allMeta.firstOrNull {
                 it.name.lowercase().contains(cleanNoShadow.lowercase()) ||
                     cleanNoShadow.lowercase().contains(it.baseSpecies.lowercase())
             }
-            return partial?.let { computeEffectiveCombatStats(applyRecommendedMoves(it), league) }
+            return partial?.let {
+                val withRankMoves = applyRankingMovesForLeague(applyRecommendedMoves(it), league, isShadowInput)
+                computeEffectiveCombatStats(withRankMoves, league)
+            }
         }
 
         /**
@@ -1144,7 +1399,7 @@ class OverlayService : LifecycleService() {
             val leagueCap = when {
                 isGreat -> 1500
                 isUltra -> 2500
-                else -> 5500
+                else -> 6000
             }
 
             val actualIvs = parseIvTriplet(customIvs, league, meta)
@@ -1232,6 +1487,7 @@ class OverlayService : LifecycleService() {
                         val energyGain = obj.get("energyGain")?.asInt ?: 0
                         val energyCost = obj.get("energy")?.asInt ?: 50
                         val turns = ((obj.get("cooldown")?.asInt ?: 1000) / 500).coerceIn(1, 5)
+                        DYNAMIC_MOVE_ID_TO_NAME[moveId] = name
                         if (energyGain > 0) {
                             fastMoveNames[moveId] = name
                             DYNAMIC_FAST_TURNS[name.lowercase()] = turns
@@ -1251,26 +1507,25 @@ class OverlayService : LifecycleService() {
                     for (el in pokemonArr) {
                         val obj = el.asJsonObject
                         val speciesId = obj.get("speciesId")?.asString ?: continue
-                        if (speciesId.contains("_mega") || speciesId.contains("_primal")) continue
                         if (existingIds.contains(speciesId.lowercase())) continue
 
-                        val speciesName = obj.get("speciesName")?.asString ?: continue
+                        val rawSpeciesName = obj.get("speciesName")?.asString ?: continue
+                        val speciesName = if (rawSpeciesName.endsWith(" (Shadow)")) {
+                            "Shadow " + rawSpeciesName.removeSuffix(" (Shadow)").trim()
+                        } else {
+                            rawSpeciesName
+                        }
                         val baseSpecies = speciesName.lowercase()
                             .replace(Regex("\\(.*?\\)"), " ")
-                            .replace(Regex("\\b(?:shadow|purified|alolan|galarian|hisuian|paldean)\\b"), " ")
+                            .replace(Regex("\\b(?:shadow|purified|alolan|galarian|hisuian|paldean|mega|primal)\\b"), " ")
                             .replace(Regex("\\s+"), " ")
                             .trim()
                             .let { if (it.startsWith("tapu ")) it else it.split(" ").firstOrNull() ?: speciesName.lowercase() }
 
-                        val formLabel = Regex("\\((.*?)\\)").find(speciesName)?.groupValues?.getOrNull(1) ?: "Base"
-
-                        val alreadyDefinedForm = POKEMON_META_DATABASE.any {
-                            it.baseSpecies.equals(baseSpecies, ignoreCase = true) &&
-                                (it.formLabel.equals(formLabel, ignoreCase = true) ||
-                                    formLabel.lowercase().startsWith(it.formLabel.lowercase()) ||
-                                    it.formLabel.lowercase().startsWith(formLabel.lowercase()))
-                        }
-                        if (alreadyDefinedForm) continue
+                        val formLabel = Regex("\\((.*?)\\)").find(rawSpeciesName)?.groupValues?.getOrNull(1)
+                            ?: if (speciesName.startsWith("Mega ", ignoreCase = true)) "Mega"
+                            else if (speciesName.startsWith("Primal ", ignoreCase = true)) "Primal"
+                            else "Base"
 
                         val typesArr = obj.getAsJsonArray("types")
                         val types = mutableListOf<String>()
@@ -1301,16 +1556,27 @@ class OverlayService : LifecycleService() {
                             }
                         }
 
+                        val rankEntry = LIVE_RANKINGS_MAP["GREAT LEAGUE"]?.get(speciesId.lowercase())
+                            ?: LIVE_RANKINGS_MAP["ULTRA LEAGUE"]?.get(speciesId.lowercase())
+                            ?: LIVE_RANKINGS_MAP["MASTER LEAGUE"]?.get(speciesId.lowercase())
+                            ?: LIVE_RANKINGS_MAP["MEGA MASTER LEAGUE"]?.get(speciesId.lowercase())
+
                         val fastMovesArr = obj.getAsJsonArray("fastMoves")
-                        val firstFastId = if (fastMovesArr != null && fastMovesArr.size() > 0) fastMovesArr.get(0).asString else "TACKLE"
+                        val firstFastId = rankEntry?.moves?.fastMoves?.firstOrNull()?.moveId
+                            ?: if (fastMovesArr != null && fastMovesArr.size() > 0) fastMovesArr.get(0).asString else "TACKLE"
                         val fastMoveName = fastMoveNames[firstFastId]
-                            ?: firstFastId.lowercase().split("_").joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
+                            ?: formatMoveIdDisplay(firstFastId)
                         val fastTurns = DYNAMIC_FAST_TURNS[fastMoveName.lowercase()]
                             ?: FAST_MOVE_TURNS[fastMoveName.lowercase()] ?: 2
 
                         val chargedArr = obj.getAsJsonArray("chargedMoves")
                         val eliteArr = obj.getAsJsonArray("eliteMoves")
                         val orderedChargedIds = mutableListOf<String>()
+                        rankEntry?.moves?.chargedMoves?.forEach { cm ->
+                            if (cm.moveId.isNotBlank() && !orderedChargedIds.contains(cm.moveId)) {
+                                orderedChargedIds.add(cm.moveId)
+                            }
+                        }
                         if (eliteArr != null) {
                             for (em in eliteArr) {
                                 val emId = em.asString
@@ -1331,11 +1597,9 @@ class OverlayService : LifecycleService() {
                         val c1Id = orderedChargedIds.getOrNull(0) ?: "BODY_SLAM"
                         val c2Id = orderedChargedIds.getOrNull(1) ?: c1Id
                         val c3Id = orderedChargedIds.getOrNull(2) ?: ""
-                        val c1Name = c1Id.lowercase().split("_").joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
-                        val c2Name = c2Id.lowercase().split("_").joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
-                        val c3Name = if (c3Id.isNotBlank()) {
-                            c3Id.lowercase().split("_").joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
-                        } else ""
+                        val c1Name = formatMoveIdDisplay(c1Id)
+                        val c2Name = formatMoveIdDisplay(c2Id)
+                        val c3Name = if (c3Id.isNotBlank()) formatMoveIdDisplay(c3Id) else ""
 
                         val baseMeta = PokemonMeta(
                             name = speciesName,
@@ -1440,21 +1704,50 @@ class OverlayService : LifecycleService() {
     private fun loadOrFetchGamemasterInBackground() {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
+                val client = OkHttpClient()
+                val rankingTargets = listOf(
+                    Triple("GREAT LEAGUE", "pvpoke_rankings_gl.json", "https://raw.githubusercontent.com/pvpoke/pvpoke/master/src/data/rankings/all/overall/rankings-1500.json"),
+                    Triple("ULTRA LEAGUE", "pvpoke_rankings_ul.json", "https://raw.githubusercontent.com/pvpoke/pvpoke/master/src/data/rankings/all/overall/rankings-2500.json"),
+                    Triple("MASTER LEAGUE", "pvpoke_rankings_ml.json", "https://raw.githubusercontent.com/pvpoke/pvpoke/master/src/data/rankings/all/overall/rankings-10000.json"),
+                    Triple("MEGA MASTER LEAGUE", "pvpoke_rankings_mega_ml.json", "https://raw.githubusercontent.com/pvpoke/pvpoke/master/src/data/rankings/mega/overall/rankings-10000.json")
+                )
+
+                for ((leagueKey, fileName, url) in rankingTargets) {
+                    try {
+                        val rFile = File(filesDir, fileName)
+                        val rJson = if (rFile.exists() && rFile.length() > 200) {
+                            rFile.readText()
+                        } else {
+                            val req = Request.Builder().url(url).build()
+                            client.newCall(req).execute().use { resp ->
+                                val body = resp.body?.string()
+                                if (resp.isSuccessful && !body.isNullOrBlank()) {
+                                    rFile.writeText(body)
+                                    body
+                                } else null
+                            }
+                        }
+                        if (!rJson.isNullOrBlank()) {
+                            parseRankingsJsonStatic(leagueKey, rJson)
+                        }
+                    } catch (_: Exception) {}
+                }
+
                 val mainCache = File(filesDir, "pvpoke_gamemaster.json")
                 val cacheFile = if (mainCache.exists() && mainCache.length() > 1000) mainCache else File(filesDir, "pvpoke_gamemaster_cache.json")
                 val jsonStr = if (cacheFile.exists() && cacheFile.length() > 1000) {
                     cacheFile.readText()
                 } else {
-                    val client = OkHttpClient()
                     val req = Request.Builder()
                         .url("https://raw.githubusercontent.com/pvpoke/pvpoke/master/src/data/gamemaster.json")
                         .build()
-                    val resp = client.newCall(req).execute()
-                    val body = resp.body?.string()
-                    if (resp.isSuccessful && !body.isNullOrBlank()) {
-                        cacheFile.writeText(body)
-                        body
-                    } else null
+                    client.newCall(req).execute().use { resp ->
+                        val body = resp.body?.string()
+                        if (resp.isSuccessful && !body.isNullOrBlank()) {
+                            cacheFile.writeText(body)
+                            body
+                        } else null
+                    }
                 }
                 if (!jsonStr.isNullOrBlank()) {
                     parseGamemasterJson(jsonStr)

@@ -35,7 +35,15 @@
             android:id="@+id/spinner_league"
             android:layout_width="match_parent"
             android:layout_height="44dp"
-            android:layout_marginBottom="12dp" />
+            android:layout_marginBottom="6dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Tip: Type a base Pokémon name to open the autocomplete dropdown with Base, Shadow, and Alternate Forms, auto-filling PvPoke recommended moves!"
+            android:textSize="11sp"
+            android:textColor="#64748b"
+            android:layout_marginBottom="10dp" />
 
         <!-- Pokemon 1 (Lead) -->
         <TextView
@@ -51,22 +59,34 @@
             android:layout_height="wrap_content"
             android:orientation="horizontal">
 
-            <EditText
+            <AutoCompleteTextView
                 android:id="@+id/edit_p1_name"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_weight="2"
+                android:layout_weight="1.8"
+                android:completionThreshold="1"
+                android:dropDownWidth="280dp"
+                android:inputType="textCapWords"
                 android:textSize="13sp"
-                android:hint="Name (e.g. Kanto Ninetales)" />
+                android:hint="Name (e.g. Giratina, Clodsire)" />
 
             <EditText
                 android:id="@+id/edit_p1_cp"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:textSize="13sp"
-                android:hint="CP"
+                android:layout_weight="0.85"
+                android:textSize="12sp"
+                android:hint="CP (auto)"
                 android:inputType="number" />
+
+            <EditText
+                android:id="@+id/edit_p1_ivs"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1.05"
+                android:textSize="12sp"
+                android:hint="IVs (opt 0/15/15)"
+                android:inputType="text" />
         </LinearLayout>
 
         <LinearLayout
@@ -81,7 +101,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:textSize="12sp"
-                android:hint="Fast Move" />
+                android:hint="Fast (auto)" />
 
             <EditText
                 android:id="@+id/edit_p1_c1"
@@ -89,7 +109,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:textSize="12sp"
-                android:hint="Charged 1" />
+                android:hint="Charged 1 (auto)" />
 
             <EditText
                 android:id="@+id/edit_p1_c2"
@@ -97,7 +117,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:textSize="12sp"
-                android:hint="Charged 2" />
+                android:hint="Charged 2 (auto)" />
         </LinearLayout>
 
         <!-- Pokemon 2 (Safe Swap) -->
@@ -114,22 +134,34 @@
             android:layout_height="wrap_content"
             android:orientation="horizontal">
 
-            <EditText
+            <AutoCompleteTextView
                 android:id="@+id/edit_p2_name"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_weight="2"
+                android:layout_weight="1.8"
+                android:completionThreshold="1"
+                android:dropDownWidth="280dp"
+                android:inputType="textCapWords"
                 android:textSize="13sp"
-                android:hint="Name (e.g. Fearow)" />
+                android:hint="Name (e.g. Feraligatr, Ninetales)" />
 
             <EditText
                 android:id="@+id/edit_p2_cp"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:textSize="13sp"
-                android:hint="CP"
+                android:layout_weight="0.85"
+                android:textSize="12sp"
+                android:hint="CP (auto)"
                 android:inputType="number" />
+
+            <EditText
+                android:id="@+id/edit_p2_ivs"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1.05"
+                android:textSize="12sp"
+                android:hint="IVs (opt 0/15/15)"
+                android:inputType="text" />
         </LinearLayout>
 
         <LinearLayout
@@ -144,7 +176,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:textSize="12sp"
-                android:hint="Fast Move" />
+                android:hint="Fast (auto)" />
 
             <EditText
                 android:id="@+id/edit_p2_c1"
@@ -152,7 +184,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:textSize="12sp"
-                android:hint="Charged 1" />
+                android:hint="Charged 1 (auto)" />
 
             <EditText
                 android:id="@+id/edit_p2_c2"
@@ -160,7 +192,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:textSize="12sp"
-                android:hint="Charged 2" />
+                android:hint="Charged 2 (auto)" />
         </LinearLayout>
 
         <!-- Pokemon 3 (Closer) -->
@@ -177,22 +209,34 @@
             android:layout_height="wrap_content"
             android:orientation="horizontal">
 
-            <EditText
+            <AutoCompleteTextView
                 android:id="@+id/edit_p3_name"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_weight="2"
+                android:layout_weight="1.8"
+                android:completionThreshold="1"
+                android:dropDownWidth="280dp"
+                android:inputType="textCapWords"
                 android:textSize="13sp"
-                android:hint="Name (e.g. Shadow Pidgeot)" />
+                android:hint="Name (e.g. Zacian, Mandibuzz)" />
 
             <EditText
                 android:id="@+id/edit_p3_cp"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:textSize="13sp"
-                android:hint="CP"
+                android:layout_weight="0.85"
+                android:textSize="12sp"
+                android:hint="CP (auto)"
                 android:inputType="number" />
+
+            <EditText
+                android:id="@+id/edit_p3_ivs"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1.05"
+                android:textSize="12sp"
+                android:hint="IVs (opt 0/15/15)"
+                android:inputType="text" />
         </LinearLayout>
 
         <LinearLayout
@@ -206,7 +250,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:textSize="12sp"
-                android:hint="Fast Move (e.g. Gust)" />
+                android:hint="Fast (auto)" />
 
             <EditText
                 android:id="@+id/edit_p3_c1"
@@ -214,7 +258,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:textSize="12sp"
-                android:hint="Charged 1 (e.g. Twister)" />
+                android:hint="Charged 1 (auto)" />
 
             <EditText
                 android:id="@+id/edit_p3_c2"
@@ -222,7 +266,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:textSize="12sp"
-                android:hint="Charged 2 (e.g. Brave Bird)" />
+                android:hint="Charged 2 (auto)" />
         </LinearLayout>
 
     </LinearLayout>

@@ -36,10 +36,38 @@ export interface TeamMember {
   ivs?: string;
 }
 
+export type LeagueType = "MEGA MASTER LEAGUE" | "MASTER LEAGUE" | "ULTRA LEAGUE" | "GREAT LEAGUE";
+
+export interface MoveUsage {
+  moveId: string;
+  uses?: number;
+}
+
+export interface RankingMoves {
+  fastMoves: MoveUsage[];
+  chargedMoves: MoveUsage[];
+}
+
+export interface PokemonRankingEntry {
+  speciesId: string;
+  score: number;
+  moves: RankingMoves;
+  moveCount?: number[];
+  moveset?: string[];
+}
+
+export const PVPOKE_ENDPOINTS = {
+  GAMEMASTER: "https://raw.githubusercontent.com/pvpoke/pvpoke/master/src/data/gamemaster.json",
+  RANKINGS_GL: "https://raw.githubusercontent.com/pvpoke/pvpoke/master/src/data/rankings/all/overall/rankings-1500.json",
+  RANKINGS_UL: "https://raw.githubusercontent.com/pvpoke/pvpoke/master/src/data/rankings/all/overall/rankings-2500.json",
+  RANKINGS_ML: "https://raw.githubusercontent.com/pvpoke/pvpoke/master/src/data/rankings/all/overall/rankings-10000.json",
+  RANKINGS_MEGA_ML: "https://raw.githubusercontent.com/pvpoke/pvpoke/master/src/data/rankings/mega/overall/rankings-10000.json"
+} as const;
+
 export interface TeamPreset {
   id: string;
   name: string;
-  league: "MASTER LEAGUE" | "ULTRA LEAGUE" | "GREAT LEAGUE";
+  league: LeagueType;
   pokemon: TeamMember[];
   isSelected?: boolean;
 }
@@ -856,6 +884,156 @@ export const POKEMON_DATABASE: Record<string, PokemonStats> = {
       { name: "Swift", code: "Sw", type: "normal", power: 60, energyCost: 40 }
     ],
     color: "#ec4899"
+  },
+  "Mega Rayquaza": {
+    speciesId: "rayquaza_mega",
+    name: "Mega Rayquaza",
+    baseSpecies: "rayquaza",
+    formLabel: "Mega",
+    types: ["dragon", "flying"],
+    baseStats: { atk: 328, def: 193, hp: 200 },
+    defaultFastMove: { name: "Dragon Tail", type: "dragon", turns: 3, power: 13, energyGain: 9 },
+    chargedMoves: [
+      { name: "Breaking Swipe", code: "BS", type: "dragon", power: 50, energyCost: 35 },
+      { name: "Dragon Ascent", code: "DA", type: "flying", power: 140, energyCost: 70 },
+      { name: "Outrage", code: "OR", type: "dragon", power: 110, energyCost: 60 }
+    ],
+    color: "#10b981"
+  },
+  "Primal Groudon": {
+    speciesId: "groudon_primal",
+    name: "Primal Groudon",
+    baseSpecies: "groudon",
+    formLabel: "Primal",
+    types: ["ground", "fire"],
+    baseStats: { atk: 311, def: 238, hp: 184 },
+    defaultFastMove: { name: "Mud Shot", type: "ground", turns: 2, power: 4, energyGain: 8 },
+    chargedMoves: [
+      { name: "Precipice Blades", code: "PB", type: "ground", power: 130, energyCost: 60 },
+      { name: "Fire Punch", code: "FP", type: "fire", power: 55, energyCost: 40 },
+      { name: "Solar Beam", code: "SBm", type: "grass", power: 150, energyCost: 80 }
+    ],
+    color: "#ef4444"
+  },
+  "Primal Kyogre": {
+    speciesId: "kyogre_primal",
+    name: "Primal Kyogre",
+    baseSpecies: "kyogre",
+    formLabel: "Primal",
+    types: ["water"],
+    baseStats: { atk: 311, def: 238, hp: 184 },
+    defaultFastMove: { name: "Waterfall", type: "water", turns: 3, power: 12, energyGain: 8 },
+    chargedMoves: [
+      { name: "Origin Pulse", code: "OP", type: "water", power: 130, energyCost: 60 },
+      { name: "Surf", code: "Surf", type: "water", power: 65, energyCost: 40 },
+      { name: "Blizzard", code: "Blz", type: "ice", power: 140, energyCost: 75 }
+    ],
+    color: "#2563eb"
+  },
+  "Mega Mewtwo Y": {
+    speciesId: "mewtwo_mega_y",
+    name: "Mega Mewtwo Y",
+    baseSpecies: "mewtwo",
+    formLabel: "Mega Y",
+    types: ["psychic"],
+    baseStats: { atk: 370, def: 215, hp: 205 },
+    defaultFastMove: { name: "Psycho Cut", type: "psychic", turns: 2, power: 3, energyGain: 9 },
+    chargedMoves: [
+      { name: "Psystrike", code: "PS", type: "psychic", power: 90, energyCost: 45 },
+      { name: "Shadow Ball", code: "SB", type: "ghost", power: 100, energyCost: 55 },
+      { name: "Focus Blast", code: "FB", type: "fighting", power: 150, energyCost: 75 }
+    ],
+    color: "#d946ef"
+  },
+  "Mega Gyarados": {
+    speciesId: "gyarados_mega",
+    name: "Mega Gyarados",
+    baseSpecies: "gyarados",
+    formLabel: "Mega",
+    types: ["water", "dark"],
+    baseStats: { atk: 258, def: 221, hp: 193 },
+    defaultFastMove: { name: "Dragon Breath", type: "dragon", turns: 1, power: 4, energyGain: 3 },
+    chargedMoves: [
+      { name: "Aqua Tail", code: "AT", type: "water", power: 55, energyCost: 35 },
+      { name: "Crunch", code: "Cr", type: "dark", power: 70, energyCost: 45 },
+      { name: "Outrage", code: "OR", type: "dragon", power: 110, energyCost: 60 }
+    ],
+    color: "#0284c7"
+  },
+  "Mega Garchomp": {
+    speciesId: "garchomp_mega",
+    name: "Mega Garchomp",
+    baseSpecies: "garchomp",
+    formLabel: "Mega",
+    types: ["dragon", "ground"],
+    baseStats: { atk: 298, def: 213, hp: 214 },
+    defaultFastMove: { name: "Mud Shot", type: "ground", turns: 2, power: 4, energyGain: 8 },
+    chargedMoves: [
+      { name: "Earth Power", code: "EP", type: "ground", power: 90, energyCost: 55 },
+      { name: "Outrage", code: "OR", type: "dragon", power: 110, energyCost: 60 },
+      { name: "Sand Tomb", code: "ST", type: "ground", power: 40, energyCost: 40 }
+    ],
+    color: "#4f46e5"
+  },
+  "Mega Gardevoir": {
+    speciesId: "gardevoir_mega",
+    name: "Mega Gardevoir",
+    baseSpecies: "gardevoir",
+    formLabel: "Mega",
+    types: ["psychic", "fairy"],
+    baseStats: { atk: 287, def: 222, hp: 154 },
+    defaultFastMove: { name: "Charm", type: "fairy", turns: 3, power: 15, energyGain: 6 },
+    chargedMoves: [
+      { name: "Triple Axel", code: "TA", type: "ice", power: 60, energyCost: 45 },
+      { name: "Shadow Ball", code: "SB", type: "ghost", power: 100, energyCost: 55 },
+      { name: "Synchronoise", code: "Syn", type: "psychic", power: 80, energyCost: 50 }
+    ],
+    color: "#f472b6"
+  },
+  "Mega Metagross": {
+    speciesId: "metagross_mega",
+    name: "Mega Metagross",
+    baseSpecies: "metagross",
+    formLabel: "Mega",
+    types: ["steel", "psychic"],
+    baseStats: { atk: 264, def: 255, hp: 173 },
+    defaultFastMove: { name: "Bullet Punch", type: "steel", turns: 2, power: 8, energyGain: 7 },
+    chargedMoves: [
+      { name: "Meteor Mash", code: "MM", type: "steel", power: 100, energyCost: 50 },
+      { name: "Earthquake", code: "EQ", type: "ground", power: 110, energyCost: 65 },
+      { name: "Psychic", code: "Psy", type: "psychic", power: 75, energyCost: 55 }
+    ],
+    color: "#64748b"
+  },
+  "Mega Swampert": {
+    speciesId: "swampert_mega",
+    name: "Mega Swampert",
+    baseSpecies: "swampert",
+    formLabel: "Mega",
+    types: ["water", "ground"],
+    baseStats: { atk: 249, def: 192, hp: 202 },
+    defaultFastMove: { name: "Mud Shot", type: "ground", turns: 2, power: 4, energyGain: 8 },
+    chargedMoves: [
+      { name: "Hydro Cannon", code: "HC", type: "water", power: 80, energyCost: 40 },
+      { name: "Earthquake", code: "EQ", type: "ground", power: 110, energyCost: 65 },
+      { name: "Sludge Wave", code: "SWv", type: "poison", power: 110, energyCost: 65 }
+    ],
+    color: "#0ea5e9"
+  },
+  "Mega Tyranitar": {
+    speciesId: "tyranitar_mega",
+    name: "Mega Tyranitar",
+    baseSpecies: "tyranitar",
+    formLabel: "Mega",
+    types: ["rock", "dark"],
+    baseStats: { atk: 269, def: 243, hp: 202 },
+    defaultFastMove: { name: "Dragon Breath", type: "dragon", turns: 1, power: 4, energyGain: 3 },
+    chargedMoves: [
+      { name: "Brutal Swing", code: "BS", type: "dark", power: 65, energyCost: 35 },
+      { name: "Stone Edge", code: "SE", type: "rock", power: 100, energyCost: 55 },
+      { name: "Crunch", code: "Cr", type: "dark", power: 70, energyCost: 45 }
+    ],
+    color: "#15803d"
   }
 };
 
@@ -866,44 +1044,57 @@ export interface TopOpponentInfo {
   fastMove: string;
   fastTurns: number;
   chargedMoves: string[];
+  score?: number;
 }
 
 export const PVPOKE_TOP_OPPONENTS: Record<string, TopOpponentInfo[]> = {
+  "MEGA MASTER LEAGUE": [
+    { rank: 1, name: "Mega Rayquaza", types: ["dragon", "flying"], fastMove: "Dragon Tail", fastTurns: 3, chargedMoves: ["Breaking Swipe", "Dragon Ascent"], score: 98.4 },
+    { rank: 2, name: "Primal Groudon", types: ["ground", "fire"], fastMove: "Mud Shot", fastTurns: 2, chargedMoves: ["Precipice Blades", "Fire Punch"], score: 96.8 },
+    { rank: 3, name: "Primal Kyogre", types: ["water"], fastMove: "Waterfall", fastTurns: 3, chargedMoves: ["Origin Pulse", "Surf"], score: 95.2 },
+    { rank: 4, name: "Mega Gyarados", types: ["water", "dark"], fastMove: "Dragon Breath", fastTurns: 1, chargedMoves: ["Aqua Tail", "Crunch"], score: 93.7 },
+    { rank: 5, name: "Mega Garchomp", types: ["dragon", "ground"], fastMove: "Mud Shot", fastTurns: 2, chargedMoves: ["Earth Power", "Outrage"], score: 92.5 },
+    { rank: 6, name: "Mega Mewtwo Y", types: ["psychic"], fastMove: "Psycho Cut", fastTurns: 2, chargedMoves: ["Psystrike", "Shadow Ball"], score: 91.9 },
+    { rank: 7, name: "Mega Gardevoir", types: ["psychic", "fairy"], fastMove: "Charm", fastTurns: 3, chargedMoves: ["Triple Axel", "Shadow Ball"], score: 90.8 },
+    { rank: 8, name: "Mega Metagross", types: ["steel", "psychic"], fastMove: "Bullet Punch", fastTurns: 2, chargedMoves: ["Meteor Mash", "Earthquake"], score: 90.1 },
+    { rank: 9, name: "Mega Swampert", types: ["water", "ground"], fastMove: "Mud Shot", fastTurns: 2, chargedMoves: ["Hydro Cannon", "Earthquake"], score: 89.4 },
+    { rank: 10, name: "Mega Tyranitar", types: ["rock", "dark"], fastMove: "Dragon Breath", fastTurns: 1, chargedMoves: ["Brutal Swing", "Stone Edge"], score: 88.6 }
+  ],
   "MASTER LEAGUE": [
-    { rank: 1, name: "Palkia (Origin)", types: ["water", "dragon"], fastMove: "Dragon Breath", fastTurns: 1, chargedMoves: ["Spacial Rend", "Aqua Tail"] },
-    { rank: 2, name: "Zacian (Crowned)", types: ["fairy", "steel"], fastMove: "Metal Claw", fastTurns: 2, chargedMoves: ["Behemoth Blade", "Close Combat"] },
-    { rank: 3, name: "Dialga (Origin)", types: ["steel", "dragon"], fastMove: "Dragon Breath", fastTurns: 1, chargedMoves: ["Roar of Time", "Iron Head"] },
-    { rank: 4, name: "Necrozma (Dusk Mane)", types: ["psychic", "steel"], fastMove: "Shadow Claw", fastTurns: 2, chargedMoves: ["Sunsteel Strike", "Dark Pulse"] },
-    { rank: 5, name: "Landorus (Therian)", types: ["ground", "flying"], fastMove: "Mud Shot", fastTurns: 2, chargedMoves: ["Sandsear Storm", "Stone Edge"] },
-    { rank: 6, name: "Necrozma (Dawn Wings)", types: ["psychic", "ghost"], fastMove: "Shadow Claw", fastTurns: 2, chargedMoves: ["Moongeist Beam", "Dark Pulse"] },
-    { rank: 7, name: "Ho-Oh", types: ["fire", "flying"], fastMove: "Incinerate", fastTurns: 5, chargedMoves: ["Sacred Fire", "Brave Bird"] },
-    { rank: 8, name: "Yveltal", types: ["dark", "flying"], fastMove: "Snarl", fastTurns: 3, chargedMoves: ["Dark Pulse", "Oblivion Wing"] },
-    { rank: 9, name: "Giratina (Origin)", types: ["ghost", "dragon"], fastMove: "Shadow Claw", fastTurns: 2, chargedMoves: ["Shadow Ball", "Ominous Wind"] },
-    { rank: 10, name: "Kyurem (Black)", types: ["dragon", "ice"], fastMove: "Shadow Claw", fastTurns: 2, chargedMoves: ["Freeze Shock", "Fusion Bolt"] }
+    { rank: 1, name: "Palkia (Origin)", types: ["water", "dragon"], fastMove: "Dragon Breath", fastTurns: 1, chargedMoves: ["Spacial Rend", "Aqua Tail"], score: 95.8 },
+    { rank: 2, name: "Zacian (Crowned)", types: ["fairy", "steel"], fastMove: "Metal Claw", fastTurns: 2, chargedMoves: ["Behemoth Blade", "Close Combat"], score: 94.9 },
+    { rank: 3, name: "Dialga (Origin)", types: ["steel", "dragon"], fastMove: "Dragon Breath", fastTurns: 1, chargedMoves: ["Roar of Time", "Iron Head"], score: 94.2 },
+    { rank: 4, name: "Necrozma (Dusk Mane)", types: ["psychic", "steel"], fastMove: "Shadow Claw", fastTurns: 2, chargedMoves: ["Sunsteel Strike", "Dark Pulse"], score: 93.5 },
+    { rank: 5, name: "Landorus (Therian)", types: ["ground", "flying"], fastMove: "Mud Shot", fastTurns: 2, chargedMoves: ["Sandsear Storm", "Stone Edge"], score: 92.8 },
+    { rank: 6, name: "Necrozma (Dawn Wings)", types: ["psychic", "ghost"], fastMove: "Shadow Claw", fastTurns: 2, chargedMoves: ["Moongeist Beam", "Dark Pulse"], score: 92.1 },
+    { rank: 7, name: "Ho-Oh", types: ["fire", "flying"], fastMove: "Incinerate", fastTurns: 5, chargedMoves: ["Sacred Fire", "Brave Bird"], score: 91.4 },
+    { rank: 8, name: "Yveltal", types: ["dark", "flying"], fastMove: "Snarl", fastTurns: 3, chargedMoves: ["Dark Pulse", "Oblivion Wing"], score: 90.9 },
+    { rank: 9, name: "Giratina (Origin)", types: ["ghost", "dragon"], fastMove: "Shadow Claw", fastTurns: 2, chargedMoves: ["Shadow Ball", "Ominous Wind"], score: 90.2 },
+    { rank: 10, name: "Kyurem (Black)", types: ["dragon", "ice"], fastMove: "Shadow Claw", fastTurns: 2, chargedMoves: ["Freeze Shock", "Fusion Bolt"], score: 89.7 }
   ],
   "ULTRA LEAGUE": [
-    { rank: 1, name: "Zygarde", types: ["dragon", "ground"], fastMove: "Dragon Tail", fastTurns: 3, chargedMoves: ["Crunch", "Earthquake"] },
-    { rank: 2, name: "Feraligatr", types: ["water"], fastMove: "Shadow Claw", fastTurns: 2, chargedMoves: ["Hydro Cannon", "Ice Beam"] },
-    { rank: 3, name: "Giratina (Altered)", types: ["ghost", "dragon"], fastMove: "Shadow Claw", fastTurns: 2, chargedMoves: ["Dragon Claw", "Ancient Power"] },
-    { rank: 4, name: "Cresselia", types: ["psychic"], fastMove: "Psycho Cut", fastTurns: 2, chargedMoves: ["Grass Knot", "Moonblast"] },
-    { rank: 5, name: "Registeel", types: ["steel"], fastMove: "Lock-On", fastTurns: 1, chargedMoves: ["Focus Blast", "Zap Cannon"] },
-    { rank: 6, name: "Cobalion", types: ["steel", "fighting"], fastMove: "Double Kick", fastTurns: 3, chargedMoves: ["Sacred Sword", "Stone Edge"] },
-    { rank: 7, name: "Corviknight", types: ["flying", "steel"], fastMove: "Sand Attack", fastTurns: 1, chargedMoves: ["Air Cutter", "Iron Head"] },
-    { rank: 8, name: "Lickilicky", types: ["normal"], fastMove: "Rollout", fastTurns: 3, chargedMoves: ["Body Slam", "Shadow Ball"] },
-    { rank: 9, name: "Annihilape", types: ["fighting", "ghost"], fastMove: "Counter", fastTurns: 2, chargedMoves: ["Rage Fist", "Ice Punch"] },
-    { rank: 10, name: "Talonflame", types: ["fire", "flying"], fastMove: "Incinerate", fastTurns: 5, chargedMoves: ["Fly", "Flame Charge"] }
+    { rank: 1, name: "Zygarde", types: ["dragon", "ground"], fastMove: "Dragon Tail", fastTurns: 3, chargedMoves: ["Crunch", "Earthquake"], score: 94.6 },
+    { rank: 2, name: "Feraligatr", types: ["water"], fastMove: "Shadow Claw", fastTurns: 2, chargedMoves: ["Hydro Cannon", "Ice Beam"], score: 93.8 },
+    { rank: 3, name: "Giratina (Altered)", types: ["ghost", "dragon"], fastMove: "Shadow Claw", fastTurns: 2, chargedMoves: ["Dragon Claw", "Ancient Power"], score: 93.1 },
+    { rank: 4, name: "Cresselia", types: ["psychic"], fastMove: "Psycho Cut", fastTurns: 2, chargedMoves: ["Grass Knot", "Moonblast"], score: 92.4 },
+    { rank: 5, name: "Registeel", types: ["steel"], fastMove: "Lock-On", fastTurns: 1, chargedMoves: ["Focus Blast", "Zap Cannon"], score: 91.9 },
+    { rank: 6, name: "Cobalion", types: ["steel", "fighting"], fastMove: "Double Kick", fastTurns: 3, chargedMoves: ["Sacred Sword", "Stone Edge"], score: 91.2 },
+    { rank: 7, name: "Corviknight", types: ["flying", "steel"], fastMove: "Sand Attack", fastTurns: 1, chargedMoves: ["Air Cutter", "Iron Head"], score: 90.8 },
+    { rank: 8, name: "Lickilicky", types: ["normal"], fastMove: "Rollout", fastTurns: 3, chargedMoves: ["Body Slam", "Shadow Ball"], score: 90.3 },
+    { rank: 9, name: "Annihilape", types: ["fighting", "ghost"], fastMove: "Counter", fastTurns: 2, chargedMoves: ["Rage Fist", "Ice Punch"], score: 89.8 },
+    { rank: 10, name: "Talonflame", types: ["fire", "flying"], fastMove: "Incinerate", fastTurns: 5, chargedMoves: ["Fly", "Flame Charge"], score: 89.1 }
   ],
   "GREAT LEAGUE": [
-    { rank: 1, name: "Clodsire", types: ["poison", "ground"], fastMove: "Poison Sting", fastTurns: 2, chargedMoves: ["Earthquake", "Stone Edge"] },
-    { rank: 2, name: "Feraligatr", types: ["water"], fastMove: "Shadow Claw", fastTurns: 2, chargedMoves: ["Hydro Cannon", "Ice Beam"] },
-    { rank: 3, name: "Mandibuzz", types: ["dark", "flying"], fastMove: "Snarl", fastTurns: 3, chargedMoves: ["Dark Pulse", "Aerial Ace"] },
-    { rank: 4, name: "Azumarill", types: ["water", "fairy"], fastMove: "Bubble", fastTurns: 3, chargedMoves: ["Ice Beam", "Play Rough"] },
-    { rank: 5, name: "Gastrodon", types: ["water", "ground"], fastMove: "Mud-Slap", fastTurns: 3, chargedMoves: ["Body Slam", "Earth Power"] },
-    { rank: 6, name: "Malamar", types: ["dark", "psychic"], fastMove: "Psywave", fastTurns: 1, chargedMoves: ["Foul Play", "Superpower"] },
-    { rank: 7, name: "Dunsparce", types: ["normal"], fastMove: "Rollout", fastTurns: 3, chargedMoves: ["Rock Slide", "Drill Run"] },
-    { rank: 8, name: "Annihilape", types: ["fighting", "ghost"], fastMove: "Counter", fastTurns: 2, chargedMoves: ["Rage Fist", "Ice Punch"] },
-    { rank: 9, name: "Sandslash (Alolan)", types: ["ice", "steel"], fastMove: "Powder Snow", fastTurns: 2, chargedMoves: ["Ice Punch", "Drill Run"] },
-    { rank: 10, name: "Primeape", types: ["fighting"], fastMove: "Karate Chop", fastTurns: 2, chargedMoves: ["Rage Fist", "Close Combat"] }
+    { rank: 1, name: "Clodsire", types: ["poison", "ground"], fastMove: "Poison Sting", fastTurns: 2, chargedMoves: ["Earthquake", "Stone Edge"], score: 95.1 },
+    { rank: 2, name: "Feraligatr", types: ["water"], fastMove: "Shadow Claw", fastTurns: 2, chargedMoves: ["Hydro Cannon", "Ice Beam"], score: 94.3 },
+    { rank: 3, name: "Mandibuzz", types: ["dark", "flying"], fastMove: "Snarl", fastTurns: 3, chargedMoves: ["Dark Pulse", "Aerial Ace"], score: 93.6 },
+    { rank: 4, name: "Azumarill", types: ["water", "fairy"], fastMove: "Bubble", fastTurns: 3, chargedMoves: ["Ice Beam", "Play Rough"], score: 92.9 },
+    { rank: 5, name: "Gastrodon", types: ["water", "ground"], fastMove: "Mud-Slap", fastTurns: 3, chargedMoves: ["Body Slam", "Earth Power"], score: 92.2 },
+    { rank: 6, name: "Malamar", types: ["dark", "psychic"], fastMove: "Psywave", fastTurns: 1, chargedMoves: ["Foul Play", "Superpower"], score: 91.5 },
+    { rank: 7, name: "Dunsparce", types: ["normal"], fastMove: "Rollout", fastTurns: 3, chargedMoves: ["Rock Slide", "Drill Run"], score: 90.9 },
+    { rank: 8, name: "Annihilape", types: ["fighting", "ghost"], fastMove: "Counter", fastTurns: 2, chargedMoves: ["Rage Fist", "Ice Punch"], score: 90.4 },
+    { rank: 9, name: "Sandslash (Alolan)", types: ["ice", "steel"], fastMove: "Powder Snow", fastTurns: 2, chargedMoves: ["Ice Punch", "Drill Run"], score: 89.9 },
+    { rank: 10, name: "Primeape", types: ["fighting"], fastMove: "Karate Chop", fastTurns: 2, chargedMoves: ["Rage Fist", "Close Combat"], score: 89.3 }
   ]
 };
 
@@ -915,7 +1106,10 @@ export const SPECIES_VARIANTS: Record<string, string[]> = {
   giratina: ["Giratina (Origin)", "Giratina (Altered)"],
   ninetales: ["Ninetales (Alolan)", "Kanto Ninetales"],
   dialga: ["Dialga (Origin)"],
-  kyurem: ["Kyurem (Black)", "Kyurem (White)", "Kyurem"]
+  kyurem: ["Kyurem (Black)", "Kyurem (White)", "Kyurem"],
+  kyogre: ["Kyogre", "Primal Kyogre"],
+  groudon: ["Primal Groudon"],
+  mewtwo: ["Mewtwo", "Mega Mewtwo Y"]
 };
 
 export function getAvailableFormsForPokemon(name: string): string[] {
@@ -1426,6 +1620,519 @@ export function computeEffectiveStatsForLeague(
 /**
  * Resolves PvPoke recommended Fast Move, Charged Move 1, Charged Move 2, and default CP for a Pokémon name.
  */
+const LIVE_RANKINGS_MAP: Record<string, Map<string, PokemonRankingEntry>> = {
+  "GREAT LEAGUE": new Map(),
+  "ULTRA LEAGUE": new Map(),
+  "MASTER LEAGUE": new Map(),
+  "MEGA MASTER LEAGUE": new Map()
+};
+
+const MOVE_ID_TO_NAME: Record<string, string> = {};
+
+function formatMoveIdToDisplayName(moveId: string): string {
+  if (!moveId) return "";
+  if (MOVE_ID_TO_NAME[moveId]) return MOVE_ID_TO_NAME[moveId];
+  return moveId
+    .toLowerCase()
+    .split("_")
+    .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : ""))
+    .join(" ");
+}
+
+export function parseRankingsJsonArray(rawJson: unknown): PokemonRankingEntry[] {
+  if (!Array.isArray(rawJson)) return [];
+  const entries: PokemonRankingEntry[] = [];
+  for (const item of rawJson) {
+    if (!item || typeof item !== "object") continue;
+    const obj = item as Record<string, unknown>;
+    const speciesId = typeof obj.speciesId === "string" ? obj.speciesId : "";
+    if (!speciesId) continue;
+    const score = typeof obj.score === "number" ? obj.score : 80.0;
+    const movesObj = (obj.moves && typeof obj.moves === "object" ? obj.moves : {}) as Record<string, unknown>;
+    const rawFast = Array.isArray(movesObj.fastMoves) ? movesObj.fastMoves : [];
+    const rawCharged = Array.isArray(movesObj.chargedMoves) ? movesObj.chargedMoves : [];
+
+    const fastMoves: MoveUsage[] = rawFast
+      .map((m: unknown) => {
+        if (!m || typeof m !== "object") return null;
+        const mo = m as Record<string, unknown>;
+        return typeof mo.moveId === "string"
+          ? { moveId: mo.moveId, uses: typeof mo.uses === "number" ? mo.uses : undefined }
+          : null;
+      })
+      .filter((x): x is MoveUsage => x !== null)
+      .sort((a, b) => (b.uses ?? 0) - (a.uses ?? 0));
+
+    const chargedMoves: MoveUsage[] = rawCharged
+      .map((m: unknown) => {
+        if (!m || typeof m !== "object") return null;
+        const mo = m as Record<string, unknown>;
+        return typeof mo.moveId === "string"
+          ? { moveId: mo.moveId, uses: typeof mo.uses === "number" ? mo.uses : undefined }
+          : null;
+      })
+      .filter((x): x is MoveUsage => x !== null)
+      .sort((a, b) => (b.uses ?? 0) - (a.uses ?? 0));
+
+    const moveset = Array.isArray(obj.moveset)
+      ? obj.moveset.filter((s): s is string => typeof s === "string")
+      : undefined;
+
+    entries.push({
+      speciesId,
+      score,
+      moves: { fastMoves, chargedMoves },
+      moveCount: Array.isArray(obj.moveCount) ? (obj.moveCount as number[]) : undefined,
+      moveset
+    });
+  }
+  return entries;
+}
+
+export async function syncPvPokeDataAndRankings(): Promise<{
+  syncedCount: number;
+  rankingsCount: Record<string, number>;
+}> {
+  const [gmRes, glRes, ulRes, mlRes, megaRes] = await Promise.all([
+    fetch(PVPOKE_ENDPOINTS.GAMEMASTER).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+    fetch(PVPOKE_ENDPOINTS.RANKINGS_GL).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+    fetch(PVPOKE_ENDPOINTS.RANKINGS_UL).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+    fetch(PVPOKE_ENDPOINTS.RANKINGS_ML).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+    fetch(PVPOKE_ENDPOINTS.RANKINGS_MEGA_ML).then((r) => (r.ok ? r.json() : null)).catch(() => null)
+  ]);
+
+  const gmMoveDetails: Record<
+    string,
+    { name: string; type: string; power: number; energy: number; energyGain: number; turns: number }
+  > = {};
+
+  if (gmRes && typeof gmRes === "object" && Array.isArray(gmRes.moves)) {
+    for (const m of gmRes.moves) {
+      if (m?.moveId && m?.name) {
+        MOVE_ID_TO_NAME[m.moveId] = m.name;
+        const rawTurns = typeof m.turns === "number" ? m.turns : 1;
+        const turns = rawTurns >= 500 ? Math.max(1, Math.round(rawTurns / 500)) : Math.max(1, rawTurns);
+        gmMoveDetails[m.moveId] = {
+          name: m.name,
+          type: typeof m.type === "string" ? m.type.toLowerCase() : "normal",
+          power: typeof m.power === "number" ? m.power : 50,
+          energy: typeof m.energy === "number" ? m.energy : 50,
+          energyGain: typeof m.energyGain === "number" ? m.energyGain : 6,
+          turns
+        };
+      }
+    }
+  }
+
+  const glEntries = parseRankingsJsonArray(glRes);
+  const ulEntries = parseRankingsJsonArray(ulRes);
+  const mlEntries = parseRankingsJsonArray(mlRes);
+  const megaEntries = parseRankingsJsonArray(megaRes);
+
+  const storeLeagueRankings = (leagueKey: string, list: PokemonRankingEntry[]) => {
+    const map = LIVE_RANKINGS_MAP[leagueKey];
+    if (!map) return;
+    map.clear();
+    list.forEach((entry) => {
+      map.set(entry.speciesId.toLowerCase(), entry);
+    });
+  };
+
+  storeLeagueRankings("GREAT LEAGUE", glEntries);
+  storeLeagueRankings("ULTRA LEAGUE", ulEntries);
+  storeLeagueRankings("MASTER LEAGUE", mlEntries);
+  storeLeagueRankings("MEGA MASTER LEAGUE", megaEntries);
+
+  // Dynamically ingest species from gamemaster.json so all base, alternate, mega, and shadow forms are available in Team Builder
+  if (gmRes && typeof gmRes === "object" && Array.isArray(gmRes.pokemon)) {
+    const typeColorMap: Record<string, string> = {
+      fire: "#f97316",
+      water: "#3b82f6",
+      grass: "#22c55e",
+      electric: "#eab308",
+      ice: "#38bdf8",
+      fighting: "#ef4444",
+      poison: "#a855f7",
+      ground: "#d97706",
+      flying: "#60a5fa",
+      psychic: "#ec4899",
+      bug: "#84cc16",
+      rock: "#b45309",
+      ghost: "#8b5cf6",
+      dragon: "#6366f1",
+      dark: "#64748b",
+      steel: "#94a3b8",
+      fairy: "#f472b6",
+      normal: "#9ca3af"
+    };
+
+    for (const p of gmRes.pokemon) {
+      if (!p || typeof p.speciesId !== "string" || typeof p.speciesName !== "string") continue;
+      const speciesId: string = p.speciesId;
+      let displayName: string = p.speciesName;
+      if (displayName.endsWith(" (Shadow)")) {
+        displayName = "Shadow " + displayName.replace(" (Shadow)", "").trim();
+      }
+      if (POKEMON_DATABASE[displayName]) continue;
+
+      const rawTypes = Array.isArray(p.types)
+        ? p.types.filter((t: unknown): t is string => typeof t === "string" && t.toLowerCase() !== "none").map((t: string) => t.toLowerCase())
+        : ["normal"];
+      const types = rawTypes.length > 0 ? rawTypes : ["normal"];
+      const statsObj = p.baseStats && typeof p.baseStats === "object" ? p.baseStats : {};
+      const atk = typeof statsObj.atk === "number" ? statsObj.atk : 180;
+      const def = typeof statsObj.def === "number" ? statsObj.def : 180;
+      const hp = typeof statsObj.hp === "number" ? statsObj.hp : 180;
+
+      const rankEntry =
+        LIVE_RANKINGS_MAP["GREAT LEAGUE"]?.get(speciesId.toLowerCase()) ||
+        LIVE_RANKINGS_MAP["ULTRA LEAGUE"]?.get(speciesId.toLowerCase()) ||
+        LIVE_RANKINGS_MAP["MASTER LEAGUE"]?.get(speciesId.toLowerCase()) ||
+        LIVE_RANKINGS_MAP["MEGA MASTER LEAGUE"]?.get(speciesId.toLowerCase());
+
+      const rawFastIds: string[] = Array.isArray(p.fastMoves) ? p.fastMoves : [];
+      const rawChargedIds: string[] = Array.isArray(p.chargedMoves) ? p.chargedMoves : [];
+
+      const prefFastId = rankEntry?.moves.fastMoves[0]?.moveId || rankEntry?.moveset?.[0] || rawFastIds[0] || "TACKLE";
+      const fastInfo = gmMoveDetails[prefFastId] || {
+        name: formatMoveIdToDisplayName(prefFastId) || "Tackle",
+        type: types[0],
+        turns: 2,
+        power: 5,
+        energyGain: 7,
+        energy: 0
+      };
+
+      const orderedChargedIds: string[] = [];
+      if (rankEntry) {
+        rankEntry.moves.chargedMoves.forEach((cm) => {
+          if (cm.moveId && !orderedChargedIds.includes(cm.moveId)) orderedChargedIds.push(cm.moveId);
+        });
+        rankEntry.moveset?.slice(1).forEach((mId) => {
+          if (mId && !orderedChargedIds.includes(mId)) orderedChargedIds.push(mId);
+        });
+      }
+      rawChargedIds.forEach((mId) => {
+        if (mId && !orderedChargedIds.includes(mId)) orderedChargedIds.push(mId);
+      });
+
+      const chargedMoves: ChargedMove[] = orderedChargedIds.slice(0, 4).map((mId) => {
+        const cInfo = gmMoveDetails[mId];
+        const mName = cInfo?.name || formatMoveIdToDisplayName(mId) || "Struggle";
+        const words = mName.split(" ").filter(Boolean);
+        const code = words.length >= 2 ? (words[0][0] + words[1][0]).toUpperCase() : mName.slice(0, 2).toUpperCase();
+        return {
+          name: mName,
+          code,
+          type: cInfo?.type || types[0],
+          power: cInfo?.power || 75,
+          energyCost: cInfo?.energy || 50
+        };
+      });
+
+      const baseSpecies = speciesId
+        .replace(/_shadow$/i, "")
+        .split("_")[0]
+        .toLowerCase();
+
+      const parenMatch = displayName.match(/\(([^)]+)\)/);
+      const formLabel = parenMatch
+        ? parenMatch[1]
+        : displayName.startsWith("Mega ")
+        ? "Mega"
+        : displayName.startsWith("Primal ")
+        ? "Primal"
+        : undefined;
+
+      POKEMON_DATABASE[displayName] = {
+        speciesId,
+        name: displayName,
+        baseSpecies,
+        formLabel,
+        types,
+        baseStats: { atk, def, hp },
+        defaultFastMove: {
+          name: fastInfo.name,
+          type: fastInfo.type,
+          turns: fastInfo.turns,
+          power: fastInfo.power,
+          energyGain: fastInfo.energyGain
+        },
+        chargedMoves:
+          chargedMoves.length > 0
+            ? chargedMoves
+            : [{ name: "Body Slam", code: "BS", type: "normal", power: 50, energyCost: 35 }],
+        color: typeColorMap[types[0]] || "#38bdf8"
+      };
+    }
+  }
+
+  return {
+    syncedCount: Object.keys(POKEMON_DATABASE).length,
+    rankingsCount: {
+      "GREAT LEAGUE": glEntries.length,
+      "ULTRA LEAGUE": ulEntries.length,
+      "MASTER LEAGUE": mlEntries.length,
+      "MEGA MASTER LEAGUE": megaEntries.length
+    }
+  };
+}
+
+export interface PokemonAutocompleteOption {
+  name: string;
+  speciesId: string;
+  baseSpecies: string;
+  formBadge: string;
+  types: string[];
+  cp: number;
+  fastMove: string;
+  chargedMove1: string;
+  chargedMove2: string;
+  isShadow: boolean;
+  isAlternateForm: boolean;
+  score?: number;
+}
+
+const BUILTIN_REGIONAL_ALTERNATES: Array<{
+  base: string;
+  name: string;
+  speciesId: string;
+  formBadge: string;
+  types: string[];
+  fastMove: string;
+  chargedMove1: string;
+  chargedMove2: string;
+  hasShadow?: boolean;
+}> = [
+  { base: "ninetales", name: "Ninetales", speciesId: "ninetales", formBadge: "Kanto", types: ["fire"], fastMove: "Fire Spin", chargedMove1: "Weather Ball", chargedMove2: "Overheat", hasShadow: true },
+  { base: "ninetales", name: "Alolan Ninetales", speciesId: "ninetales_alolan", formBadge: "Alolan", types: ["ice", "fairy"], fastMove: "Powder Snow", chargedMove1: "Weather Ball", chargedMove2: "Dazzling Gleam", hasShadow: true },
+  { base: "marowak", name: "Marowak", speciesId: "marowak", formBadge: "Kanto", types: ["ground"], fastMove: "Mud Slap", chargedMove1: "Bone Club", chargedMove2: "Rock Slide", hasShadow: true },
+  { base: "marowak", name: "Alolan Marowak", speciesId: "marowak_alolan", formBadge: "Alolan", types: ["fire", "ghost"], fastMove: "Fire Spin", chargedMove1: "Shadow Bone", chargedMove2: "Bone Club", hasShadow: true },
+  { base: "sandslash", name: "Sandslash", speciesId: "sandslash", formBadge: "Kanto", types: ["ground"], fastMove: "Mud Shot", chargedMove1: "Scorching Sands", chargedMove2: "Night Slash", hasShadow: true },
+  { base: "sandslash", name: "Alolan Sandslash", speciesId: "sandslash_alolan", formBadge: "Alolan", types: ["ice", "steel"], fastMove: "Shadow Claw", chargedMove1: "Ice Punch", chargedMove2: "Drill Run", hasShadow: true },
+  { base: "raichu", name: "Raichu", speciesId: "raichu", formBadge: "Kanto", types: ["electric"], fastMove: "Volt Switch", chargedMove1: "Trailblaze", chargedMove2: "Wild Charge", hasShadow: true },
+  { base: "raichu", name: "Alolan Raichu", speciesId: "raichu_alolan", formBadge: "Alolan", types: ["electric", "psychic"], fastMove: "Volt Switch", chargedMove1: "Thunder Punch", chargedMove2: "Wild Charge", hasShadow: false },
+  { base: "weezing", name: "Weezing", speciesId: "weezing", formBadge: "Kanto", types: ["poison"], fastMove: "Infestation", chargedMove1: "Sludge", chargedMove2: "Thunderbolt", hasShadow: true },
+  { base: "weezing", name: "Galarian Weezing", speciesId: "weezing_galarian", formBadge: "Galarian", types: ["poison", "fairy"], fastMove: "Fairy Wind", chargedMove1: "Brutal Swing", chargedMove2: "Overheat", hasShadow: true },
+  { base: "stunfisk", name: "Stunfisk", speciesId: "stunfisk", formBadge: "Unova", types: ["ground", "electric"], fastMove: "Thunder Shock", chargedMove1: "Mud Bomb", chargedMove2: "Discharge", hasShadow: false },
+  { base: "stunfisk", name: "Galarian Stunfisk", speciesId: "stunfisk_galarian", formBadge: "Galarian", types: ["ground", "steel"], fastMove: "Mud Shot", chargedMove1: "Rock Slide", chargedMove2: "Earthquake", hasShadow: false },
+  { base: "moltres", name: "Moltres", speciesId: "moltres", formBadge: "Kanto", types: ["fire", "flying"], fastMove: "Wing Attack", chargedMove1: "Sky Attack", chargedMove2: "Overheat", hasShadow: true },
+  { base: "moltres", name: "Galarian Moltres", speciesId: "moltres_galarian", formBadge: "Galarian", types: ["dark", "flying"], fastMove: "Sucker Punch", chargedMove1: "Fly", chargedMove2: "Brave Bird", hasShadow: false },
+  { base: "zapdos", name: "Zapdos", speciesId: "zapdos", formBadge: "Kanto", types: ["electric", "flying"], fastMove: "Thunder Shock", chargedMove1: "Drill Peck", chargedMove2: "Thunderbolt", hasShadow: true },
+  { base: "zapdos", name: "Galarian Zapdos", speciesId: "zapdos_galarian", formBadge: "Galarian", types: ["fighting", "flying"], fastMove: "Counter", chargedMove1: "Ancient Power", chargedMove2: "Close Combat", hasShadow: false },
+  { base: "articuno", name: "Articuno", speciesId: "articuno", formBadge: "Kanto", types: ["ice", "flying"], fastMove: "Ice Shard", chargedMove1: "Icy Wind", chargedMove2: "Ancient Power", hasShadow: true },
+  { base: "articuno", name: "Galarian Articuno", speciesId: "articuno_galarian", formBadge: "Galarian", types: ["psychic", "flying"], fastMove: "Psycho Cut", chargedMove1: "Ancient Power", chargedMove2: "Brave Bird", hasShadow: false },
+  { base: "muk", name: "Muk", speciesId: "muk", formBadge: "Kanto", types: ["poison"], fastMove: "Poison Jab", chargedMove1: "Thunder Punch", chargedMove2: "Dark Pulse", hasShadow: true },
+  { base: "muk", name: "Alolan Muk", speciesId: "muk_alolan", formBadge: "Alolan", types: ["poison", "dark"], fastMove: "Poison Jab", chargedMove1: "Acid Spray", chargedMove2: "Dark Pulse", hasShadow: true },
+  { base: "qwilfish", name: "Qwilfish", speciesId: "qwilfish", formBadge: "Johto", types: ["water", "poison"], fastMove: "Poison Sting", chargedMove1: "Aqua Tail", chargedMove2: "Sludge Wave", hasShadow: true },
+  { base: "qwilfish", name: "Hisuian Qwilfish", speciesId: "qwilfish_hisuian", formBadge: "Hisuian", types: ["dark", "poison"], fastMove: "Poison Jab", chargedMove1: "Aqua Tail", chargedMove2: "Shadow Ball", hasShadow: false },
+  { base: "typhlosion", name: "Typhlosion", speciesId: "typhlosion", formBadge: "Johto", types: ["fire"], fastMove: "Incinerate", chargedMove1: "Blast Burn", chargedMove2: "Thunder Punch", hasShadow: true },
+  { base: "typhlosion", name: "Hisuian Typhlosion", speciesId: "typhlosion_hisuian", formBadge: "Hisuian", types: ["fire", "ghost"], fastMove: "Hex", chargedMove1: "Fire Punch", chargedMove2: "Shadow Ball", hasShadow: false },
+  { base: "samurott", name: "Samurott", speciesId: "samurott", formBadge: "Unova", types: ["water"], fastMove: "Fury Cutter", chargedMove1: "Hydro Cannon", chargedMove2: "Megahorn", hasShadow: false },
+  { base: "samurott", name: "Hisuian Samurott", speciesId: "samurott_hisuian", formBadge: "Hisuian", types: ["water", "dark"], fastMove: "Snarl", chargedMove1: "Icy Wind", chargedMove2: "Dark Pulse", hasShadow: false },
+  { base: "decidueye", name: "Decidueye", speciesId: "decidueye", formBadge: "Alola", types: ["grass", "ghost"], fastMove: "Astonish", chargedMove1: "Frenzy Plant", chargedMove2: "Spirit Shackle", hasShadow: false },
+  { base: "decidueye", name: "Hisuian Decidueye", speciesId: "decidueye_hisuian", formBadge: "Hisuian", types: ["grass", "fighting"], fastMove: "Psycho Cut", chargedMove1: "Aura Sphere", chargedMove2: "Trailblaze", hasShadow: false },
+  { base: "deoxys", name: "Deoxys (Defense)", speciesId: "deoxys_defense", formBadge: "Defense", types: ["psychic"], fastMove: "Counter", chargedMove1: "Rock Slide", chargedMove2: "Psycho Boost", hasShadow: false },
+  { base: "deoxys", name: "Deoxys (Normal)", speciesId: "deoxys", formBadge: "Normal", types: ["psychic"], fastMove: "Zen Headbutt", chargedMove1: "Psycho Boost", chargedMove2: "Thunderbolt", hasShadow: false },
+  { base: "deoxys", name: "Deoxys (Attack)", speciesId: "deoxys_attack", formBadge: "Attack", types: ["psychic"], fastMove: "Poison Jab", chargedMove1: "Psycho Boost", chargedMove2: "Dark Pulse", hasShadow: false },
+  { base: "deoxys", name: "Deoxys (Speed)", speciesId: "deoxys_speed", formBadge: "Speed", types: ["psychic"], fastMove: "Zen Headbutt", chargedMove1: "Psycho Boost", chargedMove2: "Thunderbolt", hasShadow: false },
+  { base: "urshifu", name: "Urshifu (Single Strike)", speciesId: "urshifu_single_strike", formBadge: "Single Strike", types: ["fighting", "dark"], fastMove: "Counter", chargedMove1: "Dynamic Punch", chargedMove2: "Payback", hasShadow: false },
+  { base: "urshifu", name: "Urshifu (Rapid Strike)", speciesId: "urshifu_rapid_strike", formBadge: "Rapid Strike", types: ["fighting", "water"], fastMove: "Counter", chargedMove1: "Aqua Jet", chargedMove2: "Close Combat", hasShadow: false }
+];
+
+function extractBaseSpeciesKey(name: string, speciesId?: string, explicitBase?: string): string {
+  if (explicitBase) return explicitBase.toLowerCase().trim();
+  const cleanName = name
+    .replace(/^Shadow\s+/i, "")
+    .replace(/^Mega\s+/i, "")
+    .replace(/^Primal\s+/i, "")
+    .replace(/^(Alolan|Galarian|Hisuian|Paldean|Kanto|Johto|Hoenn|Sinnoh|Unova|Kalos)\s+/i, "")
+    .replace(/\s+\([^)]+\)/g, "")
+    .replace(/\s+(X|Y)$/i, "")
+    .trim()
+    .toLowerCase();
+  if (cleanName) return cleanName;
+  return (speciesId || "").split("_")[0].toLowerCase();
+}
+
+/**
+ * Returns autocomplete options for the Team Builder UI.
+ * When typing a base species name (e.g., "giratina", "ninetales", "feraligatr", "zacian", "groudon"),
+ * returns the Base Form, all Alternate Forms (Alolan, Galarian, Hisuian, Origin, Crowned, Mega, Primal, etc.),
+ * and Shadow variants so the user can pick any variant from the pop-down menu.
+ */
+export function getPokemonAutocompleteSuggestions(
+  rawQuery: string,
+  league: LeagueType = "GREAT LEAGUE",
+  limit: number = 24
+): PokemonAutocompleteOption[] {
+  const query = (rawQuery || "").trim().toLowerCase();
+  if (!query) return [];
+
+  const isTypingShadow = query.startsWith("shadow") || query.includes(" shadow");
+  const strippedQuery = query.replace(/^shadow\s*/i, "").trim();
+  const searchToken = strippedQuery || query;
+
+  // Build unified pool of species from POKEMON_DATABASE + BUILTIN_REGIONAL_ALTERNATES
+  const poolByName = new Map<string, PokemonAutocompleteOption>();
+
+  const addOptionToPool = (opt: PokemonAutocompleteOption) => {
+    const key = opt.name.toLowerCase();
+    if (!poolByName.has(key)) {
+      poolByName.set(key, opt);
+    }
+  };
+
+  for (const p of Object.values(POKEMON_DATABASE)) {
+    const isShadow = p.name.toLowerCase().startsWith("shadow ") || p.speciesId.toLowerCase().endsWith("_shadow");
+    const baseSpecies = extractBaseSpeciesKey(p.name, p.speciesId, p.baseSpecies);
+    const rec = getRecommendedMovesForPokemon(p.name, league);
+    const isMegaOrPrimal = /^Mega\s+|^Primal\s+/i.test(p.name);
+    const formBadge = isShadow
+      ? p.formLabel
+        ? `Shadow • ${p.formLabel}`
+        : "Shadow"
+      : p.formLabel
+      ? p.formLabel
+      : isMegaOrPrimal
+      ? p.name.startsWith("Primal ")
+        ? "Primal"
+        : "Mega"
+      : /^(Alolan|Galarian|Hisuian|Paldean)\s+/i.test(p.name)
+      ? p.name.split(" ")[0]
+      : "Base";
+
+    const isAlternateForm = formBadge !== "Base" && formBadge !== "Shadow";
+
+    addOptionToPool({
+      name: p.name,
+      speciesId: p.speciesId,
+      baseSpecies,
+      formBadge,
+      types: p.types,
+      cp: rec?.cp || 1500,
+      fastMove: rec?.fastMove || p.defaultFastMove.name,
+      chargedMove1: rec?.chargedMove1 || p.chargedMoves[0]?.name || "Charged 1",
+      chargedMove2: rec?.chargedMove2 || p.chargedMoves[1]?.name || p.chargedMoves[0]?.name || "Charged 2",
+      isShadow,
+      isAlternateForm,
+      score: rec?.score
+    });
+
+    // Also synthesize the Shadow option for non-Shadow, non-Mega/Primal Pokémon if not already in DB
+    if (!isShadow && !isMegaOrPrimal) {
+      const shadowName = `Shadow ${p.name}`;
+      const shadowSpeciesId = `${p.speciesId}_shadow`;
+      const shadowRec = getRecommendedMovesForPokemon(shadowName, league);
+      addOptionToPool({
+        name: shadowName,
+        speciesId: shadowSpeciesId,
+        baseSpecies,
+        formBadge: p.formLabel ? `Shadow • ${p.formLabel}` : "Shadow",
+        types: p.types,
+        cp: shadowRec?.cp || rec?.cp || 1500,
+        fastMove: shadowRec?.fastMove || rec?.fastMove || p.defaultFastMove.name,
+        chargedMove1: shadowRec?.chargedMove1 || rec?.chargedMove1 || p.chargedMoves[0]?.name || "Charged 1",
+        chargedMove2:
+          shadowRec?.chargedMove2 ||
+          rec?.chargedMove2 ||
+          p.chargedMoves[1]?.name ||
+          p.chargedMoves[0]?.name ||
+          "Charged 2",
+        isShadow: true,
+        isAlternateForm,
+        score: shadowRec?.score
+      });
+    }
+  }
+
+  for (const alt of BUILTIN_REGIONAL_ALTERNATES) {
+    const defaultCp = league === "GREAT LEAGUE" ? 1496 : league === "ULTRA LEAGUE" ? 2492 : 3450;
+    addOptionToPool({
+      name: alt.name,
+      speciesId: alt.speciesId,
+      baseSpecies: alt.base,
+      formBadge: alt.formBadge,
+      types: alt.types,
+      cp: defaultCp,
+      fastMove: alt.fastMove,
+      chargedMove1: alt.chargedMove1,
+      chargedMove2: alt.chargedMove2,
+      isShadow: false,
+      isAlternateForm: alt.formBadge !== "Kanto" && alt.formBadge !== "Johto" && alt.formBadge !== "Unova" && alt.formBadge !== "Alola"
+    });
+    if (alt.hasShadow) {
+      addOptionToPool({
+        name: `Shadow ${alt.name}`,
+        speciesId: `${alt.speciesId}_shadow`,
+        baseSpecies: alt.base,
+        formBadge: `Shadow • ${alt.formBadge}`,
+        types: alt.types,
+        cp: defaultCp,
+        fastMove: alt.fastMove,
+        chargedMove1: alt.chargedMove1,
+        chargedMove2: alt.chargedMove2,
+        isShadow: true,
+        isAlternateForm: true
+      });
+    }
+  }
+
+  // 1. Identify all matched baseSpecies keys so typing a base form (e.g. "ninetales", "giratina", "feraligatr")
+  // pulls in ALL alternate forms & Shadow options for that base species!
+  const matchedBaseSpecies = new Set<string>();
+  for (const opt of poolByName.values()) {
+    const nameLower = opt.name.toLowerCase();
+    const baseLower = opt.baseSpecies.toLowerCase();
+    if (
+      baseLower.startsWith(searchToken) ||
+      baseLower.includes(searchToken) ||
+      nameLower.includes(searchToken)
+    ) {
+      matchedBaseSpecies.add(baseLower);
+    }
+  }
+
+  const results: PokemonAutocompleteOption[] = [];
+  for (const opt of poolByName.values()) {
+    const inMatchedFamily = matchedBaseSpecies.has(opt.baseSpecies.toLowerCase());
+    const directMatch = opt.name.toLowerCase().includes(query);
+    if (!inMatchedFamily && !directMatch) continue;
+    results.push(opt);
+  }
+
+  // Sort so exact/prefix base matches come first, grouping Base -> Alternate Forms -> Shadow Forms cleanly
+  results.sort((a, b) => {
+    const aBaseStarts = a.baseSpecies.startsWith(searchToken) ? 0 : 1;
+    const bBaseStarts = b.baseSpecies.startsWith(searchToken) ? 0 : 1;
+    if (aBaseStarts !== bBaseStarts) return aBaseStarts - bBaseStarts;
+
+    if (a.baseSpecies !== b.baseSpecies) {
+      return a.baseSpecies.localeCompare(b.baseSpecies);
+    }
+
+    // If user explicitly typed "shadow", show Shadow variants first within the family
+    if (isTypingShadow) {
+      if (a.isShadow !== b.isShadow) return a.isShadow ? -1 : 1;
+    } else {
+      // Otherwise show Base -> Alternate Forms -> Shadow Base -> Shadow Alternate
+      if (a.isShadow !== b.isShadow) return a.isShadow ? 1 : -1;
+    }
+
+    if (a.isAlternateForm !== b.isAlternateForm) {
+      return a.isAlternateForm ? 1 : -1;
+    }
+
+    return a.name.localeCompare(b.name);
+  });
+
+  return results.slice(0, limit);
+}
+
+/**
+ * Resolves PvPoke recommended Fast Move, Charged Move 1, Charged Move 2, and default CP for a Pokémon name,
+ * prioritizing live rankings JSON moves (moves.fastMoves & moves.chargedMoves) when available.
+ */
 export function getRecommendedMovesForPokemon(
   rawName: string,
   league: string = "GREAT LEAGUE",
@@ -1437,6 +2144,7 @@ export function getRecommendedMovesForPokemon(
   chargedMove1: string;
   chargedMove2: string;
   defaultIvs: string;
+  score?: number;
 } | null {
   const trimmed = (rawName || "").trim();
   if (!trimmed) return null;
@@ -1453,6 +2161,24 @@ export function getRecommendedMovesForPokemon(
         p.speciesId.toLowerCase() === cleanName.toLowerCase().replace(/\s+/g, "_")
     );
 
+  if (!exact) {
+    const builtinAlt = BUILTIN_REGIONAL_ALTERNATES.find(
+      (a) => a.name.toLowerCase() === cleanName.toLowerCase()
+    );
+    if (builtinAlt) {
+      const ivTuple = parseIvTriplet(customIvs, league);
+      const defaultCp = league.includes("GREAT") ? 1496 : league.includes("ULTRA") ? 2492 : 3450;
+      return {
+        name: trimmed.toLowerCase().startsWith("shadow ") ? `Shadow ${builtinAlt.name}` : builtinAlt.name,
+        cp: defaultCp,
+        fastMove: builtinAlt.fastMove,
+        chargedMove1: builtinAlt.chargedMove1,
+        chargedMove2: builtinAlt.chargedMove2,
+        defaultIvs: `${ivTuple[0]}/${ivTuple[1]}/${ivTuple[2]}`
+      };
+    }
+  }
+
   const partial =
     exact ||
     entries.find(
@@ -1465,13 +2191,42 @@ export function getRecommendedMovesForPokemon(
 
   const scaled = computeEffectiveStatsForLeague(partial, league, undefined, customIvs);
   const ivTuple = parseIvTriplet(customIvs, league);
+
+  const leagueMap = LIVE_RANKINGS_MAP[league.toUpperCase()];
+  const isShadowInput = trimmed.toLowerCase().startsWith("shadow ");
+  const rankingEntry = isShadowInput
+    ? leagueMap?.get(`${partial.speciesId.toLowerCase()}_shadow`) ||
+      leagueMap?.get(partial.speciesId.toLowerCase())
+    : leagueMap?.get(partial.speciesId.toLowerCase()) ||
+      leagueMap?.get(`${partial.speciesId.toLowerCase()}_shadow`);
+
+  const topFastId = rankingEntry?.moves.fastMoves[0]?.moveId || rankingEntry?.moveset?.[0];
+  const topC1Id = rankingEntry?.moves.chargedMoves[0]?.moveId || rankingEntry?.moveset?.[1];
+  const topC2Id = rankingEntry?.moves.chargedMoves[1]?.moveId || rankingEntry?.moveset?.[2];
+
+  const resolvedFast = topFastId
+    ? formatMoveIdToDisplayName(topFastId)
+    : partial.defaultFastMove?.name || "Fast Move";
+  const resolvedC1 = topC1Id
+    ? formatMoveIdToDisplayName(topC1Id)
+    : partial.chargedMoves[0]?.name || "Charged 1";
+  const resolvedC2 = topC2Id
+    ? formatMoveIdToDisplayName(topC2Id)
+    : partial.chargedMoves[1]?.name || partial.chargedMoves[0]?.name || "Charged 2";
+
+  const finalDisplayName =
+    isShadowInput && !partial.name.toLowerCase().startsWith("shadow ")
+      ? `Shadow ${partial.name}`
+      : partial.name;
+
   return {
-    name: partial.name,
+    name: finalDisplayName,
     cp: scaled.resolvedCp,
-    fastMove: partial.defaultFastMove?.name || "Fast Move",
-    chargedMove1: partial.chargedMoves[0]?.name || "Charged 1",
-    chargedMove2: partial.chargedMoves[1]?.name || partial.chargedMoves[0]?.name || "Charged 2",
-    defaultIvs: `${ivTuple[0]}/${ivTuple[1]}/${ivTuple[2]}`
+    fastMove: resolvedFast,
+    chargedMove1: resolvedC1,
+    chargedMove2: resolvedC2,
+    defaultIvs: `${ivTuple[0]}/${ivTuple[1]}/${ivTuple[2]}`,
+    score: rankingEntry?.score
   };
 }
 
@@ -1479,8 +2234,36 @@ export function getRecommendedMovesForPokemon(
  * Returns the PvPoke Top 3 rated Pokémon template for a given league.
  */
 export function getLeagueTop3Template(
-  league: "MASTER LEAGUE" | "ULTRA LEAGUE" | "GREAT LEAGUE"
+  league: LeagueType
 ): TeamMember[] {
+  if (league === "MEGA MASTER LEAGUE") {
+    return [
+      {
+        id: "m1",
+        name: "Mega Rayquaza",
+        cp: 5728,
+        fastMove: "Dragon Tail",
+        chargedMove1: "Breaking Swipe",
+        chargedMove2: "Dragon Ascent"
+      },
+      {
+        id: "m2",
+        name: "Primal Groudon",
+        cp: 5910,
+        fastMove: "Mud Shot",
+        chargedMove1: "Precipice Blades",
+        chargedMove2: "Fire Punch"
+      },
+      {
+        id: "m3",
+        name: "Primal Kyogre",
+        cp: 5910,
+        fastMove: "Waterfall",
+        chargedMove1: "Origin Pulse",
+        chargedMove2: "Surf"
+      }
+    ];
+  }
   if (league === "GREAT LEAGUE") {
     return [
       {
