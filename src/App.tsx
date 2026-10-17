@@ -48,6 +48,7 @@ import {
   getRecommendedMovesForPokemon,
   getLeagueTop3Template,
   syncPvPokeDataAndRankings,
+  getPvPokeDatabaseTelemetry,
   getPokemonAutocompleteSuggestions,
   PokemonAutocompleteOption
 } from './data/gblData';
@@ -124,7 +125,15 @@ export default function App() {
 
   // PvPoke Gamemaster + League Rankings Sync State
   const [isSyncingPvPoke, setIsSyncingPvPoke] = useState(false);
-  const [pvPokeSyncStatus, setPvPokeSyncStatus] = useState<string>('Rankings Ready (GL/UL/ML/Mega)');
+  const [pvPokeSyncStatus, setPvPokeSyncStatus] = useState<string>('Syncing GameMaster & 4 League Rankings...');
+  const [lastSyncedAt, setLastSyncedAt] = useState<string>(() => {
+    try {
+      return localStorage.getItem('gbl_last_sync_timestamp') || 'Not synced yet';
+    } catch {
+      return 'Not synced yet';
+    }
+  });
+  const [dbTelemetry, setDbTelemetry] = useState(() => getPvPokeDatabaseTelemetry());
 
   // Drag-and-drop state for rearranging Team Presets
   const [draggedPresetIndex, setDraggedPresetIndex] = useState<number | null>(null);
@@ -148,6 +157,22 @@ export default function App() {
     setOppCountMode(mode);
     try {
       localStorage.setItem('gbl_opp_count_mode', mode);
+    } catch {}
+  };
+
+  // App Setting: Enable 4 Charged Moves in Overlay (Default: false -> 3 moves)
+  const [enable4ChargedMoves, setEnable4ChargedMoves] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('gbl_enable_4_charged_moves') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const handleSetEnable4ChargedMoves = (enabled: boolean) => {
+    setEnable4ChargedMoves(enabled);
+    try {
+      localStorage.setItem('gbl_enable_4_charged_moves', String(enabled));
     } catch {}
   };
 
@@ -287,13 +312,27 @@ export default function App() {
     syncPvPokeDataAndRankings()
       .then((res) => {
         if (!mounted) return;
-        const totalRanked =
-          (res.rankingsCount['GREAT LEAGUE'] || 0) +
-          (res.rankingsCount['ULTRA LEAGUE'] || 0) +
-          (res.rankingsCount['MASTER LEAGUE'] || 0) +
-          (res.rankingsCount['MEGA MASTER LEAGUE'] || 0);
+        const gl = res.rankingsCount['GREAT LEAGUE'] || 0;
+        const ul = res.rankingsCount['ULTRA LEAGUE'] || 0;
+        const ml = res.rankingsCount['MASTER LEAGUE'] || 0;
+        const mega = res.rankingsCount['MEGA MASTER LEAGUE'] || 0;
+        const totalRanked = gl + ul + ml + mega;
+        const nowStr = new Date().toLocaleString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit'
+        });
+        setDbTelemetry(getPvPokeDatabaseTelemetry());
         if (totalRanked > 0) {
-          setPvPokeSyncStatus(`PvPoke Synced (${res.syncedCount} Pokémon • ${totalRanked} Rankings)`);
+          setLastSyncedAt(nowStr);
+          try {
+            localStorage.setItem('gbl_last_sync_timestamp', nowStr);
+          } catch {}
+          setPvPokeSyncStatus(
+            `Last Updated: ${nowStr} • GameMaster: ${res.syncedCount} Pokémon • GL: ${gl} • UL: ${ul} • ML: ${ml} • Mega: ${mega}`
+          );
         }
       })
       .catch(() => {});
@@ -307,14 +346,28 @@ export default function App() {
     setPvPokeSyncStatus('Syncing gamemaster + GL/UL/ML/Mega rankings...');
     try {
       const res = await syncPvPokeDataAndRankings();
-      const totalRanked =
-        (res.rankingsCount['GREAT LEAGUE'] || 0) +
-        (res.rankingsCount['ULTRA LEAGUE'] || 0) +
-        (res.rankingsCount['MASTER LEAGUE'] || 0) +
-        (res.rankingsCount['MEGA MASTER LEAGUE'] || 0);
+      const gl = res.rankingsCount['GREAT LEAGUE'] || 0;
+      const ul = res.rankingsCount['ULTRA LEAGUE'] || 0;
+      const ml = res.rankingsCount['MASTER LEAGUE'] || 0;
+      const mega = res.rankingsCount['MEGA MASTER LEAGUE'] || 0;
+      const totalRanked = gl + ul + ml + mega;
+      const nowStr = new Date().toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit'
+      });
+      setDbTelemetry(getPvPokeDatabaseTelemetry());
+      if (totalRanked > 0) {
+        setLastSyncedAt(nowStr);
+        try {
+          localStorage.setItem('gbl_last_sync_timestamp', nowStr);
+        } catch {}
+      }
       setPvPokeSyncStatus(
         totalRanked > 0
-          ? `Synced ${res.syncedCount} species & ${totalRanked} league rankings!`
+          ? `Last Updated: ${nowStr} • GameMaster: ${res.syncedCount} Pokémon • GL: ${gl} • UL: ${ul} • ML: ${ml} • Mega: ${mega}`
           : `Loaded ${res.syncedCount} species (offline fallback)`
       );
     } catch {
@@ -527,9 +580,10 @@ export default function App() {
       myCustomChargedMoves,
       oppCountMode,
       activePreset?.league || activeOpponentLeague,
-      activePreset.pokemon
+      activePreset.pokemon,
+      enable4ChargedMoves
     );
-  }, [activeOpponent, userLeadName, activePreset, isOpponentShadow, userFastTurns, userFastMoveName, myCustomChargedMoves, oppCountMode, activeOpponentLeague]);
+  }, [activeOpponent, userLeadName, activePreset, isOpponentShadow, userFastTurns, userFastMoveName, myCustomChargedMoves, oppCountMode, activeOpponentLeague, enable4ChargedMoves]);
 
   const oppReadyTaps = useMemo(() => {
     return oppMoveTimingInfo.rows.map(r => r.myTapAtReady);
@@ -547,9 +601,10 @@ export default function App() {
       scannedOpponents,
       oppMoveTimingInfo.maxHorizonTurns,
       activePreset?.league || activeOpponentLeague,
-      activeUserSlot
+      activeUserSlot,
+      enable4ChargedMoves
     );
-  }, [userLeadName, activeOpponent, myCustomChargedMoves, oppReadyTaps, isOpponentShadow, userFastTurns, userFastMoveName, scannedOpponents, oppMoveTimingInfo.maxHorizonTurns, activePreset?.league, activeOpponentLeague, activeUserSlot]);
+  }, [userLeadName, activeOpponent, myCustomChargedMoves, oppReadyTaps, isOpponentShadow, userFastTurns, userFastMoveName, scannedOpponents, oppMoveTimingInfo.maxHorizonTurns, activePreset?.league, activeOpponentLeague, activeUserSlot, enable4ChargedMoves]);
 
   const abbrPoke3 = (name: string, isShad: boolean = false) => {
     const clean = name
@@ -880,7 +935,7 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <h1 className="font-bold text-base md:text-lg tracking-tight text-white">BattleMatrix GBL</h1>
                 <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20">
-                  v1.22 • Android Native Overlay
+                  v1.23 • Android Native Overlay
                 </span>
               </div>
               <p className="text-xs text-slate-400 hidden sm:block">
@@ -1764,7 +1819,7 @@ export default function App() {
                 </div>
 
                 {/* App Setting (Not on Overlay): Opponent Fast Move Count Basis */}
-                <div className="mb-4 p-3 rounded-xl bg-slate-950/70 border border-slate-800 space-y-2">
+                <div className="mb-3 p-3 rounded-xl bg-slate-950/70 border border-slate-800 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-200">
                       Opponent Move Count Basis
@@ -1794,6 +1849,84 @@ export default function App() {
                     >
                       Opponent Fast Moves
                     </button>
+                  </div>
+                </div>
+
+                {/* App Setting: Opponent Charged Moves Shown in Overlay (3 vs 4 Charged Moves) */}
+                <div className="mb-3 p-3 rounded-xl bg-slate-950/70 border border-slate-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-200">
+                      Opponent Charged Moves in Overlay
+                    </span>
+                    <span className="text-[10px] font-mono text-sky-400">
+                      {enable4ChargedMoves ? 'Official + Top 2 Usage' : 'Official + Top Usage'}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-900 rounded-lg border border-slate-800">
+                    <button
+                      onClick={() => handleSetEnable4ChargedMoves(false)}
+                      className={`py-1.5 px-2 rounded-md text-xs font-bold transition ${
+                        !enable4ChargedMoves
+                          ? 'bg-sky-500/25 border border-sky-400/70 text-sky-200 shadow-sm'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      3 Charged Moves (Default)
+                    </button>
+                    <button
+                      onClick={() => handleSetEnable4ChargedMoves(true)}
+                      className={`py-1.5 px-2 rounded-md text-xs font-bold transition ${
+                        enable4ChargedMoves
+                          ? 'bg-sky-500/25 border border-sky-400/70 text-sky-200 shadow-sm'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      4 Charged Moves
+                    </button>
+                  </div>
+                </div>
+
+                {/* Live PvPoke GameMaster & 4-League Rankings Status Card */}
+                <div className="mb-4 p-3 rounded-xl bg-slate-950/70 border border-slate-800 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <span className="text-xs font-bold text-slate-200 block">
+                        PvPoke Live Database &amp; 4-League Status
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        Last Updated: <strong className="text-emerald-400">{lastSyncedAt}</strong>
+                      </span>
+                    </div>
+                    <button
+                      onClick={handleManualPvPokeSync}
+                      disabled={isSyncingPvPoke}
+                      className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-sky-300 text-[11px] font-bold flex items-center gap-1 transition shrink-0"
+                    >
+                      <RefreshCw className={`w-3 h-3 ${isSyncingPvPoke ? 'animate-spin' : ''}`} />
+                      <span>{isSyncingPvPoke ? 'Syncing...' : 'Sync PvPoke'}</span>
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-5 gap-1.5 text-center text-[10px] font-mono">
+                    <div className="p-1.5 rounded bg-slate-900 border border-slate-800">
+                      <span className="text-slate-400 block text-[9px]">GameMaster</span>
+                      <strong className="text-white">{dbTelemetry.gmCount}</strong>
+                    </div>
+                    <div className="p-1.5 rounded bg-slate-900 border border-slate-800">
+                      <span className="text-sky-400 block text-[9px]">GL (1500)</span>
+                      <strong className="text-white">{dbTelemetry.glCount}</strong>
+                    </div>
+                    <div className="p-1.5 rounded bg-slate-900 border border-slate-800">
+                      <span className="text-amber-400 block text-[9px]">UL (2500)</span>
+                      <strong className="text-white">{dbTelemetry.ulCount}</strong>
+                    </div>
+                    <div className="p-1.5 rounded bg-slate-900 border border-slate-800">
+                      <span className="text-purple-400 block text-[9px]">ML (10000)</span>
+                      <strong className="text-white">{dbTelemetry.mlCount}</strong>
+                    </div>
+                    <div className="p-1.5 rounded bg-slate-900 border border-slate-800">
+                      <span className="text-emerald-400 block text-[9px]">Mega ML</span>
+                      <strong className="text-white">{dbTelemetry.megaCount}</strong>
+                    </div>
                   </div>
                 </div>
 

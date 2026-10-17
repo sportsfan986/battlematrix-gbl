@@ -73,6 +73,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnDonate: Button
     private lateinit var btnToggleOppCountBasis: Button
     private lateinit var textOppCountBasisDesc: TextView
+    private lateinit var btnToggleOppChargedMoves: Button
+    private lateinit var textOppChargedMovesDesc: TextView
     private lateinit var seekbarOverlayScale: SeekBar
     private lateinit var textOverlayScaleValue: TextView
     private lateinit var textOverlayScaleDefaultTick: TextView
@@ -81,6 +83,8 @@ class MainActivity : AppCompatActivity() {
     private val PREFS_KEY_PRESETS = OverlayService.PREFS_KEY_PERSISTENT_TEAMS
     private val PREFS_KEY_SELECTED_PRESET = "gbl_selected_preset_id"
     private val PREFS_KEY_OPP_COUNT_MODE = "opp_count_mode"
+    private val PREFS_KEY_ENABLE_4_CHARGED_MOVES = OverlayService.PREFS_KEY_ENABLE_4_CHARGED_MOVES
+    private val PREFS_KEY_LAST_SYNC_TIMESTAMP = OverlayService.PREFS_KEY_LAST_SYNC_TIMESTAMP
     private val PREFS_KEY_OVERLAY_SCALE_PCT = "overlay_scale_pct"
     private val DEFAULT_OVERLAY_SCALE_PCT = 78
     private val DONATION_URL = "https://buymeacoffee.com/sportsfan986"
@@ -160,12 +164,15 @@ class MainActivity : AppCompatActivity() {
         btnDonate = findViewById(R.id.btn_donate)
         btnToggleOppCountBasis = findViewById(R.id.btn_toggle_opp_count_basis)
         textOppCountBasisDesc = findViewById(R.id.text_opp_count_basis_desc)
+        btnToggleOppChargedMoves = findViewById(R.id.btn_toggle_opp_charged_moves)
+        textOppChargedMovesDesc = findViewById(R.id.text_opp_charged_moves_desc)
         seekbarOverlayScale = findViewById(R.id.seekbar_overlay_scale)
         textOverlayScaleValue = findViewById(R.id.text_overlay_scale_value)
         textOverlayScaleDefaultTick = findViewById(R.id.text_overlay_scale_default_tick)
         presetsContainer = findViewById(R.id.layout_presets_list)
 
         updateOppCountBasisUi()
+        updateOppChargedMovesUi()
 
         val savedScalePct = prefs.getInt(PREFS_KEY_OVERLAY_SCALE_PCT, DEFAULT_OVERLAY_SCALE_PCT).coerceIn(50, 100)
         seekbarOverlayScale.progress = scalePctToProgress(savedScalePct)
@@ -206,6 +213,21 @@ class MainActivity : AppCompatActivity() {
                 val updateIntent = Intent(this, OverlayService::class.java).apply {
                     action = OverlayService.ACTION_UPDATE_SETTINGS
                     putExtra(OverlayService.EXTRA_OPP_COUNT_MODE, nextMode)
+                }
+                startService(updateIntent)
+            }
+        }
+
+        btnToggleOppChargedMoves.setOnClickListener {
+            val currentEnable4 = prefs.getBoolean(PREFS_KEY_ENABLE_4_CHARGED_MOVES, false)
+            val nextEnable4 = !currentEnable4
+            prefs.edit().putBoolean(PREFS_KEY_ENABLE_4_CHARGED_MOVES, nextEnable4).apply()
+            updateOppChargedMovesUi()
+
+            if (isOverlayRunning) {
+                val updateIntent = Intent(this, OverlayService::class.java).apply {
+                    action = OverlayService.ACTION_UPDATE_SETTINGS
+                    putExtra(OverlayService.EXTRA_ENABLE_4_CHARGED_MOVES, nextEnable4)
                 }
                 startService(updateIntent)
             }
@@ -256,6 +278,17 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun updateOppChargedMovesUi() {
+        val enable4 = prefs.getBoolean(PREFS_KEY_ENABLE_4_CHARGED_MOVES, false)
+        if (enable4) {
+            btnToggleOppChargedMoves.text = "4 Moves"
+            textOppChargedMovesDesc.text = "Active: 4 Charged Moves (Official + Top 2 Usage)"
+        } else {
+            btnToggleOppChargedMoves.text = "3 Moves"
+            textOppChargedMovesDesc.text = "Default: 3 Charged Moves (Official + Top Usage)"
+        }
+    }
+
     /**
      * Checks notifications (Android 13+), SYSTEM_ALERT_WINDOW, and initiates overlay launch
      */
@@ -295,6 +328,76 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startOverlayForegroundService(resultCode: Int, data: Intent?) {
+        if (OverlayService.areAllFourLeaguesLoaded() && OverlayService.DYNAMIC_POKEMON_DATABASE.isNotEmpty()) {
+            launchOverlayServiceNow(resultCode, data)
+            return
+        }
+
+        statusText.text = "Status: Ensuring all 4 league rankings JSONs are loaded..."
+        dbStatusText.text = "Syncing PvPoke GameMaster & all 4 leagues before launching overlay..."
+        btnToggleOverlay.isEnabled = false
+        Toast.makeText(this, "Downloading/verifying all 4 league rankings before launching overlay...", Toast.LENGTH_SHORT).show()
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            var didDownloadAny = false
+            try {
+                for ((leagueKey, fileName, url) in RANKINGS_ENDPOINTS) {
+                    val rFile = File(filesDir, fileName)
+                    if (rFile.exists() && rFile.length() > 200 && OverlayService.getLeagueRankingsCount(leagueKey) == 0) {
+                        OverlayService.parseRankingsJsonStatic(leagueKey, rFile.readText())
+                    }
+                    if (OverlayService.getLeagueRankingsCount(leagueKey) == 0) {
+                        val rReq = Request.Builder().url(url).build()
+                        client.newCall(rReq).execute().use { rResp ->
+                            val rBody = rResp.body?.string()
+                            if (rResp.isSuccessful && !rBody.isNullOrBlank()) {
+                                rFile.writeText(rBody)
+                                OverlayService.parseRankingsJsonStatic(leagueKey, rBody)
+                                didDownloadAny = true
+                            }
+                        }
+                    }
+                }
+
+                val cacheFile = File(filesDir, "pvpoke_gamemaster.json")
+                if (cacheFile.exists() && cacheFile.length() > 1000 && OverlayService.DYNAMIC_POKEMON_DATABASE.isEmpty()) {
+                    OverlayService.parseGamemasterJsonStatic(cacheFile.readText())
+                }
+                if (OverlayService.DYNAMIC_POKEMON_DATABASE.isEmpty()) {
+                    val req = Request.Builder().url(GAMEMASTER_URL).build()
+                    client.newCall(req).execute().use { resp ->
+                        val body = resp.body?.string()
+                        if (resp.isSuccessful && !body.isNullOrBlank()) {
+                            cacheFile.writeText(body)
+                            OverlayService.parseGamemasterJsonStatic(body)
+                            didDownloadAny = true
+                        }
+                    }
+                }
+
+                if (didDownloadAny || prefs.getLong(PREFS_KEY_LAST_SYNC_TIMESTAMP, 0L) == 0L) {
+                    prefs.edit().putLong(PREFS_KEY_LAST_SYNC_TIMESTAMP, System.currentTimeMillis()).apply()
+                }
+            } catch (_: Exception) {}
+
+            withContext(Dispatchers.Main) {
+                btnToggleOverlay.isEnabled = true
+                dbStatusText.text = formatDbAndLeagueStatusText()
+                if (OverlayService.areAllFourLeaguesLoaded()) {
+                    launchOverlayServiceNow(resultCode, data)
+                } else {
+                    statusText.text = "Status: Waiting for all 4 league rankings JSONs"
+                    Toast.makeText(
+                        this@MainActivity,
+                        "All 4 league rankings JSONs must be downloaded before launching overlay. Check connection and tap Sync PvPoke.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }
+    }
+
+    private fun launchOverlayServiceNow(resultCode: Int, data: Intent?) {
         val serviceIntent = Intent(this, OverlayService::class.java).apply {
             action = OverlayService.ACTION_START_OVERLAY
             putExtra(OverlayService.EXTRA_RESULT_CODE, resultCode)
@@ -303,6 +406,7 @@ class MainActivity : AppCompatActivity() {
             }
             putExtra(OverlayService.EXTRA_PRESET_JSON, gson.toJson(getSelectedPreset()))
             putExtra(OverlayService.EXTRA_OPP_COUNT_MODE, prefs.getString(PREFS_KEY_OPP_COUNT_MODE, "my_fasts") ?: "my_fasts")
+            putExtra(OverlayService.EXTRA_ENABLE_4_CHARGED_MOVES, prefs.getBoolean(PREFS_KEY_ENABLE_4_CHARGED_MOVES, false))
             putExtra(OverlayService.EXTRA_OVERLAY_SCALE_PCT, prefs.getInt(PREFS_KEY_OVERLAY_SCALE_PCT, DEFAULT_OVERLAY_SCALE_PCT))
         }
 
@@ -888,6 +992,23 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
+    private fun formatDbAndLeagueStatusText(): String {
+        val lastSyncMs = prefs.getLong(PREFS_KEY_LAST_SYNC_TIMESTAMP, 0L)
+        val cacheFile = File(filesDir, "pvpoke_gamemaster.json")
+        val effectiveMs = if (lastSyncMs > 0L) lastSyncMs else if (cacheFile.exists()) cacheFile.lastModified() else 0L
+        val dateStr = if (effectiveMs > 0L) {
+            java.text.SimpleDateFormat("MMM d, yyyy h:mm a", java.util.Locale.US).format(java.util.Date(effectiveMs))
+        } else {
+            "Not synced"
+        }
+        val gmCount = OverlayService.getGamemasterLoadedCount()
+        val glCount = OverlayService.getLeagueRankingsCount("GREAT LEAGUE")
+        val ulCount = OverlayService.getLeagueRankingsCount("ULTRA LEAGUE")
+        val mlCount = OverlayService.getLeagueRankingsCount("MASTER LEAGUE")
+        val megaCount = OverlayService.getLeagueRankingsCount("MEGA MASTER LEAGUE")
+        return "Last Updated: $dateStr • GameMaster: $gmCount Pokémon\nLeagues Loaded — GL: $glCount • UL: $ulCount • ML: $mlCount • Mega: $megaCount"
+    }
+
     /**
      * PVPOKE GAMEMASTER + LEAGUE RANKINGS DOWNLOAD & CACHE:
      * Downloads raw live PvPoke gamemaster.json + GL/UL/ML/Mega Master rankings JSONs
@@ -895,9 +1016,9 @@ class MainActivity : AppCompatActivity() {
     private fun checkGamemasterCache() {
         val cacheFile = File(filesDir, "pvpoke_gamemaster.json")
         if (cacheFile.exists()) {
-            val sizeKb = cacheFile.length() / 1024
-            dbStatusText.text = "PvPoke Database & Rankings: Cached (${sizeKb} KB offline ready)"
+            dbStatusText.text = "Loading cached PvPoke GameMaster & 4 League Rankings..."
             lifecycleScope.launch(Dispatchers.IO) {
+                var didDownloadMissing = false
                 try {
                     for ((leagueKey, fileName, url) in RANKINGS_ENDPOINTS) {
                         val rFile = File(filesDir, fileName)
@@ -911,16 +1032,23 @@ class MainActivity : AppCompatActivity() {
                                     if (rResp.isSuccessful && !rBody.isNullOrBlank()) {
                                         rFile.writeText(rBody)
                                         OverlayService.parseRankingsJsonStatic(leagueKey, rBody)
+                                        didDownloadMissing = true
                                     }
                                 }
                             } catch (_: Exception) {}
                         }
                     }
                     OverlayService.parseGamemasterJsonStatic(cacheFile.readText())
+                    if (didDownloadMissing || prefs.getLong(PREFS_KEY_LAST_SYNC_TIMESTAMP, 0L) == 0L) {
+                        prefs.edit().putLong(PREFS_KEY_LAST_SYNC_TIMESTAMP, cacheFile.lastModified().takeIf { it > 0L } ?: System.currentTimeMillis()).apply()
+                    }
                 } catch (_: Exception) {}
+                withContext(Dispatchers.Main) {
+                    dbStatusText.text = formatDbAndLeagueStatusText()
+                }
             }
         } else {
-            dbStatusText.text = "PvPoke Database: Not cached (tap Download to sync)"
+            dbStatusText.text = "PvPoke Database: Not cached (syncing all 4 leagues...)"
             downloadPvPokeGamemaster()
         }
     }
@@ -931,7 +1059,6 @@ class MainActivity : AppCompatActivity() {
 
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                var totalRankingsCount = 0
                 for ((leagueKey, fileName, url) in RANKINGS_ENDPOINTS) {
                     try {
                         val rReq = Request.Builder().url(url).build()
@@ -940,7 +1067,7 @@ class MainActivity : AppCompatActivity() {
                                 val rBody = rResp.body?.string()
                                 if (!rBody.isNullOrBlank()) {
                                     File(filesDir, fileName).writeText(rBody)
-                                    totalRankingsCount += OverlayService.parseRankingsJsonStatic(leagueKey, rBody)
+                                    OverlayService.parseRankingsJsonStatic(leagueKey, rBody)
                                 }
                             }
                         }
@@ -955,17 +1082,17 @@ class MainActivity : AppCompatActivity() {
                     val cacheFile = File(filesDir, "pvpoke_gamemaster.json")
                     cacheFile.writeText(bodyString)
                     OverlayService.parseGamemasterJsonStatic(bodyString)
+                    prefs.edit().putLong(PREFS_KEY_LAST_SYNC_TIMESTAMP, System.currentTimeMillis()).apply()
 
                     withContext(Dispatchers.Main) {
-                        val sizeKb = cacheFile.length() / 1024
-                        dbStatusText.text = "PvPoke Synced (${sizeKb} KB • $totalRankingsCount ranked entries)"
+                        dbStatusText.text = formatDbAndLeagueStatusText()
                         btnDownloadDb.isEnabled = true
-                        Toast.makeText(this@MainActivity, "PvPoke gamemaster & league rankings synced!", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@MainActivity, "PvPoke gamemaster & all 4 league rankings synced!", Toast.LENGTH_SHORT).show()
                     }
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    dbStatusText.text = "Database Sync Failed: ${e.localizedMessage}"
+                    dbStatusText.text = "Database Sync Failed: ${e.localizedMessage}\n${formatDbAndLeagueStatusText()}"
                     btnDownloadDb.isEnabled = true
                     Toast.makeText(this@MainActivity, "Sync error: ${e.message}", Toast.LENGTH_LONG).show()
                 }

@@ -86,6 +86,10 @@ class OverlayService : LifecycleService() {
         const val EXTRA_PRESET_JSON = "extra_preset_json"
         const val EXTRA_OPP_COUNT_MODE = "extra_opp_count_mode"
         const val EXTRA_OVERLAY_SCALE_PCT = "extra_overlay_scale_pct"
+        const val EXTRA_ENABLE_4_CHARGED_MOVES = "extra_enable_4_charged_moves"
+
+        const val PREFS_KEY_ENABLE_4_CHARGED_MOVES = "enable_4_charged_moves"
+        const val PREFS_KEY_LAST_SYNC_TIMESTAMP = "last_sync_timestamp"
 
         private const val NOTIFICATION_CHANNEL_ID = "gbl_battle_overlay_channel"
         private const val NOTIFICATION_ID = 2001
@@ -127,6 +131,7 @@ class OverlayService : LifecycleService() {
             val ulRank: Int = 500,
             val mlRank: Int = 500,
             val chargedMove3: String = "",
+            val chargedMove4: String = "",
             val isRawBaseStats: Boolean = false,
             val defaultIvsGl: String = "1/15/15",
             val defaultIvsUl: String = "1/15/15"
@@ -593,7 +598,9 @@ class OverlayService : LifecycleService() {
             "Drum Beating" to MoveStats("Drum Beating", "grass", 60, 35),
             "Gigaton Hammer" to MoveStats("Gigaton Hammer", "steel", 130, 60),
             "Bulldoze" to MoveStats("Bulldoze", "ground", 80, 55),
-            "Air Cutter" to MoveStats("Air Cutter", "flying", 60, 55)
+            "Air Cutter" to MoveStats("Air Cutter", "flying", 60, 55),
+            "Rock Tomb" to MoveStats("Rock Tomb", "rock", 70, 60),
+            "Sand Tomb" to MoveStats("Sand Tomb", "ground", 25, 40)
         )
 
         val FAST_MOVE_TURNS: Map<String, Int> = mapOf(
@@ -1041,7 +1048,9 @@ class OverlayService : LifecycleService() {
             "Aura Wheel" to 45,
             "Rage Fist" to 35,
             "Torch Song" to 45,
-            "Super Power" to 40
+            "Super Power" to 40,
+            "Rock Tomb" to 60,
+            "Sand Tomb" to 40
         )
 
         fun getAllPokemonMeta(): List<PokemonMeta> {
@@ -1173,8 +1182,38 @@ class OverlayService : LifecycleService() {
             "ICE_BURN" to "Ice Burn",
             "FUSION_BOLT" to "Fusion Bolt",
             "FUSION_FLARE" to "Fusion Flare",
-            "SPACIAL_REND" to "Spacial Rend"
+            "SPACIAL_REND" to "Spacial Rend",
+            "ROCK_TOMB" to "Rock Tomb",
+            "SAND_TOMB" to "Sand Tomb",
+            "MIRROR_SHOT" to "Mirror Shot",
+            "VOLT_SWITCH" to "Volt Switch"
         )
+
+        val REQUIRED_LEAGUE_KEYS = listOf(
+            "GREAT LEAGUE",
+            "ULTRA LEAGUE",
+            "MASTER LEAGUE",
+            "MEGA MASTER LEAGUE"
+        )
+
+        fun areAllFourLeaguesLoaded(): Boolean {
+            return REQUIRED_LEAGUE_KEYS.all { key ->
+                val map = LIVE_RANKINGS_MAP[key]
+                map != null && map.isNotEmpty()
+            }
+        }
+
+        fun getGamemasterLoadedCount(): Int {
+            return if (DYNAMIC_POKEMON_DATABASE.isNotEmpty()) {
+                POKEMON_META_DATABASE.size + DYNAMIC_POKEMON_DATABASE.size
+            } else {
+                0
+            }
+        }
+
+        fun getLeagueRankingsCount(leagueKey: String): Int {
+            return LIVE_RANKINGS_MAP[leagueKey.uppercase()]?.size ?: 0
+        }
 
         fun formatMoveIdDisplay(moveId: String): String {
             if (moveId.isBlank()) return ""
@@ -1333,13 +1372,15 @@ class OverlayService : LifecycleService() {
             val c1Name = orderedChargedNames.getOrNull(0) ?: meta.chargedMove1
             val c2Name = orderedChargedNames.getOrNull(1) ?: meta.chargedMove2
             val c3Name = orderedChargedNames.getOrNull(2) ?: meta.chargedMove3
+            val c4Name = orderedChargedNames.getOrNull(3) ?: meta.chargedMove4
 
             return meta.copy(
                 defaultFastMove = fastName,
                 fastTurns = fastTurns,
                 chargedMove1 = c1Name,
                 chargedMove2 = c2Name,
-                chargedMove3 = c3Name
+                chargedMove3 = c3Name,
+                chargedMove4 = c4Name
             )
         }
 
@@ -1729,9 +1770,11 @@ class OverlayService : LifecycleService() {
                         val c1Id = orderedChargedIds.getOrNull(0) ?: "BODY_SLAM"
                         val c2Id = orderedChargedIds.getOrNull(1) ?: c1Id
                         val c3Id = orderedChargedIds.getOrNull(2) ?: ""
+                        val c4Id = orderedChargedIds.getOrNull(3) ?: ""
                         val c1Name = formatMoveIdDisplay(c1Id)
                         val c2Name = formatMoveIdDisplay(c2Id)
                         val c3Name = if (c3Id.isNotBlank()) formatMoveIdDisplay(c3Id) else ""
+                        val c4Name = if (c4Id.isNotBlank()) formatMoveIdDisplay(c4Id) else ""
 
                         val baseMeta = PokemonMeta(
                             name = speciesName,
@@ -1748,6 +1791,7 @@ class OverlayService : LifecycleService() {
                             def = def,
                             hp = hp,
                             chargedMove3 = c3Name,
+                            chargedMove4 = c4Name,
                             isRawBaseStats = true,
                             defaultIvsGl = defaultIvsGl,
                             defaultIvsUl = defaultIvsUl
@@ -1796,6 +1840,7 @@ class OverlayService : LifecycleService() {
 
     private var currentLayoutMode = "option1"
     private var oppCountMode = "my_fasts"
+    private var enable4ChargedMoves = false
     private var overlayScalePct = 78
     private var cachedScreenBitmap: Bitmap? = null
     private val captureLock = Any()
@@ -1816,6 +1861,7 @@ class OverlayService : LifecycleService() {
         mediaProjectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         prefs = getSharedPreferences("gbl_overlay_prefs", Context.MODE_PRIVATE)
         oppCountMode = prefs.getString("opp_count_mode", "my_fasts") ?: "my_fasts"
+        enable4ChargedMoves = prefs.getBoolean(PREFS_KEY_ENABLE_4_CHARGED_MOVES, false)
         overlayScalePct = prefs.getInt("overlay_scale_pct", 78).coerceIn(50, 100)
 
         val metrics = resources.displayMetrics
@@ -1828,9 +1874,36 @@ class OverlayService : LifecycleService() {
 
         createNotificationChannel()
         setupDefaultPresetsIfNeeded()
+        loadCachedRankingsSynchronously()
         loadOrFetchGamemasterInBackground()
         setupOverlayView()
         startBattleOcrLoop()
+    }
+
+    private fun loadCachedRankingsSynchronously() {
+        try {
+            val rankingTargets = listOf(
+                Pair("GREAT LEAGUE", "pvpoke_rankings_gl.json"),
+                Pair("ULTRA LEAGUE", "pvpoke_rankings_ul.json"),
+                Pair("MASTER LEAGUE", "pvpoke_rankings_ml.json"),
+                Pair("MEGA MASTER LEAGUE", "pvpoke_rankings_mega_ml.json")
+            )
+            for ((leagueKey, fileName) in rankingTargets) {
+                if (LIVE_RANKINGS_MAP[leagueKey].isNullOrEmpty()) {
+                    val rFile = File(filesDir, fileName)
+                    if (rFile.exists() && rFile.length() > 200) {
+                        parseRankingsJsonStatic(leagueKey, rFile.readText())
+                    }
+                }
+            }
+            if (DYNAMIC_POKEMON_DATABASE.isEmpty()) {
+                val mainCache = File(filesDir, "pvpoke_gamemaster.json")
+                val cacheFile = if (mainCache.exists() && mainCache.length() > 1000) mainCache else File(filesDir, "pvpoke_gamemaster_cache.json")
+                if (cacheFile.exists() && cacheFile.length() > 1000) {
+                    parseGamemasterJsonStatic(cacheFile.readText())
+                }
+            }
+        } catch (_: Exception) {}
     }
 
     private fun loadOrFetchGamemasterInBackground() {
@@ -1844,6 +1917,7 @@ class OverlayService : LifecycleService() {
                     Triple("MEGA MASTER LEAGUE", "pvpoke_rankings_mega_ml.json", "https://raw.githubusercontent.com/pvpoke/pvpoke/master/src/data/rankings/mega/overall/rankings-10000.json")
                 )
 
+                var didDownloadAny = false
                 for ((leagueKey, fileName, url) in rankingTargets) {
                     try {
                         val rFile = File(filesDir, fileName)
@@ -1855,6 +1929,7 @@ class OverlayService : LifecycleService() {
                                 val body = resp.body?.string()
                                 if (resp.isSuccessful && !body.isNullOrBlank()) {
                                     rFile.writeText(body)
+                                    didDownloadAny = true
                                     body
                                 } else null
                             }
@@ -1877,12 +1952,16 @@ class OverlayService : LifecycleService() {
                         val body = resp.body?.string()
                         if (resp.isSuccessful && !body.isNullOrBlank()) {
                             cacheFile.writeText(body)
+                            didDownloadAny = true
                             body
                         } else null
                     }
                 }
                 if (!jsonStr.isNullOrBlank()) {
                     parseGamemasterJson(jsonStr)
+                }
+                if (didDownloadAny || prefs.getLong(PREFS_KEY_LAST_SYNC_TIMESTAMP, 0L) == 0L) {
+                    prefs.edit().putLong(PREFS_KEY_LAST_SYNC_TIMESTAMP, System.currentTimeMillis()).apply()
                 }
                 withContext(Dispatchers.Main) {
                     recalculateAndPushBattleData()
@@ -2046,6 +2125,12 @@ class OverlayService : LifecycleService() {
                 ) ?: prefs.getInt("overlay_scale_pct", 78)
                 applyOverlayScale(startScalePct)
 
+                enable4ChargedMoves = if (intent?.hasExtra(EXTRA_ENABLE_4_CHARGED_MOVES) == true) {
+                    intent.getBooleanExtra(EXTRA_ENABLE_4_CHARGED_MOVES, false)
+                } else {
+                    prefs.getBoolean(PREFS_KEY_ENABLE_4_CHARGED_MOVES, enable4ChargedMoves)
+                }
+
                 intent?.getStringExtra(EXTRA_PRESET_JSON)?.let { presetJson ->
                     try {
                         val incoming = gson.fromJson(presetJson, TeamPreset::class.java)
@@ -2063,8 +2148,11 @@ class OverlayService : LifecycleService() {
                     intent?.getParcelableExtra(EXTRA_RESULT_DATA)
                 }
 
-                if (LIVE_RANKINGS_MAP.isEmpty()) {
-                    loadOrFetchGamemasterInBackground()
+                if (!areAllFourLeaguesLoaded() || DYNAMIC_POKEMON_DATABASE.isEmpty()) {
+                    loadCachedRankingsSynchronously()
+                    if (!areAllFourLeaguesLoaded() || DYNAMIC_POKEMON_DATABASE.isEmpty()) {
+                        loadOrFetchGamemasterInBackground()
+                    }
                 }
                 if (resultCode != 0 && resultData != null) {
                     initMediaProjection(resultCode, resultData)
@@ -2092,6 +2180,11 @@ class OverlayService : LifecycleService() {
                     oppCountMode = if (newMode == "opp_fasts") "opp_fasts" else "my_fasts"
                 } else {
                     oppCountMode = prefs.getString("opp_count_mode", oppCountMode) ?: oppCountMode
+                }
+                if (intent?.hasExtra(EXTRA_ENABLE_4_CHARGED_MOVES) == true) {
+                    enable4ChargedMoves = intent.getBooleanExtra(EXTRA_ENABLE_4_CHARGED_MOVES, false)
+                } else {
+                    enable4ChargedMoves = prefs.getBoolean(PREFS_KEY_ENABLE_4_CHARGED_MOVES, enable4ChargedMoves)
                 }
                 val updatedScalePct = intent?.getIntExtra(
                     EXTRA_OVERLAY_SCALE_PCT,
@@ -3119,6 +3212,8 @@ class OverlayService : LifecycleService() {
         "Hyper Beam" to "HB",
         "Night Slash" to "NS",
         "Sand Tomb" to "ST",
+        "Rock Tomb" to "RT",
+        "Mirror Shot" to "MS",
         "Freeze Shock" to "FrS",
         "Ice Burn" to "IcB",
         "Drill Peck" to "DPk",
@@ -3535,6 +3630,21 @@ class OverlayService : LifecycleService() {
                 isAttackerShadow = isThisOppShadow,
                 isDefenderShadow = isUserShadow
             )
+            val fourthMoveName = meta.chargedMove4.takeIf {
+                it.isNotBlank() &&
+                    !it.equals(meta.chargedMove1, ignoreCase = true) &&
+                    !it.equals(meta.chargedMove2, ignoreCase = true) &&
+                    !it.equals(thirdMoveName, ignoreCase = true)
+            } ?: ""
+            val oppC4Pct = if (fourthMoveName.isNotBlank()) {
+                calculateChargedMoveDamagePercent(
+                    attacker = meta,
+                    defender = userMeta,
+                    moveName = fourthMoveName,
+                    isAttackerShadow = isThisOppShadow,
+                    isDefenderShadow = isUserShadow
+                )
+            } else 0
             val matrix = calculate3v3Matrix(meta, isThisOppShadow, p1, p2, p3)
             mapOf(
                 "name" to meta.name,
@@ -3543,6 +3653,7 @@ class OverlayService : LifecycleService() {
                 "c1" to "${abbrMove5(meta.chargedMove1)} ($oppC1Pct%)",
                 "c2" to "${abbrMove5(meta.chargedMove2)} ($oppC2Pct%)",
                 "c3" to "${abbrMove5(thirdMoveName)} ($oppC3Pct%)",
+                "c4" to if (enable4ChargedMoves && fourthMoveName.isNotBlank()) "${abbrMove5(fourthMoveName)} ($oppC4Pct%)" else "",
                 "matrix" to matrix
             )
         }
@@ -3554,12 +3665,22 @@ class OverlayService : LifecycleService() {
         // CMP Tie Evaluation: True if player's active Pokémon wins CMP (higher or equal Attack)
         val winsCmp = userMeta.atk >= oppMeta.atk
 
-        // Active opponent's 3 charged moves
+        // Active opponent's 3 (or 4) charged moves
         val activeOppThirdMove = oppMeta.chargedMove3.takeIf { it.isNotBlank() }
             ?: COMMON_THIRD_CHARGED_MOVE[oppMeta.name]
             ?: COMMON_THIRD_CHARGED_MOVE.entries.firstOrNull { it.key.equals(oppMeta.name, ignoreCase = true) }?.value
             ?: "Outrage"
-        val oppChargedMoveNames = listOf(oppMeta.chargedMove1, oppMeta.chargedMove2, activeOppThirdMove)
+        val activeOppFourthMove = oppMeta.chargedMove4.takeIf {
+            it.isNotBlank() &&
+                !it.equals(oppMeta.chargedMove1, ignoreCase = true) &&
+                !it.equals(oppMeta.chargedMove2, ignoreCase = true) &&
+                !it.equals(activeOppThirdMove, ignoreCase = true)
+        } ?: ""
+        val oppChargedMoveNames = (if (enable4ChargedMoves && activeOppFourthMove.isNotBlank()) {
+            listOf(oppMeta.chargedMove1, oppMeta.chargedMove2, activeOppThirdMove, activeOppFourthMove)
+        } else {
+            listOf(oppMeta.chargedMove1, oppMeta.chargedMove2, activeOppThirdMove)
+        })
             .filter { it.isNotBlank() }
             .distinct()
 
@@ -3891,6 +4012,7 @@ class OverlayService : LifecycleService() {
             "oppFastTelemetry" to oppFastTelemetry,
             "userFastTelemetry" to userFastTelemetry,
             "oppCountMode" to oppCountMode,
+            "enable4ChargedMoves" to enable4ChargedMoves,
             "maxHorizonTurns" to maxHorizonTurns,
             "isOpponentShadow" to isOpponentShadow,
             "currentFormLabel" to oppMeta.formLabel,

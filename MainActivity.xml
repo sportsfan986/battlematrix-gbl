@@ -41,7 +41,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Real-Time PvP Floating Overlay • v1.20"
+                android:text="Real-Time PvP Floating Overlay • v1.23"
                 android:textSize="11sp"
                 android:textColor="#94a3b8"
                 android:layout_marginTop="1dp" />
@@ -82,7 +82,8 @@
             android:layout_height="wrap_content"
             android:text="PvPoke Database: Cached (Checking...)"
             android:textColor="#cbd5e1"
-            android:textSize="12sp"
+            android:textSize="11sp"
+            android:lineSpacingExtra="2dp"
             android:layout_marginTop="4dp" />
 
         <LinearLayout
@@ -150,6 +151,51 @@
                 android:layout_width="wrap_content"
                 android:layout_height="36dp"
                 android:text="My Fasts"
+                android:textSize="11sp"
+                android:backgroundTint="#0284c7"
+                android:textColor="#ffffff" />
+        </LinearLayout>
+
+        <!-- Opponent Charged Moves Count in Overlay Setting (3 vs 4 Charged Moves) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="8dp"
+            android:paddingTop="8dp"
+            android:background="#0f172a"
+            android:paddingHorizontal="10dp"
+            android:paddingBottom="8dp">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Opponent Charged Moves in Overlay"
+                    android:textColor="#e2e8f0"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/text_opp_charged_moves_desc"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Default: 3 Charged Moves (Official + Top Usage)"
+                    android:textColor="#94a3b8"
+                    android:textSize="10sp" />
+            </LinearLayout>
+
+            <Button
+                android:id="@+id/btn_toggle_opp_charged_moves"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:text="3 Moves"
                 android:textSize="11sp"
                 android:backgroundTint="#0284c7"
                 android:textColor="#ffffff" />

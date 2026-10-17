@@ -1426,7 +1426,9 @@ export const MOVE_ABBR_5: Record<string, string> = {
   "Lunge": "Lunge",
   "X-Scissor": "XScsr",
   "Torch Song": "TrS",
-  "Super Power": "Suprp"
+  "Super Power": "Suprp",
+  "Rock Tomb": "RckTm",
+  "Mirror Shot": "MrrSh"
 };
 
 export function abbrMove5(name: string): string {
@@ -1727,7 +1729,11 @@ const CANONICAL_MOVE_ID_MAP: Record<string, string> = {
   ICE_BURN: "Ice Burn",
   FUSION_BOLT: "Fusion Bolt",
   FUSION_FLARE: "Fusion Flare",
-  SPACIAL_REND: "Spacial Rend"
+  SPACIAL_REND: "Spacial Rend",
+  ROCK_TOMB: "Rock Tomb",
+  SAND_TOMB: "Sand Tomb",
+  MIRROR_SHOT: "Mirror Shot",
+  VOLT_SWITCH: "Volt Switch"
 };
 
 const CHARGED_MOVE_FALLBACK_STATS: Record<string, { type: string; power: number; energyCost: number; code: string }> = {
@@ -1763,7 +1769,10 @@ const CHARGED_MOVE_FALLBACK_STATS: Record<string, { type: string; power: number;
   "play rough": { type: "fairy", power: 90, energyCost: 60, code: "PR" },
   "surf": { type: "water", power: 65, energyCost: 40, code: "Surf" },
   "scald": { type: "water", power: 85, energyCost: 55, code: "Sc" },
-  "icy wind": { type: "ice", power: 60, energyCost: 45, code: "IW" }
+  "icy wind": { type: "ice", power: 60, energyCost: 45, code: "IW" },
+  "rock tomb": { type: "rock", power: 70, energyCost: 60, code: "RT" },
+  "sand tomb": { type: "ground", power: 25, energyCost: 40, code: "ST" },
+  "mirror shot": { type: "steel", power: 35, energyCost: 35, code: "MS" }
 };
 
 const DYNAMIC_CHARGED_MOVE_MAP: Record<string, ChargedMove> = {};
@@ -1885,7 +1894,7 @@ export function applyRankingMovesToPokemonStats(
   const finalChargedMoves =
     orderedChargedNames.length > 0
       ? orderedChargedNames
-          .slice(0, 3)
+          .slice(0, 4)
           .map((mName) => buildChargedMoveFromName(mName, pokemon.types[0], pokemon.chargedMoves))
       : pokemon.chargedMoves;
 
@@ -2149,6 +2158,28 @@ export async function syncPvPokeDataAndRankings(): Promise<{
       "MASTER LEAGUE": mlEntries.length,
       "MEGA MASTER LEAGUE": megaEntries.length
     }
+  };
+}
+
+export function getPvPokeDatabaseTelemetry(): {
+  gmCount: number;
+  glCount: number;
+  ulCount: number;
+  mlCount: number;
+  megaCount: number;
+  areAllFourLeaguesLoaded: boolean;
+} {
+  const glCount = LIVE_RANKINGS_MAP["GREAT LEAGUE"]?.size ?? 0;
+  const ulCount = LIVE_RANKINGS_MAP["ULTRA LEAGUE"]?.size ?? 0;
+  const mlCount = LIVE_RANKINGS_MAP["MASTER LEAGUE"]?.size ?? 0;
+  const megaCount = LIVE_RANKINGS_MAP["MEGA MASTER LEAGUE"]?.size ?? 0;
+  return {
+    gmCount: Object.keys(POKEMON_DATABASE).length,
+    glCount,
+    ulCount,
+    mlCount,
+    megaCount,
+    areAllFourLeaguesLoaded: glCount > 0 && ulCount > 0 && mlCount > 0 && megaCount > 0
   };
 }
 
@@ -2745,7 +2776,8 @@ export function computeSharedHorizonTurns(
   oppStats: PokemonStats,
   userStats: PokemonStats,
   userCustomChargedMoves: string[] | undefined,
-  userFastMove: FastMove
+  userFastMove: FastMove,
+  enable4ChargedMoves: boolean = false
 ): number {
   const oppFastMove = resolveFastMove(oppStats);
   const oppFastTurns = oppFastMove.turns || 2;
@@ -2754,7 +2786,7 @@ export function computeSharedHorizonTurns(
   const userFastTurns = userFastMove.turns || 2;
   const userFastEnergy = userFastMove.energyGain || userFastTurns * 4;
 
-  const oppFirstReadyTurns = oppStats.chargedMoves.slice(0, 3).map((cm) => {
+  const oppFirstReadyTurns = oppStats.chargedMoves.slice(0, enable4ChargedMoves ? 4 : 3).map((cm) => {
     const mEnergy = cm.energyCost || 50;
     const fasts = Math.max(1, Math.ceil(mEnergy / oppFastEnergy));
     return fasts * oppFastTurns;
@@ -2791,7 +2823,8 @@ export function calculateOpponentMoveTimingRows(
   userCustomChargedMoves?: string[],
   oppCountMode: OppCountMode = "my_fasts",
   league: string = "MASTER LEAGUE",
-  teamMembers?: TeamMember[]
+  teamMembers?: TeamMember[],
+  enable4ChargedMoves: boolean = false
 ): { rows: OpponentMoveTimingRow[]; winsCmp: boolean; userFastTurns: number; maxHorizonTurns: number } {
   const oppStats = computeEffectiveStatsForLeague(oppStatsRaw, league);
   const cleanUserName = userLeadName.replace(/^Shadow\s+/i, "").trim();
@@ -2811,14 +2844,20 @@ export function calculateOpponentMoveTimingRows(
   const oppFastEnergy = oppFastMove.energyGain || oppFastTurns * 4;
   const winsCmp = userStats.baseStats.atk >= oppStats.baseStats.atk;
 
-  const maxHorizonTurns = computeSharedHorizonTurns(oppStats, userStats, userCustomChargedMoves, {
-    ...resolvedUserFast,
-    turns: userFastTurns
-  });
+  const maxHorizonTurns = computeSharedHorizonTurns(
+    oppStats,
+    userStats,
+    userCustomChargedMoves,
+    {
+      ...resolvedUserFast,
+      turns: userFastTurns
+    },
+    enable4ChargedMoves
+  );
 
   const benchNames = teamNames.filter((n) => n.toLowerCase() !== userLeadName.toLowerCase()).slice(0, 2);
 
-  const rows: OpponentMoveTimingRow[] = oppStats.chargedMoves.slice(0, 3).map((cm) => {
+  const rows: OpponentMoveTimingRow[] = oppStats.chargedMoves.slice(0, enable4ChargedMoves ? 4 : 3).map((cm) => {
     const mEnergy = cm.energyCost || 50;
     const oppFasts = Math.max(1, Math.ceil(mEnergy / oppFastEnergy));
     const oppReadyTurn = oppFasts * oppFastTurns;
@@ -3005,7 +3044,8 @@ export function calculateMyMoveTimingRows(
   scannedOpponentNames: string[] = [],
   sharedHorizonTurnsOverride?: number,
   league: string = "MASTER LEAGUE",
-  activeUserMember?: TeamMember
+  activeUserMember?: TeamMember,
+  enable4ChargedMoves: boolean = false
 ): MyMoveTimingRow[] {
   const oppStats = computeEffectiveStatsForLeague(oppStatsRaw, league);
   const cleanUserName = userLeadName.replace(/^Shadow\s+/i, "").trim();
@@ -3033,14 +3073,20 @@ export function calculateMyMoveTimingRows(
 
   const maxHorizonTurns =
     sharedHorizonTurnsOverride ||
-    computeSharedHorizonTurns(oppStats, userStats, customMoves, {
-      ...resolvedUserFast,
-      turns: userFastTurns
-    });
+    computeSharedHorizonTurns(
+      oppStats,
+      userStats,
+      customMoves,
+      {
+        ...resolvedUserFast,
+        turns: userFastTurns
+      },
+      enable4ChargedMoves
+    );
 
   // Compute all opponent ready turns (across up to 3 cycles) for CMP tie detection
   const oppReadyTurnsSet = new Set<number>();
-  oppStats.chargedMoves.slice(0, 3).forEach((cm) => {
+  oppStats.chargedMoves.slice(0, enable4ChargedMoves ? 4 : 3).forEach((cm) => {
     const mE = cm.energyCost || 50;
     let leftE = 0;
     let cumF = 0;
