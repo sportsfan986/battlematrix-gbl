@@ -1,4 +1,4 @@
-# SilphScope PvP — Real-Time 3x3 Matchup Matrix, Damage Calculations, Turn Pacing HUD & Battle Log Overlay for Pokémon GO PvP (v2.05)
+# SilphScope PvP — Real-Time 3x3 Matchup Matrix, Damage Calculations, Turn Pacing HUD & Battle Log Overlay for Pokémon GO PvP (v2.10)
 
 [![Live Web Simulator](https://img.shields.io/badge/🌐%20Live%20Web%20Simulator-Try%20in%20Browser-0284c7?style=for-the-badge&logo=googlechrome&logoColor=white)](https://sportsfan986.github.io/silphscope-pvp/)
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Support%20the%20Project-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/sportsfan986)
@@ -8,7 +8,7 @@
 
 ![SilphScope PvP Full Color Real Gameplay HUD Overlay — Dialga Origin vs Mewtwo](./docs/screenshots/featured_real_gameplay.png)
 
-**SilphScope PvP** is a standalone Android application and client-side web battle simulator for **Pokémon GO Battle League (GBL)**. Built with Kotlin, WindowManager `TYPE_APPLICATION_OVERLAY`, in-memory `MediaProjection` frame analysis (zero disk writes), PvPoke `gamemaster.json` + official league rankings JSON synchronization, offline Google ML Kit Text Recognition, multi-device GitHub Cloud Delta Sync, and an interactive React web dashboard.
+**SilphScope PvP** is a standalone Android application and client-side web battle simulator for **Pokémon GO Battle League (GBL)**. Built with Kotlin, WindowManager `TYPE_APPLICATION_OVERLAY`, in-memory `MediaProjection` frame analysis (zero disk writes), PvPoke `gamemaster.json` + official league rankings JSON synchronization, offline Google ML Kit Text Recognition, Battle Quality & Wins Above Expected (WAE) micro-skill analytics, multi-device GitHub Cloud Delta Sync, and an interactive React web dashboard.
 
 ---
 
@@ -33,7 +33,49 @@ Experience **SilphScope PvP** instantly in your web browser — completely free,
 - **Explore 3v3 Matchup Matrices**: Compare damage percentages, 0S / 1S / 2S shield scenarios, and CMP tie outcomes for any team.
 - **Custom Team Builder with Live Autocomplete**: Pre-populated with the **PvPoke Top 3 rated Pokémon** for Great League, Ultra League, Master League, and Mega Master League. Typing a base Pokémon name automatically surfaces all Base, Shadow, Regional (Alolan/Galarian/Hisuian/Paldean), and Alternate/Mega forms in a live pop-down menu.
 - **Official PvPoke Rankings Move Engine**: Synchronizes `gamemaster.json` alongside official PvPoke league rankings JSONs (`1500`, `2500`, `10000`, and `mega/10000`) to automatically assign meta-recommended Fast and Charged moves by usage.
-- **Battle Log, Interactive Replay & Go Battle Log Export**: Record wins/losses with automatic lead matchup classification, replay any historical matchup in the interactive matrix, restore deleted battles/teams from the Trash Bin, and export directly in `[My Team]` + `opp1 opp2 opp3 W/L` Go Battle Log format.
+- **Battle Quality & Wins Above Expected (WAE) Analytics**: Evaluates your micro-execution skill independent of team-composition counter-luck with Expected Win Probability ($P_{\text{win}}$), Residual Quality Delta ($\Delta Q$), 6 performance badges, and filter-reactive WAE summary metrics.
+
+---
+
+## 📊 Battle Quality & Wins Above Expected (WAE) System
+
+Raw win rate in GO Battle League is heavily influenced by matchmaking alignment and blind 3v3 team-composition luck (RPS). **Wins Above Expected (WAE)** isolates **micro-execution skill** (shield management, energy farming, sacrificial catches, CMP timing, and optimal backline alignment) from team-composition counter-luck by comparing your actual match outcome ($\text{Result} \in \{0.0, 1.0\}$) against the mathematical **Expected Win Probability ($P_{\text{win}}$)** of the 3v3 lineup.
+
+### 1. Mathematical Formula & Weighting Constants
+
+Whenever a battle is logged (or retroactively migrated via `migrateExistingBattleLogs()`), `calculateBattleQuality(myTeam, oppTeam, league, ratingsDb, metaPool)` evaluates the matchup on PvPoke's 500-centered rating scale:
+
+- **Lead Score ($S_{\text{lead}}$ — $50/50$ $1\text{v}1$ & $2\text{v}2$ Split)**:
+  Blends the $1\text{v}1$ and $2\text{v}2$ shield scenarios equally to prevent bait-tree distortions and reflect standard lead gameplay:
+  $$S_{\text{lead}} = 0.50 \cdot \text{Rating}_{1\text{v}1}(\text{myLead}, \text{oppLead}) + 0.50 \cdot \text{Rating}_{2\text{v}2}(\text{myLead}, \text{oppLead})$$
+- **Backline Score ($S_{\text{back}}$ — $70/30$ Optimal Alignment Weighting)**:
+  Evaluates the two possible backline pairings ($\text{Score}_A$ and $\text{Score}_B$) and weights the stronger alignment at $70\%$ and the weaker alignment at $30\%$:
+  $$S_{\text{back}} = 0.70 \cdot \max(\text{Score}_A, \text{Score}_B) + 0.30 \cdot \min(\text{Score}_A, \text{Score}_B)$$
+- **Composite Score ($M$ — $40/60$ Lead/Backline Weighting) & Logistic Win Probability ($k = 0.006$)**:
+  $$M = 0.40 \cdot S_{\text{lead}} + 0.60 \cdot S_{\text{back}}, \qquad P_{\text{win}} = \frac{1}{1 + e^{-0.006 \cdot (M - 500)}}$$
+- **Residual Quality Delta ($\Delta Q$) & Aggregate WAE**:
+  $$\Delta Q = \text{Result} - P_{\text{win}}, \qquad \text{Aggregate WAE} = \frac{\sum_{i \in \text{Filtered}} w_i \cdot (\text{Result}_i - P_{\text{win}, i})}{\sum_{i \in \text{Filtered}} w_i} \times 100\%$$
+
+### 2. Incomplete Match Rules & Unrevealed Pokémon Handling
+
+| Opponent Lineup Seen | Confidence Weight ($w$) | Evaluation Behavior |
+| :--- | :---: | :--- |
+| **Missing 2nd Slot (`firstSwap` null/missing)** | $w = 0.00$ | **Dropped / Unranked (`quality: null`)**: Turn-1 top-left quits or incomplete scans where the opponent's switch was never revealed are excluded from WAE calculations. |
+| **Unrevealed 3rd Slot (`finalSeen` null/missing)** | $w = 0.75$ | **Meta-Average Prior (`⚡ 75% Conf`)**: Pre-calculates the average $1\text{v}1$ ratings of `mySwap` ($\bar{R}_{\text{swap}}$) and `myClose` ($\bar{R}_{\text{close}}$) against the active league's top meta pool to estimate the unrevealed closer at $75\%$ confidence weight. |
+| **All 3 Opponents Revealed** | $w = 1.00$ | **Full 3v3 Evaluation**: Exact pairwise $1\text{v}1$ backline matrix evaluation at $100\%$ confidence weight. |
+
+### 3. The 6 Battle Quality Badge Classifications
+
+Each ranked battle card displays `[Badge Label] • Exp Win: XX% • ΔQ: [+/-X.XX]` directly below the Pokémon lineup:
+
+| Outcome | Expected Win ($P_{\text{win}}$) | Badge Classification | Color Hex | Tactical Meaning |
+| :---: | :---: | :--- | :---: | :--- |
+| **WIN** | $P_{\text{win}} < 0.40$ | **`Clutch Win`** | Cyan `#22d3ee` | Flipped a heavily unfavorable team comp via superior micro-execution (catches, energy lead, or shield baiting). |
+| **WIN** | $0.40 \le P_{\text{win}} \le 0.60$ | **`Skill Win`** | Bright Green `#4ade80` | Outplayed the opponent in an even/neutral 3v3 matchup. |
+| **WIN** | $P_{\text{win}} > 0.60$ | **`Expected Win`** | Muted Slate `#94a3b8` | Cleanly converted a favorable team-composition advantage into a win. |
+| **LOSS** | $P_{\text{win}} > 0.60$ | **`Blunder Loss`** | Rose Red `#f43f5e` | Dropped a favorable matchup where your team had >60% expected win equity. |
+| **LOSS** | $0.40 \le P_{\text{win}} \le 0.60$ | **`Tough Loss`** | Orange `#fb923c` | Narrow loss in a competitive 50/50 matchup. |
+| **LOSS** | $P_{\text{win}} < 0.40$ | **`Expected Loss`** | Muted Slate `#94a3b8` | Hard-countered team composition (<40% win equity); minimal negative impact on WAE. |
 
 ---
 
@@ -51,10 +93,10 @@ If **SilphScope PvP** helps you count fast moves, win CMP ties, and climb Elo in
 
 ---
 
-## 📥 Download & Install Native Android APK (v2.05)
+## 📥 Download & Install Native Android APK (v2.10)
 
 1. Visit the **[Official GitHub Releases Page](https://github.com/sportsfan986/silphscope-pvp/releases)**.
-2. Download **`silphscope-pvp-v2.05.apk`** directly to your Android device.
+2. Download **`silphscope-pvp-v2.10.apk`** directly to your Android device.
 3. Tap the downloaded APK file to install (grant *"Install unknown apps"* permission if prompted).
 4. Launch **SilphScope PvP**:
    - Select, reorder, or customize your **GBL Team Presets**, set **Opponent Move Count Basis** (`My Fasts` vs. `Their Fasts`), and adjust **Overlay Size** (`50%–100%` screen width slider) and **Background Transparency**.
@@ -63,8 +105,10 @@ If **SilphScope PvP** helps you count fast moves, win CMP ties, and climb Elo in
 
 ---
 
-## ✨ Key Features in v2.05
+## ✨ Key Features in v2.10
 
+- **Battle Quality & Wins Above Expected (WAE) System**:
+  - Computes Expected Win Probability ($P_{\text{win}}$), Residual Quality Delta ($\Delta Q$), and 6 performance badges (`Clutch Win`, `Skill Win`, `Expected Win`, `Blunder Loss`, `Tough Loss`, `Expected Loss`) with automatic retroactive migration (`migrateExistingBattleLogs()`) and filter-linked `QUALITY (WAE)` summary cards and daily group headers.
 - **Instant Opponent Reset on `⚔️ Start Battle`**:
   - Pressing `⚔️ Start Battle` immediately resets the opponent list and empties the 3x3 matrix for a new match in a single tap, while preserving a snapshot of the previous opponents so you can still log a Win/Loss from the quick pop-up menu and preventing stale/in-flight OCR frames from re-populating cleared opponents.
 - **Battle Menu OCR Guard (`BATTLE` & `PARTY` Filter)**:
@@ -75,10 +119,6 @@ If **SilphScope PvP** helps you count fast moves, win CMP ties, and climb Elo in
   - Copy or share filtered battle logs in Go Battle Log format with bracketed user team headers (`[Pokemon1, Pokemon2, Pokemon3]`) and clean `opp1 opp2 opp3 W/L` rows without date clutter.
 - **Multi-Device GitHub Cloud Delta Sync (OAuth Device Flow)**:
   - Sign in directly on Android or Web via GitHub's native Device Flow (`github.com/login/device`) to automatically synchronize team presets and battle logs across multiple phones using conflict-free union + Last-Write-Wins (LWW) + tombstone delta reconciliation.
-- **Team Builder Live Pokémon Autocomplete & PvPoke Rankings Sync**:
-  - Downloads and caches official PvPoke `gamemaster.json` and league rankings JSON endpoints (`1500`, `2500`, `10000`, and `mega/overall/rankings-10000.json`) for meta-recommended movesets and CP-scaled stats.
-- **3v3 Shield Matchup Matrix & Turn-Aligned Multi-Cycle Move Bars**:
-  - Visual segmented move energy bars across all fast move durations (`1t–5t`), 2nd/3rd throw cycles with residual energy tracking, and 3-column incoming/outgoing team damage matrices.
 
 ---
 
@@ -88,8 +128,8 @@ Every push to `main` triggers `.github/workflows/android.yml` (builds signed rel
 
 To increment the version for future releases:
 ```bash
-./scripts/bump_version.sh        # increments sub-version by +0.01 (e.g. v2.05 -> v2.06)
-./scripts/bump_version.sh v2.05  # sets an explicit version
+./scripts/bump_version.sh        # increments sub-version by +0.01 (e.g. v2.10 -> v2.11)
+./scripts/bump_version.sh v2.10  # sets an explicit version
 ```
 
 ---

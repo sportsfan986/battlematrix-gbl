@@ -60,7 +60,9 @@ data class BattleLogEntry(
     val opponents: List<String> = emptyList(),
     val leadMatchup: String = "NEUTRAL",
     val result: String = "WIN",
-    val deviceLabel: String = Build.MODEL ?: "Android"
+    val deviceLabel: String = Build.MODEL ?: "Android",
+    val quality: OverlayService.BattleQualityMetadata? = null,
+    val qualityEvaluated: Boolean = false
 )
 
 data class GblSeasonInfo(
@@ -120,6 +122,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var textBattleLogTotal: TextView
     private lateinit var textBattleLogLeague: TextView
     private lateinit var textBattleLogWinrate: TextView
+    private lateinit var textBattleLogWae: TextView
     private lateinit var btnLogManualBattle: Button
     private lateinit var btnSyncBattleLog: Button
     private lateinit var btnClearBattleLog: Button
@@ -219,6 +222,7 @@ class MainActivity : AppCompatActivity() {
         initViews()
         ensureDefaultPresets()
         ensureDefaultSeasons()
+        migrateExistingBattleLogs()
         refreshPresetsUi()
         setupBattleLogFilters()
         renderBattleLogPage()
@@ -229,6 +233,7 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         if (::prefs.isInitialized) {
+            migrateExistingBattleLogs()
             setupBattleLogFilters()
             renderBattleLogPage()
             updateSyncStatusUi()
@@ -314,6 +319,7 @@ class MainActivity : AppCompatActivity() {
         textBattleLogTotal = findViewById(R.id.text_battle_log_total)
         textBattleLogLeague = findViewById(R.id.text_battle_log_league)
         textBattleLogWinrate = findViewById(R.id.text_battle_log_winrate)
+        textBattleLogWae = findViewById(R.id.text_battle_log_wae)
         btnLogManualBattle = findViewById(R.id.btn_log_manual_battle)
         btnSyncBattleLog = findViewById(R.id.btn_sync_battle_log)
         btnClearBattleLog = findViewById(R.id.btn_clear_battle_log)
@@ -1039,6 +1045,69 @@ class MainActivity : AppCompatActivity() {
         prefs.edit().putString(PREFS_KEY_BATTLE_LOGS, gson.toJson(logs.sortedByDescending { it.timestampMs })).apply()
     }
 
+    /**
+     * Retroactive Data Migration Routine:
+     * Iterates through all historical matches in SharedPreferences.
+     * If a match lacks `quality` metadata (`!qualityEvaluated && quality == null`):
+     * - Checks if `firstSwap` (2nd opponent) exists. If missing, marks as `quality = null, qualityEvaluated = true`.
+     * - Looks up team compositions and league in existing ratings data.
+     * - Calculates P_win, badge label, deltaQ, and weight (1.0 or 0.75).
+     * - Persists the enriched schema back to storage so recalculation does not re-run on every render.
+     */
+    private fun migrateExistingBattleLogs() {
+        val raw = prefs.getString(PREFS_KEY_BATTLE_LOGS, null) ?: return
+        try {
+            val type = object : TypeToken<List<BattleLogEntry>>() {}.type
+            val parsed: List<BattleLogEntry> = gson.fromJson<List<BattleLogEntry>>(raw, type) ?: return
+            if (parsed.isEmpty()) return
+
+            val presets = loadPresets()
+            var didMutate = false
+            val migrated = parsed.map { entry ->
+                if (entry.qualityEvaluated || entry.quality != null) {
+                    entry
+                } else {
+                    didMutate = true
+                    val computed = resolveEntryQuality(entry, presets)
+                    entry.copy(quality = computed, qualityEvaluated = true)
+                }
+            }
+            if (didMutate) {
+                prefs.edit().putString(PREFS_KEY_BATTLE_LOGS, gson.toJson(migrated)).apply()
+            }
+        } catch (_: Exception) {}
+    }
+
+    private fun resolveEntryQuality(entry: BattleLogEntry, presets: List<TeamPreset>): OverlayService.BattleQualityMetadata? {
+        if (entry.quality != null) return entry.quality
+        if (entry.qualityEvaluated) return null
+
+        val firstSwap = entry.opponents.getOrNull(1)?.trim().orEmpty()
+        if (firstSwap.isEmpty()) return null
+
+        val matchedPreset = presets.find {
+            (entry.presetId.isNotBlank() && it.id == entry.presetId) ||
+                it.name.equals(entry.userTeamName, ignoreCase = true)
+        }
+        val myMons = if (entry.userPokemon.size >= 3) {
+            entry.userPokemon
+        } else if (matchedPreset != null && matchedPreset.pokemon.isNotEmpty()) {
+            matchedPreset.pokemon.map { it.name }
+        } else {
+            entry.userPokemon
+        }
+        val serviceSlots = matchedPreset?.pokemon?.map {
+            OverlayService.TeamMember(it.name, it.cp, it.fastMove, it.chargedMove1, it.chargedMove2, it.ivs)
+        }
+        return OverlayService.calculateBattleQuality(
+            myTeam = myMons,
+            oppTeam = entry.opponents,
+            league = entry.league,
+            result = entry.result,
+            myTeamSlots = serviceSlots
+        )
+    }
+
     private fun loadDeletedLogIds(): List<String> {
         val raw = prefs.getString(PREFS_KEY_DELETED_LOG_IDS, null) ?: return emptyList()
         return try {
@@ -1518,13 +1587,16 @@ class MainActivity : AppCompatActivity() {
         val neuCount = filtered.count { it.leadMatchup.equals("NEUTRAL", ignoreCase = true) || it.leadMatchup.isBlank() }
         val negCount = filtered.count { it.leadMatchup.equals("NEGATIVE", ignoreCase = true) }
 
+        val presets = loadPresets()
+        val aggWae = OverlayService.calculateAggregateWAEStatic(filtered.map { resolveEntryQuality(it, presets) })
+
         val sb = StringBuilder()
         val leagueTitle = if (leagueFilter == "ALL") "All Leagues" else leagueFilter
         val teamTitle = if (teamFilter == "ALL") "All Teams" else teamFilter
         sb.append("SilphScope PvP Battle Log — $leagueTitle\n")
         sb.append("Team: $teamTitle\n")
         sb.append("Range: $rangeLabel\n")
-        sb.append("Overall Record: ${wins}W - ${losses}L ($winPct%) • Leads: $favCount Fav / $neuCount Neu / $negCount Neg\n")
+        sb.append("Overall Record: ${wins}W - ${losses}L ($winPct%) • Leads: $favCount Fav / $neuCount Neu / $negCount Neg • Quality (WAE): ${aggWae.formatted}\n")
 
         if (filtered.isEmpty()) {
             sb.append("\nNo battles logged in this timeframe.\n")
@@ -1540,8 +1612,9 @@ class MainActivity : AppCompatActivity() {
             val dFav = dayEntries.count { it.leadMatchup.equals("FAVORABLE", ignoreCase = true) }
             val dNeu = dayEntries.count { it.leadMatchup.equals("NEUTRAL", ignoreCase = true) || it.leadMatchup.isBlank() }
             val dNeg = dayEntries.count { it.leadMatchup.equals("NEGATIVE", ignoreCase = true) }
+            val dWae = OverlayService.calculateAggregateWAEStatic(dayEntries.map { resolveEntryQuality(it, presets) })
 
-            sb.append("\n=== $dayStr — Daily Record: ${dWins}W - ${dLosses}L ($dPct%) [Leads: $dFav Fav, $dNeu Neu, $dNeg Neg] ===\n")
+            sb.append("\n=== $dayStr — Daily Record: ${dWins}W - ${dLosses}L ($dPct%) [Leads: $dFav Fav, $dNeu Neu, $dNeg Neg] • WAE: ${dWae.formatted} ===\n")
             for (entry in dayEntries) {
                 val tStr = timeFmt.format(java.util.Date(entry.timestampMs))
                 val resPad = if (entry.result.equals("WIN", ignoreCase = true)) "WIN " else "LOSS"
@@ -1558,7 +1631,14 @@ class MainActivity : AppCompatActivity() {
                         "$ord: $opp"
                     }.joinToString(", ")
                 }
-                sb.append("[$tStr] $resPad | Lead: $leadDisplay | ${entry.userTeamName} vs. $oppOrdered\n")
+                val q = resolveEntryQuality(entry, presets)
+                val qSuffix = if (q != null) {
+                    val dqSign = if (q.deltaQ >= 0.0) "+" else "-"
+                    val dqFormatted = String.format(java.util.Locale.US, "%s%.2f", dqSign, kotlin.math.abs(q.deltaQ))
+                    val confTag = if (q.unrevealedThird) " (⚡ 75% Conf)" else ""
+                    " | ${q.badgeLabel} • Exp Win: ${q.expWinPct}% • ΔQ: $dqFormatted$confTag"
+                } else ""
+                sb.append("[$tStr] $resPad | Lead: $leadDisplay | ${entry.userTeamName} vs. $oppOrdered$qSuffix\n")
             }
         }
         return sb.toString().trim()
@@ -1695,9 +1775,20 @@ class MainActivity : AppCompatActivity() {
         val neuCount = filtered.count { it.leadMatchup.equals("NEUTRAL", ignoreCase = true) || it.leadMatchup.isBlank() }
         val negCount = filtered.count { it.leadMatchup.equals("NEGATIVE", ignoreCase = true) }
 
+        val presets = loadPresets()
+        val aggWae = OverlayService.calculateAggregateWAEStatic(filtered.map { resolveEntryQuality(it, presets) })
+
         textBattleLogTotal.text = "${wins}W - ${losses}L ($total)"
         textBattleLogLeague.text = "$favCount Fav · $neuCount Neu · $negCount Neg"
         textBattleLogWinrate.text = if (total == 0) "—%" else "$winPct%"
+        textBattleLogWae.text = aggWae.formatted
+        textBattleLogWae.setTextColor(
+            when {
+                aggWae.rankedCount == 0 -> 0xFF94A3B8.toInt()
+                aggWae.isPositive -> 0xFF4ADE80.toInt()
+                else -> 0xFFF43F5E.toInt()
+            }
+        )
 
         battleLogContainer.removeAllViews()
         val density = resources.displayMetrics.density
@@ -1742,11 +1833,12 @@ class MainActivity : AppCompatActivity() {
             val dFav = dayEntries.count { it.leadMatchup.equals("FAVORABLE", ignoreCase = true) }
             val dNeu = dayEntries.count { it.leadMatchup.equals("NEUTRAL", ignoreCase = true) || it.leadMatchup.isBlank() }
             val dNeg = dayEntries.count { it.leadMatchup.equals("NEGATIVE", ignoreCase = true) }
+            val dayWae = OverlayService.calculateAggregateWAEStatic(dayEntries.map { resolveEntryQuality(it, presets) })
 
             val dayHeader = TextView(this).apply {
-                text = "📅 $dayStr — Daily Record: ${dWins}W - ${dLosses}L ($dPct%) • Leads: $dFav Fav / $dNeu Neu / $dNeg Neg"
+                text = "📅 $dayStr — Daily Record: ${dWins}W - ${dLosses}L ($dPct%) • Leads: $dFav Fav / $dNeu Neu / $dNeg Neg • WAE: ${dayWae.formatted}"
                 setTextColor(0xFF38BDF8.toInt())
-                textSize = 11.5f
+                textSize = 11f
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
                 val padV = (6 * density).toInt()
                 setPadding((4 * density).toInt(), padV, (4 * density).toInt(), padV)
@@ -1837,6 +1929,77 @@ class MainActivity : AppCompatActivity() {
                     setTypeface(typeface, android.graphics.Typeface.BOLD)
                 }
 
+                // Battle Quality (WAE) Badge Row directly below the Pokémon lineup
+                val entryQuality = resolveEntryQuality(entry, presets)
+                val qualityRow = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = android.view.Gravity.CENTER_VERTICAL
+                    setPadding(0, (5 * density).toInt(), 0, (2 * density).toInt())
+                }
+
+                if (entryQuality != null) {
+                    val badgeTextColor = when (entryQuality.badgeLabel) {
+                        "Clutch Win" -> 0xFF22D3EE.toInt()
+                        "Skill Win" -> 0xFF4ADE80.toInt()
+                        "Blunder Loss" -> 0xFFF43F5E.toInt()
+                        "Tough Loss" -> 0xFFFB923C.toInt()
+                        else -> 0xFF94A3B8.toInt()
+                    }
+                    val badgeBgColor = when (entryQuality.badgeLabel) {
+                        "Clutch Win" -> 0x2622D3EE
+                        "Skill Win" -> 0x264ADE80
+                        "Blunder Loss" -> 0x26F43F5E
+                        "Tough Loss" -> 0x26FB923C
+                        else -> 0x2E64748B
+                    }
+                    val dqSign = if (entryQuality.deltaQ >= 0.0) "+" else "-"
+                    val dqStr = String.format(java.util.Locale.US, "%s%.2f", dqSign, kotlin.math.abs(entryQuality.deltaQ))
+
+                    val badgeTv = TextView(this).apply {
+                        text = "${entryQuality.badgeLabel} • Exp Win: ${entryQuality.expWinPct}% • ΔQ: $dqStr"
+                        setTextColor(badgeTextColor)
+                        setBackgroundColor(badgeBgColor)
+                        textSize = 10.5f
+                        setTypeface(typeface, android.graphics.Typeface.BOLD)
+                        val pH = (7 * density).toInt()
+                        val pV = (3 * density).toInt()
+                        setPadding(pH, pV, pH, pV)
+                    }
+                    qualityRow.addView(badgeTv)
+
+                    if (entryQuality.unrevealedThird) {
+                        val confTv = TextView(this).apply {
+                            text = "(⚡ 75% Conf)"
+                            setTextColor(0xFFFCD34D.toInt())
+                            setBackgroundColor(0x26F59E0B)
+                            textSize = 10f
+                            setTypeface(typeface, android.graphics.Typeface.BOLD)
+                            val pH = (6 * density).toInt()
+                            val pV = (3 * density).toInt()
+                            setPadding(pH, pV, pH, pV)
+                            layoutParams = LinearLayout.LayoutParams(
+                                LinearLayout.LayoutParams.WRAP_CONTENT,
+                                LinearLayout.LayoutParams.WRAP_CONTENT
+                            ).apply {
+                                marginStart = (6 * density).toInt()
+                            }
+                        }
+                        qualityRow.addView(confTv)
+                    }
+                } else {
+                    val unrankedTv = TextView(this).apply {
+                        text = "Unranked Match (Missing Swap — Excluded from WAE)"
+                        setTextColor(0xFF64748B.toInt())
+                        setBackgroundColor(0x26334155)
+                        textSize = 10f
+                        setTypeface(typeface, android.graphics.Typeface.BOLD)
+                        val pH = (7 * density).toInt()
+                        val pV = (3 * density).toInt()
+                        setPadding(pH, pV, pH, pV)
+                    }
+                    qualityRow.addView(unrankedTv)
+                }
+
                 val actionsRow = LinearLayout(this).apply {
                     orientation = LinearLayout.HORIZONTAL
                     gravity = android.view.Gravity.CENTER_VERTICAL
@@ -1887,6 +2050,7 @@ class MainActivity : AppCompatActivity() {
                 card.addView(topRow)
                 card.addView(teamTv)
                 card.addView(oppTv)
+                card.addView(qualityRow)
                 card.addView(actionsRow)
                 battleLogContainer.addView(card)
             }
@@ -2023,18 +2187,33 @@ class MainActivity : AppCompatActivity() {
                 ).filter { it.isNotEmpty() }
 
                 val nowMs = System.currentTimeMillis()
+                val chosenLeague = chosenPreset?.league ?: existing?.league ?: "GREAT LEAGUE"
+                val chosenMons = chosenPreset?.pokemon?.map { it.name } ?: existing?.userPokemon ?: emptyList()
+                val chosenResult = resultsArr.getOrElse(spinnerResult.selectedItemPosition) { "WIN" }
+                val serviceSlots = chosenPreset?.pokemon?.map {
+                    OverlayService.TeamMember(it.name, it.cp, it.fastMove, it.chargedMove1, it.chargedMove2, it.ivs)
+                }
+                val computedQuality = OverlayService.calculateBattleQuality(
+                    myTeam = chosenMons,
+                    oppTeam = opps,
+                    league = chosenLeague,
+                    result = chosenResult,
+                    myTeamSlots = serviceSlots
+                )
                 val updatedEntry = BattleLogEntry(
                     id = existing?.id ?: "log-$nowMs-${(100..999).random()}",
                     timestampMs = existing?.timestampMs ?: nowMs,
                     updatedAt = nowMs,
-                    league = chosenPreset?.league ?: existing?.league ?: "GREAT LEAGUE",
+                    league = chosenLeague,
                     presetId = chosenPreset?.id ?: existing?.presetId ?: "",
                     userTeamName = chosenPreset?.name ?: existing?.userTeamName ?: "Active Team",
-                    userPokemon = chosenPreset?.pokemon?.map { it.name } ?: existing?.userPokemon ?: emptyList(),
+                    userPokemon = chosenMons,
                     opponents = opps,
                     leadMatchup = leadsArr.getOrElse(spinnerLead.selectedItemPosition) { "NEUTRAL" },
-                    result = resultsArr.getOrElse(spinnerResult.selectedItemPosition) { "WIN" },
-                    deviceLabel = existing?.deviceLabel ?: (Build.MODEL ?: "Android")
+                    result = chosenResult,
+                    deviceLabel = existing?.deviceLabel ?: (Build.MODEL ?: "Android"),
+                    quality = computedQuality,
+                    qualityEvaluated = true
                 )
 
                 val all = loadBattleLogs().toMutableList()

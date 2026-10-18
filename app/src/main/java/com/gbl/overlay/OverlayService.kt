@@ -118,6 +118,28 @@ class OverlayService : LifecycleService() {
             "gbl_team_presets"
         )
 
+        data class BattleQualityMetadata(
+            val pWin: Double,
+            val expWinPct: Int,
+            val deltaQ: Double,
+            val weight: Double,
+            val weightedResidual: Double,
+            val badgeLabel: String,
+            val badgeColorHex: String,
+            val unrevealedThird: Boolean,
+            val sLead: Double,
+            val sBack: Double,
+            val compositeScore: Double
+        )
+
+        data class AggregateWAEResult(
+            val waePct: Double,
+            val formatted: String,
+            val isPositive: Boolean,
+            val rankedCount: Int,
+            val totalWeight: Double
+        )
+
         data class SyncBattleLogRecord(
             val id: String = java.util.UUID.randomUUID().toString(),
             val timestampMs: Long = System.currentTimeMillis(),
@@ -129,7 +151,9 @@ class OverlayService : LifecycleService() {
             val opponents: List<String> = emptyList(),
             val leadMatchup: String = "NEUTRAL",
             val result: String = "WIN",
-            val deviceLabel: String = Build.MODEL ?: "Android"
+            val deviceLabel: String = Build.MODEL ?: "Android",
+            val quality: BattleQualityMetadata? = null,
+            val qualityEvaluated: Boolean = false
         )
 
         data class SyncTeamSlot(
@@ -2350,6 +2374,314 @@ class OverlayService : LifecycleService() {
                 }
             } catch (_: Exception) {}
         }
+
+        private fun getTypeEffectivenessStatic(moveType: String, defenderTypes: List<String>): Double {
+            var multiplier = 1.0
+            val atk = moveType.lowercase()
+            for (def in defenderTypes.map { it.lowercase() }) {
+                val eff = when (atk) {
+                    "normal" -> when (def) { "rock", "steel" -> 0.625; "ghost" -> 0.390625; else -> 1.0 }
+                    "fire" -> when (def) { "grass", "ice", "bug", "steel" -> 1.6; "fire", "water", "rock", "dragon" -> 0.625; else -> 1.0 }
+                    "water" -> when (def) { "fire", "ground", "rock" -> 1.6; "water", "grass", "dragon" -> 0.625; else -> 1.0 }
+                    "electric" -> when (def) { "water", "flying" -> 1.6; "electric", "grass", "dragon" -> 0.625; "ground" -> 0.390625; else -> 1.0 }
+                    "grass" -> when (def) { "water", "ground", "rock" -> 1.6; "fire", "grass", "poison", "flying", "bug", "dragon", "steel" -> 0.625; else -> 1.0 }
+                    "ice" -> when (def) { "grass", "ground", "flying", "dragon" -> 1.6; "fire", "water", "ice", "steel" -> 0.625; else -> 1.0 }
+                    "fighting" -> when (def) { "normal", "ice", "rock", "dark", "steel" -> 1.6; "poison", "flying", "psychic", "bug", "fairy" -> 0.625; "ghost" -> 0.390625; else -> 1.0 }
+                    "poison" -> when (def) { "grass", "fairy" -> 1.6; "poison", "ground", "rock", "ghost" -> 0.625; "steel" -> 0.390625; else -> 1.0 }
+                    "ground" -> when (def) { "fire", "electric", "poison", "rock", "steel" -> 1.6; "grass", "bug" -> 0.625; "flying" -> 0.390625; else -> 1.0 }
+                    "flying" -> when (def) { "grass", "fighting", "bug" -> 1.6; "electric", "rock", "steel" -> 0.625; else -> 1.0 }
+                    "psychic" -> when (def) { "fighting", "poison" -> 1.6; "psychic", "steel" -> 0.625; "dark" -> 0.390625; else -> 1.0 }
+                    "bug" -> when (def) { "grass", "psychic", "dark" -> 1.6; "fire", "fighting", "poison", "flying", "ghost", "steel", "fairy" -> 0.625; else -> 1.0 }
+                    "rock" -> when (def) { "fire", "ice", "flying", "bug" -> 1.6; "fighting", "ground", "steel" -> 0.625; else -> 1.0 }
+                    "ghost" -> when (def) { "psychic", "ghost" -> 1.6; "dark" -> 0.625; "normal" -> 0.390625; else -> 1.0 }
+                    "dragon" -> when (def) { "dragon" -> 1.6; "steel" -> 0.625; "fairy" -> 0.390625; else -> 1.0 }
+                    "dark" -> when (def) { "psychic", "ghost" -> 1.6; "fighting", "dark", "fairy" -> 0.625; else -> 1.0 }
+                    "steel" -> when (def) { "ice", "rock", "fairy" -> 1.6; "fire", "water", "electric", "steel" -> 0.625; else -> 1.0 }
+                    "fairy" -> when (def) { "fighting", "dragon", "dark" -> 1.6; "fire", "poison", "steel" -> 0.625; else -> 1.0 }
+                    else -> 1.0
+                }
+                multiplier *= eff
+            }
+            return multiplier
+        }
+
+        private val fastMoveTypeMapStatic = mapOf(
+            "dragon breath" to "dragon", "sand attack" to "ground", "quick attack" to "normal",
+            "lock-on" to "normal", "water gun" to "water", "lick" to "ghost", "bite" to "dark",
+            "tackle" to "normal", "fury cutter" to "bug", "bug bite" to "bug", "scratch" to "normal",
+            "psywave" to "psychic", "psycho cut" to "psychic", "mud shot" to "ground",
+            "shadow claw" to "ghost", "counter" to "fighting", "powder snow" to "ice",
+            "wing attack" to "flying", "peck" to "flying", "poison sting" to "poison",
+            "thunder shock" to "electric", "fairy wind" to "fairy", "bullet punch" to "steel",
+            "fire fang" to "fire", "vine whip" to "grass", "karate chop" to "fighting",
+            "low kick" to "fighting", "ice fang" to "ice", "metal claw" to "steel",
+            "sucker punch" to "dark", "poison jab" to "poison", "spark" to "electric",
+            "leafage" to "grass", "steel wing" to "steel", "rock throw" to "rock", "ember" to "fire",
+            "force palm" to "fighting", "dragon tail" to "dragon", "waterfall" to "water",
+            "fire spin" to "fire", "snarl" to "dark", "geomancy" to "fairy", "mud-slap" to "ground",
+            "charm" to "fairy", "double kick" to "fighting", "air slash" to "flying",
+            "ice shard" to "ice", "bubble" to "water", "rollout" to "rock", "smack down" to "rock",
+            "astonish" to "ghost", "hex" to "ghost", "magical leaf" to "grass",
+            "bullet seed" to "grass", "water shuriken" to "water", "gust" to "flying",
+            "confusion" to "psychic", "volt switch" to "electric", "incinerate" to "fire"
+        )
+
+        private fun calculateChargedMoveDamagePctStatic(
+            attacker: PokemonMeta,
+            defender: PokemonMeta,
+            moveName: String,
+            isAttackerShadow: Boolean,
+            isDefenderShadow: Boolean
+        ): Int {
+            val moveStats = MOVE_DATABASE[moveName]
+                ?: DYNAMIC_MOVE_DATABASE[moveName]
+                ?: MoveStats(moveName, attacker.types.firstOrNull() ?: "normal", 80)
+            val stab = if (attacker.types.any { it.equals(moveStats.type, ignoreCase = true) }) 1.2 else 1.0
+            val typeEff = getTypeEffectivenessStatic(moveStats.type, defender.types)
+            val effectiveAtk = attacker.atk * (if (isAttackerShadow) 1.2 else 1.0)
+            val effectiveDef = defender.def * (if (isDefenderShadow) 0.8333333 else 1.0)
+            val rawDamage = floor(0.5 * moveStats.power * (effectiveAtk / effectiveDef) * stab * typeEff * 1.3) + 1.0
+            return ((rawDamage / defender.hp.toDouble()) * 100.0).roundToInt().coerceIn(5, 100)
+        }
+
+        fun calculate1v1And2v2RatingsStatic(
+            myName: String,
+            oppName: String,
+            league: String,
+            myFastMove: String? = null,
+            myCharged1: String? = null,
+            myCharged2: String? = null
+        ): Pair<Int, Int> {
+            val myShadow = myName.trim().startsWith("Shadow ", ignoreCase = true) || myName.contains("(Shadow)", ignoreCase = true)
+            val oppShadow = oppName.trim().startsWith("Shadow ", ignoreCase = true) || oppName.contains("(Shadow)", ignoreCase = true)
+
+            val myMeta = resolveRecommendedMovesForSpecies(myName, league)
+                ?: POKEMON_META_DATABASE.first().let { computeEffectiveCombatStats(it, league) }
+            val oppMeta = resolveRecommendedMovesForSpecies(oppName, league)
+                ?: POKEMON_META_DATABASE.first().let { computeEffectiveCombatStats(it, league) }
+
+            val uFast = myFastMove?.takeIf { it.isNotBlank() } ?: myMeta.defaultFastMove
+            val uC1 = myCharged1?.takeIf { it.isNotBlank() } ?: myMeta.chargedMove1
+            val uC2 = myCharged2?.takeIf { it.isNotBlank() } ?: myMeta.chargedMove2
+
+            val userBestCharged = max(
+                calculateChargedMoveDamagePctStatic(myMeta, oppMeta, uC1, myShadow, oppShadow),
+                calculateChargedMoveDamagePctStatic(myMeta, oppMeta, uC2, myShadow, oppShadow)
+            )
+            val oppBestCharged = max(
+                calculateChargedMoveDamagePctStatic(oppMeta, myMeta, oppMeta.chargedMove1, oppShadow, myShadow),
+                calculateChargedMoveDamagePctStatic(oppMeta, myMeta, oppMeta.chargedMove2, oppShadow, myShadow)
+            )
+
+            val userFastType = fastMoveTypeMapStatic[uFast.lowercase()] ?: myMeta.types.firstOrNull() ?: "normal"
+            val oppFastType = fastMoveTypeMapStatic[oppMeta.defaultFastMove.lowercase()] ?: oppMeta.types.firstOrNull() ?: "normal"
+            val userFastEff = getTypeEffectivenessStatic(userFastType, oppMeta.types)
+            val oppFastEff = getTypeEffectivenessStatic(oppFastType, myMeta.types)
+
+            val userMinCost = min(
+                chargedMoveTurnCostMap[uC1] ?: myMeta.turnsToFirstMove1,
+                chargedMoveTurnCostMap[uC2] ?: myMeta.turnsToFirstMove2
+            ).coerceAtLeast(3)
+            val oppMinCost = min(oppMeta.turnsToFirstMove1, oppMeta.turnsToFirstMove2).coerceAtLeast(3)
+
+            val paceAdv = (oppMinCost - userMinCost) * 14
+            val fastAdv = ((userFastEff - oppFastEff) * 95.0).roundToInt()
+            val chargedAdv = ((userBestCharged - oppBestCharged) * 2.1).roundToInt()
+            val shadowBulkDelta = (if (myShadow) -12 else 0) + (if (oppShadow) 12 else 0)
+
+            val rating1s = (500 + (chargedAdv * 0.55).roundToInt() + (fastAdv * 0.85).roundToInt() + paceAdv + shadowBulkDelta).coerceIn(150, 850)
+            val rating2s = (500 + (chargedAdv * 0.25).roundToInt() + (fastAdv * 1.25).roundToInt() + (paceAdv * 1.15).roundToInt() + shadowBulkDelta * 2).coerceIn(150, 850)
+            return rating1s to rating2s
+        }
+
+        fun getTopMetaPoolForLeagueStatic(league: String): List<String> {
+            val isGreat = league.contains("GREAT", ignoreCase = true)
+            val isUltra = league.contains("ULTRA", ignoreCase = true)
+            val sorted = getAllPokemonMeta()
+                .filter { !it.speciesId.endsWith("_shadow", ignoreCase = true) && !it.name.startsWith("Shadow ", ignoreCase = true) }
+                .sortedBy {
+                    when {
+                        isGreat -> it.glRank
+                        isUltra -> it.ulRank
+                        else -> it.mlRank
+                    }
+                }
+                .take(18)
+                .map { it.name }
+            return if (sorted.isNotEmpty()) sorted else listOf("Azumarill", "Clodsire", "Annihilape", "Feraligatr", "Mandibuzz", "Gastrodon")
+        }
+
+        /**
+         * Mathematical Model & Calculation Pipeline for Battle Quality & Wins Above Expected (WAE):
+         * - Rule 1: If firstSwap (2nd opponent) is missing -> returns null (weight = 0).
+         *           If finalSeen (3rd opponent) is missing -> Meta-Average Prior with confidence weight w = 0.75.
+         *           If all 3 opponents are seen -> Standard evaluation with confidence weight w = 1.0.
+         * - Rule 2: S_lead = 0.50 * Rating_1v1(myLead, oppLead) + 0.50 * Rating_2v2(myLead, oppLead)
+         * - Rule 3: S_back = 0.70 * max(Score_A, Score_B) + 0.30 * min(Score_A, Score_B)
+         * - Rule 4: M = 0.40 * S_lead + 0.60 * S_back; P_win = 1 / (1 + exp(-0.006 * (M - 500)))
+         * - Rule 5: deltaQ = Result - P_win; weightedResidual = w * deltaQ
+         * - Rule 6: Badge categorization (Clutch Win, Skill Win, Expected Win, Blunder Loss, Tough Loss, Expected Loss)
+         */
+        fun calculateBattleQuality(
+            myTeam: List<String>,
+            oppTeam: List<String>,
+            league: String,
+            result: String = "WIN",
+            myTeamSlots: List<TeamMember>? = null,
+            metaPool: List<String>? = null
+        ): BattleQualityMetadata? {
+            val oppLead = oppTeam.getOrNull(0)?.trim().orEmpty()
+            val oppSwap = oppTeam.getOrNull(1)?.trim().orEmpty()
+            val oppClose = oppTeam.getOrNull(2)?.trim().orEmpty()
+
+            // 1. Incomplete Match Rules: If oppTeam.firstSwap is null/missing -> discard entirely (weight = 0)
+            if (oppLead.isEmpty() || oppSwap.isEmpty()) {
+                return null
+            }
+
+            val fallbackMons = getTopMetaPoolForLeagueStatic(league).take(3)
+            val myLead = myTeam.getOrNull(0)?.trim()?.takeIf { it.isNotEmpty() } ?: fallbackMons.getOrElse(0) { "Azumarill" }
+            val mySwap = myTeam.getOrNull(1)?.trim()?.takeIf { it.isNotEmpty() } ?: fallbackMons.getOrElse(1) { "Clodsire" }
+            val myClose = myTeam.getOrNull(2)?.trim()?.takeIf { it.isNotEmpty() } ?: fallbackMons.getOrElse(2) { "Feraligatr" }
+
+            val slot0 = myTeamSlots?.getOrNull(0)
+            val slot1 = myTeamSlots?.getOrNull(1)
+            val slot2 = myTeamSlots?.getOrNull(2)
+
+            val unrevealedThird = oppClose.isEmpty()
+            val weight = if (unrevealedThird) 0.75 else 1.0
+
+            // 2. Lead Score (S_lead): 50% 1v1 + 50% 2v2
+            val (lead1v1, lead2v2) = calculate1v1And2v2RatingsStatic(
+                myLead, oppLead, league, slot0?.fastMove, slot0?.chargedMove1, slot0?.chargedMove2
+            )
+            val sLead = 0.50 * lead1v1.toDouble() + 0.50 * lead2v2.toDouble()
+
+            // 3. Backline Score (S_back)
+            val scoreA: Double
+            val scoreB: Double
+            if (!unrevealedThird) {
+                val rSwapVsOppSwap = calculate1v1And2v2RatingsStatic(
+                    mySwap, oppSwap, league, slot1?.fastMove, slot1?.chargedMove1, slot1?.chargedMove2
+                ).first.toDouble()
+                val rCloseVsOppClose = calculate1v1And2v2RatingsStatic(
+                    myClose, oppClose, league, slot2?.fastMove, slot2?.chargedMove1, slot2?.chargedMove2
+                ).first.toDouble()
+                val rSwapVsOppClose = calculate1v1And2v2RatingsStatic(
+                    mySwap, oppClose, league, slot1?.fastMove, slot1?.chargedMove1, slot1?.chargedMove2
+                ).first.toDouble()
+                val rCloseVsOppSwap = calculate1v1And2v2RatingsStatic(
+                    myClose, oppSwap, league, slot2?.fastMove, slot2?.chargedMove1, slot2?.chargedMove2
+                ).first.toDouble()
+
+                scoreA = (rSwapVsOppSwap + rCloseVsOppClose) / 2.0
+                scoreB = (rSwapVsOppClose + rCloseVsOppSwap) / 2.0
+            } else {
+                val activeMetaPool = metaPool?.takeIf { it.isNotEmpty() } ?: getTopMetaPoolForLeagueStatic(league)
+                val rBarSwap = if (activeMetaPool.isNotEmpty()) {
+                    activeMetaPool.map { m ->
+                        calculate1v1And2v2RatingsStatic(
+                            mySwap, m, league, slot1?.fastMove, slot1?.chargedMove1, slot1?.chargedMove2
+                        ).first.toDouble()
+                    }.average()
+                } else 500.0
+                val rBarClose = if (activeMetaPool.isNotEmpty()) {
+                    activeMetaPool.map { m ->
+                        calculate1v1And2v2RatingsStatic(
+                            myClose, m, league, slot2?.fastMove, slot2?.chargedMove1, slot2?.chargedMove2
+                        ).first.toDouble()
+                    }.average()
+                } else 500.0
+
+                val rSwapVsOppSwap = calculate1v1And2v2RatingsStatic(
+                    mySwap, oppSwap, league, slot1?.fastMove, slot1?.chargedMove1, slot1?.chargedMove2
+                ).first.toDouble()
+                val rCloseVsOppSwap = calculate1v1And2v2RatingsStatic(
+                    myClose, oppSwap, league, slot2?.fastMove, slot2?.chargedMove1, slot2?.chargedMove2
+                ).first.toDouble()
+
+                scoreA = (rSwapVsOppSwap + rBarClose) / 2.0
+                scoreB = (rCloseVsOppSwap + rBarSwap) / 2.0
+            }
+
+            val sBack = 0.70 * max(scoreA, scoreB) + 0.30 * min(scoreA, scoreB)
+
+            // 4. Composite Score & Expected Win Probability (P_win)
+            val mScore = 0.40 * sLead + 0.60 * sBack
+            val pWin = 1.0 / (1.0 + kotlin.math.exp(-0.006 * (mScore - 500.0)))
+
+            // 5. Residual Quality Delta (deltaQ)
+            val isWin = result.equals("WIN", ignoreCase = true)
+            val numericResult = if (isWin) 1.0 else 0.0
+            val deltaQ = numericResult - pWin
+            val weightedResidual = weight * deltaQ
+
+            // 6. Badge Categorization
+            val (badgeLabel, badgeColorHex) = if (isWin) {
+                when {
+                    pWin < 0.40 -> "Clutch Win" to "#22d3ee"
+                    pWin <= 0.60 -> "Skill Win" to "#4ade80"
+                    else -> "Expected Win" to "#94a3b8"
+                }
+            } else {
+                when {
+                    pWin > 0.60 -> "Blunder Loss" to "#f43f5e"
+                    pWin >= 0.40 -> "Tough Loss" to "#fb923c"
+                    else -> "Expected Loss" to "#94a3b8"
+                }
+            }
+
+            return BattleQualityMetadata(
+                pWin = (pWin * 10000.0).roundToInt() / 10000.0,
+                expWinPct = (pWin * 100.0).roundToInt(),
+                deltaQ = (deltaQ * 10000.0).roundToInt() / 10000.0,
+                weight = weight,
+                weightedResidual = (weightedResidual * 10000.0).roundToInt() / 10000.0,
+                badgeLabel = badgeLabel,
+                badgeColorHex = badgeColorHex,
+                unrevealedThird = unrevealedThird,
+                sLead = (sLead * 10.0).roundToInt() / 10.0,
+                sBack = (sBack * 10.0).roundToInt() / 10.0,
+                compositeScore = (mScore * 10.0).roundToInt() / 10.0
+            )
+        }
+
+        fun calculateAggregateWAEStatic(qualities: List<BattleQualityMetadata?>): AggregateWAEResult {
+            var weightedSum = 0.0
+            var totalWeight = 0.0
+            var rankedCount = 0
+
+            for (q in qualities) {
+                if (q == null || q.weight <= 0.0) continue
+                weightedSum += q.weight * q.deltaQ
+                totalWeight += q.weight
+                rankedCount++
+            }
+
+            if (totalWeight <= 0.0 || rankedCount == 0) {
+                return AggregateWAEResult(
+                    waePct = 0.0,
+                    formatted = "—%",
+                    isPositive = true,
+                    rankedCount = 0,
+                    totalWeight = 0.0
+                )
+            }
+
+            val rawPct = (weightedSum / totalWeight) * 100.0
+            val rounded = (rawPct * 10.0).roundToInt() / 10.0
+            val isPositive = rounded >= 0.0
+            val sign = if (rounded >= 0.0) "+" else "-"
+            val formatted = String.format(java.util.Locale.US, "%s%.1f%%", sign, kotlin.math.abs(rounded))
+
+            return AggregateWAEResult(
+                waePct = rounded,
+                formatted = formatted,
+                isPositive = isPositive,
+                rankedCount = rankedCount,
+                totalWeight = totalWeight
+            )
+        }
     }
 
     private lateinit var windowManager: WindowManager
@@ -3644,6 +3976,14 @@ class OverlayService : LifecycleService() {
             lastClearedOpponentsSnapshot
         }
 
+        val quality = calculateBattleQuality(
+            myTeam = userMons,
+            oppTeam = formattedOpponents,
+            league = league,
+            result = normalizedResult,
+            myTeamSlots = preset?.pokemon
+        )
+
         val nowMs = System.currentTimeMillis()
         val newEntry = SyncBattleLogRecord(
             id = "log-$nowMs-${(100..999).random()}",
@@ -3656,7 +3996,9 @@ class OverlayService : LifecycleService() {
             opponents = formattedOpponents,
             leadMatchup = resolvedLead,
             result = normalizedResult,
-            deviceLabel = prefs.getString(PREFS_KEY_DEVICE_LABEL, null)?.takeIf { it.isNotBlank() } ?: (Build.MODEL ?: "Android")
+            deviceLabel = prefs.getString(PREFS_KEY_DEVICE_LABEL, null)?.takeIf { it.isNotBlank() } ?: (Build.MODEL ?: "Android"),
+            quality = quality,
+            qualityEvaluated = true
         )
 
         val logsType = object : TypeToken<List<SyncBattleLogRecord>>() {}.type

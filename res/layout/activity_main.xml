@@ -41,7 +41,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Real-Time PvP Floating Overlay • v2.05"
+                android:text="Real-Time PvP Floating Overlay • v2.10"
                 android:textSize="11sp"
                 android:textColor="#94a3b8"
                 android:layout_marginTop="1dp" />
@@ -869,7 +869,7 @@
                 android:textColor="#ffffff" />
         </LinearLayout>
 
-        <!-- Summary Metrics Row -->
+        <!-- Summary Metrics Row (4 Cards: Record, Lead Matchups, Win Rate, Quality WAE) -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -879,27 +879,29 @@
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
+                android:layout_weight="0.95"
                 android:orientation="vertical"
                 android:background="#1e293b"
-                android:padding="8dp"
-                android:layout_marginEnd="5dp">
+                android:padding="6dp"
+                android:layout_marginEnd="4dp">
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:singleLine="true"
                     android:text="RECORD (W - L)"
                     android:textColor="#94a3b8"
-                    android:textSize="9sp"
+                    android:textSize="8sp"
                     android:textStyle="bold" />
 
                 <TextView
                     android:id="@+id/text_battle_log_total"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:singleLine="true"
                     android:text="0W - 0L"
                     android:textColor="#38bdf8"
-                    android:textSize="13sp"
+                    android:textSize="11.5sp"
                     android:textStyle="bold"
                     android:layout_marginTop="2dp" />
             </LinearLayout>
@@ -907,27 +909,29 @@
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_weight="1.25"
+                android:layout_weight="1.2"
                 android:orientation="vertical"
                 android:background="#1e293b"
-                android:padding="8dp"
-                android:layout_marginEnd="5dp">
+                android:padding="6dp"
+                android:layout_marginEnd="4dp">
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:singleLine="true"
                     android:text="LEAD MATCHUPS"
                     android:textColor="#94a3b8"
-                    android:textSize="9sp"
+                    android:textSize="8sp"
                     android:textStyle="bold" />
 
                 <TextView
                     android:id="@+id/text_battle_log_league"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:singleLine="true"
                     android:text="0 Fav · 0 Neu · 0 Neg"
                     android:textColor="#34d399"
-                    android:textSize="11sp"
+                    android:textSize="10sp"
                     android:textStyle="bold"
                     android:layout_marginTop="2dp" />
             </LinearLayout>
@@ -935,26 +939,58 @@
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_weight="0.85"
+                android:layout_weight="0.72"
                 android:orientation="vertical"
                 android:background="#1e293b"
-                android:padding="8dp">
+                android:padding="6dp"
+                android:layout_marginEnd="4dp">
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:singleLine="true"
                     android:text="WIN RATE"
                     android:textColor="#94a3b8"
-                    android:textSize="9sp"
+                    android:textSize="8sp"
                     android:textStyle="bold" />
 
                 <TextView
                     android:id="@+id/text_battle_log_winrate"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:singleLine="true"
                     android:text="—%"
                     android:textColor="#fbbf24"
-                    android:textSize="13sp"
+                    android:textSize="11.5sp"
+                    android:textStyle="bold"
+                    android:layout_marginTop="2dp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="0.95"
+                android:orientation="vertical"
+                android:background="#1e293b"
+                android:padding="6dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:singleLine="true"
+                    android:text="QUALITY (WAE)"
+                    android:textColor="#94a3b8"
+                    android:textSize="8sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/text_battle_log_wae"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:singleLine="true"
+                    android:text="—%"
+                    android:textColor="#94a3b8"
+                    android:textSize="11.5sp"
                     android:textStyle="bold"
                     android:layout_marginTop="2dp" />
             </LinearLayout>

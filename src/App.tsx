@@ -52,6 +52,13 @@ import {
   getPokemonAutocompleteSuggestions,
   PokemonAutocompleteOption
 } from './data/gblData';
+import {
+  BattleQualityMetadata,
+  calculateBattleQuality,
+  calculateAggregateWAE,
+  migrateExistingBattleLogs,
+  resolveLogEntryQuality
+} from './data/battleQuality';
 import { ANDROID_FILES, downloadAndroidProjectZip, AndroidProjectFile } from './data/androidFiles';
 
 function renderTierDots(tierStr: string) {
@@ -126,6 +133,7 @@ export interface WebBattleLogEntry {
   opponents: string[];
   result: 'WIN' | 'LOSS';
   leadMatchup: 'FAVORABLE' | 'NEUTRAL' | 'NEGATIVE';
+  quality?: BattleQualityMetadata | null;
   deviceId?: string;
   updatedAt?: number;
 }
@@ -571,6 +579,18 @@ export default function App() {
     return presets.find(p => p.id === selectedPresetId) || presets[0] || INITIAL_PRESETS[0];
   }, [presets, selectedPresetId]);
 
+  // One-time retroactive migration for historical battle logs lacking `quality` metadata
+  useEffect(() => {
+    const migActive = migrateExistingBattleLogs(battleLogs, presets, 'gbl_battle_logs_v1');
+    if (migActive.didMigrate) {
+      setBattleLogs(migActive.logs);
+    }
+    const migTrash = migrateExistingBattleLogs(deletedBattlesTrash, presets, 'gbl_deleted_battles_trash_v1');
+    if (migTrash.didMigrate) {
+      setDeletedBattlesTrash(migTrash.logs);
+    }
+  }, [presets]);
+
   // Battle Simulation State (Fixed Opponent Discovery Order: [1st seen, 2nd seen, 3rd seen])
   const [activeOpponentKey, setActiveOpponentKey] = useState<string>('Zacian (Crowned)');
   const [isOpponentShadow, setIsOpponentShadow] = useState<boolean>(false);
@@ -862,16 +882,26 @@ export default function App() {
     const oppsToLog = (!isWaitingOpponent && scannedOpponents.length > 0)
       ? [...scannedOpponents]
       : [...lastClearedOpponents];
+    const userMons = activePreset.pokemon.map((p) => p.name);
+    const qualityMeta = calculateBattleQuality(
+      userMons,
+      oppsToLog,
+      activePreset.league,
+      undefined,
+      undefined,
+      result
+    );
     const newEntry: WebBattleLogEntry = {
       id: `log-${now}-${Math.random().toString(36).slice(2, 7)}`,
       timestampMs: now,
       league: activePreset.league,
       presetId: activePreset.id,
       userTeamName: activePreset.name,
-      userPokemon: activePreset.pokemon.map((p) => p.name),
+      userPokemon: userMons,
       opponents: oppsToLog,
       result,
       leadMatchup: currentLeadMatchup,
+      quality: qualityMeta,
       deviceId,
       updatedAt: now
     };
@@ -1322,7 +1352,7 @@ export default function App() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'SilphScope_PvP_v2.05_Android_Project.zip';
+      a.download = 'SilphScope_PvP_v2.10_Android_Project.zip';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -1349,7 +1379,7 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <h1 className="font-bold text-base md:text-lg tracking-tight text-white">SilphScope PvP</h1>
                 <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20">
-                  v2.05 • Android Native Overlay
+                  v2.10 • Android Native Overlay
                 </span>
               </div>
               <p className="text-xs text-slate-400 hidden sm:block">
@@ -3952,7 +3982,7 @@ export default function App() {
                           'Content-Type': 'application/json'
                         },
                         body: JSON.stringify({
-                          description: 'SilphScope PvP v2.05 Multi-Device Delta Sync Vault',
+                          description: 'SilphScope PvP v2.10 Multi-Device Delta Sync Vault',
                           public: false,
                           files: {
                             'gbl_delta_sync_v2.json': { content: bundleStr }
@@ -4066,6 +4096,26 @@ export default function App() {
           const favCount = filteredLogs.filter((e) => e.leadMatchup === 'FAVORABLE').length;
           const neuCount = filteredLogs.filter((e) => e.leadMatchup === 'NEUTRAL').length;
           const negCount = filteredLogs.filter((e) => e.leadMatchup === 'NEGATIVE').length;
+          const aggregateWae = calculateAggregateWAE(filteredLogs, presets);
+
+          // Group filtered logs by day for daily section headers with WAE
+          const groupedByDay: Array<{ dayLabel: string; entries: WebBattleLogEntry[] }> = [];
+          const dayMap = new Map<string, WebBattleLogEntry[]>();
+          filteredLogs.forEach((entry) => {
+            const dLabel = new Date(entry.timestampMs).toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric'
+            });
+            const existing = dayMap.get(dLabel);
+            if (existing) {
+              existing.push(entry);
+            } else {
+              const arr = [entry];
+              dayMap.set(dLabel, arr);
+              groupedByDay.push({ dayLabel: dLabel, entries: arr });
+            }
+          });
 
           const buildPlainTextSummary = (
             rangeCode: 'DAY' | 'WEEK' | 'CURRENT_SEASON' | 'PREVIOUS_SEASON' | 'ALL'
@@ -4078,6 +4128,7 @@ export default function App() {
             const fv = list.filter((e) => e.leadMatchup === 'FAVORABLE').length;
             const nu = list.filter((e) => e.leadMatchup === 'NEUTRAL').length;
             const ng = list.filter((e) => e.leadMatchup === 'NEGATIVE').length;
+            const waeInfo = calculateAggregateWAE(list, presets);
             const rangeTitle =
               rangeCode === 'DAY'
                 ? 'Day (Today)'
@@ -4096,7 +4147,7 @@ export default function App() {
               `=== SilphScope PvP Battle Log (${rangeTitle}) ===`,
               `League: ${logFilterLeague}`,
               `Team: ${teamName}`,
-              `Overall Record: ${w}-${l} (${pct}% Win Rate)`,
+              `Overall Record: ${w}-${l} (${pct}% Win Rate) • WAE: ${waeInfo.formatted}`,
               `Lead Matchup: ${fv} Fav / ${nu} Neu / ${ng} Neg`,
               ''
             ];
@@ -4104,7 +4155,11 @@ export default function App() {
               const dt = new Date(b.timestampMs).toLocaleString();
               const leadTag = b.leadMatchup === 'FAVORABLE' ? 'Fav' : b.leadMatchup === 'NEGATIVE' ? 'Neg' : 'Neu';
               const opps = b.opponents.length > 0 ? b.opponents.join(', ') : 'Unknown';
-              lines.push(`${idx + 1}. [${b.result}] [Lead: ${leadTag}] (${dt}) vs ${opps}`);
+              const q = resolveLogEntryQuality(b, presets);
+              const qSuffix = q
+                ? ` [${q.badgeLabel} • Exp Win: ${Math.round(q.pWin * 100)}% • ΔQ: ${q.deltaQ >= 0 ? '+' : ''}${q.deltaQ.toFixed(2)}${q.isUnrevealedThird ? ' (⚡ 75% Conf)' : ''}]`
+                : '';
+              lines.push(`${idx + 1}. [${b.result}] [Lead: ${leadTag}] (${dt}) vs ${opps}${qSuffix}`);
             });
             return lines.join('\n');
           };
@@ -4293,28 +4348,44 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Summary Metrics Row */}
-              <div className="grid grid-cols-3 gap-4">
+              {/* Summary Metrics Row (4 Cards: Record, Lead Matchups, Win Rate, Quality WAE) */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 text-center shadow-xl">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                    Filtered Record
+                    RECORD
                   </span>
-                  <strong className="text-lg font-extrabold text-white">
+                  <strong className="text-base sm:text-lg font-extrabold text-white">
                     {wins}W - {losses}L ({total})
                   </strong>
                 </div>
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 text-center shadow-xl">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                    Win Rate
+                    LEAD MATCHUPS
                   </span>
-                  <strong className="text-lg font-extrabold text-emerald-400">{winRate}%</strong>
+                  <strong className="text-xs sm:text-sm font-extrabold text-sky-400">
+                    {favCount} Fav • {neuCount} Neu • {negCount} Neg
+                  </strong>
                 </div>
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 text-center shadow-xl">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                    Lead Matchup (Fav / Neu / Neg)
+                    WIN RATE
                   </span>
-                  <strong className="text-sm font-extrabold text-sky-400">
-                    {favCount} Fav • {neuCount} Neu • {negCount} Neg
+                  <strong className="text-base sm:text-lg font-extrabold text-amber-400">{winRate}%</strong>
+                </div>
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 text-center shadow-xl">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                    QUALITY (WAE)
+                  </span>
+                  <strong
+                    className={`text-base sm:text-lg font-extrabold ${
+                      aggregateWae.waePct === null
+                        ? 'text-slate-400'
+                        : aggregateWae.waePct >= 0
+                        ? 'text-emerald-400'
+                        : 'text-rose-400'
+                    }`}
+                  >
+                    {aggregateWae.formatted}
                   </strong>
                 </div>
               </div>
@@ -4336,122 +4407,230 @@ export default function App() {
                       📜 No Battles Logged in Selected Filter
                     </div>
                     <p className="text-slate-400 leading-relaxed">
-                      In the floating overlay, tap <strong>⚔️ Start Battle</strong> to record a <strong>🏆 Win</strong> or <strong>💀 Loss</strong> with auto-detected <strong>Lead Matchup (Fav / Neu / Neg)</strong> and fixed <strong>[1st seen, 2nd seen, 3rd seen]</strong> opponent order!
+                      In the floating overlay, tap <strong>⚔️ Start Battle</strong> to record a <strong>🏆 Win</strong> or <strong>💀 Loss</strong> with auto-detected <strong>Lead Matchup (Fav / Neu / Neg)</strong>, <strong>Quality of Win/Loss (WAE)</strong>, and fixed <strong>[1st seen, 2nd seen, 3rd seen]</strong> opponent order!
                     </p>
                   </div>
                 ) : (
-                  <div className="space-y-2.5">
-                    {filteredLogs.map((entry, idx) => {
-                      const isWin = entry.result === 'WIN';
-                      const leadLabel =
-                        entry.leadMatchup === 'FAVORABLE'
-                          ? 'Fav'
-                          : entry.leadMatchup === 'NEGATIVE'
-                          ? 'Neg'
-                          : 'Neu';
+                  <div className="space-y-4">
+                    {groupedByDay.map((dayGroup) => {
+                      const dWins = dayGroup.entries.filter((e) => e.result === 'WIN').length;
+                      const dLosses = dayGroup.entries.filter((e) => e.result === 'LOSS').length;
+                      const dTotal = dWins + dLosses;
+                      const dPct = dTotal > 0 ? Math.round((dWins * 100) / dTotal) : 0;
+                      const dFav = dayGroup.entries.filter((e) => e.leadMatchup === 'FAVORABLE').length;
+                      const dNeu = dayGroup.entries.filter((e) => e.leadMatchup === 'NEUTRAL').length;
+                      const dNeg = dayGroup.entries.filter((e) => e.leadMatchup === 'NEGATIVE').length;
+                      const dWae = calculateAggregateWAE(dayGroup.entries, presets);
+
                       return (
-                        <div
-                          key={entry.id}
-                          onClick={() => {
-                            setReplayLogEntry(entry);
-                            setReplayUserIdx(0);
-                            setReplayOppIdx(0);
-                            setReplayOppShadow(false);
-                          }}
-                          className="p-3.5 rounded-xl bg-slate-950 hover:bg-slate-900/90 border border-slate-800 hover:border-sky-500/50 cursor-pointer transition flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
-                        >
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2 flex-wrap">
+                        <div key={dayGroup.dayLabel} className="space-y-2">
+                          <div className="px-2 py-1 text-[11.5px] font-bold text-sky-400 flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80">
+                            <span>
+                              📅 {dayGroup.dayLabel} — Daily Record: {dWins}W - {dLosses}L ({dPct}%) • Leads: {dFav} Fav / {dNeu} Neu / {dNeg} Neg • WAE:{' '}
                               <span
-                                className={`px-2 py-0.5 rounded font-extrabold text-[10px] border ${
-                                  isWin
-                                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                                    : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
-                                }`}
+                                className={
+                                  dWae.waePct === null
+                                    ? 'text-slate-400'
+                                    : dWae.waePct >= 0
+                                    ? 'text-emerald-400'
+                                    : 'text-rose-400'
+                                }
                               >
-                                {isWin ? '🏆 WIN' : '💀 LOSS'}
+                                {dWae.formatted}
                               </span>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const nextLead: 'FAVORABLE' | 'NEUTRAL' | 'NEGATIVE' =
-                                    entry.leadMatchup === 'FAVORABLE'
-                                      ? 'NEUTRAL'
-                                      : entry.leadMatchup === 'NEUTRAL'
-                                      ? 'NEGATIVE'
-                                      : 'FAVORABLE';
-                                  const updated = battleLogs.map((b) =>
-                                    b.id === entry.id ? { ...b, leadMatchup: nextLead, updatedAt: Date.now() } : b
-                                  );
-                                  saveBattleLogsToStorage(updated);
+                            </span>
+                          </div>
+
+                          {dayGroup.entries.map((entry) => {
+                            const isWin = entry.result === 'WIN';
+                            const leadLabel =
+                              entry.leadMatchup === 'FAVORABLE'
+                                ? 'Fav'
+                                : entry.leadMatchup === 'NEGATIVE'
+                                ? 'Neg'
+                                : 'Neu';
+                            const quality = resolveLogEntryQuality(entry, presets);
+                            const expWinPct = quality ? Math.round(quality.pWin * 100) : null;
+                            const deltaQSign = quality && quality.deltaQ >= 0 ? '+' : '';
+                            const deltaQText = quality ? `${deltaQSign}${quality.deltaQ.toFixed(2)}` : null;
+
+                            const getBadgeStyle = (label?: string): { bg: string; text: string; border: string } => {
+                              switch (label) {
+                                case 'Clutch Win':
+                                  return {
+                                    bg: 'rgba(34, 211, 238, 0.16)',
+                                    text: '#22d3ee',
+                                    border: 'rgba(34, 211, 238, 0.45)'
+                                  };
+                                case 'Skill Win':
+                                  return {
+                                    bg: 'rgba(74, 222, 128, 0.16)',
+                                    text: '#4ade80',
+                                    border: 'rgba(74, 222, 128, 0.45)'
+                                  };
+                                case 'Blunder Loss':
+                                  return {
+                                    bg: 'rgba(244, 63, 94, 0.16)',
+                                    text: '#f43f5e',
+                                    border: 'rgba(244, 63, 94, 0.45)'
+                                  };
+                                case 'Tough Loss':
+                                  return {
+                                    bg: 'rgba(251, 146, 60, 0.16)',
+                                    text: '#fb923c',
+                                    border: 'rgba(251, 146, 60, 0.45)'
+                                  };
+                                default:
+                                  return {
+                                    bg: 'rgba(148, 163, 184, 0.15)',
+                                    text: '#94a3b8',
+                                    border: 'rgba(148, 163, 184, 0.4)'
+                                  };
+                              }
+                            };
+
+                            const badgeStyle = getBadgeStyle(quality?.badgeLabel);
+
+                            return (
+                              <div
+                                key={entry.id}
+                                onClick={() => {
+                                  setReplayLogEntry(entry);
+                                  setReplayUserIdx(0);
+                                  setReplayOppIdx(0);
+                                  setReplayOppShadow(false);
                                 }}
-                                className={`px-2 py-0.5 rounded font-bold text-[10px] border ${
-                                  entry.leadMatchup === 'FAVORABLE'
-                                    ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
-                                    : entry.leadMatchup === 'NEGATIVE'
-                                    ? 'bg-rose-500/15 text-rose-300 border-rose-500/30'
-                                    : 'bg-slate-800 text-slate-300 border-slate-700'
-                                }`}
-                                title="Click to toggle Lead Matchup (Fav / Neu / Neg)"
+                                className="p-3.5 rounded-xl bg-slate-950 hover:bg-slate-900/90 border border-slate-800 hover:border-sky-500/50 cursor-pointer transition flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
                               >
-                                Lead: {leadLabel} ↻
-                              </button>
-                              <span className="font-bold text-sky-400">
-                                #{filteredLogs.length - idx} • {entry.league}
-                              </span>
-                              <span className="text-[11px] font-mono text-slate-400">
-                                {new Date(entry.timestampMs).toLocaleString()}
-                              </span>
-                            </div>
+                                <div className="space-y-1.5">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span
+                                      className={`px-2 py-0.5 rounded font-extrabold text-[10px] border ${
+                                        isWin
+                                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                                          : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                                      }`}
+                                    >
+                                      {isWin ? '🏆 WIN' : '💀 LOSS'}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        const nextLead: 'FAVORABLE' | 'NEUTRAL' | 'NEGATIVE' =
+                                          entry.leadMatchup === 'FAVORABLE'
+                                            ? 'NEUTRAL'
+                                            : entry.leadMatchup === 'NEUTRAL'
+                                            ? 'NEGATIVE'
+                                            : 'FAVORABLE';
+                                        const updated = battleLogs.map((b) =>
+                                          b.id === entry.id ? { ...b, leadMatchup: nextLead, updatedAt: Date.now() } : b
+                                        );
+                                        saveBattleLogsToStorage(updated);
+                                      }}
+                                      className={`px-2 py-0.5 rounded font-bold text-[10px] border ${
+                                        entry.leadMatchup === 'FAVORABLE'
+                                          ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                                          : entry.leadMatchup === 'NEGATIVE'
+                                          ? 'bg-rose-500/15 text-rose-300 border-rose-500/30'
+                                          : 'bg-slate-800 text-slate-300 border-slate-700'
+                                      }`}
+                                      title="Click to toggle Lead Matchup (Fav / Neu / Neg)"
+                                    >
+                                      Lead: {leadLabel} ↻
+                                    </button>
+                                    <span className="font-bold text-sky-400">
+                                      {entry.league}
+                                    </span>
+                                    <span className="text-[11px] font-mono text-slate-400">
+                                      {new Date(entry.timestampMs).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                                    </span>
+                                  </div>
 
-                            <div className="text-slate-200">
-                              <span className="text-slate-400">Team:</span>{' '}
-                              <strong className="text-white">{entry.userTeamName}</strong>{' '}
-                              <span className="text-slate-400">({(entry.userPokemon || []).join(' / ')})</span>
-                            </div>
-                            <div className="text-amber-200">
-                              <span className="text-slate-400">Opponents (1st → 2nd → 3rd):</span>{' '}
-                              <strong>
-                                {entry.opponents.length > 0
-                                  ? entry.opponents.map((o, i) => `#${i + 1} ${o}`).join('  •  ')
-                                  : 'None Scanned'}
-                              </strong>
-                            </div>
-                          </div>
+                                  <div className="text-slate-200">
+                                    <span className="text-slate-400">Team:</span>{' '}
+                                    <strong className="text-white">{entry.userTeamName}</strong>{' '}
+                                    <span className="text-slate-400">({(entry.userPokemon || []).join(' / ')})</span>
+                                  </div>
+                                  <div className="text-amber-200">
+                                    <span className="text-slate-400">Opponents (1st → 2nd → 3rd):</span>{' '}
+                                    <strong>
+                                      {entry.opponents.length > 0
+                                        ? entry.opponents.map((o, i) => `#${i + 1} ${o}`).join('  •  ')
+                                        : 'None Scanned'}
+                                    </strong>
+                                  </div>
 
-                          <div
-                            className="flex items-center gap-1.5 shrink-0"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setReplayLogEntry(entry);
-                                setReplayUserIdx(0);
-                                setReplayOppIdx(0);
-                                setReplayOppShadow(false);
-                              }}
-                              className="px-2.5 py-1.5 rounded-lg bg-sky-500/20 hover:bg-sky-500/35 border border-sky-400/50 text-sky-200 font-bold text-[11px] transition"
-                            >
-                              🔍 Replay
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setEditingLogEntry({ ...entry })}
-                              className="px-2.5 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/35 border border-amber-400/50 text-amber-200 font-bold text-[11px] transition"
-                            >
-                              ✏️ Edit
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteSingleBattleLog(entry)}
-                              className="px-2.5 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/35 border border-rose-400/50 text-rose-200 font-bold text-[11px] transition"
-                              title="Move battle to Trash"
-                            >
-                              🗑️
-                            </button>
-                          </div>
+                                  {/* Battle Quality & WAE Badge Row directly below the Pokémon lineup */}
+                                  <div className="pt-0.5 flex items-center gap-2 flex-wrap">
+                                    {quality ? (
+                                      <>
+                                        <span
+                                          style={{
+                                            backgroundColor: badgeStyle.bg,
+                                            color: badgeStyle.text,
+                                            borderColor: badgeStyle.border
+                                          }}
+                                          className="px-2.5 py-0.5 rounded-md font-extrabold text-[10.5px] border inline-flex items-center gap-1"
+                                        >
+                                          <span>{quality.badgeLabel}</span>
+                                          <span>•</span>
+                                          <span>Exp Win: {expWinPct}%</span>
+                                          <span>•</span>
+                                          <span>ΔQ: {deltaQText}</span>
+                                        </span>
+                                        {quality.isUnrevealedThird && (
+                                          <span
+                                            className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-400/40"
+                                            title="3rd opponent slot was unrevealed: evaluated with Meta-Average Prior at 75% confidence weight (w = 0.75)"
+                                          >
+                                            (⚡ 75% Conf)
+                                          </span>
+                                        )}
+                                      </>
+                                    ) : (
+                                      <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-900 text-slate-500 border border-slate-800">
+                                        Unranked (Incomplete Match — 2nd Opponent Unseen)
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div
+                                  className="flex items-center gap-1.5 shrink-0"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setReplayLogEntry(entry);
+                                      setReplayUserIdx(0);
+                                      setReplayOppIdx(0);
+                                      setReplayOppShadow(false);
+                                    }}
+                                    className="px-2.5 py-1.5 rounded-lg bg-sky-500/20 hover:bg-sky-500/35 border border-sky-400/50 text-sky-200 font-bold text-[11px] transition"
+                                  >
+                                    🔍 Replay
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingLogEntry({ ...entry })}
+                                    className="px-2.5 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/35 border border-amber-400/50 text-amber-200 font-bold text-[11px] transition"
+                                  >
+                                    ✏️ Edit
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteSingleBattleLog(entry)}
+                                    className="px-2.5 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/35 border border-rose-400/50 text-rose-200 font-bold text-[11px] transition"
+                                    title="Move battle to Trash"
+                                  >
+                                    🗑️
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       );
                     })}
@@ -4644,8 +4823,14 @@ export default function App() {
                       <button
                         type="button"
                         onClick={() => {
+                          const recomputedQuality = resolveLogEntryQuality(
+                            { ...editingLogEntry, quality: undefined },
+                            presets
+                          );
                           const updated = battleLogs.map((b) =>
-                            b.id === editingLogEntry.id ? { ...editingLogEntry, updatedAt: Date.now() } : b
+                            b.id === editingLogEntry.id
+                              ? { ...editingLogEntry, quality: recomputedQuality, updatedAt: Date.now() }
+                              : b
                           );
                           saveBattleLogsToStorage(updated);
                           setEditingLogEntry(null);
@@ -5374,7 +5559,7 @@ export default function App() {
 
       {/* Footer */}
       <footer className="border-t border-slate-800/80 py-4 px-6 text-center text-xs text-slate-500">
-        SilphScope PvP v2.05 Overlay • Built with Kotlin, WindowManager TYPE_APPLICATION_OVERLAY, MediaProjection in-memory frame capture, and ML Kit Text Recognition.
+        SilphScope PvP v2.10 Overlay • Built with Kotlin, WindowManager TYPE_APPLICATION_OVERLAY, MediaProjection in-memory frame capture, and ML Kit Text Recognition.
       </footer>
     </div>
   );
