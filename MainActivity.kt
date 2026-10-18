@@ -402,7 +402,7 @@ class MainActivity : AppCompatActivity() {
         val logs = loadBattleLogs()
         val selectedPreset = getSelectedPreset()
         textBattleLogTotal.text = "${logs.size} Matches"
-        textBattleLogLeague.text = selectedPreset.league
+        textBattleLogLeague.text = selectedPreset?.league ?: "GREAT LEAGUE"
         textBattleLogWinrate.text = if (logs.isEmpty()) "Ready" else "${logs.size} Logged"
 
         battleLogContainer.removeAllViews()
@@ -422,7 +422,7 @@ class MainActivity : AppCompatActivity() {
             }
             val descTv = TextView(this).apply {
                 text = "This page is provisioned to record your GBL battles, including:\n" +
-                    "• Active Team Preset & League (${selectedPreset.name})\n" +
+                    "• Active Team Preset & League (${selectedPreset?.name ?: "Active Team"})\n" +
                     "• Scanned Opponent Lead, Safe Swap & Closer Pokémon\n" +
                     "• Matchup Matrix & Shield Telemetry History\n\n" +
                     "Battles logged from the overlay will automatically appear here in chronological order."
