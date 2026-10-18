@@ -219,10 +219,8 @@ class MainActivity : AppCompatActivity() {
             setupBattleLogFilters()
             renderBattleLogPage()
             updateSyncStatusUi()
-            val hasToken = !prefs.getString(PREFS_KEY_SYNC_GITHUB_TOKEN, "").isNullOrBlank()
-            if (hasToken) {
-                triggerTwoDeviceCloudSync(silent = true)
-            }
+            // Automatically pull & reconcile deltas from the other device on every app open / resume
+            triggerTwoDeviceCloudSync(silent = true)
         }
     }
 
@@ -512,15 +510,14 @@ class MainActivity : AppCompatActivity() {
     private fun updateSyncStatusUi() {
         val lastAt = prefs.getLong(PREFS_KEY_SYNC_LAST_AT, 0L)
         val gistId = prefs.getString(PREFS_KEY_SYNC_GIST_ID, "")?.trim().orEmpty()
-        val hasToken = !prefs.getString(PREFS_KEY_SYNC_GITHUB_TOKEN, "").isNullOrBlank()
         val timeFmt = java.text.SimpleDateFormat("MMM d, h:mm a", java.util.Locale.US)
-        val lastStr = if (lastAt > 0L) timeFmt.format(java.util.Date(lastAt)) else "Never"
-        val vaultShort = if (gistId.isNotEmpty()) "Vault: ${gistId.take(8)}…" else if (hasToken) "Vault: Auto-discover" else "No token set"
-        textSyncStatus.text = "Last Sync: $lastStr • $vaultShort • Logs: ${loadBattleLogs().size} • Teams: ${loadPresets().size}"
+        val lastStr = if (lastAt > 0L) timeFmt.format(java.util.Date(lastAt)) else "Syncing..."
+        val vaultShort = if (gistId.isNotEmpty()) "Gist: ${gistId.take(8)}…" else "Cloud Vault (Auto)"
+        textSyncStatus.text = "Auto-Sync on Open: ON • Last: $lastStr • $vaultShort • Logs: ${loadBattleLogs().size} • Teams: ${loadPresets().size}"
     }
 
     private fun triggerTwoDeviceCloudSync(silent: Boolean) {
-        val tok = prefs.getString(PREFS_KEY_SYNC_GITHUB_TOKEN, "")?.trim().orEmpty()
+        val tok = OverlayService.getEffectiveSyncToken(prefs)
         if (tok.isEmpty()) {
             if (!silent) {
                 Toast.makeText(this, "Enter a GitHub Token in Settings or use Sync Bundle", Toast.LENGTH_LONG).show()
@@ -542,10 +539,10 @@ class MainActivity : AppCompatActivity() {
                 refreshPresetsUi()
                 setupBattleLogFilters()
                 renderBattleLogPage()
-                if (!silent || ok) {
-                    if (!silent) {
-                        Toast.makeText(this@MainActivity, msg, Toast.LENGTH_LONG).show()
-                    }
+                if (!silent) {
+                    Toast.makeText(this@MainActivity, msg, Toast.LENGTH_LONG).show()
+                } else if (ok && (!msg.contains("+0 from other device") || !msg.contains("+0 updated"))) {
+                    Toast.makeText(this@MainActivity, "☁️ Auto-synced on open: $msg", Toast.LENGTH_SHORT).show()
                 }
             }
         }

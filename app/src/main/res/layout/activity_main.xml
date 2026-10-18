@@ -557,7 +557,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Reconciles deltas across 2+ devices (Pull → Union/LWW Merge → Push) via private GitHub Gist or Sync Bundle."
+                    android:text="Automatically reconciles deltas on app open &amp; after every battle (Pull → Union/LWW Merge → Push) via your Cloud Vault."
                     android:textColor="#94a3b8"
                     android:textSize="10sp"
                     android:layout_marginTop="2dp" />
@@ -569,7 +569,7 @@
                     android:layout_marginTop="6dp"
                     android:background="#1e293b"
                     android:paddingHorizontal="8dp"
-                    android:hint="GitHub Personal Access Token (ghp_...)"
+                    android:hint="Optional Custom GitHub Token Override (Built-in Auto-Sync Active)"
                     android:textColor="#f8fafc"
                     android:textColorHint="#64748b"
                     android:textSize="11sp"
@@ -583,7 +583,7 @@
                     android:layout_marginTop="4dp"
                     android:background="#1e293b"
                     android:paddingHorizontal="8dp"
-                    android:hint="Sync Vault Gist ID (Auto-detected/created if blank)"
+                    android:hint="Optional Gist ID Override (Defaults to repo sync-vault branch)"
                     android:textColor="#f8fafc"
                     android:textColorHint="#64748b"
                     android:textSize="11sp"
