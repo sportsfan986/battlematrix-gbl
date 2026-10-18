@@ -120,10 +120,43 @@ export interface WebBattleLogEntry {
   id: string;
   timestampMs: number;
   league: string;
+  presetId?: string;
   userTeamName: string;
+  userPokemon: string[];
   opponents: string[];
-  result: string;
+  result: 'WIN' | 'LOSS';
+  leadMatchup: 'FAVORABLE' | 'NEUTRAL' | 'NEGATIVE';
+  deviceId?: string;
+  updatedAt?: number;
 }
+
+export interface GblSeasonInfo {
+  eventID: string;
+  name: string;
+  startMs: number;
+  endMs: number;
+  rawStart: string;
+  rawEnd: string;
+}
+
+const DEFAULT_SEASONS_FALLBACK: GblSeasonInfo[] = [
+  {
+    eventID: 'season-24-twilight-trails',
+    name: 'Twilight Trails',
+    startMs: new Date('2026-09-08T10:00:00').getTime(),
+    endMs: new Date('2026-12-01T10:00:00').getTime(),
+    rawStart: '2026-09-08T10:00:00',
+    rawEnd: '2026-12-01T10:00:00'
+  },
+  {
+    eventID: 'season-23-prev',
+    name: 'Previous GBL Season',
+    startMs: new Date('2026-06-01T10:00:00').getTime(),
+    endMs: new Date('2026-09-08T10:00:00').getTime(),
+    rawStart: '2026-06-01T10:00:00',
+    rawEnd: '2026-09-08T10:00:00'
+  }
+];
 
 export default function App() {
   // Navigation tabs (includes separated Teams, Settings, and Battle Log pages)
@@ -227,7 +260,19 @@ export default function App() {
     } catch {}
   };
 
-  // Provisioned Battle Log State (Page 3)
+  // Provisioned Battle Log State (Page 3) + Tombstones + Seasons + 2-Device Sync
+  const [deviceId] = useState<string>(() => {
+    try {
+      const existing = localStorage.getItem('gbl_sync_device_id');
+      if (existing) return existing;
+      const created = 'web-' + Math.random().toString(36).substring(2, 10);
+      localStorage.setItem('gbl_sync_device_id', created);
+      return created;
+    } catch {
+      return 'web-local';
+    }
+  });
+
   const [battleLogs, setBattleLogs] = useState<WebBattleLogEntry[]>(() => {
     try {
       const raw = localStorage.getItem('gbl_battle_logs_v1');
@@ -239,11 +284,68 @@ export default function App() {
     return [];
   });
 
-  const handleClearBattleLogs = () => {
-    setBattleLogs([]);
+  const [deletedLogIds, setDeletedLogIds] = useState<string[]>(() => {
     try {
-      localStorage.removeItem('gbl_battle_logs_v1');
+      const raw = localStorage.getItem('gbl_deleted_log_ids_v1');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+      }
     } catch {}
+    return [];
+  });
+
+  const [seasonsList, setSeasonsList] = useState<GblSeasonInfo[]>(() => {
+    try {
+      const raw = localStorage.getItem('gbl_scraped_seasons_v1');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return DEFAULT_SEASONS_FALLBACK;
+  });
+
+  // Battle Log Filter & Modal States
+  const [logFilterLeague, setLogFilterLeague] = useState<string>('ALL LEAGUES');
+  const [logFilterTeamId, setLogFilterTeamId] = useState<string>('ALL TEAMS');
+  const [logFilterTimeframe, setLogFilterTimeframe] = useState<'DAY' | 'WEEK' | 'CURRENT_SEASON' | 'PREVIOUS_SEASON' | 'ALL'>('ALL');
+  const [exportPromptAction, setExportPromptAction] = useState<'COPY' | 'SHARE' | null>(null);
+  const [editingLogEntry, setEditingLogEntry] = useState<WebBattleLogEntry | null>(null);
+  const [replayLogEntry, setReplayLogEntry] = useState<WebBattleLogEntry | null>(null);
+  const [replayUserIdx, setReplayUserIdx] = useState<number>(0);
+  const [replayOppIdx, setReplayOppIdx] = useState<number>(0);
+  const [replayOppShadow, setReplayOppShadow] = useState<boolean>(false);
+
+  // Two-Device Cloud & Delta Sync States
+  const [githubGistToken, setGithubGistToken] = useState<string>(() => localStorage.getItem('gbl_sync_github_token') || '');
+  const [githubGistId, setGithubGistId] = useState<string>(() => localStorage.getItem('gbl_sync_github_gist_id') || '');
+  const [lastCloudSyncStatus, setLastCloudSyncStatus] = useState<string>(() => localStorage.getItem('gbl_last_cloud_sync_ts') || 'Ready for 2-device delta sync');
+  const [isSyncingCloud, setIsSyncingCloud] = useState<boolean>(false);
+  const [showImportBundleModal, setShowImportBundleModal] = useState<boolean>(false);
+  const [importBundleText, setImportBundleText] = useState<string>('');
+
+  const saveBattleLogsToStorage = (logs: WebBattleLogEntry[]) => {
+    const sorted = [...logs].sort((a, b) => b.timestampMs - a.timestampMs);
+    setBattleLogs(sorted);
+    try {
+      localStorage.setItem('gbl_battle_logs_v1', JSON.stringify(sorted));
+    } catch {}
+  };
+
+  const addDeletedTombstone = (id: string) => {
+    setDeletedLogIds((prev) => {
+      const next = Array.from(new Set([...prev, id]));
+      try {
+        localStorage.setItem('gbl_deleted_log_ids_v1', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const handleClearBattleLogs = () => {
+    battleLogs.forEach((b) => addDeletedTombstone(b.id));
+    saveBattleLogsToStorage([]);
   };
 
   // Overlay Custom Position (Positioned below top header: y=118px, x=8px so it never obscures top opponent HP bar)
@@ -345,7 +447,7 @@ export default function App() {
     return presets.find(p => p.id === selectedPresetId) || presets[0] || INITIAL_PRESETS[0];
   }, [presets, selectedPresetId]);
 
-  // Battle Simulation State
+  // Battle Simulation State (Fixed Opponent Discovery Order: [1st seen, 2nd seen, 3rd seen])
   const [activeOpponentKey, setActiveOpponentKey] = useState<string>('Zacian (Crowned)');
   const [isOpponentShadow, setIsOpponentShadow] = useState<boolean>(false);
   const [activeUserSlotIndex, setActiveUserSlotIndex] = useState<number>(0);
@@ -356,11 +458,52 @@ export default function App() {
   const [userShields, setUserShields] = useState<number>(2);
   const [oppShields, setOppShields] = useState<number>(2);
 
-  // Scanned Opponents (1-per-species deduplicated)
+  // Scanned Opponents (Fixed Discovery Order: Slot 0 = 1st Seen, Slot 1 = 2nd Seen, Slot 2 = 3rd Seen)
   const [scannedOpponents, setScannedOpponents] = useState<string[]>(['Zacian (Crowned)', 'Yveltal', 'Entei']);
+  const [activeOpponentSlotIndex, setActiveOpponentSlotIndex] = useState<number>(0);
   const [isWaitingOpponent, setIsWaitingOpponent] = useState<boolean>(false);
   const [showOpponentPicker, setShowOpponentPicker] = useState<boolean>(false);
+  const [showStartBattleMenu, setShowStartBattleMenu] = useState<boolean>(false);
+  const [manualLeadMatchupOverride, setManualLeadMatchupOverride] = useState<'FAVORABLE' | 'NEUTRAL' | 'NEGATIVE' | null>(null);
+  const [startBattleToast, setStartBattleToast] = useState<string | null>(null);
   const [selectedOpponentLeague, setSelectedOpponentLeague] = useState<'AUTO' | LeagueType>('AUTO');
+
+  // Scrape GBL Season dates from ScrapedDuck API on startup
+  useEffect(() => {
+    fetch('https://raw.githubusercontent.com/bigfoott/ScrapedDuck/data/events.min.json')
+      .then((r) => r.json())
+      .then((arr) => {
+        if (!Array.isArray(arr)) return;
+        const scraped: GblSeasonInfo[] = [];
+        for (const ev of arr) {
+          if (ev?.eventType === 'season' || ev?.heading === 'Season') {
+            const sMs = new Date(ev.start).getTime();
+            const eMs = new Date(ev.end).getTime();
+            if (!Number.isNaN(sMs) && !Number.isNaN(eMs)) {
+              scraped.push({
+                eventID: ev.eventID || 'season',
+                name: ev.name || 'GBL Season',
+                startMs: sMs,
+                endMs: eMs,
+                rawStart: ev.start,
+                rawEnd: ev.end
+              });
+            }
+          }
+        }
+        if (scraped.length > 0) {
+          const mergedMap = new Map<string, GblSeasonInfo>();
+          DEFAULT_SEASONS_FALLBACK.forEach((s) => mergedMap.set(s.eventID, s));
+          scraped.forEach((s) => mergedMap.set(s.eventID, s));
+          const merged = Array.from(mergedMap.values()).sort((a, b) => b.startMs - a.startMs);
+          setSeasonsList(merged);
+          try {
+            localStorage.setItem('gbl_scraped_seasons_v1', JSON.stringify(merged));
+          } catch {}
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Auto-sync PvPoke gamemaster.json + 4 league rankings JSONs on startup
   useEffect(() => {
@@ -487,18 +630,22 @@ export default function App() {
       .toLowerCase();
   };
 
-  // Actions for Overlay: Reset Opponent (clears opponents while keeping 1 Hz OCR active)
+  // Actions for Overlay: Restart without logging (clears opponents while keeping 1 Hz OCR active)
   const handleStartBattle = () => {
     setScannedOpponents([]);
+    setActiveOpponentSlotIndex(0);
     setIsWaitingOpponent(true);
     setActiveOpponentKey('Waiting...');
     setIsOpponentShadow(false);
+    setManualLeadMatchupOverride(null);
+    setShowStartBattleMenu(false);
     setUserTurnsElapsed(0);
     setOppTurnsElapsed(0);
     setUserEnergy(0);
     setOppEnergy(0);
   };
 
+  // Fixed Opponent Discovery Order: [1st seen, 2nd seen, 3rd seen] NEVER reorders when swapping active opponent!
   const handleSwapActiveOpponent = (name: string) => {
     setActiveOpponentKey(name);
     setIsWaitingOpponent(false);
@@ -506,9 +653,25 @@ export default function App() {
     setOppTurnsElapsed(0);
     setOppEnergy(0);
     const targetBase = getBaseSpeciesKey(name);
-    setScannedOpponents(prev => {
-      const filtered = prev.filter(n => getBaseSpeciesKey(n) !== targetBase);
-      return [name, ...filtered].slice(0, 3);
+    setScannedOpponents((prev) => {
+      const existingIdx = prev.findIndex((n) => getBaseSpeciesKey(n) === targetBase);
+      if (existingIdx >= 0) {
+        const updated = [...prev];
+        updated[existingIdx] = name;
+        setActiveOpponentSlotIndex(existingIdx);
+        return updated;
+      }
+      if (prev.length < 3) {
+        const appended = [...prev, name];
+        setActiveOpponentSlotIndex(appended.length - 1);
+        return appended;
+      }
+      // Replace currently active slot in-place without shifting the other slots
+      const replaced = [...prev];
+      const targetSlot = Math.max(0, Math.min(activeOpponentSlotIndex, 2));
+      replaced[targetSlot] = name;
+      setActiveOpponentSlotIndex(targetSlot);
+      return replaced;
     });
   };
 
@@ -518,26 +681,71 @@ export default function App() {
 
   const handleSwapNextBenchOpponent = () => {
     if (scannedOpponents.length <= 1) return;
-    const nextLead = scannedOpponents[1];
-    const remaining = [scannedOpponents[0], ...scannedOpponents.slice(2)];
-    setActiveOpponentKey(nextLead);
+    const nextSlot = (activeOpponentSlotIndex + 1) % scannedOpponents.length;
+    const nextActive = scannedOpponents[nextSlot];
+    setActiveOpponentSlotIndex(nextSlot);
+    setActiveOpponentKey(nextActive);
     setIsWaitingOpponent(false);
     setOppTurnsElapsed(0);
     setOppEnergy(0);
-    setScannedOpponents([nextLead, ...remaining]);
   };
 
   const activeOpponentLeague = selectedOpponentLeague === 'AUTO' ? (activePreset?.league || 'MASTER LEAGUE') : selectedOpponentLeague;
   const currentTopOpponents: TopOpponentInfo[] = PVPOKE_TOP_OPPONENTS[activeOpponentLeague] || PVPOKE_TOP_OPPONENTS['MASTER LEAGUE'] || [];
 
   // Active Pokémon stats scaled for the active League CP and user IVs (auto-defaulting to PvPoke IVs if blank)
+  const safeActiveOppSlot = Math.max(0, Math.min(activeOpponentSlotIndex, Math.max(0, scannedOpponents.length - 1)));
   const activeOpponentName = (!isWaitingOpponent && scannedOpponents.length > 0)
-    ? scannedOpponents[0]
+    ? (scannedOpponents[safeActiveOppSlot] || scannedOpponents[0])
     : activeOpponentKey;
   const rawActiveOpponent = POKEMON_DATABASE[activeOpponentName] || POKEMON_DATABASE[activeOpponentKey] || POKEMON_DATABASE['Zacian (Crowned)'];
   const activeOpponent = useMemo(() => {
     return computeEffectiveStatsForLeague(rawActiveOpponent, activeOpponentLeague, undefined, undefined, isOpponentShadow);
   }, [rawActiveOpponent, activeOpponentLeague, isOpponentShadow, pvPokeSyncStatus]);
+
+  // Auto-calculated Lead Matchup (Slot 0 1st-seen opponent vs Your Lead p1)
+  const currentLeadMatchup: 'FAVORABLE' | 'NEUTRAL' | 'NEGATIVE' = useMemo(() => {
+    if (manualLeadMatchupOverride) return manualLeadMatchupOverride;
+    if (isWaitingOpponent || scannedOpponents.length === 0) return 'NEUTRAL';
+    const firstSeenOpp = scannedOpponents[0];
+    const m = calculateShieldMatrix(firstSeenOpp, activePreset.pokemon.map((p) => p.name), safeActiveOppSlot === 0 && isOpponentShadow);
+    const tokens = (m.p1 || 'W,N,L').split(',');
+    const oneShield = (tokens[1] || tokens[0] || 'N').trim().toUpperCase();
+    if (oneShield === 'SW' || oneShield === 'W') return 'FAVORABLE';
+    if (oneShield === 'SL' || oneShield === 'L') return 'NEGATIVE';
+    return 'NEUTRAL';
+  }, [manualLeadMatchupOverride, isWaitingOpponent, scannedOpponents, activePreset, safeActiveOppSlot, isOpponentShadow]);
+
+  const handleCycleLeadMatchup = () => {
+    const next =
+      currentLeadMatchup === 'FAVORABLE'
+        ? 'NEUTRAL'
+        : currentLeadMatchup === 'NEUTRAL'
+        ? 'NEGATIVE'
+        : 'FAVORABLE';
+    setManualLeadMatchupOverride(next);
+  };
+
+  const handleLogBattleFromOverlay = (result: 'WIN' | 'LOSS') => {
+    const now = Date.now();
+    const newEntry: WebBattleLogEntry = {
+      id: `log-${now}-${Math.random().toString(36).slice(2, 7)}`,
+      timestampMs: now,
+      league: activePreset.league,
+      presetId: activePreset.id,
+      userTeamName: activePreset.name,
+      userPokemon: activePreset.pokemon.map((p) => p.name),
+      opponents: isWaitingOpponent ? [] : [...scannedOpponents],
+      result,
+      leadMatchup: currentLeadMatchup,
+      deviceId,
+      updatedAt: now
+    };
+    saveBattleLogsToStorage([newEntry, ...battleLogs]);
+    setStartBattleToast(result === 'WIN' ? '🏆 Win Logged!' : '💀 Loss Logged!');
+    setTimeout(() => setStartBattleToast(null), 1100);
+    handleStartBattle();
+  };
 
   const activeUserSlot = activePreset?.pokemon[activeUserSlotIndex] || activePreset?.pokemon[0];
   const userLeadName = activeUserSlot?.name || 'Palkia (Origin)';
@@ -991,11 +1199,11 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <h1 className="font-bold text-base md:text-lg tracking-tight text-white">BattleMatrix GBL</h1>
                 <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20">
-                  v1.30 • Android Native Overlay
+                  v2.00 • Android Native Overlay
                 </span>
               </div>
               <p className="text-xs text-slate-400 hidden sm:block">
-                Real-Time 3x3 matchup Matrix, Damage Calculations, & Turn Pacing HUD for Poekmon Go PVP
+                Real-Time 3x3 Matchup Matrix, Lead Tracking, Interactive Replay &amp; 2-Device Delta Sync for Pokémon GO PvP
               </p>
             </div>
           </div>
@@ -1388,7 +1596,7 @@ export default function App() {
                         )}
                       </div>
 
-                      {/* Action Toolbar: Reset Opp, Swap Opponent, Shadow Toggle, Form Cycler, and Active Lead Switch */}
+                      {/* Action Toolbar: Start Battle, Swap Opponent, Shadow Toggle, Form Cycler, and Active Lead Switch */}
                       <div
                         className="flex items-center justify-between gap-1 p-1 rounded border border-white/10 my-1"
                         style={{
@@ -1397,14 +1605,24 @@ export default function App() {
                       >
                         <div className="flex items-center gap-1">
                           <button
-                            onClick={handleStartBattle}
-                            className="bg-red-500/35 hover:bg-red-500/50 active:scale-95 text-red-100 border border-red-400/60 font-bold text-[8px] px-1.5 py-0.5 rounded transition"
-                            title="Reset opponent team & manual overrides (1 Hz OCR remains active)"
+                            onClick={() => {
+                              setShowOpponentPicker(false);
+                              setShowStartBattleMenu(!showStartBattleMenu);
+                            }}
+                            className={`font-bold text-[8px] px-1.5 py-0.5 rounded border transition active:scale-95 ${
+                              showStartBattleMenu
+                                ? 'bg-red-500/65 text-white border-red-300 shadow-[0_0_5px_rgba(239,68,68,0.5)]'
+                                : 'bg-red-500/35 hover:bg-red-500/50 text-red-100 border-red-400/60'
+                            }`}
+                            title="Log Win/Loss + Lead Matchup or Restart without logging"
                           >
-                            ↺ Reset
+                            {startBattleToast || '⚔️ Start Battle'}
                           </button>
                           <button
-                            onClick={() => setShowOpponentPicker(!showOpponentPicker)}
+                            onClick={() => {
+                              setShowStartBattleMenu(false);
+                              setShowOpponentPicker(!showOpponentPicker);
+                            }}
                             className={`font-bold text-[8px] px-1.5 py-0.5 rounded border transition active:scale-95 ${
                               showOpponentPicker
                                 ? 'bg-amber-500/60 text-white border-amber-300 shadow-[0_0_5px_rgba(245,158,11,0.5)]'
@@ -1455,6 +1673,57 @@ export default function App() {
                         </div>
                       </div>
 
+                      {/* In-Overlay Start Battle Action Menu (Lead Matchup + Win/Loss/Restart) */}
+                      {showStartBattleMenu && (
+                        <div className="flex items-center justify-between gap-1 bg-slate-950/95 border border-sky-400/75 rounded p-1 my-1 shadow-xl text-[7.5px]">
+                          <button
+                            type="button"
+                            onClick={handleCycleLeadMatchup}
+                            className={`px-1.5 py-0.5 rounded font-extrabold border transition ${
+                              currentLeadMatchup === 'FAVORABLE'
+                                ? 'bg-emerald-600/35 border-emerald-400 text-emerald-200'
+                                : currentLeadMatchup === 'NEGATIVE'
+                                ? 'bg-red-600/35 border-red-400 text-red-200'
+                                : 'bg-slate-700/50 border-slate-400 text-slate-200'
+                            }`}
+                            title="Tap to cycle Lead Matchup (Auto-detected from 1st-seen opponent vs your Lead)"
+                          >
+                            Lead: {currentLeadMatchup === 'FAVORABLE' ? 'Fav' : currentLeadMatchup === 'NEGATIVE' ? 'Neg' : 'Neu'}
+                          </button>
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleLogBattleFromOverlay('WIN')}
+                              className="px-1.5 py-0.5 rounded font-extrabold bg-emerald-600/45 hover:bg-emerald-500/60 border border-emerald-300 text-emerald-100"
+                            >
+                              🏆 Win
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleLogBattleFromOverlay('LOSS')}
+                              className="px-1.5 py-0.5 rounded font-extrabold bg-red-600/45 hover:bg-red-500/60 border border-red-300 text-red-100"
+                            >
+                              💀 Loss
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleStartBattle}
+                              className="px-1.5 py-0.5 rounded font-extrabold bg-slate-800 hover:bg-slate-700 border border-slate-500 text-slate-200"
+                              title="Clear opponents without logging"
+                            >
+                              🔄 Restart
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setShowStartBattleMenu(false)}
+                              className="px-1 py-0.5 rounded font-bold bg-slate-900 text-slate-400 hover:text-white"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
                       {/* Floating PvPoke Top 10 Opponent Swap Popover in Overlay */}
                       {showOpponentPicker && (
                         <div className="bg-slate-950/95 border border-sky-400/50 rounded-lg p-2 my-1 shadow-2xl backdrop-blur-md z-40 text-[8px]">
@@ -1488,42 +1757,42 @@ export default function App() {
                         </div>
                       )}
 
-                      {/* 3v3 Matchup Matrix Dots (Full Pokémon Names, 1 per species, click to swap active lead) */}
+                      {/* 3v3 Matchup Matrix Dots (FIXED Discovery Order: #1 1st seen, #2 2nd seen, #3 3rd seen) */}
                       <div className="my-1 py-1 px-1.5 bg-black/20 rounded flex flex-col gap-0.5 text-[9.5px]">
                         {isWaitingOpponent || scannedOpponents.length === 0 ? (
                           <div className="text-[9px] text-slate-200 flex items-center justify-between py-1 px-1.5 bg-black/35 rounded border border-white/10">
                             <div className="flex items-center gap-1.5">
                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                              <span>1 Hz OCR scanning opponent & active lead...</span>
+                              <span>1 Hz OCR scanning opponent &amp; active lead...</span>
                             </div>
                             <span className="text-[8px] text-amber-300 font-mono">Standby</span>
                           </div>
                         ) : (
                           scannedOpponents.map((oppName, idx) => {
-                            const isLead = idx === 0;
+                            const isActiveSlot = idx === safeActiveOppSlot;
                             const matrix = calculateShieldMatrix(
                               oppName,
                               activePreset.pokemon.map(p => p.name),
-                              idx === 0 && isOpponentShadow
+                              isActiveSlot && isOpponentShadow
                             );
-                            const fullOppDisplay = (idx === 0 && isOpponentShadow ? 'S-' : '') + oppName;
+                            const fullOppDisplay = (isActiveSlot && isOpponentShadow ? 'S-' : '') + oppName;
                             const p1Init = activePreset.pokemon[0]?.name.charAt(0) || 'D';
                             const p2Init = activePreset.pokemon[1]?.name.charAt(0) || 'L';
                             const p3Init = activePreset.pokemon[2]?.name.charAt(0) || 'K';
 
                             return (
                               <div
-                                key={oppName}
+                                key={`${oppName}-${idx}`}
                                 onClick={() => handleSwapActiveOpponent(oppName)}
                                 className={`flex items-center justify-start gap-1.5 px-1.5 py-0.5 rounded cursor-pointer transition ${
-                                  isLead
+                                  isActiveSlot
                                     ? 'bg-sky-500/25 border border-sky-400/50 shadow-[0_0_8px_rgba(56,189,248,0.25)]'
                                     : 'hover:bg-white/10 border border-transparent'
                                 }`}
-                                title={isLead ? `${oppName} (Active on field)` : `Click to swap in ${oppName} as active opponent`}
+                                title={isActiveSlot ? `#${idx + 1} Seen: ${oppName} (Active on field)` : `Click to set #${idx + 1} (${oppName}) as active opponent (keeps fixed #1/#2/#3 order)`}
                               >
                                 <div className="flex items-center gap-1 w-[100px] min-w-[100px] max-w-[100px] shrink-0">
-                                  <span className={`text-[8px] font-bold shrink-0 ${isLead ? 'text-sky-300' : 'text-slate-400'}`}>
+                                  <span className={`text-[8px] font-bold shrink-0 ${isActiveSlot ? 'text-sky-300' : 'text-slate-400'}`}>
                                     #{idx + 1}
                                   </span>
                                   <span className="font-bold text-slate-100 truncate text-[9.5px]" title={fullOppDisplay}>
@@ -1701,11 +1970,12 @@ export default function App() {
                                 const code = oppName
                                   ? abbrPoke3(oppName, false).toUpperCase().slice(0, 3)
                                   : '---';
-                                const isActv = oppIdx === 0;
+                                const isActv = oppIdx === safeActiveOppSlot;
                                 return (
                                   <span
                                     key={oppIdx}
-                                    className={`py-0.5 leading-none transition ${
+                                    onClick={() => oppName && handleSwapActiveOpponent(oppName)}
+                                    className={`py-0.5 leading-none transition ${oppName ? 'cursor-pointer' : ''} ${
                                       isActv
                                         ? 'bg-sky-500/25 text-sky-200 border-t border-x border-sky-400/80 rounded-t shadow-[0_0_6px_rgba(56,189,248,0.25)]'
                                         : 'text-slate-400'
@@ -1805,7 +2075,7 @@ export default function App() {
                                   {/* Right: 3-Opponent Outgoing Damage % Columns with Vertical Active Highlight */}
                                   <div className="grid grid-cols-3 w-[84px] items-center text-center font-mono shrink-0">
                                     {row.oppDamages.map((cell, cIdx) => {
-                                      const isActv = cIdx === 0;
+                                      const isActv = cIdx === safeActiveOppSlot;
                                       const textCls = cell.isEmpty
                                         ? 'text-slate-500'
                                         : cell.tier === 'resist'
@@ -3337,122 +3607,1053 @@ export default function App() {
                 <span className="absolute right-0">100% (Clear)</span>
               </div>
             </div>
+
+            {/* Two-Device Cloud & Delta Sync Card */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-sm font-bold text-white block">
+                    ☁️ Two-Device Cloud &amp; Delta Sync (Teams + Battle Logs)
+                  </span>
+                  <span className="text-xs text-slate-400">
+                    Reconciles deltas across 2+ devices without overwriting newer battles, team edits, or deletions.
+                  </span>
+                </div>
+                <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                  Delta Merge
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <input
+                  type="password"
+                  value={githubGistToken}
+                  onChange={(e) => {
+                    setGithubGistToken(e.target.value);
+                    try {
+                      localStorage.setItem('gbl_sync_github_token', e.target.value);
+                    } catch {}
+                  }}
+                  placeholder="GitHub Personal Access Token (gist scope)"
+                  className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500"
+                />
+                <input
+                  type="text"
+                  value={githubGistId}
+                  onChange={(e) => {
+                    setGithubGistId(e.target.value);
+                    try {
+                      localStorage.setItem('gbl_sync_github_gist_id', e.target.value);
+                    } catch {}
+                  }}
+                  placeholder="Gist Vault ID (blank = create new on sync)"
+                  className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 font-mono"
+                />
+              </div>
+
+              <div className="text-[11px] font-mono text-emerald-400">
+                Status: {lastCloudSyncStatus}
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={isSyncingCloud}
+                  onClick={async () => {
+                    const tok = githubGistToken.trim();
+                    if (!tok) {
+                      alert('Enter a GitHub Personal Access Token (gist scope) or use Export/Import Bundle.');
+                      return;
+                    }
+                    setIsSyncingCloud(true);
+                    setLastCloudSyncStatus('Reconciling deltas with GitHub Gist...');
+                    try {
+                      let mergedLogs = [...battleLogs];
+                      let mergedPresets = [...presets];
+                      let mergedTombstones = new Set<string>(deletedLogIds);
+                      let activeGistId = githubGistId.trim();
+
+                      if (activeGistId) {
+                        const getRes = await fetch(`https://api.github.com/gists/${activeGistId}`, {
+                          headers: {
+                            Authorization: `Bearer ${tok}`,
+                            Accept: 'application/vnd.github+json'
+                          }
+                        });
+                        if (getRes.ok) {
+                          const gistJson = await getRes.json();
+                          const content = gistJson?.files?.['gbl_delta_sync_v2.json']?.content;
+                          if (content) {
+                            const remote = JSON.parse(content);
+                            if (Array.isArray(remote.deletedLogIds)) {
+                              remote.deletedLogIds.forEach((id: string) => mergedTombstones.add(id));
+                            }
+                            if (Array.isArray(remote.battleLogs)) {
+                              const logMap = new Map<string, WebBattleLogEntry>();
+                              mergedLogs.forEach((l) => {
+                                if (!mergedTombstones.has(l.id)) logMap.set(l.id, l);
+                              });
+                              remote.battleLogs.forEach((r: WebBattleLogEntry) => {
+                                if (!r?.id || mergedTombstones.has(r.id)) return;
+                                const existing = logMap.get(r.id);
+                                if (!existing || (r.updatedAt || r.timestampMs) > (existing.updatedAt || existing.timestampMs)) {
+                                  logMap.set(r.id, r);
+                                }
+                              });
+                              mergedLogs = Array.from(logMap.values()).sort((a, b) => b.timestampMs - a.timestampMs);
+                            }
+                            if (Array.isArray(remote.teamPresets)) {
+                              const pMap = new Map<string, TeamPreset>();
+                              mergedPresets.forEach((p) => pMap.set(p.id, p));
+                              remote.teamPresets.forEach((rp: TeamPreset) => {
+                                if (rp?.id) pMap.set(rp.id, rp);
+                              });
+                              mergedPresets = Array.from(pMap.values());
+                            }
+                          }
+                        }
+                      }
+
+                      saveBattleLogsToStorage(mergedLogs);
+                      setPresets(mergedPresets);
+                      const tombArr = Array.from(mergedTombstones);
+                      setDeletedLogIds(tombArr);
+                      localStorage.setItem('gbl_deleted_log_ids_v1', JSON.stringify(tombArr));
+
+                      const bundleStr = JSON.stringify(
+                        {
+                          schemaVersion: 2,
+                          exportedAt: Date.now(),
+                          deviceId,
+                          teamPresets: mergedPresets,
+                          battleLogs: mergedLogs,
+                          deletedLogIds: tombArr
+                        },
+                        null,
+                        2
+                      );
+
+                      const url = activeGistId
+                        ? `https://api.github.com/gists/${activeGistId}`
+                        : 'https://api.github.com/gists';
+                      const upRes = await fetch(url, {
+                        method: activeGistId ? 'PATCH' : 'POST',
+                        headers: {
+                          Authorization: `Bearer ${tok}`,
+                          Accept: 'application/vnd.github+json',
+                          'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                          description: 'BattleMatrix GBL v2.00 Two-Device Delta Sync Vault',
+                          public: false,
+                          files: {
+                            'gbl_delta_sync_v2.json': { content: bundleStr }
+                          }
+                        })
+                      });
+                      if (upRes.ok) {
+                        const upJson = await upRes.json();
+                        if (upJson.id) {
+                          setGithubGistId(upJson.id);
+                          localStorage.setItem('gbl_sync_github_gist_id', upJson.id);
+                        }
+                        const ts = `${new Date().toLocaleTimeString()} • ${mergedLogs.length} battles, ${mergedPresets.length} teams`;
+                        setLastCloudSyncStatus(`Synced ${ts}`);
+                        localStorage.setItem('gbl_last_cloud_sync_ts', `Synced ${ts}`);
+                      } else {
+                        setLastCloudSyncStatus(`Sync HTTP ${upRes.status}`);
+                      }
+                    } catch (err: any) {
+                      setLastCloudSyncStatus(`Sync error: ${err?.message || 'failed'}`);
+                    } finally {
+                      setIsSyncingCloud(false);
+                    }
+                  }}
+                  className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition"
+                >
+                  {isSyncingCloud ? 'Syncing...' : '🔄 Sync Now'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const bundle = JSON.stringify(
+                      {
+                        schemaVersion: 2,
+                        exportedAt: Date.now(),
+                        deviceId,
+                        teamPresets: presets,
+                        battleLogs,
+                        deletedLogIds
+                      },
+                      null,
+                      2
+                    );
+                    navigator.clipboard.writeText(bundle);
+                    setLastCloudSyncStatus('Delta Sync Bundle copied to clipboard!');
+                  }}
+                  className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-sky-300 text-xs font-bold transition"
+                >
+                  📤 Copy Delta Bundle
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setImportBundleText('');
+                    setShowImportBundleModal(true);
+                  }}
+                  className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 text-xs font-bold transition"
+                >
+                  📥 Import &amp; Reconcile Bundle
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
         {/* =========================================================================
-            PAGE 3: PROVISIONED BATTLE LOG PAGE
+            PAGE 3: GBL BATTLE LOG, SEASON EXPORT & INTERACTIVE POST-GAME REPLAY
            ========================================================================= */}
-        {activeTab === 'battle_log' && (
-          <div className="max-w-3xl mx-auto space-y-5">
-            {/* 3-Page Quick Switcher Banner */}
-            <div className="flex items-center justify-between bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl">
-              <div>
-                <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                  <Target className="w-5 h-5 text-sky-400" />
-                  <span>📜 GBL Battle Log</span>
-                </h2>
-                <p className="text-xs text-slate-400">
-                  Provisioned 3rd page for recording and reviewing OCR-detected GBL battles &amp; team matchups.
-                </p>
-              </div>
-              <div className="flex items-center gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-bold">
-                <button
-                  onClick={() => setActiveTab('presets')}
-                  className="px-3 py-1.5 rounded-lg text-slate-400 hover:text-white transition"
-                >
-                  ⚔️ Teams
-                </button>
-                <button
-                  onClick={() => setActiveTab('settings')}
-                  className="px-3 py-1.5 rounded-lg text-slate-400 hover:text-white transition"
-                >
-                  ⚙️ Settings
-                </button>
-                <button
-                  onClick={() => setActiveTab('battle_log')}
-                  className="px-3 py-1.5 rounded-lg bg-sky-500 text-white shadow-sm"
-                >
-                  📜 Battle Log
-                </button>
-              </div>
-            </div>
+        {activeTab === 'battle_log' && (() => {
+          const nowMs = Date.now();
+          const currentSeason =
+            seasonsList.find((s) => nowMs >= s.startMs && nowMs <= s.endMs) || seasonsList[0] || DEFAULT_SEASONS_FALLBACK[0];
+          const currIdx = seasonsList.indexOf(currentSeason);
+          const prevSeason =
+            currIdx >= 0 && currIdx + 1 < seasonsList.length
+              ? seasonsList[currIdx + 1]
+              : DEFAULT_SEASONS_FALLBACK[1];
 
-            {/* Summary Metrics Row */}
-            <div className="grid grid-cols-3 gap-4">
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 text-center shadow-xl">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                  Logged Battles
-                </span>
-                <strong className="text-lg font-extrabold text-white">{battleLogs.length} Matches</strong>
-              </div>
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 text-center shadow-xl">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                  Active League
-                </span>
-                <strong className="text-sm font-extrabold text-sky-400">{activePreset.league}</strong>
-              </div>
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 text-center shadow-xl">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                  Tracker Status
-                </span>
-                <strong className="text-sm font-extrabold text-emerald-400">
-                  {battleLogs.length === 0 ? 'Provisioned & Ready' : `${battleLogs.length} Saved`}
-                </strong>
-              </div>
-            </div>
+          const filterByRange = (
+            entries: WebBattleLogEntry[],
+            rangeCode: 'DAY' | 'WEEK' | 'CURRENT_SEASON' | 'PREVIOUS_SEASON' | 'ALL'
+          ) => {
+            const startOfToday = new Date();
+            startOfToday.setHours(0, 0, 0, 0);
+            const sevenDaysAgo = nowMs - 7 * 24 * 60 * 60 * 1000;
+            return entries.filter((e) => {
+              const leagueOk = logFilterLeague === 'ALL LEAGUES' || e.league.toUpperCase() === logFilterLeague.toUpperCase();
+              const teamOk =
+                logFilterTeamId === 'ALL TEAMS' ||
+                e.presetId === logFilterTeamId ||
+                e.userTeamName === presets.find((p) => p.id === logFilterTeamId)?.name;
+              const timeOk =
+                rangeCode === 'DAY'
+                  ? e.timestampMs >= startOfToday.getTime()
+                  : rangeCode === 'WEEK'
+                  ? e.timestampMs >= sevenDaysAgo
+                  : rangeCode === 'CURRENT_SEASON'
+                  ? e.timestampMs >= currentSeason.startMs && e.timestampMs <= currentSeason.endMs
+                  : rangeCode === 'PREVIOUS_SEASON'
+                  ? e.timestampMs >= prevSeason.startMs && e.timestampMs <= prevSeason.endMs
+                  : true;
+              return leagueOk && teamOk && timeOk;
+            });
+          };
 
-            {/* Battle Log List Container */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-bold text-white">Recent Battle History</span>
-                {battleLogs.length > 0 && (
+          const filteredLogs = filterByRange(battleLogs, logFilterTimeframe);
+          const wins = filteredLogs.filter((e) => e.result === 'WIN').length;
+          const losses = filteredLogs.filter((e) => e.result === 'LOSS').length;
+          const total = wins + losses;
+          const winRate = total > 0 ? Math.round((wins * 100) / total) : 0;
+          const favCount = filteredLogs.filter((e) => e.leadMatchup === 'FAVORABLE').length;
+          const neuCount = filteredLogs.filter((e) => e.leadMatchup === 'NEUTRAL').length;
+          const negCount = filteredLogs.filter((e) => e.leadMatchup === 'NEGATIVE').length;
+
+          const buildPlainTextSummary = (
+            rangeCode: 'DAY' | 'WEEK' | 'CURRENT_SEASON' | 'PREVIOUS_SEASON' | 'ALL'
+          ) => {
+            const list = filterByRange(battleLogs, rangeCode);
+            const w = list.filter((e) => e.result === 'WIN').length;
+            const l = list.filter((e) => e.result === 'LOSS').length;
+            const tot = w + l;
+            const pct = tot > 0 ? Math.round((w * 100) / tot) : 0;
+            const fv = list.filter((e) => e.leadMatchup === 'FAVORABLE').length;
+            const nu = list.filter((e) => e.leadMatchup === 'NEUTRAL').length;
+            const ng = list.filter((e) => e.leadMatchup === 'NEGATIVE').length;
+            const rangeTitle =
+              rangeCode === 'DAY'
+                ? 'Day (Today)'
+                : rangeCode === 'WEEK'
+                ? 'Week (Last 7 Days)'
+                : rangeCode === 'CURRENT_SEASON'
+                ? `Current Season (${currentSeason.name})`
+                : rangeCode === 'PREVIOUS_SEASON'
+                ? `Previous Season (${prevSeason.name})`
+                : 'All Time';
+            const teamName =
+              logFilterTeamId === 'ALL TEAMS'
+                ? 'All Teams'
+                : presets.find((p) => p.id === logFilterTeamId)?.name || 'Selected Team';
+            const lines: string[] = [
+              `=== BattleMatrix GBL Log (${rangeTitle}) ===`,
+              `League: ${logFilterLeague}`,
+              `Team: ${teamName}`,
+              `Overall Record: ${w}-${l} (${pct}% Win Rate)`,
+              `Lead Matchup: ${fv} Fav / ${nu} Neu / ${ng} Neg`,
+              ''
+            ];
+            list.forEach((b, idx) => {
+              const dt = new Date(b.timestampMs).toLocaleString();
+              const leadTag = b.leadMatchup === 'FAVORABLE' ? 'Fav' : b.leadMatchup === 'NEGATIVE' ? 'Neg' : 'Neu';
+              const opps = b.opponents.length > 0 ? b.opponents.join(', ') : 'Unknown';
+              lines.push(`${idx + 1}. [${b.result}] [Lead: ${leadTag}] (${dt}) vs ${opps}`);
+            });
+            return lines.join('\n');
+          };
+
+          return (
+            <div className="max-w-4xl mx-auto space-y-5">
+              {/* 3-Page Quick Switcher Banner */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl">
+                <div>
+                  <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                    <Target className="w-5 h-5 text-sky-400" />
+                    <span>📜 GBL Battle Log, Season Export &amp; Interactive Replay</span>
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    Click any battle card (or <strong>🔍 Replay</strong>) to inspect the interactive 3v3 overlay matrix and analyze swap/shield decisions!
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-bold shrink-0">
                   <button
-                    onClick={handleClearBattleLogs}
-                    className="px-3 py-1 rounded-lg bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white text-xs font-bold transition"
+                    onClick={() => setActiveTab('presets')}
+                    className="px-3 py-1.5 rounded-lg text-slate-400 hover:text-white transition"
                   >
-                    Clear Log
+                    ⚔️ Teams
                   </button>
+                  <button
+                    onClick={() => setActiveTab('settings')}
+                    className="px-3 py-1.5 rounded-lg text-slate-400 hover:text-white transition"
+                  >
+                    ⚙️ Settings
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('battle_log')}
+                    className="px-3 py-1.5 rounded-lg bg-sky-500 text-white shadow-sm"
+                  >
+                    📜 Battle Log
+                  </button>
+                </div>
+              </div>
+
+              {/* Filter & Export Controls Card */}
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">League Filter</label>
+                    <select
+                      value={logFilterLeague}
+                      onChange={(e) => setLogFilterLeague(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-semibold"
+                    >
+                      <option value="ALL LEAGUES">ALL LEAGUES</option>
+                      <option value="GREAT LEAGUE">GREAT LEAGUE</option>
+                      <option value="ULTRA LEAGUE">ULTRA LEAGUE</option>
+                      <option value="MASTER LEAGUE">MASTER LEAGUE</option>
+                      <option value="MEGA MASTER LEAGUE">MEGA MASTER LEAGUE</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Team Preset Filter</label>
+                    <select
+                      value={logFilterTeamId}
+                      onChange={(e) => setLogFilterTeamId(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-semibold"
+                    >
+                      <option value="ALL TEAMS">All Teams ({presets.length})</option>
+                      {presets.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} ({p.league.split(' ')[0]})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+                      Timeframe (ScrapedDuck Seasons)
+                    </label>
+                    <select
+                      value={logFilterTimeframe}
+                      onChange={(e) => setLogFilterTimeframe(e.target.value as any)}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-semibold"
+                    >
+                      <option value="DAY">Day (Today)</option>
+                      <option value="WEEK">Week (Last 7 Days)</option>
+                      <option value="CURRENT_SEASON">Current Season ({currentSeason.name})</option>
+                      <option value="PREVIOUS_SEASON">Previous Season ({prevSeason.name})</option>
+                      <option value="ALL">All Time</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setExportPromptAction('COPY')}
+                      className="px-3 py-1.5 rounded-xl bg-sky-600/25 hover:bg-sky-600/40 border border-sky-400/50 text-sky-200 text-xs font-bold transition"
+                    >
+                      📋 Copy Summary (Day / Week / Season / All)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setExportPromptAction('SHARE')}
+                      className="px-3 py-1.5 rounded-xl bg-emerald-600/25 hover:bg-emerald-600/40 border border-emerald-400/50 text-emerald-200 text-xs font-bold transition"
+                    >
+                      📤 Share Summary
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('settings')}
+                      className="px-3 py-1.5 rounded-xl bg-purple-600/25 hover:bg-purple-600/40 border border-purple-400/50 text-purple-200 text-xs font-bold transition"
+                    >
+                      ☁️ 2-Device Delta Sync
+                    </button>
+                  </div>
+
+                  {battleLogs.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleClearBattleLogs}
+                      className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white text-xs font-bold transition"
+                    >
+                      Clear All
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Summary Metrics Row */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 text-center shadow-xl">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                    Filtered Record
+                  </span>
+                  <strong className="text-lg font-extrabold text-white">
+                    {wins}W - {losses}L ({total})
+                  </strong>
+                </div>
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 text-center shadow-xl">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                    Win Rate
+                  </span>
+                  <strong className="text-lg font-extrabold text-emerald-400">{winRate}%</strong>
+                </div>
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 text-center shadow-xl">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                    Lead Matchup (Fav / Neu / Neg)
+                  </span>
+                  <strong className="text-sm font-extrabold text-sky-400">
+                    {favCount} Fav • {neuCount} Neu • {negCount} Neg
+                  </strong>
+                </div>
+              </div>
+
+              {/* Battle Log List Container */}
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-bold text-white">
+                    Logged Battles ({filteredLogs.length}) • Tap any battle to open Interactive Overlay Replay
+                  </span>
+                  <span className="text-[11px] font-mono text-slate-400">
+                    Season: {currentSeason.name} (Start {currentSeason.rawStart.slice(0, 10)})
+                  </span>
+                </div>
+
+                {filteredLogs.length === 0 ? (
+                  <div className="p-6 rounded-xl bg-slate-950/80 border border-slate-800 text-xs text-slate-300 space-y-2">
+                    <div className="text-sm font-bold text-white">
+                      📜 No Battles Logged in Selected Filter
+                    </div>
+                    <p className="text-slate-400 leading-relaxed">
+                      In the floating overlay, tap <strong>⚔️ Start Battle</strong> to record a <strong>🏆 Win</strong> or <strong>💀 Loss</strong> with auto-detected <strong>Lead Matchup (Fav / Neu / Neg)</strong> and fixed <strong>[1st seen, 2nd seen, 3rd seen]</strong> opponent order!
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    {filteredLogs.map((entry, idx) => {
+                      const isWin = entry.result === 'WIN';
+                      const leadLabel =
+                        entry.leadMatchup === 'FAVORABLE'
+                          ? 'Fav'
+                          : entry.leadMatchup === 'NEGATIVE'
+                          ? 'Neg'
+                          : 'Neu';
+                      return (
+                        <div
+                          key={entry.id}
+                          onClick={() => {
+                            setReplayLogEntry(entry);
+                            setReplayUserIdx(0);
+                            setReplayOppIdx(0);
+                            setReplayOppShadow(false);
+                          }}
+                          className="p-3.5 rounded-xl bg-slate-950 hover:bg-slate-900/90 border border-slate-800 hover:border-sky-500/50 cursor-pointer transition flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                        >
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span
+                                className={`px-2 py-0.5 rounded font-extrabold text-[10px] border ${
+                                  isWin
+                                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                                    : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                                }`}
+                              >
+                                {isWin ? '🏆 WIN' : '💀 LOSS'}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const nextLead: 'FAVORABLE' | 'NEUTRAL' | 'NEGATIVE' =
+                                    entry.leadMatchup === 'FAVORABLE'
+                                      ? 'NEUTRAL'
+                                      : entry.leadMatchup === 'NEUTRAL'
+                                      ? 'NEGATIVE'
+                                      : 'FAVORABLE';
+                                  const updated = battleLogs.map((b) =>
+                                    b.id === entry.id ? { ...b, leadMatchup: nextLead, updatedAt: Date.now() } : b
+                                  );
+                                  saveBattleLogsToStorage(updated);
+                                }}
+                                className={`px-2 py-0.5 rounded font-bold text-[10px] border ${
+                                  entry.leadMatchup === 'FAVORABLE'
+                                    ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                                    : entry.leadMatchup === 'NEGATIVE'
+                                    ? 'bg-rose-500/15 text-rose-300 border-rose-500/30'
+                                    : 'bg-slate-800 text-slate-300 border-slate-700'
+                                }`}
+                                title="Click to toggle Lead Matchup (Fav / Neu / Neg)"
+                              >
+                                Lead: {leadLabel} ↻
+                              </button>
+                              <span className="font-bold text-sky-400">
+                                #{filteredLogs.length - idx} • {entry.league}
+                              </span>
+                              <span className="text-[11px] font-mono text-slate-400">
+                                {new Date(entry.timestampMs).toLocaleString()}
+                              </span>
+                            </div>
+
+                            <div className="text-slate-200">
+                              <span className="text-slate-400">Team:</span>{' '}
+                              <strong className="text-white">{entry.userTeamName}</strong>{' '}
+                              <span className="text-slate-400">({(entry.userPokemon || []).join(' / ')})</span>
+                            </div>
+                            <div className="text-amber-200">
+                              <span className="text-slate-400">Opponents (1st → 2nd → 3rd):</span>{' '}
+                              <strong>
+                                {entry.opponents.length > 0
+                                  ? entry.opponents.map((o, i) => `#${i + 1} ${o}`).join('  •  ')
+                                  : 'None Scanned'}
+                              </strong>
+                            </div>
+                          </div>
+
+                          <div
+                            className="flex items-center gap-1.5 shrink-0"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setReplayLogEntry(entry);
+                                setReplayUserIdx(0);
+                                setReplayOppIdx(0);
+                                setReplayOppShadow(false);
+                              }}
+                              className="px-2.5 py-1.5 rounded-lg bg-sky-500/20 hover:bg-sky-500/35 border border-sky-400/50 text-sky-200 font-bold text-[11px] transition"
+                            >
+                              🔍 Replay
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditingLogEntry({ ...entry })}
+                              className="px-2.5 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/35 border border-amber-400/50 text-amber-200 font-bold text-[11px] transition"
+                            >
+                              ✏️ Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                addDeletedTombstone(entry.id);
+                                saveBattleLogsToStorage(battleLogs.filter((b) => b.id !== entry.id));
+                              }}
+                              className="px-2.5 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/35 border border-rose-400/50 text-rose-200 font-bold text-[11px] transition"
+                            >
+                              🗑️
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
 
-              {battleLogs.length === 0 ? (
-                <div className="p-6 rounded-xl bg-slate-950/80 border border-slate-800 text-xs text-slate-300 space-y-2">
-                  <div className="text-sm font-bold text-white">
-                    📜 Battle Logging Provisioned &amp; Ready
-                  </div>
-                  <p className="text-slate-400 leading-relaxed">
-                    This 3rd page is provisioned in both the Android native app and Web Simulator to record your GBL battles, including:
-                  </p>
-                  <ul className="list-disc list-inside text-slate-300 space-y-1 pt-1">
-                    <li>Active Team Preset &amp; League (<strong>{activePreset.name}</strong>)</li>
-                    <li>Scanned Opponent Lead, Safe Swap &amp; Closer Pokémon</li>
-                    <li>Matchup Matrix &amp; Shield Telemetry History</li>
-                  </ul>
-                </div>
-              ) : (
-                <div className="space-y-2.5">
-                  {battleLogs.map((entry, idx) => (
-                    <div
-                      key={entry.id}
-                      className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between text-xs"
-                    >
-                      <div>
-                        <div className="font-bold text-sky-400">
-                          #{battleLogs.length - idx} • {entry.league}
-                        </div>
-                        <div className="text-slate-200 mt-0.5">
-                          Team: <strong>{entry.userTeamName}</strong> vs{' '}
-                          <strong>{entry.opponents.join(' / ') || 'Unknown'}</strong>
-                        </div>
-                      </div>
-                      <span className="text-[11px] font-mono text-slate-400">
-                        {new Date(entry.timestampMs).toLocaleTimeString()}
-                      </span>
+              {/* Timeframe Export Prompt Modal (Day, Week, Current Season, Previous Season, All Time) */}
+              {exportPromptAction && (
+                <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+                  <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-5 shadow-2xl space-y-3">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                      <h3 className="font-bold text-sm text-white">
+                        {exportPromptAction === 'COPY' ? '📋 Copy Battle Log Summary' : '📤 Share Battle Log Summary'}
+                      </h3>
+                      <button
+                        onClick={() => setExportPromptAction(null)}
+                        className="text-slate-400 hover:text-white font-bold"
+                      >
+                        ✕
+                      </button>
                     </div>
-                  ))}
+                    <p className="text-xs text-slate-300">
+                      Select which timeframe to export for your selected Team &amp; League:
+                    </p>
+                    <div className="space-y-2">
+                      {(
+                        [
+                          { code: 'DAY', label: 'Day (Today)' },
+                          { code: 'WEEK', label: 'Week (Last 7 Days)' },
+                          { code: 'CURRENT_SEASON', label: `Current Season (${currentSeason.name})` },
+                          { code: 'PREVIOUS_SEASON', label: `Previous Season (${prevSeason.name})` },
+                          { code: 'ALL', label: 'All Time' }
+                        ] as const
+                      ).map((opt) => (
+                        <button
+                          key={opt.code}
+                          type="button"
+                          onClick={async () => {
+                            const text = buildPlainTextSummary(opt.code);
+                            navigator.clipboard.writeText(text);
+                            if (exportPromptAction === 'SHARE' && navigator.share) {
+                              try {
+                                await navigator.share({ title: 'BattleMatrix GBL Log', text });
+                              } catch {}
+                            }
+                            setExportPromptAction(null);
+                          }}
+                          className="w-full py-2.5 px-3 rounded-xl bg-slate-950 hover:bg-sky-500/20 border border-slate-800 hover:border-sky-400 text-left text-xs font-bold text-white flex items-center justify-between transition"
+                        >
+                          <span>{opt.label}</span>
+                          <span className="text-[10px] font-mono text-sky-400">
+                            {filterByRange(battleLogs, opt.code).length} battles →
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               )}
+
+              {/* Edit Logged Battle Modal */}
+              {editingLogEntry && (
+                <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+                  <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-5 shadow-2xl space-y-3">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                      <h3 className="font-bold text-sm text-white">✏️ Edit Logged Battle</h3>
+                      <button
+                        onClick={() => setEditingLogEntry(null)}
+                        className="text-slate-400 hover:text-white font-bold"
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setEditingLogEntry({ ...editingLogEntry, result: 'WIN' })}
+                        className={`py-2 rounded-xl font-bold border ${
+                          editingLogEntry.result === 'WIN'
+                            ? 'bg-emerald-600/35 border-emerald-400 text-emerald-200'
+                            : 'bg-slate-950 border-slate-800 text-slate-400'
+                        }`}
+                      >
+                        🏆 WIN
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingLogEntry({ ...editingLogEntry, result: 'LOSS' })}
+                        className={`py-2 rounded-xl font-bold border ${
+                          editingLogEntry.result === 'LOSS'
+                            ? 'bg-rose-600/35 border-rose-400 text-rose-200'
+                            : 'bg-slate-950 border-slate-800 text-slate-400'
+                        }`}
+                      >
+                        💀 LOSS
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 text-xs">
+                      {(['FAVORABLE', 'NEUTRAL', 'NEGATIVE'] as const).map((lm) => (
+                        <button
+                          key={lm}
+                          type="button"
+                          onClick={() => setEditingLogEntry({ ...editingLogEntry, leadMatchup: lm })}
+                          className={`py-1.5 rounded-xl font-bold border text-[11px] ${
+                            editingLogEntry.leadMatchup === lm
+                              ? 'bg-sky-500/30 border-sky-400 text-sky-200'
+                              : 'bg-slate-950 border-slate-800 text-slate-400'
+                          }`}
+                        >
+                          Lead: {lm.slice(0, 3)}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="space-y-2 text-xs">
+                      {[0, 1, 2].map((slotIdx) => (
+                        <div key={slotIdx}>
+                          <label className="block text-[10px] text-slate-400 mb-0.5">
+                            Opponent #{slotIdx + 1} ({slotIdx === 0 ? '1st Seen Lead' : slotIdx === 1 ? '2nd Seen Swap' : '3rd Seen Closer'})
+                          </label>
+                          <input
+                            type="text"
+                            value={editingLogEntry.opponents[slotIdx] || ''}
+                            onChange={(e) => {
+                              const nextOpps = [...editingLogEntry.opponents];
+                              nextOpps[slotIdx] = e.target.value;
+                              setEditingLogEntry({
+                                ...editingLogEntry,
+                                opponents: nextOpps.filter((x) => x.trim().length > 0)
+                              });
+                            }}
+                            placeholder={`Opponent #${slotIdx + 1}`}
+                            className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white"
+                          />
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+                      <button
+                        type="button"
+                        onClick={() => setEditingLogEntry(null)}
+                        className="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = battleLogs.map((b) =>
+                            b.id === editingLogEntry.id ? { ...editingLogEntry, updatedAt: Date.now() } : b
+                          );
+                          saveBattleLogsToStorage(updated);
+                          setEditingLogEntry(null);
+                        }}
+                        className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold"
+                      >
+                        Save Changes
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Interactive Post-Game Overlay Replay Inspector Modal */}
+              {replayLogEntry && (() => {
+                const replayTeamNames =
+                  replayLogEntry.userPokemon && replayLogEntry.userPokemon.length === 3
+                    ? replayLogEntry.userPokemon
+                    : activePreset.pokemon.map((p) => p.name);
+                const replayOpps =
+                  replayLogEntry.opponents && replayLogEntry.opponents.length > 0
+                    ? replayLogEntry.opponents
+                    : ['Zacian (Crowned)'];
+                const safeUserSlot = Math.max(0, Math.min(replayUserIdx, replayTeamNames.length - 1));
+                const safeOppSlot = Math.max(0, Math.min(replayOppIdx, replayOpps.length - 1));
+                const activeReplayUserMon = replayTeamNames[safeUserSlot] || 'Palkia (Origin)';
+                const activeReplayOppMon = replayOpps[safeOppSlot] || replayOpps[0];
+                const rawOpp = POKEMON_DATABASE[activeReplayOppMon] || POKEMON_DATABASE['Zacian (Crowned)'];
+                const effOpp = computeEffectiveStatsForLeague(
+                  rawOpp,
+                  (replayLogEntry.league as LeagueType) || 'GREAT LEAGUE',
+                  undefined,
+                  undefined,
+                  replayOppShadow
+                );
+                const recUser = getRecommendedMovesForPokemon(
+                  activeReplayUserMon,
+                  (replayLogEntry.league as LeagueType) || 'GREAT LEAGUE'
+                );
+                const userFast = recUser?.fastMove || 'Dragon Breath';
+                const userTurns = FAST_MOVE_TURN_LOOKUP[userFast.toLowerCase()] || 2;
+                const userCharged = [recUser?.chargedMove1 || 'Aqua Tail', recUser?.chargedMove2 || 'Spacial Rend'];
+                const replayOppTiming = calculateOpponentMoveTimingRows(
+                  effOpp,
+                  activeReplayUserMon,
+                  replayTeamNames,
+                  replayOppShadow,
+                  userTurns,
+                  userFast,
+                  userCharged,
+                  oppCountMode,
+                  (replayLogEntry.league as LeagueType) || 'GREAT LEAGUE',
+                  undefined,
+                  enable4ChargedMoves
+                );
+                const replayMyTiming = calculateMyMoveTimingRows(
+                  activeReplayUserMon,
+                  effOpp,
+                  userCharged,
+                  replayOppTiming.rows.map((r) => r.myTapAtReady),
+                  replayOppShadow,
+                  userTurns,
+                  userFast,
+                  replayOpps,
+                  replayOppTiming.maxHorizonTurns,
+                  (replayLogEntry.league as LeagueType) || 'GREAT LEAGUE',
+                  undefined,
+                  enable4ChargedMoves
+                );
+
+                return (
+                  <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+                    <div className="bg-slate-900 border border-sky-500/50 rounded-2xl max-w-lg w-full p-5 shadow-2xl space-y-3">
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                        <div>
+                          <h3 className="font-bold text-sm text-white flex items-center gap-2">
+                            <span>🔍 Post-Game Interactive Overlay Replay</span>
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-extrabold ${
+                                replayLogEntry.result === 'WIN'
+                                  ? 'bg-emerald-500/20 text-emerald-300'
+                                  : 'bg-rose-500/20 text-rose-300'
+                              }`}
+                            >
+                              {replayLogEntry.result}
+                            </span>
+                          </h3>
+                          <p className="text-[11px] text-slate-400">
+                            Tap any of your 3 Pokémon or any of the 3 opponents (#1, #2, #3) below to inspect shield scenarios, move counts &amp; swap options!
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => setReplayLogEntry(null)}
+                          className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold"
+                        >
+                          ✕ Close
+                        </button>
+                      </div>
+
+                      {/* Interactive Overlay HUD Replica */}
+                      <div className="rounded-xl bg-slate-950 border border-sky-400/40 p-3 space-y-2.5 text-xs">
+                        <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-800">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-extrabold text-amber-300">
+                              VS #{safeOppSlot + 1} {replayOppShadow ? 'S-' : ''}{activeReplayOppMon}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setReplayOppShadow(!replayOppShadow)}
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                                replayOppShadow
+                                  ? 'bg-purple-600/50 border-purple-300 text-white'
+                                  : 'bg-slate-900 border-slate-700 text-purple-300'
+                              }`}
+                            >
+                              Shadow: {replayOppShadow ? 'ON' : 'OFF'}
+                            </button>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            {replayTeamNames.map((mName, idx) => (
+                              <button
+                                key={idx}
+                                type="button"
+                                onClick={() => setReplayUserIdx(idx)}
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold border transition ${
+                                  safeUserSlot === idx
+                                    ? 'bg-emerald-500/35 border-emerald-400 text-white'
+                                    : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white'
+                                }`}
+                              >
+                                {mName.split(' ')[0].slice(0, 6)}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* 3v3 Matchup Matrix (Fixed 1st/2nd/3rd seen order) */}
+                        <div className="space-y-1 bg-slate-900/70 p-2 rounded-lg border border-slate-800">
+                          {replayOpps.map((oppName, idx) => {
+                            const isActv = idx === safeOppSlot;
+                            const m = calculateShieldMatrix(oppName, replayTeamNames, isActv && replayOppShadow);
+                            return (
+                              <div
+                                key={`${oppName}-${idx}`}
+                                onClick={() => setReplayOppIdx(idx)}
+                                className={`flex items-center justify-between px-2 py-1 rounded cursor-pointer transition ${
+                                  isActv
+                                    ? 'bg-sky-500/25 border border-sky-400/60'
+                                    : 'hover:bg-slate-800/70 border border-transparent'
+                                }`}
+                              >
+                                <span className="font-bold text-white">
+                                  <span className="text-sky-400 mr-1">#{idx + 1}</span>
+                                  {oppName}
+                                </span>
+                                <div className="flex items-center gap-2 font-mono text-[10px]">
+                                  <span>{replayTeamNames[0]?.charAt(0) || '1'}: {renderTierDots(m.p1)}</span>
+                                  <span>{replayTeamNames[1]?.charAt(0) || '2'}: {renderTierDots(m.p2)}</span>
+                                  <span>{replayTeamNames[2]?.charAt(0) || '3'}: {renderTierDots(m.p3)}</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Opponent Attacks vs Your 3 Team Members */}
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase">
+                            <span>Opponent Charged Moves ({activeReplayOppMon})</span>
+                            <span>Damage vs {replayTeamNames.map((n) => n.slice(0, 3)).join(' / ')}</span>
+                          </div>
+                          {replayOppTiming.rows.map((r) => (
+                            <div
+                              key={r.name}
+                              className="flex items-center justify-between bg-slate-900/80 border border-slate-800 rounded px-2 py-1 text-[11px]"
+                            >
+                              <div>
+                                <strong className="text-amber-300">{r.name}</strong>{' '}
+                                <span className="text-slate-400 font-mono">({r.energy}e / {r.displayReadyCount}f)</span>
+                              </div>
+                              <div className="flex items-center gap-2 font-mono">
+                                {r.teamDamages.map((td, cIdx) => (
+                                  <span
+                                    key={cIdx}
+                                    className={`px-1.5 py-0.5 rounded ${
+                                      cIdx === safeUserSlot
+                                        ? 'bg-sky-500/25 border border-sky-400/60 text-white font-bold'
+                                        : 'text-slate-400'
+                                    }`}
+                                  >
+                                    {td.dmgPct}%
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Your Active Pokemon Attacks vs 3 Opponents */}
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase">
+                            <span>Your Moves ({activeReplayUserMon})</span>
+                            <span>Damage vs #1 / #2 / #3</span>
+                          </div>
+                          {replayMyTiming.map((r) => (
+                            <div
+                              key={r.name}
+                              className="flex items-center justify-between bg-slate-900/80 border border-slate-800 rounded px-2 py-1 text-[11px]"
+                            >
+                              <div>
+                                <strong className="text-sky-300">{r.name}</strong>{' '}
+                                <span className="text-slate-400 font-mono">({r.energy}e / {r.myTapsNeeded}f)</span>
+                              </div>
+                              <div className="flex items-center gap-2 font-mono">
+                                {r.oppDamages.map((od, cIdx) => (
+                                  <span
+                                    key={cIdx}
+                                    className={`px-1.5 py-0.5 rounded ${
+                                      cIdx === safeOppSlot
+                                        ? 'bg-sky-500/25 border border-sky-400/60 text-white font-bold'
+                                        : 'text-slate-400'
+                                    }`}
+                                  >
+                                    {od.isEmpty ? '—' : `${od.dmgPct}%`}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          );
+        })()}
+
+        {/* Import & Reconcile Delta Sync Bundle Modal */}
+        {showImportBundleModal && (
+          <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-5 shadow-2xl space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                <h3 className="font-bold text-sm text-white">📥 Import &amp; Reconcile Delta Sync Bundle</h3>
+                <button
+                  onClick={() => setShowImportBundleModal(false)}
+                  className="text-slate-400 hover:text-white font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+              <textarea
+                rows={7}
+                value={importBundleText}
+                onChange={(e) => setImportBundleText(e.target.value)}
+                placeholder="Paste JSON bundle exported from your other device..."
+                className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs font-mono text-white"
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowImportBundleModal(false)}
+                  className="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    try {
+                      const remote = JSON.parse(importBundleText);
+                      const mergedTombstones = new Set<string>(deletedLogIds);
+                      if (Array.isArray(remote.deletedLogIds)) {
+                        remote.deletedLogIds.forEach((id: string) => mergedTombstones.add(id));
+                      }
+                      const logMap = new Map<string, WebBattleLogEntry>();
+                      battleLogs.forEach((l) => {
+                        if (!mergedTombstones.has(l.id)) logMap.set(l.id, l);
+                      });
+                      if (Array.isArray(remote.battleLogs)) {
+                        remote.battleLogs.forEach((r: WebBattleLogEntry) => {
+                          if (!r?.id || mergedTombstones.has(r.id)) return;
+                          const existing = logMap.get(r.id);
+                          if (!existing || (r.updatedAt || r.timestampMs) > (existing.updatedAt || existing.timestampMs)) {
+                            logMap.set(r.id, r);
+                          }
+                        });
+                      }
+                      const mergedLogs = Array.from(logMap.values()).sort((a, b) => b.timestampMs - a.timestampMs);
+                      saveBattleLogsToStorage(mergedLogs);
+
+                      if (Array.isArray(remote.teamPresets)) {
+                        const pMap = new Map<string, TeamPreset>();
+                        presets.forEach((p) => pMap.set(p.id, p));
+                        remote.teamPresets.forEach((rp: TeamPreset) => {
+                          if (rp?.id) pMap.set(rp.id, rp);
+                        });
+                        setPresets(Array.from(pMap.values()));
+                      }
+                      const tombArr = Array.from(mergedTombstones);
+                      setDeletedLogIds(tombArr);
+                      localStorage.setItem('gbl_deleted_log_ids_v1', JSON.stringify(tombArr));
+                      setLastCloudSyncStatus(`Reconciled bundle (${mergedLogs.length} battles)`);
+                      setShowImportBundleModal(false);
+                    } catch {
+                      alert('Invalid Delta Sync JSON bundle.');
+                    }
+                  }}
+                  className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold"
+                >
+                  Reconcile Deltas
+                </button>
+              </div>
             </div>
           </div>
         )}

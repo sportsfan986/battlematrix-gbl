@@ -1,6 +1,6 @@
 {
-  "summary": "Updated implementation plan for v1.11: Persistent user teams & settings across updates, PvPoke Top 3 default teams & custom templates, auto-filled recommended Fast/Charged moves on Pokémon name entry, and League CP-scaled Stat Product + optional IVs (auto-defaulting to PvPoke Rank/Default IVs when blank) for exact Pokémon GO damage & HP% calculations.",
-  "updatedAt": "2026-10-16T20:02:18.112843553Z",
+  "summary": "Updated implementation plan adding an Interactive Post-Game Overlay Replay Inspector when clicking any logged battle in the Battle Log, alongside ScrapedDuck API Season export, in-app log Edit/Delete, Lead Matchup tracking, fixed opponent order, and two-device delta sync.",
+  "updatedAt": "2026-10-18T02:19:46.084435792Z",
   "requestFeedback": true,
   "userFacing": true
 }

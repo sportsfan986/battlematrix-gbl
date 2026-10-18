@@ -1370,7 +1370,6 @@ export const MOVE_ABBR_5: Record<string, string> = {
   "Superpower": "Suprp",
   "Dynamic Punch": "DynPn",
   "Cross Chop": "CrsCh",
-  "Counter": "Cntr",
   "Rock Slide": "RckSl",
   "Stone Edge": "StnEd",
   "Rock Wrecker": "RckWr",
@@ -1919,7 +1918,7 @@ export function parseRankingsJsonArray(rawJson: unknown): PokemonRankingEntry[] 
     const rawCharged = Array.isArray(movesObj.chargedMoves) ? movesObj.chargedMoves : [];
 
     const fastMoves: MoveUsage[] = rawFast
-      .map((m: unknown) => {
+      .map((m: unknown): MoveUsage | null => {
         if (!m || typeof m !== "object") return null;
         const mo = m as Record<string, unknown>;
         return typeof mo.moveId === "string"
@@ -1930,7 +1929,7 @@ export function parseRankingsJsonArray(rawJson: unknown): PokemonRankingEntry[] 
       .sort((a, b) => (b.uses ?? 0) - (a.uses ?? 0));
 
     const chargedMoves: MoveUsage[] = rawCharged
-      .map((m: unknown) => {
+      .map((m: unknown): MoveUsage | null => {
         if (!m || typeof m !== "object") return null;
         const mo = m as Record<string, unknown>;
         return typeof mo.moveId === "string"
@@ -2747,7 +2746,7 @@ export interface MyMoveTimingRow {
   myReadyTurn: number;
   dmgPct: number;
   eff: number;
-  state: "safe" | "cmp" | "cmp-loss";
+  state: "safe" | "cmp" | "cmp-loss" | "catch";
   safeThrowLabel: string;
   hasZeroSneak: boolean;
   maxHorizonTurns: number;

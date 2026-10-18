@@ -92,6 +92,14 @@ class OverlayService : LifecycleService() {
         const val PREFS_KEY_ENABLE_4_CHARGED_MOVES = "enable_4_charged_moves"
         const val PREFS_KEY_OVERLAY_TRANSPARENCY_PCT = "overlay_transparency_pct"
         const val PREFS_KEY_LAST_SYNC_TIMESTAMP = "last_sync_timestamp"
+        const val PREFS_KEY_BATTLE_LOGS = "gbl_battle_logs_v1"
+        const val PREFS_KEY_DELETED_LOG_IDS = "gbl_deleted_log_ids_v1"
+        const val PREFS_KEY_DELETED_TEAM_IDS = "gbl_deleted_team_ids_v1"
+        const val PREFS_KEY_GBL_SEASONS_JSON = "gbl_seasons_json_v1"
+        const val PREFS_KEY_SYNC_GITHUB_TOKEN = "gbl_sync_github_token"
+        const val PREFS_KEY_SYNC_GIST_ID = "gbl_sync_gist_id"
+        const val PREFS_KEY_SYNC_LAST_AT = "gbl_sync_last_at"
+        const val PREFS_KEY_DEVICE_LABEL = "gbl_device_label"
 
         private const val NOTIFICATION_CHANNEL_ID = "gbl_battle_overlay_channel"
         private const val NOTIFICATION_ID = 2001
@@ -105,6 +113,281 @@ class OverlayService : LifecycleService() {
             "gbl_team_presets_v2",
             "gbl_team_presets"
         )
+
+        data class SyncBattleLogRecord(
+            val id: String = java.util.UUID.randomUUID().toString(),
+            val timestampMs: Long = System.currentTimeMillis(),
+            val updatedAt: Long = timestampMs,
+            val league: String = "GREAT LEAGUE",
+            val presetId: String = "",
+            val userTeamName: String = "",
+            val userPokemon: List<String> = emptyList(),
+            val opponents: List<String> = emptyList(),
+            val leadMatchup: String = "NEUTRAL",
+            val result: String = "WIN",
+            val deviceLabel: String = Build.MODEL ?: "Android"
+        )
+
+        data class SyncTeamSlot(
+            val name: String,
+            val cp: Int,
+            val fastMove: String,
+            val chargedMove1: String,
+            val chargedMove2: String,
+            val ivs: String? = null
+        )
+
+        data class SyncTeamPresetRecord(
+            val id: String = java.util.UUID.randomUUID().toString(),
+            val name: String,
+            val league: String,
+            val pokemon: List<SyncTeamSlot>,
+            val isSelected: Boolean = false,
+            val updatedAt: Long = System.currentTimeMillis()
+        )
+
+        data class SyncVaultPayload(
+            val schemaVersion: Int = 2,
+            val updatedAt: Long = System.currentTimeMillis(),
+            val battleLogs: List<SyncBattleLogRecord> = emptyList(),
+            val teamPresets: List<SyncTeamPresetRecord> = emptyList(),
+            val deletedLogIds: List<String> = emptyList(),
+            val deletedTeamIds: List<String> = emptyList()
+        )
+
+        fun reconcileSyncVaultPayloads(
+            local: SyncVaultPayload,
+            remote: SyncVaultPayload
+        ): Triple<SyncVaultPayload, Int, Int> {
+            val allDeletedLogs = (local.deletedLogIds + remote.deletedLogIds).toSet()
+            val allDeletedTeams = (local.deletedTeamIds + remote.deletedTeamIds).toSet()
+
+            val localLogMap = local.battleLogs.associateBy { it.id }
+            val remoteLogMap = remote.battleLogs.associateBy { it.id }
+            val allLogIds = (localLogMap.keys + remoteLogMap.keys) - allDeletedLogs
+            var newOrUpdatedLogsFromRemote = 0
+
+            val mergedLogs = allLogIds.mapNotNull { id ->
+                val l = localLogMap[id]
+                val r = remoteLogMap[id]
+                when {
+                    l != null && r != null -> {
+                        val lUpd = if (l.updatedAt > 0L) l.updatedAt else l.timestampMs
+                        val rUpd = if (r.updatedAt > 0L) r.updatedAt else r.timestampMs
+                        if (rUpd > lUpd) {
+                            newOrUpdatedLogsFromRemote++
+                            r
+                        } else l
+                    }
+                    r != null -> {
+                        newOrUpdatedLogsFromRemote++
+                        r
+                    }
+                    else -> l
+                }
+            }.sortedByDescending { it.timestampMs }
+
+            val localTeamMap = local.teamPresets.associateBy { it.id }
+            val remoteTeamMap = remote.teamPresets.associateBy { it.id }
+            val orderedIds = mutableListOf<String>()
+            for (t in local.teamPresets) {
+                if (t.id !in allDeletedTeams && !orderedIds.contains(t.id)) orderedIds.add(t.id)
+            }
+            for (t in remote.teamPresets) {
+                if (t.id !in allDeletedTeams && !orderedIds.contains(t.id)) orderedIds.add(t.id)
+            }
+
+            var newOrUpdatedTeamsFromRemote = 0
+            val mergedTeams = orderedIds.mapNotNull { id ->
+                val l = localTeamMap[id]
+                val r = remoteTeamMap[id]
+                when {
+                    l != null && r != null -> {
+                        val lUpd = if (l.updatedAt > 0L) l.updatedAt else 1L
+                        val rUpd = if (r.updatedAt > 0L) r.updatedAt else 1L
+                        if (rUpd > lUpd) {
+                            newOrUpdatedTeamsFromRemote++
+                            r
+                        } else l
+                    }
+                    r != null -> {
+                        newOrUpdatedTeamsFromRemote++
+                        r
+                    }
+                    else -> l
+                }
+            }
+
+            val mergedPayload = SyncVaultPayload(
+                schemaVersion = 2,
+                updatedAt = System.currentTimeMillis(),
+                battleLogs = mergedLogs,
+                teamPresets = mergedTeams,
+                deletedLogIds = allDeletedLogs.toList(),
+                deletedTeamIds = allDeletedTeams.toList()
+            )
+            return Triple(mergedPayload, newOrUpdatedLogsFromRemote, newOrUpdatedTeamsFromRemote)
+        }
+
+        fun buildLocalSyncVaultPayload(prefs: SharedPreferences, gson: Gson): SyncVaultPayload {
+            val logsType = object : TypeToken<List<SyncBattleLogRecord>>() {}.type
+            val teamsType = object : TypeToken<List<SyncTeamPresetRecord>>() {}.type
+            val strListType = object : TypeToken<List<String>>() {}.type
+
+            val logs: List<SyncBattleLogRecord> = try {
+                gson.fromJson(prefs.getString(PREFS_KEY_BATTLE_LOGS, "[]"), logsType) ?: emptyList()
+            } catch (_: Exception) { emptyList() }
+
+            val teams: List<SyncTeamPresetRecord> = try {
+                gson.fromJson(prefs.getString(PREFS_KEY_PERSISTENT_TEAMS, "[]"), teamsType) ?: emptyList()
+            } catch (_: Exception) { emptyList() }
+
+            val delLogs: List<String> = try {
+                gson.fromJson(prefs.getString(PREFS_KEY_DELETED_LOG_IDS, "[]"), strListType) ?: emptyList()
+            } catch (_: Exception) { emptyList() }
+
+            val delTeams: List<String> = try {
+                gson.fromJson(prefs.getString(PREFS_KEY_DELETED_TEAM_IDS, "[]"), strListType) ?: emptyList()
+            } catch (_: Exception) { emptyList() }
+
+            return SyncVaultPayload(
+                schemaVersion = 2,
+                updatedAt = System.currentTimeMillis(),
+                battleLogs = logs,
+                teamPresets = teams,
+                deletedLogIds = delLogs,
+                deletedTeamIds = delTeams
+            )
+        }
+
+        fun saveReconciledSyncVaultLocally(prefs: SharedPreferences, gson: Gson, payload: SyncVaultPayload) {
+            val editor = prefs.edit()
+                .putString(PREFS_KEY_BATTLE_LOGS, gson.toJson(payload.battleLogs))
+                .putString(PREFS_KEY_DELETED_LOG_IDS, gson.toJson(payload.deletedLogIds))
+                .putString(PREFS_KEY_DELETED_TEAM_IDS, gson.toJson(payload.deletedTeamIds))
+                .putLong(PREFS_KEY_SYNC_LAST_AT, System.currentTimeMillis())
+            if (payload.teamPresets.isNotEmpty()) {
+                editor.putString(PREFS_KEY_PERSISTENT_TEAMS, gson.toJson(payload.teamPresets))
+            }
+            editor.apply()
+        }
+
+        fun syncWithGitHubGistBlocking(prefs: SharedPreferences, gson: Gson): Pair<Boolean, String> {
+            val token = prefs.getString(PREFS_KEY_SYNC_GITHUB_TOKEN, "")?.trim().orEmpty()
+            var gistId = prefs.getString(PREFS_KEY_SYNC_GIST_ID, "")?.trim().orEmpty()
+            if (token.isEmpty()) {
+                return false to "Add a GitHub Personal Access Token in Settings to enable 2-device cloud sync."
+            }
+            val httpClient = OkHttpClient()
+            val fileName = "battlematrix_gbl_sync_vault.json"
+
+            try {
+                // Step 1: If gistId is empty, search user's gists for battlematrix_gbl_sync_vault.json
+                if (gistId.isEmpty()) {
+                    val listReq = Request.Builder()
+                        .url("https://api.github.com/gists?per_page=60")
+                        .header("Authorization", "Bearer $token")
+                        .header("Accept", "application/vnd.github+json")
+                        .build()
+                    httpClient.newCall(listReq).execute().use { resp ->
+                        if (resp.isSuccessful) {
+                            val bodyStr = resp.body?.string().orEmpty()
+                            val arr = JsonParser.parseString(bodyStr).asJsonArray
+                            for (el in arr) {
+                                val obj = el.asJsonObject
+                                val filesObj = obj.getAsJsonObject("files")
+                                if (filesObj != null && filesObj.has(fileName)) {
+                                    gistId = obj.get("id")?.asString.orEmpty()
+                                    if (gistId.isNotEmpty()) {
+                                        prefs.edit().putString(PREFS_KEY_SYNC_GIST_ID, gistId).apply()
+                                        break
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                val localPayload = buildLocalSyncVaultPayload(prefs, gson)
+                var remotePayload = SyncVaultPayload()
+
+                // Step 2: Pull remote vault if gistId exists
+                if (gistId.isNotEmpty()) {
+                    val getReq = Request.Builder()
+                        .url("https://api.github.com/gists/$gistId")
+                        .header("Authorization", "Bearer $token")
+                        .header("Accept", "application/vnd.github+json")
+                        .build()
+                    httpClient.newCall(getReq).execute().use { resp ->
+                        if (resp.isSuccessful) {
+                            val bodyStr = resp.body?.string().orEmpty()
+                            val root = JsonParser.parseString(bodyStr).asJsonObject
+                            val filesObj = root.getAsJsonObject("files")
+                            val vaultFile = filesObj?.getAsJsonObject(fileName)
+                            val contentStr = vaultFile?.get("content")?.asString
+                            if (!contentStr.isNullOrBlank()) {
+                                remotePayload = try {
+                                    gson.fromJson(contentStr, SyncVaultPayload::class.java) ?: SyncVaultPayload()
+                                } catch (_: Exception) { SyncVaultPayload() }
+                            }
+                        }
+                    }
+                }
+
+                // Step 3: Reconcile deltas (Pull -> Union/LWW Reconcile -> Save Local)
+                val (mergedPayload, newLogsCount, newTeamsCount) = reconcileSyncVaultPayloads(localPayload, remotePayload)
+                saveReconciledSyncVaultLocally(prefs, gson, mergedPayload)
+
+                // Step 4: Push merged payload back to Gist (Update existing or Create new private Gist)
+                val mergedJsonStr = gson.toJson(mergedPayload)
+                val bodyMap = mapOf(
+                    "description" to "BattleMatrix GBL Multi-Device Sync Vault (Teams & Battle Logs)",
+                    "public" to false,
+                    "files" to mapOf(
+                        fileName to mapOf("content" to mergedJsonStr)
+                    )
+                )
+                val reqBody = okhttp3.RequestBody.create(
+                    okhttp3.MediaType.parse("application/json; charset=utf-8"),
+                    gson.toJson(bodyMap)
+                )
+                val pushReq = if (gistId.isNotEmpty()) {
+                    Request.Builder()
+                        .url("https://api.github.com/gists/$gistId")
+                        .patch(reqBody)
+                        .header("Authorization", "Bearer $token")
+                        .header("Accept", "application/vnd.github+json")
+                        .build()
+                } else {
+                    Request.Builder()
+                        .url("https://api.github.com/gists")
+                        .post(reqBody)
+                        .header("Authorization", "Bearer $token")
+                        .header("Accept", "application/vnd.github+json")
+                        .build()
+                }
+
+                httpClient.newCall(pushReq).execute().use { pushResp ->
+                    if (!pushResp.isSuccessful) {
+                        return false to "Sync error (HTTP ${pushResp.code})"
+                    }
+                    val respStr = pushResp.body?.string().orEmpty()
+                    if (gistId.isEmpty() && respStr.isNotEmpty()) {
+                        val createdId = try {
+                            JsonParser.parseString(respStr).asJsonObject.get("id")?.asString.orEmpty()
+                        } catch (_: Exception) { "" }
+                        if (createdId.isNotEmpty()) {
+                            gistId = createdId
+                            prefs.edit().putString(PREFS_KEY_SYNC_GIST_ID, gistId).apply()
+                        }
+                    }
+                }
+
+                return true to "Synced! (${mergedPayload.battleLogs.size} battles, +$newLogsCount from other device · ${mergedPayload.teamPresets.size} teams, +$newTeamsCount updated)"
+            } catch (e: Exception) {
+                return false to "Sync failed: ${e.localizedMessage ?: "Network error"}"
+            }
+        }
 
         data class MoveStats(
             val name: String,
@@ -1877,6 +2160,8 @@ class OverlayService : LifecycleService() {
     private val manualFormOverrides = mutableMapOf<String, String>()
     private val manualShadowOverrides = mutableMapOf<String, Boolean>()
     private var isWaitingForOpponent = true
+    private var manualLeadMatchupOverride: String? = null
+    private var currentLeadMatchup: String = "NEUTRAL"
 
     private var currentLayoutMode = "option1"
     private var oppCountMode = "my_fasts"
@@ -1895,7 +2180,14 @@ class OverlayService : LifecycleService() {
         val chargedMove2: String,
         val ivs: String? = null
     )
-    data class TeamPreset(val id: String, val name: String, val league: String, val pokemon: List<TeamMember>, var isSelected: Boolean = false)
+    data class TeamPreset(
+        val id: String,
+        val name: String,
+        val league: String,
+        val pokemon: List<TeamMember>,
+        var isSelected: Boolean = false,
+        val updatedAt: Long = System.currentTimeMillis()
+    )
 
     override fun onCreate() {
         super.onCreate()
@@ -2684,16 +2976,25 @@ class OverlayService : LifecycleService() {
                 Regex("\\(\\d+t\\b").containsMatchIn(lower)
     }
 
+    /**
+     * Strictly maintains fixed opponent discovery order: [1st seen, 2nd seen, 3rd seen].
+     * Never reorders slots when an already-seen opponent switches back in!
+     */
     private fun upsertDetectedOpponentBySpecies(fullName: String, baseSpecies: String) {
         val existingIdx = detectedOpponents.indexOfFirst {
             FormResolver.extractBaseSpecies(it).equals(baseSpecies, ignoreCase = true)
         }
         if (existingIdx >= 0) {
-            detectedOpponents.removeAt(existingIdx)
+            detectedOpponents[existingIdx] = fullName
+            return
         }
-        detectedOpponents.add(0, fullName)
-        while (detectedOpponents.size > 3) {
-            detectedOpponents.removeAt(detectedOpponents.lastIndex)
+        if (detectedOpponents.size < 3) {
+            detectedOpponents.add(fullName)
+        } else {
+            val activeIdx = detectedOpponents.indexOfFirst {
+                FormResolver.extractBaseSpecies(it).equals(activeOpponentSpecies, ignoreCase = true)
+            }.takeIf { it in 0..2 } ?: 2
+            detectedOpponents[activeIdx] = fullName
         }
     }
 
@@ -2913,6 +3214,8 @@ class OverlayService : LifecycleService() {
         detectedOpponents.clear()
         manualFormOverrides.clear()
         manualShadowOverrides.clear()
+        manualLeadMatchupOverride = null
+        currentLeadMatchup = "NEUTRAL"
         isWaitingForOpponent = true
         activeOpponentName = "Waiting..."
         activeOpponentSpecies = ""
@@ -2922,7 +3225,83 @@ class OverlayService : LifecycleService() {
         startBattleOcrLoop()
         recalculateAndPushBattleData()
         Handler(Looper.getMainLooper()).post {
-            Toast.makeText(this, "↺ Opponent Reset — OCR Active", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "⚔️ New Battle Started — Opponents Cleared", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun logBattleResultFromOverlay(result: String, leadOverride: String?) {
+        val normalizedResult = if (result.equals("LOSS", ignoreCase = true)) "LOSS" else "WIN"
+        val resolvedLead = (leadOverride?.takeIf { it.isNotBlank() } ?: currentLeadMatchup).uppercase()
+        currentLeadMatchup = resolvedLead
+
+        val preset = currentPreset
+        val league = preset?.league ?: "GREAT LEAGUE"
+        val teamName = preset?.name ?: "Active Team"
+        val presetId = preset?.id ?: ""
+        val userMons = preset?.pokemon?.map { it.name } ?: emptyList()
+
+        val formattedOpponents = detectedOpponents.take(3).map { oppName ->
+            val baseKey = FormResolver.extractBaseSpecies(oppName).lowercase()
+            val isShad = manualShadowOverrides[baseKey] ?: oppName.contains("Shadow", ignoreCase = true)
+            if (isShad && !oppName.startsWith("Shadow ", ignoreCase = true)) {
+                "Shadow $oppName"
+            } else {
+                oppName
+            }
+        }
+
+        val nowMs = System.currentTimeMillis()
+        val newEntry = SyncBattleLogRecord(
+            id = "log-$nowMs-${(100..999).random()}",
+            timestampMs = nowMs,
+            updatedAt = nowMs,
+            league = league,
+            presetId = presetId,
+            userTeamName = teamName,
+            userPokemon = userMons,
+            opponents = formattedOpponents,
+            leadMatchup = resolvedLead,
+            result = normalizedResult,
+            deviceLabel = prefs.getString(PREFS_KEY_DEVICE_LABEL, null)?.takeIf { it.isNotBlank() } ?: (Build.MODEL ?: "Android")
+        )
+
+        val logsType = object : TypeToken<List<SyncBattleLogRecord>>() {}.type
+        val existingLogs: MutableList<SyncBattleLogRecord> = try {
+            gson.fromJson<List<SyncBattleLogRecord>>(prefs.getString(PREFS_KEY_BATTLE_LOGS, "[]"), logsType)?.toMutableList()
+                ?: mutableListOf()
+        } catch (_: Exception) {
+            mutableListOf()
+        }
+        existingLogs.add(0, newEntry)
+        prefs.edit().putString(PREFS_KEY_BATTLE_LOGS, gson.toJson(existingLogs)).apply()
+
+        // Keep current opponents on screen (do not clear!) and refresh overlay state
+        recalculateAndPushBattleData()
+        Handler(Looper.getMainLooper()).post {
+            overlayView?.evaluateJavascript(
+                "if (window.onBattleLoggedToast) onBattleLoggedToast('$normalizedResult', '$resolvedLead');",
+                null
+            )
+            val leadShort = when (resolvedLead) {
+                "FAVORABLE" -> "Fav Lead"
+                "NEGATIVE" -> "Neg Lead"
+                else -> "Neu Lead"
+            }
+            Toast.makeText(
+                this,
+                "✓ Logged $normalizedResult ($leadShort) • ${formattedOpponents.joinToString(", ").ifEmpty { "No opponents" }}",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+
+        // Trigger background 2-device delta sync if token is configured
+        val hasSyncToken = !prefs.getString(PREFS_KEY_SYNC_GITHUB_TOKEN, "").isNullOrBlank()
+        if (hasSyncToken) {
+            lifecycleScope.launch(Dispatchers.IO) {
+                try {
+                    syncWithGitHubGistBlocking(prefs, gson)
+                } catch (_: Exception) {}
+            }
         }
     }
 
@@ -2943,7 +3322,7 @@ class OverlayService : LifecycleService() {
         activeOpponentName = nextVariant.name
         manualFormOverrides[baseKey] = nextVariant.name
 
-        // Update existing species entry in-place (only 1 per species allowed on a team)
+        // Update existing species entry in-place (preserving 1st/2nd/3rd seen slot!)
         val existingIdx = detectedOpponents.indexOfFirst {
             FormResolver.extractBaseSpecies(it).equals(baseKey, ignoreCase = true)
         }
@@ -2964,12 +3343,56 @@ class OverlayService : LifecycleService() {
         availableOpponentForms = FormResolver.getVariantsForSpecies(newBaseSpecies, activeLeague)
         currentFormIndex = availableOpponentForms.indexOfFirst { it.name == matched.name }.coerceAtLeast(0)
         activeOpponentName = matched.name
-        isOpponentShadow = manualShadowOverrides[newBaseSpecies] ?: false
+        isOpponentShadow = manualShadowOverrides[newBaseSpecies] ?: pokemonName.contains("Shadow", ignoreCase = true)
         upsertDetectedOpponentBySpecies(matched.name, newBaseSpecies)
         recalculateAndPushBattleData()
-        Handler(Looper.getMainLooper()).post {
-            Toast.makeText(this, "⚔️ Opponent Swap: ${matched.name}", Toast.LENGTH_SHORT).show()
+        if (::prefs.isInitialized) {
+            Handler(Looper.getMainLooper()).post {
+                Toast.makeText(this, "⚔️ Active Opponent: ${matched.name}", Toast.LENGTH_SHORT).show()
+            }
         }
+    }
+
+    fun configureReplayState(
+        preset: TeamPreset,
+        opponentsList: List<String>,
+        activeOppIdx: Int,
+        activeUserIdx: Int,
+        oppCountModeVal: String = "my_fasts",
+        enable4ChargedVal: Boolean = false
+    ) {
+        currentPreset = preset
+        oppCountMode = oppCountModeVal
+        enable4ChargedMoves = enable4ChargedVal
+        detectedOpponents.clear()
+        manualShadowOverrides.clear()
+        manualFormOverrides.clear()
+        for (rawOpp in opponentsList.take(3)) {
+            val isShad = rawOpp.contains("Shadow", ignoreCase = true)
+            val clean = rawOpp.replace(Regex("^Shadow\\s+", RegexOption.IGNORE_CASE), "").trim()
+            val base = FormResolver.extractBaseSpecies(clean).lowercase()
+            if (isShad) {
+                manualShadowOverrides[base] = true
+            }
+            if (clean.isNotBlank()) {
+                detectedOpponents.add(clean)
+            }
+        }
+        val validOppIdx = activeOppIdx.coerceIn(0, max(0, detectedOpponents.size - 1))
+        val activeOpp = detectedOpponents.getOrNull(validOppIdx)
+        if (activeOpp != null) {
+            isWaitingForOpponent = false
+            activeOpponentName = activeOpp
+            activeOpponentSpecies = FormResolver.extractBaseSpecies(activeOpp).lowercase()
+            isOpponentShadow = manualShadowOverrides[activeOpponentSpecies] ?: false
+            availableOpponentForms = FormResolver.getVariantsForSpecies(activeOpponentSpecies, preset.league)
+            currentFormIndex = availableOpponentForms.indexOfFirst { it.name.equals(activeOpp, ignoreCase = true) }.coerceAtLeast(0)
+        } else {
+            isWaitingForOpponent = true
+            activeOpponentName = "Waiting..."
+        }
+        val validUserIdx = activeUserIdx.coerceIn(0, max(0, preset.pokemon.size - 1))
+        activeUserPokemonName = preset.pokemon.getOrNull(validUserIdx)?.name ?: preset.pokemon.firstOrNull()?.name
     }
 
     private fun normalizeOcrToken(input: String, oneAsL: Boolean = false, rnAsM: Boolean = false, vAsY: Boolean = false): String {
@@ -3589,6 +4012,13 @@ class OverlayService : LifecycleService() {
      * Calculates turn alignment, opponent incoming damage, and player outgoing damage ("My Dmg to [Opponent]")
      */
     private fun recalculateAndPushBattleData() {
+        val jsonStr = buildBattlePayloadJson(isReplayMode = false)
+        Handler(Looper.getMainLooper()).post {
+            overlayView?.evaluateJavascript("updateBattleData($jsonStr)", null)
+        }
+    }
+
+    fun buildBattlePayloadJson(isReplayMode: Boolean = false): String {
         val p1 = currentPreset?.pokemon?.getOrNull(0)
         val p2 = currentPreset?.pokemon?.getOrNull(1)
         val p3 = currentPreset?.pokemon?.getOrNull(2)
@@ -3621,6 +4051,9 @@ class OverlayService : LifecycleService() {
                 "availableForms" to emptyList<String>(),
                 "userActivePokemon" to activePlayerName,
                 "activeUserSlotIndex" to activeUserSlotIndex,
+                "activeOpponentSlotIndex" to 0,
+                "leadMatchup" to currentLeadMatchup,
+                "isReplayMode" to isReplayMode,
                 "myMove1Summary" to "—",
                 "myMove2Summary" to "—",
                 "throwAlignmentText" to "Waiting for Opponent spawn",
@@ -3628,11 +4061,7 @@ class OverlayService : LifecycleService() {
                 "team" to teamData,
                 "scannedOpponents" to emptyList<Map<String, Any>>()
             )
-            val jsonStr = gson.toJson(waitingPayload)
-            Handler(Looper.getMainLooper()).post {
-                overlayView?.evaluateJavascript("updateBattleData($jsonStr)", null)
-            }
-            return
+            return gson.toJson(waitingPayload)
         }
 
         val activeLeague = currentPreset?.league ?: "MASTER LEAGUE"
@@ -3712,22 +4141,26 @@ class OverlayService : LifecycleService() {
         val throwAlignmentText = zeroSneakAttacks.joinToString(", ") { formatOrdinal(it) }
         val throwHorizonText = throwAlignmentText
 
-        // Ensure 1-per-species deduplication in displayList
+        // FIXED DISCOVERY ORDER: [1st seen, 2nd seen, 3rd seen] — never reorder on switch!
         val displayList = mutableListOf<String>()
         val seenSpecies = mutableSetOf<String>()
-        for (opp in listOf(activeOpponentName) + detectedOpponents) {
+        val sourceList = if (detectedOpponents.isNotEmpty()) detectedOpponents else listOf(activeOpponentName)
+        for (opp in sourceList) {
             val base = FormResolver.extractBaseSpecies(opp).lowercase()
             if (seenSpecies.add(base)) {
                 displayList.add(opp)
             }
             if (displayList.size >= 3) break
         }
+        val activeBase = FormResolver.extractBaseSpecies(activeOpponentName).lowercase()
+        val activeOpponentSlotIndex = displayList.indexOfFirst {
+            FormResolver.extractBaseSpecies(it).equals(activeBase, ignoreCase = true)
+        }.let { if (it >= 0) it else 0 }
 
         val scannedOpponentsData = displayList.mapIndexed { idx, opp ->
             val rawBaseKey = FormResolver.extractBaseSpecies(opp).lowercase()
-            val isThisOppShadow = manualShadowOverrides[rawBaseKey] ?: (if (idx == 0) isOpponentShadow else opp.contains("Shadow", ignoreCase = true))
+            val isThisOppShadow = manualShadowOverrides[rawBaseKey] ?: (if (idx == activeOpponentSlotIndex) isOpponentShadow else opp.contains("Shadow", ignoreCase = true))
             val meta = computeEffectiveCombatStats(getPokemonMeta(opp, activeLeague, isThisOppShadow), activeLeague)
-            val baseKey = meta.baseSpecies.lowercase()
             val oppC1Pct = calculateChargedMoveDamagePercent(
                 attacker = meta,
                 defender = userMeta,
@@ -3790,6 +4223,9 @@ class OverlayService : LifecycleService() {
             mapOf(
                 "name" to meta.name,
                 "code" to abbrPokemon3(meta.name, isThisOppShadow),
+                "slotOrder" to (idx + 1),
+                "isActive" to (idx == activeOpponentSlotIndex),
+                "isShadow" to isThisOppShadow,
                 "turns" to meta.fastTurns,
                 "c1" to "${abbrMove5(meta.chargedMove1)} ($oppC1Pct%)",
                 "c2" to "${abbrMove5(meta.chargedMove2)} ($oppC2Pct%)",
@@ -3798,6 +4234,16 @@ class OverlayService : LifecycleService() {
                 "matrix" to matrix
             )
         }
+
+        // Auto-compute Lead Matchup (Your Slot #1 p1 vs. Opponent #1 1st-seen Lead)
+        val firstOppP1Matrix = (scannedOpponentsData.firstOrNull()?.get("matrix") as? Map<*, *>)?.get("p1")?.toString() ?: "N,N,N"
+        val lead1sCode = firstOppP1Matrix.split(",").getOrNull(1)?.trim() ?: "N"
+        val autoLeadMatchup = when (lead1sCode) {
+            "SW", "W" -> "FAVORABLE"
+            "L", "SL" -> "NEGATIVE"
+            else -> "NEUTRAL"
+        }
+        currentLeadMatchup = manualLeadMatchupOverride ?: autoLeadMatchup
 
         if (availableOpponentForms.isEmpty()) {
             availableOpponentForms = FormResolver.getVariantsForSpecies(oppMeta.baseSpecies, activeLeague)
@@ -4093,9 +4539,8 @@ class OverlayService : LifecycleService() {
                 if (slotIdx < displayList.size) {
                     val oppNameSlot = displayList[slotIdx]
                     val rawBaseKeySlot = FormResolver.extractBaseSpecies(oppNameSlot).lowercase()
-                    val isSlotShadow = manualShadowOverrides[rawBaseKeySlot] ?: (if (slotIdx == 0) isOpponentShadow else oppNameSlot.contains("Shadow", ignoreCase = true))
+                    val isSlotShadow = manualShadowOverrides[rawBaseKeySlot] ?: (if (slotIdx == activeOpponentSlotIndex) isOpponentShadow else oppNameSlot.contains("Shadow", ignoreCase = true))
                     val oppMetaSlot = computeEffectiveCombatStats(getPokemonMeta(oppNameSlot, activeLeague, isSlotShadow), activeLeague)
-                    val baseKeySlot = oppMetaSlot.baseSpecies.lowercase()
                     val oDmgPct = calculateChargedMoveDamagePercent(
                         attacker = userMeta,
                         defender = oppMetaSlot,
@@ -4115,7 +4560,7 @@ class OverlayService : LifecycleService() {
                         "dmgPct" to oDmgPct,
                         "eff" to oEff,
                         "tier" to tier,
-                        "isActive" to (slotIdx == 0)
+                        "isActive" to (slotIdx == activeOpponentSlotIndex)
                     )
                 } else {
                     mapOf(
@@ -4162,6 +4607,9 @@ class OverlayService : LifecycleService() {
             "availableForms" to availableOpponentForms.map { it.formLabel },
             "userActivePokemon" to activePlayerName,
             "activeUserSlotIndex" to activeUserSlotIndex,
+            "activeOpponentSlotIndex" to activeOpponentSlotIndex,
+            "leadMatchup" to currentLeadMatchup,
+            "isReplayMode" to isReplayMode,
             "userFastMoveName" to userFastMoveName,
             "userFastMoveTurns" to userFastTurns,
             "winsCmp" to winsCmp,
@@ -4175,10 +4623,7 @@ class OverlayService : LifecycleService() {
             "myMoveTimingRows" to myMoveTimingRows
         )
 
-        val jsonStr = gson.toJson(battlePayload)
-        Handler(Looper.getMainLooper()).post {
-            overlayView?.evaluateJavascript("updateBattleData($jsonStr)", null)
-        }
+        return gson.toJson(battlePayload)
     }
 
     private fun calculateZeroSneakThrows(userTurns: Int, oppTurns: Int): List<Int> {
@@ -4357,6 +4802,22 @@ class OverlayService : LifecycleService() {
         fun startNewBattle() {
             Handler(Looper.getMainLooper()).post {
                 this@OverlayService.startNewBattle()
+            }
+        }
+
+        @JavascriptInterface
+        fun logBattleResult(result: String, leadMatchup: String) {
+            Handler(Looper.getMainLooper()).post {
+                this@OverlayService.logBattleResultFromOverlay(result, leadMatchup)
+            }
+        }
+
+        @JavascriptInterface
+        fun setLeadMatchupOverride(leadMatchup: String) {
+            Handler(Looper.getMainLooper()).post {
+                manualLeadMatchupOverride = leadMatchup.uppercase()
+                currentLeadMatchup = manualLeadMatchupOverride ?: "NEUTRAL"
+                recalculateAndPushBattleData()
             }
         }
 

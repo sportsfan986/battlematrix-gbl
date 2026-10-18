@@ -45,24 +45,37 @@ data class TeamPreset(
     val name: String,
     val league: String, // "MASTER LEAGUE", "ULTRA LEAGUE", "GREAT LEAGUE"
     val pokemon: List<PokemonSlot>,
-    val isSelected: Boolean = false
+    val isSelected: Boolean = false,
+    val updatedAt: Long = System.currentTimeMillis()
 )
 
 data class BattleLogEntry(
     val id: String = UUID.randomUUID().toString(),
     val timestampMs: Long = System.currentTimeMillis(),
+    val updatedAt: Long = timestampMs,
     val league: String = "GREAT LEAGUE",
+    val presetId: String = "",
     val userTeamName: String = "",
+    val userPokemon: List<String> = emptyList(),
     val opponents: List<String> = emptyList(),
-    val result: String = "LOGGED"
+    val leadMatchup: String = "NEUTRAL",
+    val result: String = "WIN",
+    val deviceLabel: String = Build.MODEL ?: "Android"
+)
+
+data class GblSeasonInfo(
+    val id: String,
+    val name: String,
+    val startMs: Long,
+    val endMs: Long
 )
 
 /**
  * MainActivity handles:
  * 1. Permission checks (SYSTEM_ALERT_WINDOW, POST_NOTIFICATIONS & MediaProjection Screen Capture)
- * 2. Background download & caching of PvPoke gamemaster.json
- * 3. Saving, loading, creating, and switching custom GBL Team Presets locally
- * 4. Launching the OverlayService foreground service (with robust fallback so overlay ALWAYS displays)
+ * 2. Background download & caching of PvPoke gamemaster.json + ScrapedDuck API Season start/end dates
+ * 3. Saving, loading, creating, and switching custom GBL Team Presets locally + 2-Device Delta Sync
+ * 4. Battle Log analytics, in-app Edit/Delete, Interactive Overlay Replay, and Day/Week/Season/All-Time plain-text export
  */
 class MainActivity : AppCompatActivity() {
 
@@ -96,12 +109,29 @@ class MainActivity : AppCompatActivity() {
     private lateinit var seekbarOverlayTransparency: SeekBar
     private lateinit var textOverlayTransparencyValue: TextView
     private lateinit var textOverlayTransparencyDefaultTick: TextView
+    private lateinit var editSyncGithubToken: EditText
+    private lateinit var editSyncGistId: EditText
+    private lateinit var btnSyncDevicesSettings: Button
+    private lateinit var btnSyncBundleSettings: Button
+    private lateinit var textSyncStatus: TextView
     private lateinit var presetsContainer: LinearLayout
     private lateinit var battleLogContainer: LinearLayout
     private lateinit var textBattleLogTotal: TextView
     private lateinit var textBattleLogLeague: TextView
     private lateinit var textBattleLogWinrate: TextView
+    private lateinit var btnLogManualBattle: Button
+    private lateinit var btnSyncBattleLog: Button
     private lateinit var btnClearBattleLog: Button
+    private lateinit var spinnerLogFilterLeague: Spinner
+    private lateinit var spinnerLogFilterTeam: Spinner
+    private lateinit var spinnerLogFilterTimeframe: Spinner
+    private lateinit var btnCopyBattleLog: Button
+    private lateinit var btnShareBattleLog: Button
+
+    private var selectedLogLeagueFilter: String = "ALL"
+    private var selectedLogTeamFilter: String = "ALL"
+    private var selectedLogTimeframeFilter: String = "ALL_TIME"
+    private var isUpdatingLogFilterSpinners = false
 
     private val PREFS_KEY_PRESETS = OverlayService.PREFS_KEY_PERSISTENT_TEAMS
     private val PREFS_KEY_SELECTED_PRESET = "gbl_selected_preset_id"
@@ -112,7 +142,14 @@ class MainActivity : AppCompatActivity() {
     private val DEFAULT_OVERLAY_SCALE_PCT = 78
     private val PREFS_KEY_OVERLAY_TRANSPARENCY_PCT = OverlayService.PREFS_KEY_OVERLAY_TRANSPARENCY_PCT
     private val DEFAULT_OVERLAY_TRANSPARENCY_PCT = 72
-    private val PREFS_KEY_BATTLE_LOGS = "gbl_battle_logs_v1"
+    private val PREFS_KEY_BATTLE_LOGS = OverlayService.PREFS_KEY_BATTLE_LOGS
+    private val PREFS_KEY_DELETED_LOG_IDS = OverlayService.PREFS_KEY_DELETED_LOG_IDS
+    private val PREFS_KEY_DELETED_TEAM_IDS = OverlayService.PREFS_KEY_DELETED_TEAM_IDS
+    private val PREFS_KEY_GBL_SEASONS_JSON = OverlayService.PREFS_KEY_GBL_SEASONS_JSON
+    private val PREFS_KEY_SYNC_GITHUB_TOKEN = OverlayService.PREFS_KEY_SYNC_GITHUB_TOKEN
+    private val PREFS_KEY_SYNC_GIST_ID = OverlayService.PREFS_KEY_SYNC_GIST_ID
+    private val PREFS_KEY_SYNC_LAST_AT = OverlayService.PREFS_KEY_SYNC_LAST_AT
+    private val SCRAPEDDUCK_EVENTS_URL = "https://raw.githubusercontent.com/bigfoott/ScrapedDuck/data/events.min.json"
     private val DONATION_URL = "https://buymeacoffee.com/sportsfan986"
     private val GAMEMASTER_URL = "https://raw.githubusercontent.com/pvpoke/pvpoke/master/src/data/gamemaster.json"
     private val RANKINGS_ENDPOINTS = listOf(
@@ -168,9 +205,25 @@ class MainActivity : AppCompatActivity() {
 
         initViews()
         ensureDefaultPresets()
+        ensureDefaultSeasons()
         refreshPresetsUi()
+        setupBattleLogFilters()
         renderBattleLogPage()
         checkGamemasterCache()
+        fetchSeasonsFromScrapedDuck()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (::prefs.isInitialized) {
+            setupBattleLogFilters()
+            renderBattleLogPage()
+            updateSyncStatusUi()
+            val hasToken = !prefs.getString(PREFS_KEY_SYNC_GITHUB_TOKEN, "").isNullOrBlank()
+            if (hasToken) {
+                triggerTwoDeviceCloudSync(silent = true)
+            }
+        }
     }
 
     private fun scalePctToProgress(scalePct: Int): Int {
@@ -238,12 +291,24 @@ class MainActivity : AppCompatActivity() {
         seekbarOverlayTransparency = findViewById(R.id.seekbar_overlay_transparency)
         textOverlayTransparencyValue = findViewById(R.id.text_overlay_transparency_value)
         textOverlayTransparencyDefaultTick = findViewById(R.id.text_overlay_transparency_default_tick)
+        editSyncGithubToken = findViewById(R.id.edit_sync_github_token)
+        editSyncGistId = findViewById(R.id.edit_sync_gist_id)
+        btnSyncDevicesSettings = findViewById(R.id.btn_sync_devices_settings)
+        btnSyncBundleSettings = findViewById(R.id.btn_sync_bundle_settings)
+        textSyncStatus = findViewById(R.id.text_sync_status)
         presetsContainer = findViewById(R.id.layout_presets_list)
         battleLogContainer = findViewById(R.id.layout_battle_log_list)
         textBattleLogTotal = findViewById(R.id.text_battle_log_total)
         textBattleLogLeague = findViewById(R.id.text_battle_log_league)
         textBattleLogWinrate = findViewById(R.id.text_battle_log_winrate)
+        btnLogManualBattle = findViewById(R.id.btn_log_manual_battle)
+        btnSyncBattleLog = findViewById(R.id.btn_sync_battle_log)
         btnClearBattleLog = findViewById(R.id.btn_clear_battle_log)
+        spinnerLogFilterLeague = findViewById(R.id.spinner_log_filter_league)
+        spinnerLogFilterTeam = findViewById(R.id.spinner_log_filter_team)
+        spinnerLogFilterTimeframe = findViewById(R.id.spinner_log_filter_timeframe)
+        btnCopyBattleLog = findViewById(R.id.btn_copy_battle_log)
+        btnShareBattleLog = findViewById(R.id.btn_share_battle_log)
 
         btnNavTeams.setOnClickListener { switchMainPage("teams") }
         btnNavSettings.setOnClickListener { switchMainPage("settings") }
@@ -251,6 +316,19 @@ class MainActivity : AppCompatActivity() {
 
         updateOppCountBasisUi()
         updateOppChargedMovesUi()
+
+        editSyncGithubToken.setText(prefs.getString(PREFS_KEY_SYNC_GITHUB_TOKEN, "") ?: "")
+        editSyncGistId.setText(prefs.getString(PREFS_KEY_SYNC_GIST_ID, "") ?: "")
+        updateSyncStatusUi()
+
+        btnSyncDevicesSettings.setOnClickListener {
+            saveSyncCredentialsFromInputs()
+            triggerTwoDeviceCloudSync(silent = false)
+        }
+
+        btnSyncBundleSettings.setOnClickListener {
+            showSyncBundleDialog()
+        }
 
         val savedScalePct = prefs.getInt(PREFS_KEY_OVERLAY_SCALE_PCT, DEFAULT_OVERLAY_SCALE_PCT).coerceIn(50, 100)
         seekbarOverlayScale.progress = scalePctToProgress(savedScalePct)
@@ -285,10 +363,43 @@ class MainActivity : AppCompatActivity() {
             showPresetEditorDialog(null)
         }
 
+        btnLogManualBattle.setOnClickListener {
+            showEditOrCreateBattleLogDialog(null)
+        }
+
+        btnSyncBattleLog.setOnClickListener {
+            saveSyncCredentialsFromInputs()
+            if (prefs.getString(PREFS_KEY_SYNC_GITHUB_TOKEN, "").isNullOrBlank()) {
+                showSyncBundleDialog()
+            } else {
+                triggerTwoDeviceCloudSync(silent = false)
+            }
+        }
+
+        btnCopyBattleLog.setOnClickListener {
+            showExportTimeframeDialog(isShareIntent = false)
+        }
+
+        btnShareBattleLog.setOnClickListener {
+            showExportTimeframeDialog(isShareIntent = true)
+        }
+
         btnClearBattleLog.setOnClickListener {
-            prefs.edit().remove(PREFS_KEY_BATTLE_LOGS).apply()
-            renderBattleLogPage()
-            Toast.makeText(this, "Battle log cleared", Toast.LENGTH_SHORT).show()
+            AlertDialog.Builder(this)
+                .setTitle("Clear Filtered or All Battle Logs?")
+                .setMessage("Deleted battle IDs will be recorded as tombstones so syncing reconciles across devices.")
+                .setPositiveButton("Clear All Logs") { _, _ ->
+                    val existing = loadBattleLogs()
+                    val delIds = loadDeletedLogIds().toMutableSet()
+                    existing.forEach { delIds.add(it.id) }
+                    saveDeletedLogIds(delIds.toList())
+                    prefs.edit().putString(PREFS_KEY_BATTLE_LOGS, "[]").apply()
+                    renderBattleLogPage()
+                    triggerTwoDeviceCloudSync(silent = true)
+                    Toast.makeText(this, "Battle log cleared", Toast.LENGTH_SHORT).show()
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
         }
 
         btnToggleOppCountBasis.setOnClickListener {
@@ -388,26 +499,567 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun saveSyncCredentialsFromInputs() {
+        val tok = editSyncGithubToken.text.toString().trim()
+        val gist = editSyncGistId.text.toString().trim()
+        prefs.edit()
+            .putString(PREFS_KEY_SYNC_GITHUB_TOKEN, tok)
+            .putString(PREFS_KEY_SYNC_GIST_ID, gist)
+            .apply()
+        updateSyncStatusUi()
+    }
+
+    private fun updateSyncStatusUi() {
+        val lastAt = prefs.getLong(PREFS_KEY_SYNC_LAST_AT, 0L)
+        val gistId = prefs.getString(PREFS_KEY_SYNC_GIST_ID, "")?.trim().orEmpty()
+        val hasToken = !prefs.getString(PREFS_KEY_SYNC_GITHUB_TOKEN, "").isNullOrBlank()
+        val timeFmt = java.text.SimpleDateFormat("MMM d, h:mm a", java.util.Locale.US)
+        val lastStr = if (lastAt > 0L) timeFmt.format(java.util.Date(lastAt)) else "Never"
+        val vaultShort = if (gistId.isNotEmpty()) "Vault: ${gistId.take(8)}…" else if (hasToken) "Vault: Auto-discover" else "No token set"
+        textSyncStatus.text = "Last Sync: $lastStr • $vaultShort • Logs: ${loadBattleLogs().size} • Teams: ${loadPresets().size}"
+    }
+
+    private fun triggerTwoDeviceCloudSync(silent: Boolean) {
+        val tok = prefs.getString(PREFS_KEY_SYNC_GITHUB_TOKEN, "")?.trim().orEmpty()
+        if (tok.isEmpty()) {
+            if (!silent) {
+                Toast.makeText(this, "Enter a GitHub Token in Settings or use Sync Bundle", Toast.LENGTH_LONG).show()
+            }
+            return
+        }
+        if (!silent) {
+            textSyncStatus.text = "☁️ Reconciling deltas with cloud vault..."
+            btnSyncDevicesSettings.isEnabled = false
+            btnSyncBattleLog.isEnabled = false
+        }
+        lifecycleScope.launch(Dispatchers.IO) {
+            val (ok, msg) = OverlayService.syncWithGitHubGistBlocking(prefs, gson)
+            withContext(Dispatchers.Main) {
+                btnSyncDevicesSettings.isEnabled = true
+                btnSyncBattleLog.isEnabled = true
+                editSyncGistId.setText(prefs.getString(PREFS_KEY_SYNC_GIST_ID, "") ?: "")
+                updateSyncStatusUi()
+                refreshPresetsUi()
+                setupBattleLogFilters()
+                renderBattleLogPage()
+                if (!silent || ok) {
+                    if (!silent) {
+                        Toast.makeText(this@MainActivity, msg, Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+        }
+    }
+
+    private fun showSyncBundleDialog() {
+        val localVault = OverlayService.buildLocalSyncVaultPayload(prefs, gson)
+        val bundleJson = gson.toJson(localVault)
+        val input = EditText(this).apply {
+            hint = "Paste Sync Bundle JSON from your other device here..."
+            setTextColor(0xFFF8FAFC.toInt())
+            setHintTextColor(0xFF64748B.toInt())
+            setBackgroundColor(0xFF0F172A.toInt())
+            textSize = 11f
+            minLines = 4
+            maxLines = 8
+            val pad = (10 * resources.displayMetrics.density).toInt()
+            setPadding(pad, pad, pad, pad)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("📦 Two-Device Delta Sync Bundle")
+            .setMessage("Copy this device's Sync Bundle to share with your second device, or paste a Sync Bundle below to reconcile deltas (Logs + Teams):")
+            .setView(input)
+            .setPositiveButton("Merge Pasted Bundle") { _, _ ->
+                val raw = input.text.toString().trim()
+                if (raw.isEmpty()) {
+                    Toast.makeText(this, "Paste a Sync Bundle JSON first", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                try {
+                    val incoming = gson.fromJson(raw, OverlayService.Companion.SyncVaultPayload::class.java)
+                    if (incoming == null) throw Exception("Invalid JSON")
+                    val (merged, newLogs, newTeams) = OverlayService.reconcileSyncVaultPayloads(localVault, incoming)
+                    OverlayService.saveReconciledSyncVaultLocally(prefs, gson, merged)
+                    refreshPresetsUi()
+                    setupBattleLogFilters()
+                    renderBattleLogPage()
+                    updateSyncStatusUi()
+                    Toast.makeText(
+                        this,
+                        "Reconciled! +$newLogs battles & +$newTeams teams merged.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                } catch (e: Exception) {
+                    Toast.makeText(this, "Invalid Sync Bundle: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+                }
+            }
+            .setNeutralButton("📋 Copy My Bundle") { _, _ ->
+                val cm = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                cm.setPrimaryClip(android.content.ClipData.newPlainText("BattleMatrix Sync Bundle", bundleJson))
+                Toast.makeText(this, "Sync Bundle copied to clipboard!", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun parseIsoDateMs(isoStr: String?): Long? {
+        if (isoStr.isNullOrBlank()) return null
+        val clean = isoStr.trim()
+        val patterns = listOf(
+            "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+            "yyyy-MM-dd'T'HH:mm:ss.SSS",
+            "yyyy-MM-dd'T'HH:mm:ss'Z'",
+            "yyyy-MM-dd'T'HH:mm:ss",
+            "yyyy-MM-dd"
+        )
+        for (pat in patterns) {
+            try {
+                val sdf = java.text.SimpleDateFormat(pat, java.util.Locale.US)
+                if (clean.endsWith("Z")) {
+                    sdf.timeZone = java.util.TimeZone.getTimeZone("UTC")
+                }
+                val d = sdf.parse(clean)
+                if (d != null) return d.time
+            } catch (_: Exception) {}
+        }
+        return null
+    }
+
+    private fun ensureDefaultSeasons() {
+        val existing = loadSeasons()
+        if (existing.isEmpty()) {
+            val defaults = getDefaultSeededSeasons()
+            saveSeasons(defaults)
+        }
+    }
+
+    private fun getDefaultSeededSeasons(): List<GblSeasonInfo> {
+        return listOf(
+            GblSeasonInfo(
+                id = "season-21-max-out",
+                name = "Max Out",
+                startMs = parseIsoDateMs("2024-09-03T10:00:00.000") ?: 1725357600000L,
+                endMs = parseIsoDateMs("2024-12-03T10:00:00.000") ?: 1733220000000L
+            ),
+            GblSeasonInfo(
+                id = "season-22-dual-destiny",
+                name = "Dual Destiny",
+                startMs = parseIsoDateMs("2024-12-03T10:00:00.000") ?: 1733220000000L,
+                endMs = parseIsoDateMs("2025-03-04T10:00:00.000") ?: 1741082400000L
+            ),
+            GblSeasonInfo(
+                id = "season-23-summer-2026",
+                name = "Previous GBL Season",
+                startMs = parseIsoDateMs("2026-06-01T10:00:00.000") ?: 1780308000000L,
+                endMs = parseIsoDateMs("2026-09-08T10:00:00.000") ?: 1788861600000L
+            ),
+            GblSeasonInfo(
+                id = "season-24-twilight-trails",
+                name = "Twilight Trails",
+                startMs = parseIsoDateMs("2026-09-08T10:00:00.000") ?: 1788861600000L,
+                endMs = parseIsoDateMs("2026-12-01T10:00:00.000") ?: 1796119200000L
+            )
+        )
+    }
+
+    private fun loadSeasons(): List<GblSeasonInfo> {
+        val raw = prefs.getString(PREFS_KEY_GBL_SEASONS_JSON, null)
+        if (!raw.isNullOrBlank()) {
+            try {
+                val type = object : TypeToken<List<GblSeasonInfo>>() {}.type
+                val parsed: List<GblSeasonInfo>? = gson.fromJson(raw, type)
+                if (!parsed.isNullOrEmpty()) return parsed.sortedBy { it.startMs }
+            } catch (_: Exception) {}
+        }
+        return getDefaultSeededSeasons().sortedBy { it.startMs }
+    }
+
+    private fun saveSeasons(seasons: List<GblSeasonInfo>) {
+        prefs.edit().putString(PREFS_KEY_GBL_SEASONS_JSON, gson.toJson(seasons.sortedBy { it.startMs })).apply()
+    }
+
+    private fun fetchSeasonsFromScrapedDuck() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val req = Request.Builder().url(SCRAPEDDUCK_EVENTS_URL).build()
+                client.newCall(req).execute().use { resp ->
+                    if (!resp.isSuccessful) return@use
+                    val body = resp.body?.string() ?: return@use
+                    val arr = com.google.gson.JsonParser.parseString(body).asJsonArray
+                    val currentList = loadSeasons().toMutableList()
+                    var didUpdate = false
+
+                    for (el in arr) {
+                        val obj = el.asJsonObject
+                        val eventType = obj.get("eventType")?.takeIf { !it.isJsonNull }?.asString.orEmpty()
+                        val heading = obj.get("heading")?.takeIf { !it.isJsonNull }?.asString.orEmpty()
+                        if (eventType.equals("season", ignoreCase = true) || heading.equals("Season", ignoreCase = true)) {
+                            val id = obj.get("eventID")?.takeIf { !it.isJsonNull }?.asString ?: "scraped-season"
+                            val name = obj.get("name")?.takeIf { !it.isJsonNull }?.asString ?: "Current Season"
+                            val startStr = obj.get("start")?.takeIf { !it.isJsonNull }?.asString
+                            val endStr = obj.get("end")?.takeIf { !it.isJsonNull }?.asString
+                            val startMs = parseIsoDateMs(startStr)
+                            val endMs = parseIsoDateMs(endStr)
+                            if (startMs != null && endMs != null && endMs > startMs) {
+                                val scraped = GblSeasonInfo(id = id, name = name, startMs = startMs, endMs = endMs)
+                                val existingIdx = currentList.indexOfFirst {
+                                    it.id.equals(id, ignoreCase = true) || kotlin.math.abs(it.startMs - startMs) < 86400000L * 5
+                                }
+                                if (existingIdx >= 0) {
+                                    currentList[existingIdx] = scraped
+                                } else {
+                                    currentList.add(scraped)
+                                }
+                                // Ensure a Previous Season window exists immediately prior to startMs (approx 90 days)
+                                val ninetyDaysMs = 90L * 24L * 3600L * 1000L
+                                val hasPrev = currentList.any { it.endMs in (startMs - 86400000L * 7)..(startMs + 86400000L * 2) && it.startMs < startMs }
+                                if (!hasPrev) {
+                                    currentList.add(
+                                        GblSeasonInfo(
+                                            id = "prev-to-$id",
+                                            name = "Previous GBL Season",
+                                            startMs = startMs - ninetyDaysMs,
+                                            endMs = startMs
+                                        )
+                                    )
+                                }
+                                didUpdate = true
+                            }
+                        }
+                    }
+
+                    if (didUpdate) {
+                        saveSeasons(currentList)
+                        withContext(Dispatchers.Main) {
+                            setupBattleLogFilters()
+                            renderBattleLogPage()
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+    }
+
+    private fun getCurrentAndPreviousSeason(): Pair<GblSeasonInfo, GblSeasonInfo> {
+        val sorted = loadSeasons().sortedBy { it.startMs }
+        val now = System.currentTimeMillis()
+        val currentIdx = sorted.indexOfLast { now >= it.startMs && now <= it.endMs }
+            .takeIf { it >= 0 } ?: sorted.lastIndex.coerceAtLeast(0)
+        val current = sorted.getOrElse(currentIdx) {
+            GblSeasonInfo("season-curr", "Current Season", now - 45L * 86400000L, now + 45L * 86400000L)
+        }
+        val prev = if (currentIdx > 0) {
+            sorted[currentIdx - 1]
+        } else {
+            val ninetyDaysMs = 90L * 86400000L
+            GblSeasonInfo("season-prev", "Previous Season", current.startMs - ninetyDaysMs, current.startMs)
+        }
+        return current to prev
+    }
+
     private fun loadBattleLogs(): List<BattleLogEntry> {
         val raw = prefs.getString(PREFS_KEY_BATTLE_LOGS, null) ?: return emptyList()
         return try {
             val type = object : TypeToken<List<BattleLogEntry>>() {}.type
-            gson.fromJson<List<BattleLogEntry>>(raw, type) ?: emptyList()
+            val parsed: List<BattleLogEntry> = gson.fromJson<List<BattleLogEntry>>(raw, type) ?: emptyList()
+            val deleted = loadDeletedLogIds().toSet()
+            parsed.filter { it.id !in deleted }.sortedByDescending { it.timestampMs }
         } catch (_: Exception) {
             emptyList()
         }
     }
 
+    private fun saveBattleLogs(logs: List<BattleLogEntry>) {
+        prefs.edit().putString(PREFS_KEY_BATTLE_LOGS, gson.toJson(logs.sortedByDescending { it.timestampMs })).apply()
+    }
+
+    private fun loadDeletedLogIds(): List<String> {
+        val raw = prefs.getString(PREFS_KEY_DELETED_LOG_IDS, null) ?: return emptyList()
+        return try {
+            val type = object : TypeToken<List<String>>() {}.type
+            gson.fromJson<List<String>>(raw, type) ?: emptyList()
+        } catch (_: Exception) { emptyList() }
+    }
+
+    private fun saveDeletedLogIds(ids: List<String>) {
+        prefs.edit().putString(PREFS_KEY_DELETED_LOG_IDS, gson.toJson(ids.distinct())).apply()
+    }
+
+    private fun loadDeletedTeamIds(): List<String> {
+        val raw = prefs.getString(PREFS_KEY_DELETED_TEAM_IDS, null) ?: return emptyList()
+        return try {
+            val type = object : TypeToken<List<String>>() {}.type
+            gson.fromJson<List<String>>(raw, type) ?: emptyList()
+        } catch (_: Exception) { emptyList() }
+    }
+
+    private fun saveDeletedTeamIds(ids: List<String>) {
+        prefs.edit().putString(PREFS_KEY_DELETED_TEAM_IDS, gson.toJson(ids.distinct())).apply()
+    }
+
+    private fun setupBattleLogFilters() {
+        if (!::spinnerLogFilterLeague.isInitialized) return
+        isUpdatingLogFilterSpinners = true
+
+        val leagueLabels = listOf(
+            "All Leagues",
+            "GREAT LEAGUE",
+            "ULTRA LEAGUE",
+            "MASTER LEAGUE",
+            "MEGA MASTER LEAGUE"
+        )
+        val leagueKeys = listOf(
+            "ALL",
+            "GREAT LEAGUE",
+            "ULTRA LEAGUE",
+            "MASTER LEAGUE",
+            "MEGA MASTER LEAGUE"
+        )
+        spinnerLogFilterLeague.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, leagueLabels)
+        val lgIdx = leagueKeys.indexOf(selectedLogLeagueFilter).takeIf { it >= 0 } ?: 0
+        spinnerLogFilterLeague.setSelection(lgIdx, false)
+
+        val allPresets = loadPresets()
+        val matchingPresets = if (selectedLogLeagueFilter == "ALL") {
+            allPresets
+        } else {
+            allPresets.filter { it.league.equals(selectedLogLeagueFilter, ignoreCase = true) }
+        }
+        val teamLabels = listOf("All Teams") + matchingPresets.map { it.name }
+        val teamKeys = listOf("ALL") + matchingPresets.map { it.name }
+        spinnerLogFilterTeam.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, teamLabels)
+        val tmIdx = teamKeys.indexOf(selectedLogTeamFilter).takeIf { it >= 0 } ?: 0
+        if (tmIdx == 0) selectedLogTeamFilter = "ALL"
+        spinnerLogFilterTeam.setSelection(tmIdx, false)
+
+        val (currSeason, _) = getCurrentAndPreviousSeason()
+        val dateFmt = java.text.SimpleDateFormat("MMM d", java.util.Locale.US)
+        val timeframeLabels = listOf(
+            "All Time",
+            "Today (Day)",
+            "This Week (Last 7d)",
+            "Current Season (${currSeason.name} • ${dateFmt.format(java.util.Date(currSeason.startMs))})",
+            "Previous Season"
+        )
+        val timeframeKeys = listOf(
+            "ALL_TIME",
+            "DAY",
+            "WEEK",
+            "CURRENT_SEASON",
+            "PREVIOUS_SEASON"
+        )
+        spinnerLogFilterTimeframe.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, timeframeLabels)
+        val tfIdx = timeframeKeys.indexOf(selectedLogTimeframeFilter).takeIf { it >= 0 } ?: 0
+        spinnerLogFilterTimeframe.setSelection(tfIdx, false)
+
+        spinnerLogFilterLeague.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
+                if (isUpdatingLogFilterSpinners) return
+                val nextLg = leagueKeys.getOrElse(position) { "ALL" }
+                if (nextLg != selectedLogLeagueFilter) {
+                    selectedLogLeagueFilter = nextLg
+                    selectedLogTeamFilter = "ALL"
+                    setupBattleLogFilters()
+                    renderBattleLogPage()
+                }
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
+
+        spinnerLogFilterTeam.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
+                if (isUpdatingLogFilterSpinners) return
+                val nextTm = teamKeys.getOrElse(position) { "ALL" }
+                if (nextTm != selectedLogTeamFilter) {
+                    selectedLogTeamFilter = nextTm
+                    renderBattleLogPage()
+                }
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
+
+        spinnerLogFilterTimeframe.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
+                if (isUpdatingLogFilterSpinners) return
+                val nextTf = timeframeKeys.getOrElse(position) { "ALL_TIME" }
+                if (nextTf != selectedLogTimeframeFilter) {
+                    selectedLogTimeframeFilter = nextTf
+                    renderBattleLogPage()
+                }
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
+
+        isUpdatingLogFilterSpinners = false
+    }
+
+    private fun filterBattleLogs(
+        logs: List<BattleLogEntry>,
+        leagueFilter: String,
+        teamFilter: String,
+        timeframeKey: String
+    ): List<BattleLogEntry> {
+        val (currSeason, prevSeason) = getCurrentAndPreviousSeason()
+        val cal = java.util.Calendar.getInstance()
+        cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
+        cal.set(java.util.Calendar.MINUTE, 0)
+        cal.set(java.util.Calendar.SECOND, 0)
+        cal.set(java.util.Calendar.MILLISECOND, 0)
+        val startOfTodayMs = cal.timeInMillis
+        val sevenDaysAgoMs = startOfTodayMs - 6L * 86400000L
+
+        return logs.filter { entry ->
+            val leagueOk = leagueFilter == "ALL" || entry.league.equals(leagueFilter, ignoreCase = true)
+            val teamOk = teamFilter == "ALL" || entry.userTeamName.equals(teamFilter, ignoreCase = true)
+            val timeOk = when (timeframeKey) {
+                "DAY" -> entry.timestampMs >= startOfTodayMs
+                "WEEK" -> entry.timestampMs >= sevenDaysAgoMs
+                "CURRENT_SEASON" -> entry.timestampMs in currSeason.startMs..currSeason.endMs
+                "PREVIOUS_SEASON" -> entry.timestampMs >= prevSeason.startMs && entry.timestampMs < currSeason.startMs
+                else -> true
+            }
+            leagueOk && teamOk && timeOk
+        }
+    }
+
+    private fun buildPlainTextExport(
+        logs: List<BattleLogEntry>,
+        leagueFilter: String,
+        teamFilter: String,
+        timeframeKey: String
+    ): String {
+        val filtered = filterBattleLogs(logs, leagueFilter, teamFilter, timeframeKey)
+        val (currSeason, prevSeason) = getCurrentAndPreviousSeason()
+        val dateFmt = java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.US)
+        val timeFmt = java.text.SimpleDateFormat("h:mm a", java.util.Locale.US)
+
+        val rangeLabel = when (timeframeKey) {
+            "DAY" -> "Today (${dateFmt.format(java.util.Date())})"
+            "WEEK" -> "This Week (Last 7 Days)"
+            "CURRENT_SEASON" -> "Current Season (${currSeason.name} • Since ${dateFmt.format(java.util.Date(currSeason.startMs))})"
+            "PREVIOUS_SEASON" -> "Previous Season (${dateFmt.format(java.util.Date(prevSeason.startMs))} – ${dateFmt.format(java.util.Date(prevSeason.endMs))})"
+            else -> "All Time"
+        }
+
+        val wins = filtered.count { it.result.equals("WIN", ignoreCase = true) }
+        val losses = filtered.count { it.result.equals("LOSS", ignoreCase = true) }
+        val total = wins + losses
+        val winPct = if (total > 0) Math.round((wins.toDouble() / total.toDouble()) * 100.0).toInt() else 0
+        val favCount = filtered.count { it.leadMatchup.equals("FAVORABLE", ignoreCase = true) }
+        val neuCount = filtered.count { it.leadMatchup.equals("NEUTRAL", ignoreCase = true) || it.leadMatchup.isBlank() }
+        val negCount = filtered.count { it.leadMatchup.equals("NEGATIVE", ignoreCase = true) }
+
+        val sb = StringBuilder()
+        val leagueTitle = if (leagueFilter == "ALL") "All Leagues" else leagueFilter
+        val teamTitle = if (teamFilter == "ALL") "All Teams" else teamFilter
+        sb.append("BattleMatrix GBL Log — $leagueTitle\n")
+        sb.append("Team: $teamTitle\n")
+        sb.append("Range: $rangeLabel\n")
+        sb.append("Overall Record: ${wins}W - ${losses}L ($winPct%) • Leads: $favCount Fav / $neuCount Neu / $negCount Neg\n")
+
+        if (filtered.isEmpty()) {
+            sb.append("\nNo battles logged in this timeframe.\n")
+            return sb.toString()
+        }
+
+        val groupedByDay = filtered.groupBy { dateFmt.format(java.util.Date(it.timestampMs)) }
+        for ((dayStr, dayEntries) in groupedByDay) {
+            val dWins = dayEntries.count { it.result.equals("WIN", ignoreCase = true) }
+            val dLosses = dayEntries.count { it.result.equals("LOSS", ignoreCase = true) }
+            val dTotal = dWins + dLosses
+            val dPct = if (dTotal > 0) Math.round((dWins.toDouble() / dTotal.toDouble()) * 100.0).toInt() else 0
+            val dFav = dayEntries.count { it.leadMatchup.equals("FAVORABLE", ignoreCase = true) }
+            val dNeu = dayEntries.count { it.leadMatchup.equals("NEUTRAL", ignoreCase = true) || it.leadMatchup.isBlank() }
+            val dNeg = dayEntries.count { it.leadMatchup.equals("NEGATIVE", ignoreCase = true) }
+
+            sb.append("\n=== $dayStr — Daily Record: ${dWins}W - ${dLosses}L ($dPct%) [Leads: $dFav Fav, $dNeu Neu, $dNeg Neg] ===\n")
+            for (entry in dayEntries) {
+                val tStr = timeFmt.format(java.util.Date(entry.timestampMs))
+                val resPad = if (entry.result.equals("WIN", ignoreCase = true)) "WIN " else "LOSS"
+                val leadDisplay = when (entry.leadMatchup.uppercase()) {
+                    "FAVORABLE" -> "Favorable"
+                    "NEGATIVE" -> "Negative"
+                    else -> "Neutral"
+                }
+                val oppOrdered = if (entry.opponents.isEmpty()) {
+                    "Unknown Opponents"
+                } else {
+                    entry.opponents.mapIndexed { idx, opp ->
+                        val ord = when (idx) { 0 -> "1st"; 1 -> "2nd"; else -> "3rd" }
+                        "$ord: $opp"
+                    }.joinToString(", ")
+                }
+                sb.append("[$tStr] $resPad | Lead: $leadDisplay | ${entry.userTeamName} vs. $oppOrdered\n")
+            }
+        }
+        return sb.toString().trim()
+    }
+
+    private fun showExportTimeframeDialog(isShareIntent: Boolean) {
+        val allLogs = loadBattleLogs()
+        val (currSeason, prevSeason) = getCurrentAndPreviousSeason()
+        val dateFmt = java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.US)
+        val options = arrayOf(
+            "Today (Day)",
+            "This Week (Last 7 Days)",
+            "Current Season (${currSeason.name} • Since ${dateFmt.format(java.util.Date(currSeason.startMs))})",
+            "Previous Season (${dateFmt.format(java.util.Date(prevSeason.startMs))} – ${dateFmt.format(java.util.Date(prevSeason.endMs))})",
+            "All Time"
+        )
+        val keys = arrayOf("DAY", "WEEK", "CURRENT_SEASON", "PREVIOUS_SEASON", "ALL_TIME")
+
+        AlertDialog.Builder(this)
+            .setTitle(if (isShareIntent) "📤 Share Battle Log — Select Range" else "📋 Copy Battle Log — Select Range")
+            .setItems(options) { _, which ->
+                val chosenKey = keys.getOrElse(which) { "ALL_TIME" }
+                val exportText = buildPlainTextExport(
+                    allLogs,
+                    selectedLogLeagueFilter,
+                    selectedLogTeamFilter,
+                    chosenKey
+                )
+                if (isShareIntent) {
+                    val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_SUBJECT, "BattleMatrix GBL Battle Log")
+                        putExtra(Intent.EXTRA_TEXT, exportText)
+                    }
+                    startActivity(Intent.createChooser(sendIntent, "Share GBL Battle Log"))
+                } else {
+                    val cm = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                    cm.setPrimaryClip(android.content.ClipData.newPlainText("GBL Battle Log", exportText))
+                    Toast.makeText(this, "Copied ${options[which]} log to clipboard!", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
     private fun renderBattleLogPage() {
-        val logs = loadBattleLogs()
-        val selectedPreset = getSelectedPreset()
-        textBattleLogTotal.text = "${logs.size} Matches"
-        textBattleLogLeague.text = selectedPreset?.league ?: "GREAT LEAGUE"
-        textBattleLogWinrate.text = if (logs.isEmpty()) "Ready" else "${logs.size} Logged"
+        val allLogs = loadBattleLogs()
+        val filtered = filterBattleLogs(
+            allLogs,
+            selectedLogLeagueFilter,
+            selectedLogTeamFilter,
+            selectedLogTimeframeFilter
+        )
+        val wins = filtered.count { it.result.equals("WIN", ignoreCase = true) }
+        val losses = filtered.count { it.result.equals("LOSS", ignoreCase = true) }
+        val total = wins + losses
+        val winPct = if (total > 0) Math.round((wins.toDouble() / total.toDouble()) * 100.0).toInt() else 0
+        val favCount = filtered.count { it.leadMatchup.equals("FAVORABLE", ignoreCase = true) }
+        val neuCount = filtered.count { it.leadMatchup.equals("NEUTRAL", ignoreCase = true) || it.leadMatchup.isBlank() }
+        val negCount = filtered.count { it.leadMatchup.equals("NEGATIVE", ignoreCase = true) }
+
+        textBattleLogTotal.text = "${wins}W - ${losses}L ($total)"
+        textBattleLogLeague.text = "$favCount Fav · $neuCount Neu · $negCount Neg"
+        textBattleLogWinrate.text = if (total == 0) "—%" else "$winPct%"
 
         battleLogContainer.removeAllViews()
         val density = resources.displayMetrics.density
-        if (logs.isEmpty()) {
+        if (filtered.isEmpty()) {
+            val selectedPreset = getSelectedPreset()
+            val (currSeason, _) = getCurrentAndPreviousSeason()
             val emptyCard = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 setBackgroundColor(0xFF1E293B.toInt())
@@ -415,17 +1067,15 @@ class MainActivity : AppCompatActivity() {
                 setPadding(pad, pad, pad, pad)
             }
             val titleTv = TextView(this).apply {
-                text = "📜 Battle Logging Provisioned & Ready"
+                text = "📜 No Battles Logged in Selected Filter"
                 setTextColor(0xFFF8FAFC.toInt())
                 textSize = 14f
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
             }
             val descTv = TextView(this).apply {
-                text = "This page is provisioned to record your GBL battles, including:\n" +
-                    "• Active Team Preset & League (${selectedPreset?.name ?: "Active Team"})\n" +
-                    "• Scanned Opponent Lead, Safe Swap & Closer Pokémon\n" +
-                    "• Matchup Matrix & Shield Telemetry History\n\n" +
-                    "Battles logged from the overlay will automatically appear here in chronological order."
+                text = "• Tap '⚔️ Start Battle' on the floating overlay during battle to log 🏆 Win or 💀 Loss with automatic Lead Matchup (${selectedPreset?.name ?: "Active Team"}).\n" +
+                    "• Active Season (ScrapedDuck API): ${currSeason.name}\n" +
+                    "• Tap any logged battle card to open the Interactive Overlay Matchup Replay!"
                 setTextColor(0xFF94A3B8.toInt())
                 textSize = 12f
                 setPadding(0, (6 * density).toInt(), 0, 0)
@@ -433,13 +1083,50 @@ class MainActivity : AppCompatActivity() {
             emptyCard.addView(titleTv)
             emptyCard.addView(descTv)
             battleLogContainer.addView(emptyCard)
-        } else {
-            val fmt = java.text.SimpleDateFormat("MMM d, h:mm a", java.util.Locale.US)
-            logs.forEachIndexed { idx, entry ->
+            return
+        }
+
+        val dayFmt = java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.US)
+        val timeFmt = java.text.SimpleDateFormat("h:mm a", java.util.Locale.US)
+        val groupedByDay = filtered.groupBy { dayFmt.format(java.util.Date(it.timestampMs)) }
+
+        for ((dayStr, dayEntries) in groupedByDay) {
+            val dWins = dayEntries.count { it.result.equals("WIN", ignoreCase = true) }
+            val dLosses = dayEntries.count { it.result.equals("LOSS", ignoreCase = true) }
+            val dTotal = dWins + dLosses
+            val dPct = if (dTotal > 0) Math.round((dWins.toDouble() / dTotal.toDouble()) * 100.0).toInt() else 0
+            val dFav = dayEntries.count { it.leadMatchup.equals("FAVORABLE", ignoreCase = true) }
+            val dNeu = dayEntries.count { it.leadMatchup.equals("NEUTRAL", ignoreCase = true) || it.leadMatchup.isBlank() }
+            val dNeg = dayEntries.count { it.leadMatchup.equals("NEGATIVE", ignoreCase = true) }
+
+            val dayHeader = TextView(this).apply {
+                text = "📅 $dayStr — Daily Record: ${dWins}W - ${dLosses}L ($dPct%) • Leads: $dFav Fav / $dNeu Neu / $dNeg Neg"
+                setTextColor(0xFF38BDF8.toInt())
+                textSize = 11.5f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                val padV = (6 * density).toInt()
+                setPadding((4 * density).toInt(), padV, (4 * density).toInt(), padV)
+            }
+            battleLogContainer.addView(dayHeader)
+
+            for (entry in dayEntries) {
+                val isWin = entry.result.equals("WIN", ignoreCase = true)
+                val leadUp = entry.leadMatchup.uppercase()
+                val leadBadgeText = when (leadUp) {
+                    "FAVORABLE" -> "Lead: Favorable"
+                    "NEGATIVE" -> "Lead: Negative"
+                    else -> "Lead: Neutral"
+                }
+                val leadColor = when (leadUp) {
+                    "FAVORABLE" -> 0xFF4ADE80.toInt()
+                    "NEGATIVE" -> 0xFFF87171.toInt()
+                    else -> 0xFFCBD5E1.toInt()
+                }
+
                 val card = LinearLayout(this).apply {
                     orientation = LinearLayout.VERTICAL
                     setBackgroundColor(0xFF1E293B.toInt())
-                    val pad = (12 * density).toInt()
+                    val pad = (11 * density).toInt()
                     setPadding(pad, pad, pad, pad)
                     layoutParams = LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.MATCH_PARENT,
@@ -447,25 +1134,426 @@ class MainActivity : AppCompatActivity() {
                     ).apply {
                         bottomMargin = (8 * density).toInt()
                     }
+                    setOnClickListener {
+                        showInteractiveBattleReplayDialog(entry)
+                    }
                 }
-                val hdr = TextView(this).apply {
-                    text = "#${logs.size - idx} • ${entry.league} • ${fmt.format(java.util.Date(entry.timestampMs))}"
-                    setTextColor(0xFF38BDF8.toInt())
+
+                val topRow = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = android.view.Gravity.CENTER_VERTICAL
+                }
+
+                val resultTv = TextView(this).apply {
+                    text = if (isWin) "🏆 WIN" else "💀 LOSS"
+                    setTextColor(if (isWin) 0xFF4ADE80.toInt() else 0xFFF87171.toInt())
+                    textSize = 12f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                }
+
+                val leadTv = TextView(this).apply {
+                    text = "  •  $leadBadgeText"
+                    setTextColor(leadColor)
                     textSize = 11f
                     setTypeface(typeface, android.graphics.Typeface.BOLD)
                 }
-                val body = TextView(this).apply {
-                    val oppText = if (entry.opponents.isEmpty()) "No opponents recorded" else entry.opponents.joinToString(" / ")
-                    text = "Team: ${entry.userTeamName}\nVs: $oppText"
-                    setTextColor(0xFFE2E8F0.toInt())
-                    textSize = 12f
-                    setPadding(0, (4 * density).toInt(), 0, 0)
+
+                val metaTv = TextView(this).apply {
+                    text = "${entry.league.replace(" LEAGUE", "")} • ${timeFmt.format(java.util.Date(entry.timestampMs))}"
+                    setTextColor(0xFF94A3B8.toInt())
+                    textSize = 10.5f
+                    gravity = android.view.Gravity.END
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
                 }
-                card.addView(hdr)
-                card.addView(body)
+
+                topRow.addView(resultTv)
+                topRow.addView(leadTv)
+                topRow.addView(metaTv)
+
+                val teamTv = TextView(this).apply {
+                    text = "Team: ${entry.userTeamName}"
+                    setTextColor(0xFFCBD5E1.toInt())
+                    textSize = 11.5f
+                    setPadding(0, (4 * density).toInt(), 0, (2 * density).toInt())
+                }
+
+                val oppOrderedText = if (entry.opponents.isEmpty()) {
+                    "No opponents recorded"
+                } else {
+                    entry.opponents.mapIndexed { idx, opp ->
+                        val ord = when (idx) { 0 -> "1st"; 1 -> "2nd"; else -> "3rd" }
+                        "$ord: $opp"
+                    }.joinToString("  •  ")
+                }
+
+                val oppTv = TextView(this).apply {
+                    text = "Vs: $oppOrderedText"
+                    setTextColor(0xFFF8FAFC.toInt())
+                    textSize = 12f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                }
+
+                val actionsRow = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = android.view.Gravity.CENTER_VERTICAL
+                    setPadding(0, (6 * density).toInt(), 0, 0)
+                }
+
+                val replayHintBtn = TextView(this).apply {
+                    text = "🔍 Tap to Replay Overlay Matrix"
+                    setTextColor(0xFF38BDF8.toInt())
+                    textSize = 11f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                    setOnClickListener {
+                        showInteractiveBattleReplayDialog(entry)
+                    }
+                }
+
+                val editBtn = TextView(this).apply {
+                    text = "✏️ Edit"
+                    setTextColor(0xFFE2E8F0.toInt())
+                    textSize = 11f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    val padH = (8 * density).toInt()
+                    val padV = (3 * density).toInt()
+                    setPadding(padH, padV, padH, padV)
+                    setOnClickListener {
+                        showEditOrCreateBattleLogDialog(entry)
+                    }
+                }
+
+                val delBtn = TextView(this).apply {
+                    text = "🗑️ Delete"
+                    setTextColor(0xFFF87171.toInt())
+                    textSize = 11f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    val padH = (8 * density).toInt()
+                    val padV = (3 * density).toInt()
+                    setPadding(padH, padV, padH, padV)
+                    setOnClickListener {
+                        deleteBattleLogEntry(entry)
+                    }
+                }
+
+                actionsRow.addView(replayHintBtn)
+                actionsRow.addView(editBtn)
+                actionsRow.addView(delBtn)
+
+                card.addView(topRow)
+                card.addView(teamTv)
+                card.addView(oppTv)
+                card.addView(actionsRow)
                 battleLogContainer.addView(card)
             }
         }
+    }
+
+    private fun deleteBattleLogEntry(entry: BattleLogEntry) {
+        val current = loadBattleLogs().filter { it.id != entry.id }
+        saveBattleLogs(current)
+        val delIds = loadDeletedLogIds().toMutableList()
+        delIds.add(entry.id)
+        saveDeletedLogIds(delIds)
+        renderBattleLogPage()
+        updateSyncStatusUi()
+        triggerTwoDeviceCloudSync(silent = true)
+        Toast.makeText(this, "Battle deleted", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun showEditOrCreateBattleLogDialog(existing: BattleLogEntry?) {
+        val density = resources.displayMetrics.density
+        val pad = (14 * density).toInt()
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(0xFF0F172A.toInt())
+            setPadding(pad, pad, pad, pad)
+        }
+
+        val presets = loadPresets()
+        val selectedPreset = getSelectedPreset() ?: presets.firstOrNull()
+
+        // 1. Result Spinner (WIN / LOSS)
+        val resultLabel = TextView(this).apply {
+            text = "Battle Result"
+            setTextColor(0xFF94A3B8.toInt())
+            textSize = 11f
+        }
+        val resultsArr = arrayOf("WIN", "LOSS")
+        val spinnerResult = Spinner(this).apply {
+            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, resultsArr)
+            val idx = if (existing?.result.equals("LOSS", ignoreCase = true)) 1 else 0
+            setSelection(idx)
+        }
+
+        // 2. Lead Matchup Spinner (FAVORABLE / NEUTRAL / NEGATIVE)
+        val leadLabel = TextView(this).apply {
+            text = "Lead Matchup (1st Seen vs Your Lead)"
+            setTextColor(0xFF94A3B8.toInt())
+            textSize = 11f
+            setPadding(0, (8 * density).toInt(), 0, 0)
+        }
+        val leadsArr = arrayOf("FAVORABLE", "NEUTRAL", "NEGATIVE")
+        val spinnerLead = Spinner(this).apply {
+            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, leadsArr)
+            val idx = leadsArr.indexOfFirst { it.equals(existing?.leadMatchup ?: "NEUTRAL", ignoreCase = true) }.coerceAtLeast(0)
+            setSelection(idx)
+        }
+
+        // 3. Team Preset Spinner
+        val teamLabel = TextView(this).apply {
+            text = "Your Team Preset & League"
+            setTextColor(0xFF94A3B8.toInt())
+            textSize = 11f
+            setPadding(0, (8 * density).toInt(), 0, 0)
+        }
+        val presetDisplayNames = presets.map { "${it.name} (${it.league})" }
+        val spinnerPreset = Spinner(this).apply {
+            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, presetDisplayNames)
+            val initIdx = if (existing != null) {
+                presets.indexOfFirst { it.id == existing.presetId || it.name.equals(existing.userTeamName, ignoreCase = true) }
+                    .takeIf { it >= 0 } ?: 0
+            } else {
+                presets.indexOfFirst { it.id == selectedPreset?.id }.takeIf { it >= 0 } ?: 0
+            }
+            setSelection(initIdx)
+        }
+
+        val currentLeagueProvider = {
+            val chosenPreset = presets.getOrNull(spinnerPreset.selectedItemPosition)
+            chosenPreset?.league ?: existing?.league ?: "GREAT LEAGUE"
+        }
+
+        // 4. Opponents (1st seen, 2nd seen, 3rd seen) with Autocomplete
+        fun createOpponentAutoInput(hintText: String, initialValue: String): AutoCompleteTextView {
+            return AutoCompleteTextView(this).apply {
+                hint = hintText
+                setText(initialValue, false)
+                setTextColor(0xFFF8FAFC.toInt())
+                setHintTextColor(0xFF64748B.toInt())
+                textSize = 13f
+                threshold = 1
+                setAdapter(PokemonAutocompleteAdapter(currentLeagueProvider))
+            }
+        }
+
+        val oppLabel = TextView(this).apply {
+            text = "Opponent Team (Fixed Order: 1st Seen, 2nd Seen, 3rd Seen)"
+            setTextColor(0xFF94A3B8.toInt())
+            textSize = 11f
+            setPadding(0, (8 * density).toInt(), 0, 0)
+        }
+        val editOpp1 = createOpponentAutoInput("1st Seen Opponent (Lead)", existing?.opponents?.getOrNull(0) ?: "")
+        val editOpp2 = createOpponentAutoInput("2nd Seen Opponent (Switch)", existing?.opponents?.getOrNull(1) ?: "")
+        val editOpp3 = createOpponentAutoInput("3rd Seen Opponent (Closer)", existing?.opponents?.getOrNull(2) ?: "")
+
+        container.addView(resultLabel)
+        container.addView(spinnerResult)
+        container.addView(leadLabel)
+        container.addView(spinnerLead)
+        container.addView(teamLabel)
+        container.addView(spinnerPreset)
+        container.addView(oppLabel)
+        container.addView(editOpp1)
+        container.addView(editOpp2)
+        container.addView(editOpp3)
+
+        AlertDialog.Builder(this)
+            .setTitle(if (existing != null) "✏️ Modify Logged Battle" else "+ Log GBL Battle")
+            .setView(container)
+            .setPositiveButton("Save Battle") { _, _ ->
+                val chosenPreset = presets.getOrNull(spinnerPreset.selectedItemPosition) ?: selectedPreset
+                val opps = listOf(
+                    editOpp1.text.toString().trim(),
+                    editOpp2.text.toString().trim(),
+                    editOpp3.text.toString().trim()
+                ).filter { it.isNotEmpty() }
+
+                val nowMs = System.currentTimeMillis()
+                val updatedEntry = BattleLogEntry(
+                    id = existing?.id ?: "log-$nowMs-${(100..999).random()}",
+                    timestampMs = existing?.timestampMs ?: nowMs,
+                    updatedAt = nowMs,
+                    league = chosenPreset?.league ?: existing?.league ?: "GREAT LEAGUE",
+                    presetId = chosenPreset?.id ?: existing?.presetId ?: "",
+                    userTeamName = chosenPreset?.name ?: existing?.userTeamName ?: "Active Team",
+                    userPokemon = chosenPreset?.pokemon?.map { it.name } ?: existing?.userPokemon ?: emptyList(),
+                    opponents = opps,
+                    leadMatchup = leadsArr.getOrElse(spinnerLead.selectedItemPosition) { "NEUTRAL" },
+                    result = resultsArr.getOrElse(spinnerResult.selectedItemPosition) { "WIN" },
+                    deviceLabel = existing?.deviceLabel ?: (Build.MODEL ?: "Android")
+                )
+
+                val all = loadBattleLogs().toMutableList()
+                val idx = all.indexOfFirst { it.id == updatedEntry.id }
+                if (idx >= 0) {
+                    all[idx] = updatedEntry
+                } else {
+                    all.add(0, updatedEntry)
+                }
+                saveBattleLogs(all)
+                setupBattleLogFilters()
+                renderBattleLogPage()
+                updateSyncStatusUi()
+                triggerTwoDeviceCloudSync(silent = true)
+                Toast.makeText(this, "Battle saved!", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    @android.annotation.SuppressLint("SetJavaScriptEnabled")
+    private fun showInteractiveBattleReplayDialog(entry: BattleLogEntry) {
+        val presets = loadPresets()
+        val matchedPreset = presets.find {
+            (entry.presetId.isNotBlank() && it.id == entry.presetId) ||
+                it.name.equals(entry.userTeamName, ignoreCase = true)
+        } ?: getSelectedPreset()
+
+        val teamMembers: List<OverlayService.TeamMember> = if (matchedPreset != null && matchedPreset.pokemon.isNotEmpty()) {
+            matchedPreset.pokemon.map {
+                OverlayService.TeamMember(it.name, it.cp, it.fastMove, it.chargedMove1, it.chargedMove2, it.ivs)
+            }
+        } else {
+            val fallbackNames = if (entry.userPokemon.size >= 3) entry.userPokemon else getLeagueTop3Defaults(entry.league).map { it.name }
+            fallbackNames.map { monName ->
+                val rec = OverlayService.resolveRecommendedMovesForSpecies(monName, entry.league)
+                OverlayService.TeamMember(
+                    name = monName,
+                    cp = rec?.defaultCp ?: 1500,
+                    fastMove = rec?.defaultFastMove ?: "Fast Move",
+                    chargedMove1 = rec?.chargedMove1 ?: "Charged 1",
+                    chargedMove2 = rec?.chargedMove2 ?: "Charged 2"
+                )
+            }
+        }
+
+        val servicePreset = OverlayService.TeamPreset(
+            id = matchedPreset?.id ?: "replay-preset",
+            name = entry.userTeamName.ifBlank { matchedPreset?.name ?: "Replay Team" },
+            league = entry.league,
+            pokemon = teamMembers
+        )
+
+        val replayOpponents = if (entry.opponents.isNotEmpty()) {
+            entry.opponents
+        } else {
+            getLeagueTop3Defaults(entry.league).map { it.name }
+        }
+
+        val oppCountModeVal = prefs.getString(PREFS_KEY_OPP_COUNT_MODE, "my_fasts") ?: "my_fasts"
+        val enable4Val = prefs.getBoolean(PREFS_KEY_ENABLE_4_CHARGED_MOVES, false)
+
+        val replayEngine = OverlayService()
+        replayEngine.configureReplayState(
+            preset = servicePreset,
+            opponentsList = replayOpponents,
+            activeOppIdx = 0,
+            activeUserIdx = 0,
+            oppCountModeVal = oppCountModeVal,
+            enable4ChargedVal = enable4Val
+        )
+
+        val density = resources.displayMetrics.density
+        val dialogContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(0xFF0F172A.toInt())
+            val pad = (8 * density).toInt()
+            setPadding(pad, pad, pad, pad)
+        }
+
+        val hintTv = TextView(this).apply {
+            val leadTxt = when (entry.leadMatchup.uppercase()) {
+                "FAVORABLE" -> "Lead: Favorable"
+                "NEGATIVE" -> "Lead: Negative"
+                else -> "Lead: Neutral"
+            }
+            text = "🔍 Interactive Post-Game Overlay • ${entry.result} ($leadTxt)\nTap any of your 3 Pokémon chips, opponent rows (1st/2nd/3rd), or Shadow/Form buttons to inspect matchup lines:"
+            setTextColor(0xFF94A3B8.toInt())
+            textSize = 11f
+            setPadding((4 * density).toInt(), 0, (4 * density).toInt(), (6 * density).toInt())
+        }
+
+        val replayWebView = android.webkit.WebView(this).apply {
+            settings.javaScriptEnabled = true
+            settings.domStorageEnabled = true
+            settings.allowFileAccess = true
+            setBackgroundColor(0x00000000)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                (390 * density).toInt()
+            )
+        }
+
+        val pushReplayStateToWeb = {
+            val payloadJson = replayEngine.buildBattlePayloadJson(isReplayMode = true)
+            replayWebView.post {
+                replayWebView.evaluateJavascript("if (window. setOverlayTransparencyPct) setOverlayTransparencyPct(15);", null)
+                replayWebView.evaluateJavascript("if (window.updateBattleData) updateBattleData($payloadJson);", null)
+            }
+        }
+
+        val replayBridge = object {
+            @android.webkit.JavascriptInterface
+            fun selectActiveUserPokemon(pokemonName: String) {
+                val uIdx = teamMembers.indexOfFirst { it.name.equals(pokemonName, ignoreCase = true) }.coerceAtLeast(0)
+                replayEngine.configureReplayState(
+                    preset = servicePreset,
+                    opponentsList = replayOpponents,
+                    activeOppIdx = 0,
+                    activeUserIdx = uIdx,
+                    oppCountModeVal = oppCountModeVal,
+                    enable4ChargedVal = enable4Val
+                )
+                pushReplayStateToWeb()
+            }
+
+            @android.webkit.JavascriptInterface
+            fun swapActiveOpponent(pokemonName: String) {
+                replayEngine.swapActiveOpponent(pokemonName)
+                pushReplayStateToWeb()
+            }
+
+            @android.webkit.JavascriptInterface
+            fun toggleOpponentShadow() {
+                replayEngine.toggleShadowModifier()
+                pushReplayStateToWeb()
+            }
+
+            @android.webkit.JavascriptInterface
+            fun cycleOpponentForm() {
+                replayEngine.cycleActiveOpponentForm()
+                pushReplayStateToWeb()
+            }
+
+            @android.webkit.JavascriptInterface
+            fun updateContentHeight(heightDp: Int) {}
+
+            @android.webkit.JavascriptInterface
+            fun onOverlayReady() {
+                pushReplayStateToWeb()
+            }
+        }
+
+        replayWebView.webViewClient = object : android.webkit.WebViewClient() {
+            override fun onPageFinished(view: android.webkit.WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                pushReplayStateToWeb()
+            }
+        }
+        replayWebView.addJavascriptInterface(replayBridge, "AndroidOverlay")
+        replayWebView.loadUrl("file:///android_asset/overlay.html?replay=1")
+
+        dialogContainer.addView(hintTv)
+        dialogContainer.addView(replayWebView)
+
+        AlertDialog.Builder(this)
+            .setView(dialogContainer)
+            .setPositiveButton("Close Replay", null)
+            .setNeutralButton("✏️ Edit Log") { _, _ ->
+                showEditOrCreateBattleLogDialog(entry)
+            }
+            .show()
     }
 
     private fun updateOppCountBasisUi() {
@@ -855,6 +1943,10 @@ class MainActivity : AppCompatActivity() {
                 if (presets.size <= 1) {
                     Toast.makeText(this, "Must keep at least 1 team preset", Toast.LENGTH_SHORT).show()
                 } else {
+                    val delTeamIds = loadDeletedTeamIds().toMutableList()
+                    delTeamIds.add(preset.id)
+                    saveDeletedTeamIds(delTeamIds)
+
                     val updated = presets.filter { it.id != preset.id }
                     savePresets(updated)
                     if (isCurrent) {
@@ -862,6 +1954,8 @@ class MainActivity : AppCompatActivity() {
                     } else {
                         refreshPresetsUi()
                     }
+                    setupBattleLogFilters()
+                    triggerTwoDeviceCloudSync(silent = true)
                 }
             }
 
@@ -1176,7 +2270,8 @@ class MainActivity : AppCompatActivity() {
                     name = name,
                     league = league,
                     pokemon = listOf(p1, p2, p3),
-                    isSelected = existingPreset?.isSelected ?: false
+                    isSelected = existingPreset?.isSelected ?: false,
+                    updatedAt = System.currentTimeMillis()
                 )
 
                 val list = loadPresets().toMutableList()
@@ -1188,6 +2283,8 @@ class MainActivity : AppCompatActivity() {
                 }
                 savePresets(list)
                 setSelectedPreset(savedPreset.id)
+                setupBattleLogFilters()
+                triggerTwoDeviceCloudSync(silent = true)
                 Toast.makeText(this, "Saved '${name}' & updated moves!", Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton("Cancel", null)

@@ -649,6 +649,72 @@
             white-space: nowrap;
         }
 
+        .start-battle-menu {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 3px;
+            background: rgba(15, 23, 42, 0.94);
+            border: 1px solid rgba(56, 189, 248, 0.45);
+            border-radius: 5px;
+            padding: 3px 4px;
+            margin-bottom: 3px;
+        }
+
+        .menu-btn {
+            border-radius: 4px;
+            font-size: 8.5px;
+            font-weight: 800;
+            padding: 2px 5px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            white-space: nowrap;
+            line-height: 1.15;
+        }
+
+        .menu-btn-lead-fav {
+            background: rgba(34, 197, 94, 0.22);
+            color: #4ade80;
+            border-color: rgba(34, 197, 94, 0.55);
+        }
+
+        .menu-btn-lead-neu {
+            background: rgba(148, 163, 184, 0.22);
+            color: #e2e8f0;
+            border-color: rgba(148, 163, 184, 0.5);
+        }
+
+        .menu-btn-lead-neg {
+            background: rgba(239, 68, 68, 0.22);
+            color: #f87171;
+            border-color: rgba(239, 68, 68, 0.55);
+        }
+
+        .menu-btn-win {
+            background: rgba(22, 163, 74, 0.32);
+            color: #86efac;
+            border-color: rgba(34, 197, 94, 0.65);
+        }
+
+        .menu-btn-loss {
+            background: rgba(220, 38, 38, 0.32);
+            color: #fca5a5;
+            border-color: rgba(239, 68, 68, 0.65);
+        }
+
+        .menu-btn-restart {
+            background: rgba(234, 88, 12, 0.28);
+            color: #fdba74;
+            border-color: rgba(251, 146, 60, 0.6);
+        }
+
+        .menu-btn-close {
+            background: rgba(51, 65, 85, 0.6);
+            color: #cbd5e1;
+            border-color: rgba(100, 116, 139, 0.5);
+            padding: 2px 4px;
+        }
+
         .hidden {
             display: none !important;
         }
@@ -702,11 +768,11 @@
             <span class="user-fast-badge hidden" id="sky-user-fastmove">You: —</span>
         </div>
 
-        <!-- Toolbar: Reset Opponent, Shadow Toggle, Form Cycler, and Active Team Chips -->
+        <!-- Toolbar: Start Battle Menu Trigger, Shadow Toggle, Form Cycler, and Active Team Chips -->
         <div class="action-toolbar">
             <div style="display:flex; gap:2.5px; align-items:center;">
-                <button id="btn-start-battle" class="hud-btn btn-battle" onclick="triggerStartBattle()" title="Reset opponent team & manual overrides">
-                    ↺ Reset Opp
+                <button id="btn-start-battle" class="hud-btn btn-battle" onclick="toggleStartBattleMenu()" title="Start battle, log Win/Loss with Lead Matchup, or Restart without logging">
+                    ⚔️ Start Battle
                 </button>
                 <button id="btn-toggle-shadow" class="hud-btn btn-shadow" onclick="toggleShadow()" title="Toggle 1.2x Atk / 0.833x Def Shadow modifier">
                     Shadow: OFF
@@ -720,7 +786,28 @@
             </div>
         </div>
 
-        <!-- 3v3 Matchup Matrix Dots (Full Opponent Names, No Static Legend Row) -->
+        <!-- In-Overlay Start Battle / Log Result Action Bar -->
+        <div id="start-battle-menu" class="start-battle-menu hidden">
+            <button id="btn-lead-matchup" class="menu-btn menu-btn-lead-neu" onclick="cycleLeadMatchup()" title="Tap to cycle Lead Matchup: Favorable / Neutral / Negative">
+                Lead: Neu
+            </button>
+            <div style="display:flex; gap:2.5px; align-items:center;">
+                <button class="menu-btn menu-btn-win" onclick="logBattleFromOverlay('WIN')" title="Log Win & keep current opponents on screen">
+                    🏆 Win
+                </button>
+                <button class="menu-btn menu-btn-loss" onclick="logBattleFromOverlay('LOSS')" title="Log Loss & keep current opponents on screen">
+                    💀 Loss
+                </button>
+                <button class="menu-btn menu-btn-restart" onclick="restartWithoutLogging()" title="Clear opponents & start new battle without logging">
+                    🔄 Restart
+                </button>
+                <button class="menu-btn menu-btn-close" onclick="closeStartBattleMenu()" title="Close menu">
+                    ✕
+                </button>
+            </div>
+        </div>
+
+        <!-- 3v3 Matchup Matrix Dots (Full Opponent Names, Fixed 1st/2nd/3rd Order) -->
         <div class="matrix-container" id="sky-matrix-body">
             <div style="display:flex; align-items:center; gap:6px; color:#cbd5e1; font-size:9px; padding:2px 0;">
                 <span class="scan-indicator"></span>
@@ -762,7 +849,7 @@
                 <span id="horizon-matrix-dots" style="color: #cbd5e1;">1 Hz OCR active...</span>
             </div>
             <div style="display: flex; gap: 3px; align-items: center; margin-left: auto;">
-                <button class="hud-btn btn-battle" onclick="triggerStartBattle()" style="padding:1px 4px; font-size:8.5px;">↺ Reset Opp</button>
+                <button class="hud-btn btn-battle" onclick="restartWithoutLogging()" style="padding:1px 4px; font-size:8.5px;">⚔️ Start Battle</button>
             </div>
         </div>
         <div class="horizon-grid" style="font-size: 9px; color: #fdba74; margin-top:2px;">
@@ -1156,12 +1243,84 @@
             }).join("");
         }
 
-        function triggerStartBattle() {
+        let startBattleMenuOpen = false;
+
+        function toggleStartBattleMenu() {
+            startBattleMenuOpen = !startBattleMenuOpen;
+            const menuEl = document.getElementById("start-battle-menu");
+            if (menuEl) {
+                if (startBattleMenuOpen) menuEl.classList.remove("hidden");
+                else menuEl.classList.add("hidden");
+            }
+            updateLeadMatchupButtonUi();
+            setTimeout(notifyHeight, 25);
+        }
+
+        function closeStartBattleMenu() {
+            startBattleMenuOpen = false;
+            const menuEl = document.getElementById("start-battle-menu");
+            if (menuEl) menuEl.classList.add("hidden");
+            setTimeout(notifyHeight, 25);
+        }
+
+        function updateLeadMatchupButtonUi() {
+            const leadBtn = document.getElementById("btn-lead-matchup");
+            if (!leadBtn) return;
+            const lead = (battleData.leadMatchup || "NEUTRAL").toUpperCase();
+            if (lead === "FAVORABLE") {
+                leadBtn.textContent = "Lead: Fav ▾";
+                leadBtn.className = "menu-btn menu-btn-lead-fav";
+            } else if (lead === "NEGATIVE") {
+                leadBtn.textContent = "Lead: Neg ▾";
+                leadBtn.className = "menu-btn menu-btn-lead-neg";
+            } else {
+                leadBtn.textContent = "Lead: Neu ▾";
+                leadBtn.className = "menu-btn menu-btn-lead-neu";
+            }
+        }
+
+        function cycleLeadMatchup() {
+            const cur = (battleData.leadMatchup || "NEUTRAL").toUpperCase();
+            const next = cur === "FAVORABLE" ? "NEUTRAL" : (cur === "NEUTRAL" ? "NEGATIVE" : "FAVORABLE");
+            battleData.leadMatchup = next;
+            updateLeadMatchupButtonUi();
+            if (window.AndroidOverlay && window.AndroidOverlay.setLeadMatchupOverride) {
+                window.AndroidOverlay.setLeadMatchupOverride(next);
+            }
+        }
+
+        function logBattleFromOverlay(resultStr) {
+            const lead = (battleData.leadMatchup || "NEUTRAL").toUpperCase();
+            closeStartBattleMenu();
             const btn = document.getElementById("btn-start-battle");
             if (btn) {
-                btn.textContent = "↺ Reset!";
+                btn.textContent = resultStr === "WIN" ? "✓ WIN Logged" : "✓ LOSS Logged";
                 setTimeout(() => {
-                    btn.textContent = "↺ Reset Opp";
+                    btn.textContent = "⚔️ Start Battle";
+                }, 1300);
+            }
+            if (window.AndroidOverlay && window.AndroidOverlay.logBattleResult) {
+                window.AndroidOverlay.logBattleResult(resultStr, lead);
+            }
+        }
+
+        function onBattleLoggedToast(resultStr, leadStr) {
+            const btn = document.getElementById("btn-start-battle");
+            if (btn) {
+                btn.textContent = resultStr === "WIN" ? "✓ WIN Logged" : "✓ LOSS Logged";
+                setTimeout(() => {
+                    btn.textContent = "⚔️ Start Battle";
+                }, 1300);
+            }
+        }
+
+        function restartWithoutLogging() {
+            closeStartBattleMenu();
+            const btn = document.getElementById("btn-start-battle");
+            if (btn) {
+                btn.textContent = "↺ New Battle!";
+                setTimeout(() => {
+                    btn.textContent = "⚔️ Start Battle";
                 }, 900);
             }
 
@@ -1175,6 +1334,8 @@
             battleData.scannedOpponents = [];
             battleData.oppMoveTimingRows = [];
             battleData.myMoveTimingRows = [];
+            battleData.activeOpponentSlotIndex = 0;
+            battleData.leadMatchup = "NEUTRAL";
             battleData.throwAlignmentText = "—";
             battleData.throwHorizonText = "—";
             render();
@@ -1182,6 +1343,10 @@
             if (window.AndroidOverlay && window.AndroidOverlay.startNewBattle) {
                 window.AndroidOverlay.startNewBattle();
             }
+        }
+
+        function triggerStartBattle() {
+            toggleStartBattleMenu();
         }
 
         function toggleShadow() {
@@ -1264,6 +1429,20 @@
                         formBtn.disabled = true;
                         formBtn.classList.add("disabled");
                     }
+                }
+
+                updateLeadMatchupButtonUi();
+
+                // Replay Mode adjustments
+                const isReplay = !!battleData.isReplayMode || (window.location.search && window.location.search.includes("replay=1"));
+                const swordMinBtn = document.getElementById("btn-minimize-sword");
+                const startBattleBtn = document.getElementById("btn-start-battle");
+                if (isReplay) {
+                    if (swordMinBtn) swordMinBtn.classList.add("hidden");
+                    if (startBattleBtn) startBattleBtn.classList.add("hidden");
+                } else {
+                    if (swordMinBtn) swordMinBtn.classList.remove("hidden");
+                    if (startBattleBtn) startBattleBtn.classList.remove("hidden");
                 }
 
                 // Render active team chips for player switches
@@ -1355,19 +1534,23 @@
                     cmpBadgeEl.className = "cmp-pill " + (winsCmp ? "win" : "loss");
                 }
 
-                // 1. Render 3v3 Battle Matrix FIRST so it is always visible when opponent is detected
+                // 1. Render 3v3 Battle Matrix FIRST in FIXED [1st seen, 2nd seen, 3rd seen] order
+                const activeOppSlotIdx = typeof battleData.activeOpponentSlotIndex === "number" ? battleData.activeOpponentSlotIndex : 0;
                 try {
                     if (matrixBody && battleData.scannedOpponents && battleData.scannedOpponents.length > 0) {
+                        const ordLabels = ["1st", "2nd", "3rd"];
                         matrixBody.innerHTML = battleData.scannedOpponents.map((opp, idx) => {
-                            const isLead = (idx === 0);
-                            const fullOppDisplay = (idx === 0 && battleData.isOpponentShadow ? "S-" : "") + (opp.name || opp.code);
+                            const isActiveOpp = (opp.isActive !== undefined) ? !!opp.isActive : (idx === activeOppSlotIdx);
+                            const isOppShad = (opp.isShadow !== undefined) ? !!opp.isShadow : (isActiveOpp && battleData.isOpponentShadow);
+                            const fullOppDisplay = (isOppShad ? "S-" : "") + (opp.name || opp.code);
                             const p1Dots = renderTierDots(opp.matrix ? opp.matrix.p1 : "W,N,L");
                             const p2Dots = renderTierDots(opp.matrix ? opp.matrix.p2 : "N,N,N");
                             const p3Dots = renderTierDots(opp.matrix ? opp.matrix.p3 : "SW,W,W");
+                            const ordTag = ordLabels[idx] || `#${idx + 1}`;
                             return `
-                            <div class="matrix-row ${isLead ? 'active-lead' : ''}" onclick="swapOpponentByIndex(${idx})" style="cursor:pointer;" title="${isLead ? 'Active Opponent' : 'Tap to swap to lead'}">
+                            <div class="matrix-row ${isActiveOpp ? 'active-lead' : ''}" onclick="swapOpponentByIndex(${idx})" style="cursor:pointer;" title="${isActiveOpp ? 'Active Opponent (' + ordTag + ' seen)' : 'Tap to inspect/activate (' + ordTag + ' seen)'}">
                                 <span class="matrix-opp-name" title="${fullOppDisplay}">
-                                    <span style="color:${isLead ? '#38bdf8' : '#64748b'}; font-weight:700; font-size:8px; margin-right:3px;">#${idx + 1}</span>
+                                    <span style="color:${isActiveOpp ? '#38bdf8' : '#64748b'}; font-weight:700; font-size:7.5px; margin-right:3px;">${ordTag}</span>
                                     ${fullOppDisplay}
                                 </span>
                                 <div class="matrix-team-block">
@@ -1472,15 +1655,17 @@
                     console.error("Opponent attacks render error", e);
                 }
 
-                // 3. Render My Attacks 3-Column Opponent Header & Zero-Sneak Segmented Range Rows
+                // 3. Render My Attacks 3-Column Opponent Header (Fixed 1st/2nd/3rd seen order) & Zero-Sneak Segmented Range Rows
                 try {
                     const scanned = battleData.scannedOpponents || [];
                     if (myDmgHeadersEl) {
                         myDmgHeadersEl.innerHTML = [0, 1, 2].map(idx => {
                             const opp = scanned[idx];
-                            const code = opp ? (opp.code || abbrPoke(opp.name, idx === 0 && battleData.isOpponentShadow)) : "—";
-                            const isAct = (idx === 0);
-                            return `<span class="dmg-col-hdr ${isAct ? 'active-col' : ''}">${code}</span>`;
+                            const isAct = opp && opp.isActive !== undefined ? !!opp.isActive : (idx === activeOppSlotIdx);
+                            const isShad = opp && opp.isShadow !== undefined ? !!opp.isShadow : (isAct && battleData.isOpponentShadow);
+                            const code = opp ? (opp.code || abbrPoke(opp.name, isShad)) : "—";
+                            const clickAttr = opp ? `onclick="swapOpponentByIndex(${idx})" style="cursor:pointer;"` : "";
+                            return `<span class="dmg-col-hdr ${isAct ? 'active-col' : ''}" ${clickAttr}>${code}</span>`;
                         }).join("");
                     }
 
