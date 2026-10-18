@@ -102,46 +102,49 @@ export function evaluatePvPokeMatchupRating(
   const { stats: myStats, isShadow: isMyShadow } = resolvePokemonStats(myMonName, normLeague);
   const { stats: oppStats, isShadow: isOppShadow } = resolvePokemonStats(oppMonName, normLeague);
 
-  const myFastEff = getTypeMultiplier(myStats.defaultFastMove.type, oppStats.types);
-  const myFastStab = myStats.types.includes(myStats.defaultFastMove.type) ? 1.2 : 1.0;
-  const myFastScore = myFastEff * myFastStab * (isMyShadow ? 1.12 : 1.0);
-
-  const oppFastEff = getTypeMultiplier(oppStats.defaultFastMove.type, myStats.types);
-  const oppFastStab = oppStats.types.includes(oppStats.defaultFastMove.type) ? 1.2 : 1.0;
-  const oppFastScore = oppFastEff * oppFastStab * (isOppShadow ? 1.12 : 1.0);
-
-  const myChargedDamages = myStats.chargedMoves.map(
+  const myChargedDamages = myStats.chargedMoves.slice(0, 2).map(
     (cm) => calculateChargedDamage(myStats, oppStats, cm, isMyShadow, isOppShadow).percentage
   );
-  const myMaxCharged = myChargedDamages.length ? Math.max(...myChargedDamages) : 45;
-  const myMinEnergy = myStats.chargedMoves.length
-    ? Math.min(...myStats.chargedMoves.map((c) => c.energyCost))
-    : 45;
+  const bestUserCharged = myChargedDamages.length ? Math.max(...myChargedDamages) : 45;
+  const minUserCharged = myChargedDamages.length ? Math.min(...myChargedDamages) : 35;
 
-  const oppChargedDamages = oppStats.chargedMoves.map(
+  const oppChargedDamages = oppStats.chargedMoves.slice(0, 2).map(
     (cm) => calculateChargedDamage(oppStats, myStats, cm, isOppShadow, isMyShadow).percentage
   );
-  const oppMaxCharged = oppChargedDamages.length ? Math.max(...oppChargedDamages) : 45;
-  const oppMinEnergy = oppStats.chargedMoves.length
-    ? Math.min(...oppStats.chargedMoves.map((c) => c.energyCost))
-    : 45;
+  const bestOppCharged = oppChargedDamages.length ? Math.max(...oppChargedDamages) : 45;
+  const minOppCharged = oppChargedDamages.length ? Math.min(...oppChargedDamages) : 35;
 
-  const myBulk = myStats.baseStats.def * myStats.baseStats.hp * (isMyShadow ? 0.833 : 1.0);
-  const oppBulk = oppStats.baseStats.def * oppStats.baseStats.hp * (isOppShadow ? 0.833 : 1.0);
-  const bulkRatio = oppBulk > 0 ? Math.min(1.35, Math.max(0.7, myBulk / oppBulk)) : 1.0;
+  const userFastEff = getTypeMultiplier(myStats.defaultFastMove.type, oppStats.types);
+  const oppFastEff = getTypeMultiplier(oppStats.defaultFastMove.type, myStats.types);
+  const shadowBulkDelta = (isMyShadow ? -12 : 0) + (isOppShadow ? 12 : 0);
 
-  const fastRatio = oppFastScore > 0 ? myFastScore / oppFastScore : 1.0;
-  const chargedRatio = oppMaxCharged > 0 ? myMaxCharged / oppMaxCharged : 1.0;
-  const paceAdvantage = (oppMinEnergy - myMinEnergy) / 100.0;
-
-  const ratioScore =
+  const rating =
     shields === 1
-      ? fastRatio * 0.52 + chargedRatio * 0.28 + bulkRatio * 0.2 + paceAdvantage * 0.8
-      : fastRatio * 0.68 + chargedRatio * 0.14 + bulkRatio * 0.18 + paceAdvantage * 0.45;
+      ? Math.round(
+          500 +
+            ((bestUserCharged + minUserCharged) * 0.5 - (bestOppCharged + minOppCharged) * 0.5) * 2.8 +
+            (userFastEff - oppFastEff) * 120 +
+            shadowBulkDelta
+        )
+      : Math.round(
+          500 +
+            (minUserCharged - minOppCharged) * 2.0 +
+            (userFastEff - oppFastEff) * 155 +
+            shadowBulkDelta * 2
+        );
+  return Math.max(150, Math.min(850, rating));
+}
 
-  // Map 1.0-centered ratio onto PvPoke 500-centered rating scale [150, 850]
-  const rating = 500 + (ratioScore - 1.0) * 500;
-  return Math.max(150, Math.min(850, Math.round(rating)));
+export function calculateAutoLeadMatchup(
+  myLead: string,
+  oppLead: string,
+  league: string = 'GREAT LEAGUE'
+): 'FAVORABLE' | 'NEUTRAL' | 'NEGATIVE' {
+  if (!myLead?.trim() || !oppLead?.trim()) return 'NEUTRAL';
+  const r1s = evaluatePvPokeMatchupRating(myLead, oppLead, 1, league);
+  if (r1s >= 530) return 'FAVORABLE';
+  if (r1s <= 470) return 'NEGATIVE';
+  return 'NEUTRAL';
 }
 
 export function getBadgeCategorization(
@@ -455,3 +458,65 @@ export function migrateExistingBattleLogs<
 
   return { logs: migrated, didMigrate };
 }
+
+/**
+ * Re-evaluates all completed battle logs from scratch using the latest damage multipliers
+ * (2.56x dual-type effectiveness, 1.2x Shadow attack, half-level CPM stats) and recalculates
+ * both Lead Matchup (FAVORABLE / NEUTRAL / NEGATIVE) and Win Quality (WAE).
+ */
+export function reparseAllCompletedBattleLogs<
+  T extends {
+    id: string;
+    league: string;
+    presetId?: string;
+    userTeamName?: string;
+    userPokemon?: string[];
+    opponents?: string[];
+    result: 'WIN' | 'LOSS';
+    leadMatchup?: 'FAVORABLE' | 'NEUTRAL' | 'NEGATIVE';
+    quality?: BattleQualityMetadata | null;
+    updatedAt?: number;
+  }
+>(logs: T[], presets: TeamPreset[] = [], storageKey: string = 'gbl_battle_logs_v1'): T[] {
+  const now = Date.now();
+  const reparsed = logs.map((entry) => {
+    const matchedPreset = presets.find(
+      (p) =>
+        (entry.presetId && p.id === entry.presetId) ||
+        (entry.userTeamName && p.name.toLowerCase() === entry.userTeamName.toLowerCase())
+    );
+    let myMons = (entry.userPokemon || []).map((m) => m.trim()).filter(Boolean);
+    if (myMons.length < 3 && matchedPreset && matchedPreset.pokemon.length > 0) {
+      myMons = matchedPreset.pokemon.map((p) => p.name);
+    }
+    const opps = (entry.opponents || []).map((o) => o.trim()).filter(Boolean);
+    const updatedLead =
+      myMons.length > 0 && opps.length > 0
+        ? calculateAutoLeadMatchup(myMons[0], opps[0], entry.league)
+        : entry.leadMatchup || 'NEUTRAL';
+
+    const freshQuality =
+      opps.length < 2
+        ? null
+        : resolveLogEntryQuality(
+            { ...entry, userPokemon: myMons, opponents: opps, quality: undefined },
+            presets
+          );
+
+    return {
+      ...entry,
+      userPokemon: myMons.length > 0 ? myMons : entry.userPokemon,
+      leadMatchup: updatedLead,
+      quality: freshQuality,
+      updatedAt: now
+    };
+  });
+
+  if (storageKey) {
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(reparsed));
+    } catch {}
+  }
+  return reparsed;
+}
+

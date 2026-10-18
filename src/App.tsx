@@ -57,6 +57,7 @@ import {
   calculateBattleQuality,
   calculateAggregateWAE,
   migrateExistingBattleLogs,
+  reparseAllCompletedBattleLogs,
   resolveLogEntryQuality
 } from './data/battleQuality';
 import { ANDROID_FILES, downloadAndroidProjectZip, AndroidProjectFile } from './data/androidFiles';
@@ -579,8 +580,40 @@ export default function App() {
     return presets.find(p => p.id === selectedPresetId) || presets[0] || INITIAL_PRESETS[0];
   }, [presets, selectedPresetId]);
 
-  // One-time retroactive migration for historical battle logs lacking `quality` metadata
+  const [reparseBattlesStatus, setReparseBattlesStatus] = useState<string>(
+    'Re-evaluates all logged battles with latest 2.56x dual-type & Shadow 1.2x damage + Win Quality (WAE) metrics'
+  );
+
+  const handleReparseAllCompletedBattles = (silent: boolean = false) => {
+    const reparsedActive = reparseAllCompletedBattleLogs(battleLogs, presets, 'gbl_battle_logs_v1');
+    setBattleLogs(reparsedActive);
+    const reparsedTrash = reparseAllCompletedBattleLogs(deletedBattlesTrash, presets, 'gbl_deleted_battles_trash_v1');
+    setDeletedBattlesTrash(reparsedTrash);
+    const agg = calculateAggregateWAE(reparsedActive, presets);
+    const timeStr = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    setReparseBattlesStatus(
+      `✅ Reparsed ${reparsedActive.length} completed battle(s) at ${timeStr} • Ranked: ${agg.rankedCount} • Overall WAE: ${agg.formatted}`
+    );
+    if (!silent) {
+      try {
+        localStorage.setItem('gbl_damage_reparse_version', '215');
+      } catch {}
+    }
+  };
+
+  // Retroactive migration & v2.15 damage/WAE reparse for historical battle logs
   useEffect(() => {
+    let reparseVer = 0;
+    try {
+      reparseVer = Number(localStorage.getItem('gbl_damage_reparse_version') || '0');
+    } catch {}
+    if (reparseVer < 215) {
+      handleReparseAllCompletedBattles(true);
+      try {
+        localStorage.setItem('gbl_damage_reparse_version', '215');
+      } catch {}
+      return;
+    }
     const migActive = migrateExistingBattleLogs(battleLogs, presets, 'gbl_battle_logs_v1');
     if (migActive.didMigrate) {
       setBattleLogs(migActive.logs);
@@ -889,7 +922,12 @@ export default function App() {
     if (manualLeadMatchupOverride) return manualLeadMatchupOverride;
     if (isWaitingOpponent || scannedOpponents.length === 0) return lastClearedLeadMatchup || 'NEUTRAL';
     const firstSeenOpp = scannedOpponents[0];
-    const m = calculateShieldMatrix(firstSeenOpp, activePreset.pokemon.map((p) => p.name), safeActiveOppSlot === 0 && isOpponentShadow);
+    const m = calculateShieldMatrix(
+      firstSeenOpp,
+      activePreset.pokemon.map((p) => p.name),
+      safeActiveOppSlot === 0 && isOpponentShadow,
+      activePreset.league
+    );
     const tokens = (m.p1 || 'W,N,L').split(',');
     const oneShield = (tokens[1] || tokens[0] || 'N').trim().toUpperCase();
     if (oneShield === 'SW' || oneShield === 'W') return 'FAVORABLE';
@@ -1382,7 +1420,7 @@ export default function App() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'SilphScope_PvP_v2.13_Android_Project.zip';
+      a.download = 'SilphScope_PvP_v2.15_Android_Project.zip';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -1409,7 +1447,7 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <h1 className="font-bold text-base md:text-lg tracking-tight text-white">SilphScope PvP</h1>
                 <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20">
-                  v2.13 • Android Native Overlay
+                  v2.15 • Android Native Overlay
                 </span>
               </div>
               <p className="text-xs text-slate-400 hidden sm:block">
@@ -3701,6 +3739,28 @@ export default function App() {
               </div>
             </div>
 
+            {/* Retroactive Battle Log Damage & Win Quality Reparse Card */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <span className="text-sm font-bold text-emerald-400 block">
+                    Reparse Completed Battles (Damage &amp; WAE)
+                  </span>
+                  <span className="text-xs text-slate-400 block mt-0.5">
+                    {reparseBattlesStatus}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleReparseAllCompletedBattles(false)}
+                  className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 transition shrink-0 shadow-lg shadow-emerald-600/20"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>🔄 Reparse All</span>
+                </button>
+              </div>
+            </div>
+
             {/* Opponent Move Count Basis & 4 Charged Moves Toggles */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-2.5">
@@ -3999,7 +4059,7 @@ export default function App() {
                           'Content-Type': 'application/json'
                         },
                         body: JSON.stringify({
-                          description: 'SilphScope PvP v2.13 Multi-Device Delta Sync Vault',
+                          description: 'SilphScope PvP v2.15 Multi-Device Delta Sync Vault',
                           public: false,
                           files: {
                             'gbl_delta_sync_v2.json': { content: bundleStr }
@@ -5529,7 +5589,7 @@ export default function App() {
 
       {/* Footer */}
       <footer className="border-t border-slate-800/80 py-4 px-6 text-center text-xs text-slate-500">
-        SilphScope PvP v2.13 Overlay • Built with Kotlin, WindowManager TYPE_APPLICATION_OVERLAY, MediaProjection in-memory frame capture, and ML Kit Text Recognition.
+        SilphScope PvP v2.15 Overlay • Built with Kotlin, WindowManager TYPE_APPLICATION_OVERLAY, MediaProjection in-memory frame capture, and ML Kit Text Recognition.
       </footer>
     </div>
   );

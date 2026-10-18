@@ -964,171 +964,171 @@ class OverlayService : LifecycleService() {
         )
 
         val MOVE_DATABASE: Map<String, MoveStats> = mapOf(
-            "Behemoth Blade" to MoveStats("Behemoth Blade", "steel", 100),
-            "Behemoth Bash" to MoveStats("Behemoth Bash", "steel", 80),
-            "Secret Sword" to MoveStats("Secret Sword", "fighting", 70),
-            "Aqua Jet" to MoveStats("Aqua Jet", "water", 70),
-            "Double Iron Bash" to MoveStats("Double Iron Bash", "steel", 70),
-            "Bleakwind Storm" to MoveStats("Bleakwind Storm", "flying", 60),
-            "Wildbolt Storm" to MoveStats("Wildbolt Storm", "electric", 60),
+            "Behemoth Blade" to MoveStats("Behemoth Blade", "steel", 100, 55),
+            "Behemoth Bash" to MoveStats("Behemoth Bash", "steel", 80, 45),
+            "Secret Sword" to MoveStats("Secret Sword", "fighting", 70, 35),
+            "Aqua Jet" to MoveStats("Aqua Jet", "water", 70, 40),
+            "Double Iron Bash" to MoveStats("Double Iron Bash", "steel", 70, 35),
+            "Bleakwind Storm" to MoveStats("Bleakwind Storm", "flying", 60, 45),
+            "Wildbolt Storm" to MoveStats("Wildbolt Storm", "electric", 60, 45),
             "Springtide Storm" to MoveStats("Springtide Storm", "fairy", 60),
-            "Roar of Time" to MoveStats("Roar of Time", "dragon", 150),
-            "Iron Head" to MoveStats("Iron Head", "steel", 70),
-            "Draco Meteor" to MoveStats("Draco Meteor", "dragon", 150),
-            "Thunder" to MoveStats("Thunder", "electric", 100),
-            "Aeroblast" to MoveStats("Aeroblast", "flying", 170),
-            "Sky Attack" to MoveStats("Sky Attack", "flying", 75),
-            "Future Sight" to MoveStats("Future Sight", "psychic", 120),
-            "Surf" to MoveStats("Surf", "water", 65),
-            "Origin Pulse" to MoveStats("Origin Pulse", "water", 130),
-            "Hydro Pump" to MoveStats("Hydro Pump", "water", 130),
-            "Blizzard" to MoveStats("Blizzard", "ice", 140),
-            "Close Combat" to MoveStats("Close Combat", "fighting", 100),
-            "Brave Bird" to MoveStats("Brave Bird", "flying", 130),
-            "Play Rough" to MoveStats("Play Rough", "fairy", 90),
-            "Wild Charge" to MoveStats("Wild Charge", "electric", 100),
-            "Shadow Ball" to MoveStats("Shadow Ball", "ghost", 100),
-            "Ominous Wind" to MoveStats("Ominous Wind", "ghost", 45),
-            "Dragon Claw" to MoveStats("Dragon Claw", "dragon", 50),
-            "Ancient Power" to MoveStats("Ancient Power", "rock", 60),
-            "Shadow Force" to MoveStats("Shadow Force", "ghost", 140),
-            "Spacial Rend" to MoveStats("Spacial Rend", "dragon", 95),
-            "Aqua Tail" to MoveStats("Aqua Tail", "water", 50),
-            "Precipice Blades" to MoveStats("Precipice Blades", "ground", 130),
-            "Fire Punch" to MoveStats("Fire Punch", "fire", 55),
-            "Psystrike" to MoveStats("Psystrike", "psychic", 90),
-            "Ice Beam" to MoveStats("Ice Beam", "ice", 90),
-            "Moonblast" to MoveStats("Moonblast", "fairy", 110),
-            "Dark Pulse" to MoveStats("Dark Pulse", "dark", 80),
-            "Oblivion Wing" to MoveStats("Oblivion Wing", "flying", 85),
-            "Crunch" to MoveStats("Crunch", "dark", 70),
-            "Earthquake" to MoveStats("Earthquake", "ground", 110),
-            "Sandsear Storm" to MoveStats("Sandsear Storm", "ground", 60),
-            "Stone Edge" to MoveStats("Stone Edge", "rock", 100),
-            "Superpower" to MoveStats("Superpower", "fighting", 85),
-            "Sacred Fire" to MoveStats("Sacred Fire", "fire", 130),
-            "Sunsteel Strike" to MoveStats("Sunsteel Strike", "steel", 135),
-            "Moongeist Beam" to MoveStats("Moongeist Beam", "ghost", 135),
-            "Rock Slide" to MoveStats("Rock Slide", "rock", 75),
-            "Earth Power" to MoveStats("Earth Power", "ground", 90),
-            "Outrage" to MoveStats("Outrage", "dragon", 110),
-            "Meteor Mash" to MoveStats("Meteor Mash", "steel", 100),
-            "Drill Run" to MoveStats("Drill Run", "ground", 80),
-            "Rock Wrecker" to MoveStats("Rock Wrecker", "rock", 110),
-            "Breaking Swipe" to MoveStats("Breaking Swipe", "dragon", 35),
-            "Avalanche" to MoveStats("Avalanche", "ice", 90),
-            "High Horsepower" to MoveStats("High Horsepower", "ground", 100),
-            "Ice Punch" to MoveStats("Ice Punch", "ice", 55),
-            "Fusion Flare" to MoveStats("Fusion Flare", "fire", 90),
-            "Overheat" to MoveStats("Overheat", "fire", 130),
-            "Fusion Bolt" to MoveStats("Fusion Bolt", "electric", 90),
-            "Glaciate" to MoveStats("Glaciate", "ice", 60),
-            "Disarming Voice" to MoveStats("Disarming Voice", "fairy", 70),
-            "Hydro Cannon" to MoveStats("Hydro Cannon", "water", 80),
-            "Weather Ball" to MoveStats("Weather Ball", "ice", 55, 35),
-            "Weather Ball (Ice)" to MoveStats("Weather Ball (Ice)", "ice", 55, 35),
-            "Weather Ball (Fire)" to MoveStats("Weather Ball (Fire)", "fire", 55, 35),
-            "Weather Ball (Water)" to MoveStats("Weather Ball (Water)", "water", 55, 35),
-            "Weather Ball (Rock)" to MoveStats("Weather Ball (Rock)", "rock", 55, 35),
+            "Roar of Time" to MoveStats("Roar of Time", "dragon", 150, 65),
+            "Iron Head" to MoveStats("Iron Head", "steel", 85, 50),
+            "Draco Meteor" to MoveStats("Draco Meteor", "dragon", 150, 65),
+            "Thunder" to MoveStats("Thunder", "electric", 100, 60),
+            "Aeroblast" to MoveStats("Aeroblast", "flying", 170, 75),
+            "Sky Attack" to MoveStats("Sky Attack", "flying", 75, 50),
+            "Future Sight" to MoveStats("Future Sight", "psychic", 110, 65),
+            "Surf" to MoveStats("Surf", "water", 75, 45),
+            "Origin Pulse" to MoveStats("Origin Pulse", "water", 130, 60),
+            "Hydro Pump" to MoveStats("Hydro Pump", "water", 130, 75),
+            "Blizzard" to MoveStats("Blizzard", "ice", 140, 75),
+            "Close Combat" to MoveStats("Close Combat", "fighting", 100, 45),
+            "Brave Bird" to MoveStats("Brave Bird", "flying", 130, 55),
+            "Play Rough" to MoveStats("Play Rough", "fairy", 90, 60),
+            "Wild Charge" to MoveStats("Wild Charge", "electric", 100, 45),
+            "Shadow Ball" to MoveStats("Shadow Ball", "ghost", 90, 50),
+            "Ominous Wind" to MoveStats("Ominous Wind", "ghost", 45, 45),
+            "Dragon Claw" to MoveStats("Dragon Claw", "dragon", 80, 50),
+            "Ancient Power" to MoveStats("Ancient Power", "rock", 60, 45),
+            "Shadow Force" to MoveStats("Shadow Force", "ghost", 120, 65),
+            "Spacial Rend" to MoveStats("Spacial Rend", "dragon", 95, 55),
+            "Aqua Tail" to MoveStats("Aqua Tail", "water", 55, 35),
+            "Precipice Blades" to MoveStats("Precipice Blades", "ground", 130, 60),
+            "Fire Punch" to MoveStats("Fire Punch", "fire", 60, 40),
+            "Psystrike" to MoveStats("Psystrike", "psychic", 90, 45),
+            "Ice Beam" to MoveStats("Ice Beam", "ice", 90, 55),
+            "Moonblast" to MoveStats("Moonblast", "fairy", 90, 50),
+            "Dark Pulse" to MoveStats("Dark Pulse", "dark", 80, 45),
+            "Oblivion Wing" to MoveStats("Oblivion Wing", "flying", 85, 50),
+            "Crunch" to MoveStats("Crunch", "dark", 70, 45),
+            "Earthquake" to MoveStats("Earthquake", "ground", 120, 65),
+            "Sandsear Storm" to MoveStats("Sandsear Storm", "ground", 60, 45),
+            "Stone Edge" to MoveStats("Stone Edge", "rock", 100, 55),
+            "Superpower" to MoveStats("Superpower", "fighting", 85, 40),
+            "Sacred Fire" to MoveStats("Sacred Fire", "fire", 130, 65),
+            "Sunsteel Strike" to MoveStats("Sunsteel Strike", "steel", 135, 65),
+            "Moongeist Beam" to MoveStats("Moongeist Beam", "ghost", 135, 65),
+            "Rock Slide" to MoveStats("Rock Slide", "rock", 75, 45),
+            "Earth Power" to MoveStats("Earth Power", "ground", 90, 50),
+            "Outrage" to MoveStats("Outrage", "dragon", 110, 60),
+            "Meteor Mash" to MoveStats("Meteor Mash", "steel", 100, 45),
+            "Drill Run" to MoveStats("Drill Run", "ground", 70, 40),
+            "Rock Wrecker" to MoveStats("Rock Wrecker", "rock", 110, 50),
+            "Breaking Swipe" to MoveStats("Breaking Swipe", "dragon", 50, 50),
+            "Avalanche" to MoveStats("Avalanche", "ice", 90, 45),
+            "High Horsepower" to MoveStats("High Horsepower", "ground", 100, 55),
+            "Ice Punch" to MoveStats("Ice Punch", "ice", 60, 40),
+            "Fusion Flare" to MoveStats("Fusion Flare", "fire", 90, 45),
+            "Overheat" to MoveStats("Overheat", "fire", 130, 55),
+            "Fusion Bolt" to MoveStats("Fusion Bolt", "electric", 90, 45),
+            "Glaciate" to MoveStats("Glaciate", "ice", 60, 40),
+            "Disarming Voice" to MoveStats("Disarming Voice", "fairy", 70, 45),
+            "Hydro Cannon" to MoveStats("Hydro Cannon", "water", 80, 40),
+            "Weather Ball" to MoveStats("Weather Ball", "ice", 60, 35),
+            "Weather Ball (Ice)" to MoveStats("Weather Ball (Ice)", "ice", 60, 35),
+            "Weather Ball (Fire)" to MoveStats("Weather Ball (Fire)", "fire", 60, 35),
+            "Weather Ball (Water)" to MoveStats("Weather Ball (Water)", "water", 60, 35),
+            "Weather Ball (Rock)" to MoveStats("Weather Ball (Rock)", "rock", 60, 35),
             "Chilling Water" to MoveStats("Chilling Water", "water", 60, 45),
-            "Dazzling Gleam" to MoveStats("Dazzling Gleam", "fairy", 100, 70),
-            "Scorching Sands" to MoveStats("Scorching Sands", "ground", 80),
-            "Psycho Boost" to MoveStats("Psycho Boost", "psychic", 70),
-            "Thunderbolt" to MoveStats("Thunderbolt", "electric", 90),
-            "Grass Knot" to MoveStats("Grass Knot", "grass", 90),
-            "Sacred Sword" to MoveStats("Sacred Sword", "fighting", 60),
-            "Leaf Blade" to MoveStats("Leaf Blade", "grass", 70),
-            "Aerial Ace" to MoveStats("Aerial Ace", "flying", 55),
-            "Fly" to MoveStats("Fly", "flying", 80),
-            "Flame Charge" to MoveStats("Flame Charge", "fire", 65),
-            "Blast Burn" to MoveStats("Blast Burn", "fire", 110),
-            "Feather Dance" to MoveStats("Feather Dance", "flying", 35),
-            "Shadow Sneak" to MoveStats("Shadow Sneak", "ghost", 50),
-            "Twister" to MoveStats("Twister", "dragon", 50),
-            "Air Cutter" to MoveStats("Air Cutter", "flying", 60),
-            "Payback" to MoveStats("Payback", "dark", 110),
-            "Body Slam" to MoveStats("Body Slam", "normal", 50),
-            "Foul Play" to MoveStats("Foul Play", "dark", 70),
-            "Night Slash" to MoveStats("Night Slash", "dark", 50),
-            "Cross Chop" to MoveStats("Cross Chop", "fighting", 50),
-            "Dynamic Punch" to MoveStats("Dynamic Punch", "fighting", 90),
-            "Aura Sphere" to MoveStats("Aura Sphere", "fighting", 100),
-            "Focus Blast" to MoveStats("Focus Blast", "fighting", 150),
-            "Sludge Bomb" to MoveStats("Sludge Bomb", "poison", 80),
-            "Sludge Wave" to MoveStats("Sludge Wave", "poison", 110),
-            "Acid Spray" to MoveStats("Acid Spray", "poison", 20),
-            "Poison Fang" to MoveStats("Poison Fang", "poison", 40),
-            "Cross Poison" to MoveStats("Cross Poison", "poison", 50),
-            "Gunk Shot" to MoveStats("Gunk Shot", "poison", 130),
-            "Mud Bomb" to MoveStats("Mud Bomb", "ground", 60),
-            "Bone Club" to MoveStats("Bone Club", "ground", 40),
-            "Shadow Bone" to MoveStats("Shadow Bone", "ghost", 75),
-            "Hurricane" to MoveStats("Hurricane", "flying", 110),
-            "Acrobatics" to MoveStats("Acrobatics", "flying", 110),
-            "Drill Peck" to MoveStats("Drill Peck", "flying", 65),
-            "Psychic" to MoveStats("Psychic", "psychic", 75),
-            "Psyshock" to MoveStats("Psyshock", "psychic", 70),
-            "Psychic Fangs" to MoveStats("Psychic Fangs", "psychic", 40),
-            "Lunge" to MoveStats("Lunge", "bug", 55),
-            "Megahorn" to MoveStats("Megahorn", "bug", 110),
-            "X-Scissor" to MoveStats("X-Scissor", "bug", 65),
-            "Power Gem" to MoveStats("Power Gem", "rock", 85),
-            "Meteor Beam" to MoveStats("Meteor Beam", "rock", 120),
-            "Night Shade" to MoveStats("Night Shade", "ghost", 80),
-            "Icy Wind" to MoveStats("Icy Wind", "ice", 60),
-            "Triple Axel" to MoveStats("Triple Axel", "ice", 60),
-            "Icicle Spear" to MoveStats("Icicle Spear", "ice", 60),
-            "Freeze Shock" to MoveStats("Freeze Shock", "ice", 160),
-            "Ice Burn" to MoveStats("Ice Burn", "ice", 160),
-            "Dragon Pulse" to MoveStats("Dragon Pulse", "dragon", 90),
-            "Brutal Swing" to MoveStats("Brutal Swing", "dark", 65),
-            "Flash Cannon" to MoveStats("Flash Cannon", "steel", 110),
-            "Heavy Slam" to MoveStats("Heavy Slam", "steel", 70),
-            "Magnet Bomb" to MoveStats("Magnet Bomb", "steel", 70),
-            "Mirror Shot" to MoveStats("Mirror Shot", "steel", 35),
-            "Doom Desire" to MoveStats("Doom Desire", "steel", 75),
-            "Frenzy Plant" to MoveStats("Frenzy Plant", "grass", 100),
-            "Energy Ball" to MoveStats("Energy Ball", "grass", 90),
-            "Seed Bomb" to MoveStats("Seed Bomb", "grass", 65),
-            "Power Whip" to MoveStats("Power Whip", "grass", 90),
-            "Trailblaze" to MoveStats("Trailblaze", "grass", 65),
-            "Solar Beam" to MoveStats("Solar Beam", "grass", 150),
-            "Discharge" to MoveStats("Discharge", "electric", 65),
-            "Zap Cannon" to MoveStats("Zap Cannon", "electric", 150),
-            "Scald" to MoveStats("Scald", "water", 85),
-            "Liquidation" to MoveStats("Liquidation", "water", 70),
-            "Muddy Water" to MoveStats("Muddy Water", "water", 35),
-            "Water Pulse" to MoveStats("Water Pulse", "water", 80),
-            "Nature's Madness" to MoveStats("Nature's Madness", "fairy", 80),
-            "Swift" to MoveStats("Swift", "normal", 65),
-            "Hyper Beam" to MoveStats("Hyper Beam", "normal", 150),
-            "Aura Wheel" to MoveStats("Aura Wheel", "electric", 100),
-            "Rage Fist" to MoveStats("Rage Fist", "ghost", 50),
+            "Dazzling Gleam" to MoveStats("Dazzling Gleam", "fairy", 90, 55),
+            "Scorching Sands" to MoveStats("Scorching Sands", "ground", 80, 50),
+            "Psycho Boost" to MoveStats("Psycho Boost", "psychic", 85, 35),
+            "Thunderbolt" to MoveStats("Thunderbolt", "electric", 90, 55),
+            "Grass Knot" to MoveStats("Grass Knot", "grass", 90, 50),
+            "Sacred Sword" to MoveStats("Sacred Sword", "fighting", 60, 35),
+            "Leaf Blade" to MoveStats("Leaf Blade", "grass", 70, 35),
+            "Aerial Ace" to MoveStats("Aerial Ace", "flying", 60, 45),
+            "Fly" to MoveStats("Fly", "flying", 80, 45),
+            "Flame Charge" to MoveStats("Flame Charge", "fire", 65, 50),
+            "Blast Burn" to MoveStats("Blast Burn", "fire", 110, 50),
+            "Feather Dance" to MoveStats("Feather Dance", "flying", 35, 50),
+            "Shadow Sneak" to MoveStats("Shadow Sneak", "ghost", 75, 50),
+            "Twister" to MoveStats("Twister", "dragon", 70, 40),
+            "Air Cutter" to MoveStats("Air Cutter", "flying", 60, 40),
+            "Payback" to MoveStats("Payback", "dark", 110, 60),
+            "Body Slam" to MoveStats("Body Slam", "normal", 65, 40),
+            "Foul Play" to MoveStats("Foul Play", "dark", 65, 40),
+            "Night Slash" to MoveStats("Night Slash", "dark", 50, 35),
+            "Cross Chop" to MoveStats("Cross Chop", "fighting", 55, 35),
+            "Dynamic Punch" to MoveStats("Dynamic Punch", "fighting", 90, 45),
+            "Aura Sphere" to MoveStats("Aura Sphere", "fighting", 80, 40),
+            "Focus Blast" to MoveStats("Focus Blast", "fighting", 150, 75),
+            "Sludge Bomb" to MoveStats("Sludge Bomb", "poison", 80, 50),
+            "Sludge Wave" to MoveStats("Sludge Wave", "poison", 110, 65),
+            "Acid Spray" to MoveStats("Acid Spray", "poison", 20, 45),
+            "Poison Fang" to MoveStats("Poison Fang", "poison", 50, 40),
+            "Cross Poison" to MoveStats("Cross Poison", "poison", 50, 35),
+            "Gunk Shot" to MoveStats("Gunk Shot", "poison", 130, 75),
+            "Mud Bomb" to MoveStats("Mud Bomb", "ground", 65, 45),
+            "Bone Club" to MoveStats("Bone Club", "ground", 55, 35),
+            "Shadow Bone" to MoveStats("Shadow Bone", "ghost", 80, 45),
+            "Hurricane" to MoveStats("Hurricane", "flying", 110, 60),
+            "Acrobatics" to MoveStats("Acrobatics", "flying", 110, 55),
+            "Drill Peck" to MoveStats("Drill Peck", "flying", 70, 40),
+            "Psychic" to MoveStats("Psychic", "psychic", 75, 55),
+            "Psyshock" to MoveStats("Psyshock", "psychic", 70, 40),
+            "Psychic Fangs" to MoveStats("Psychic Fangs", "psychic", 40, 35),
+            "Lunge" to MoveStats("Lunge", "bug", 70, 45),
+            "Megahorn" to MoveStats("Megahorn", "bug", 110, 55),
+            "X-Scissor" to MoveStats("X-Scissor", "bug", 65, 40),
+            "Power Gem" to MoveStats("Power Gem", "rock", 85, 50),
+            "Meteor Beam" to MoveStats("Meteor Beam", "rock", 120, 60),
+            "Night Shade" to MoveStats("Night Shade", "ghost", 70, 45),
+            "Icy Wind" to MoveStats("Icy Wind", "ice", 60, 45),
+            "Triple Axel" to MoveStats("Triple Axel", "ice", 60, 45),
+            "Icicle Spear" to MoveStats("Icicle Spear", "ice", 70, 40),
+            "Freeze Shock" to MoveStats("Freeze Shock", "ice", 120, 60),
+            "Ice Burn" to MoveStats("Ice Burn", "ice", 120, 60),
+            "Dragon Pulse" to MoveStats("Dragon Pulse", "dragon", 90, 55),
+            "Brutal Swing" to MoveStats("Brutal Swing", "dark", 55, 35),
+            "Flash Cannon" to MoveStats("Flash Cannon", "steel", 110, 65),
+            "Heavy Slam" to MoveStats("Heavy Slam", "steel", 70, 50),
+            "Magnet Bomb" to MoveStats("Magnet Bomb", "steel", 70, 40),
+            "Mirror Shot" to MoveStats("Mirror Shot", "steel", 35, 35),
+            "Doom Desire" to MoveStats("Doom Desire", "steel", 80, 40),
+            "Frenzy Plant" to MoveStats("Frenzy Plant", "grass", 100, 45),
+            "Energy Ball" to MoveStats("Energy Ball", "grass", 80, 45),
+            "Seed Bomb" to MoveStats("Seed Bomb", "grass", 55, 40),
+            "Power Whip" to MoveStats("Power Whip", "grass", 90, 50),
+            "Trailblaze" to MoveStats("Trailblaze", "grass", 65, 45),
+            "Solar Beam" to MoveStats("Solar Beam", "grass", 150, 80),
+            "Discharge" to MoveStats("Discharge", "electric", 55, 40),
+            "Zap Cannon" to MoveStats("Zap Cannon", "electric", 150, 80),
+            "Scald" to MoveStats("Scald", "water", 85, 50),
+            "Liquidation" to MoveStats("Liquidation", "water", 70, 45),
+            "Muddy Water" to MoveStats("Muddy Water", "water", 35, 35),
+            "Water Pulse" to MoveStats("Water Pulse", "water", 80, 50),
+            "Nature's Madness" to MoveStats("Nature's Madness", "fairy", 80, 50),
+            "Swift" to MoveStats("Swift", "normal", 55, 35),
+            "Hyper Beam" to MoveStats("Hyper Beam", "normal", 150, 80),
+            "Aura Wheel" to MoveStats("Aura Wheel", "electric", 100, 45),
+            "Rage Fist" to MoveStats("Rage Fist", "ghost", 55, 40),
             "Torch Song" to MoveStats("Torch Song", "fire", 70, 45),
             "Super Power" to MoveStats("Superpower", "fighting", 85, 40),
             "Drum Beating" to MoveStats("Drum Beating", "grass", 60, 35),
             "Gigaton Hammer" to MoveStats("Gigaton Hammer", "steel", 130, 60),
             "Bulldoze" to MoveStats("Bulldoze", "ground", 80, 55),
-            "Air Cutter" to MoveStats("Air Cutter", "flying", 60, 55),
-            "Rock Tomb" to MoveStats("Rock Tomb", "rock", 70, 60),
-            "Sand Tomb" to MoveStats("Sand Tomb", "ground", 25, 40),
-            "Thunder Punch" to MoveStats("Thunder Punch", "electric", 55, 40),
+            "Air Cutter" to MoveStats("Air Cutter", "flying", 60, 40),
+            "Rock Tomb" to MoveStats("Rock Tomb", "rock", 75, 50),
+            "Sand Tomb" to MoveStats("Sand Tomb", "ground", 55, 45),
+            "Thunder Punch" to MoveStats("Thunder Punch", "electric", 60, 40),
             "Flamethrower" to MoveStats("Flamethrower", "fire", 90, 55),
             "Fire Blast" to MoveStats("Fire Blast", "fire", 140, 80),
             "Last Resort" to MoveStats("Last Resort", "normal", 90, 55),
-            "Brine" to MoveStats("Brine", "water", 60, 50),
-            "Dig" to MoveStats("Dig", "ground", 80, 50),
+            "Brine" to MoveStats("Brine", "water", 100, 60),
+            "Dig" to MoveStats("Dig", "ground", 70, 50),
             "Shadow Punch" to MoveStats("Shadow Punch", "ghost", 55, 35),
-            "Spirit Shackle" to MoveStats("Spirit Shackle", "ghost", 70, 40),
+            "Spirit Shackle" to MoveStats("Spirit Shackle", "ghost", 50, 40),
             "Darkest Lariat" to MoveStats("Darkest Lariat", "dark", 120, 60),
             "Power-Up Punch" to MoveStats("Power-Up Punch", "fighting", 20, 35),
-            "Bubble Beam" to MoveStats("Bubble Beam", "water", 25, 40),
+            "Bubble Beam" to MoveStats("Bubble Beam", "water", 50, 50),
             "Bug Buzz" to MoveStats("Bug Buzz", "bug", 100, 60),
             "Leaf Tornado" to MoveStats("Leaf Tornado", "grass", 45, 40),
             "Stomp" to MoveStats("Stomp", "normal", 55, 40),
             "Petal Blizzard" to MoveStats("Petal Blizzard", "grass", 110, 65),
             "Mystical Fire" to MoveStats("Mystical Fire", "fire", 60, 45),
-            "Gyro Ball" to MoveStats("Gyro Ball", "steel", 80, 60)
+            "Gyro Ball" to MoveStats("Gyro Ball", "steel", 80, 50)
         )
 
         fun resolveChargedMoveStatsStatic(moveName: String, fallbackType: String = "normal"): MoveStats {
@@ -1203,172 +1203,172 @@ class OverlayService : LifecycleService() {
 
         val POKEMON_META_DATABASE = listOf(
             // --- Multi-Form & Regional Variants ---
-            PokemonMeta("Zacian (Crowned)", "zacian_crowned", "zacian", "Crowned", listOf("fairy", "steel"), 4620, "Metal Claw", 2, "Behemoth Blade", "Close Combat", 52, 48, atk = 264.0, def = 216.0, hp = 173, glRank = 400, ulRank = 300, mlRank = 2, chargedMove3 = "Play Rough"),
-            PokemonMeta("Zacian (Hero)", "zacian_hero", "zacian", "Hero", listOf("fairy"), 4329, "Quick Attack", 1, "Close Combat", "Play Rough", 44, 42, atk = 232.0, def = 215.0, hp = 173, glRank = 420, ulRank = 310, mlRank = 18, chargedMove3 = "Wild Charge"),
-            PokemonMeta("Zamazenta (Crowned)", "zamazenta_crowned", "zamazenta", "Crowned", listOf("fighting", "steel"), 4620, "Metal Claw", 2, "Behemoth Bash", "Close Combat", 46, 48, atk = 225.0, def = 260.0, hp = 173, glRank = 390, ulRank = 280, mlRank = 12, chargedMove3 = "Moonblast"),
-            PokemonMeta("Zamazenta (Hero)", "zamazenta_hero", "zamazenta", "Hero", listOf("fighting"), 4329, "Snarl", 3, "Close Combat", "Crunch", 46, 32, atk = 232.0, def = 215.0, hp = 173, glRank = 410, ulRank = 290, mlRank = 20, chargedMove3 = "Moonblast"),
-            PokemonMeta("Keldeo (Resolute)", "keldeo_resolute", "keldeo", "Resolute", listOf("water", "fighting"), 4181, "Low Kick", 2, "Secret Sword", "Aqua Jet", 42, 38, atk = 234.0, def = 171.0, hp = 188, glRank = 140, ulRank = 65, mlRank = 14, chargedMove3 = "Hydro Pump"),
-            PokemonMeta("Keldeo (Ordinary)", "keldeo_ordinary", "keldeo", "Ordinary", listOf("water", "fighting"), 4181, "Low Kick", 2, "Sacred Sword", "Aqua Jet", 38, 38, atk = 234.0, def = 171.0, hp = 188, glRank = 150, ulRank = 70, mlRank = 19, chargedMove3 = "Hydro Pump"),
-            PokemonMeta("Giratina (Origin)", "giratina_origin", "giratina", "Origin", listOf("ghost", "dragon"), 4164, "Shadow Claw", 2, "Shadow Ball", "Ominous Wind", 46, 22, atk = 206.0, def = 172.0, hp = 247, glRank = 180, ulRank = 35, mlRank = 9),
-            PokemonMeta("Giratina (Altered)", "giratina_altered", "giratina", "Altered", listOf("ghost", "dragon"), 3820, "Shadow Claw", 2, "Dragon Claw", "Ancient Power", 28, 26, atk = 171.0, def = 206.0, hp = 247, glRank = 190, ulRank = 3, mlRank = 26),
-            PokemonMeta("Ninetales (Alolan)", "ninetales_alolan", "ninetales", "Alolan", listOf("ice", "fairy"), 2610, "Powder Snow", 2, "Weather Ball (Ice)", "Chilling Water", 34, 46, atk = 116.0, def = 138.0, hp = 126, glRank = 16, ulRank = 25, mlRank = 320, chargedMove3 = "Psyshock"),
-            PokemonMeta("Kanto Ninetales", "ninetales", "ninetales", "Kanto", listOf("fire"), 1498, "Ember", 2, "Weather Ball (Fire)", "Energy Ball", 34, 44, atk = 115.0, def = 138.0, hp = 127, glRank = 58, ulRank = 34, mlRank = 350, chargedMove3 = "Psyshock"),
-            PokemonMeta("Deoxys (Defense)", "deoxys_defense", "deoxys", "Defense", listOf("psychic"), 2570, "Counter", 2, "Psycho Boost", "Thunderbolt", 36, 44, atk = 102.0, def = 228.0, hp = 98, glRank = 24, ulRank = 48, mlRank = 390),
-            PokemonMeta("Deoxys (Normal)", "deoxys_normal", "deoxys", "Normal", listOf("psychic"), 3573, "Counter", 2, "Psycho Boost", "Thunderbolt", 48, 56, atk = 240.0, def = 86.0, hp = 98, glRank = 650, ulRank = 600, mlRank = 450),
-            PokemonMeta("Dialga (Origin)", "dialga_origin", "dialga", "Origin", listOf("steel", "dragon"), 4624, "Dragon Breath", 1, "Roar of Time", "Iron Head", 52, 34, atk = 241.0, def = 204.0, hp = 184, glRank = 350, ulRank = 240, mlRank = 3),
-            PokemonMeta("Dialga", "dialga", "dialga", "Altered", listOf("steel", "dragon"), 4565, "Dragon Breath", 1, "Draco Meteor", "Iron Head", 50, 32, atk = 246.0, def = 190.0, hp = 184, glRank = 360, ulRank = 250, mlRank = 14),
-            PokemonMeta("Palkia (Origin)", "palkia_origin", "palkia", "Origin", listOf("water", "dragon"), 4683, "Dragon Breath", 1, "Spacial Rend", "Aqua Tail", 46, 28, atk = 259.0, def = 202.0, hp = 169, glRank = 330, ulRank = 210, mlRank = 1),
-            PokemonMeta("Palkia", "palkia", "palkia", "Altered", listOf("water", "dragon"), 4512, "Dragon Breath", 1, "Aqua Tail", "Draco Meteor", 28, 52, atk = 252.0, def = 195.0, hp = 169, glRank = 340, ulRank = 230, mlRank = 22),
-            PokemonMeta("Landorus (Therian)", "landorus_therian", "landorus", "Therian", listOf("ground", "flying"), 4434, "Mud Shot", 2, "Sandsear Storm", "Stone Edge", 42, 46, atk = 259.0, def = 164.0, hp = 182, glRank = 280, ulRank = 190, mlRank = 5),
-            PokemonMeta("Landorus (Incarnate)", "landorus", "landorus", "Incarnate", listOf("ground", "flying"), 4057, "Mud Shot", 2, "Earth Power", "Rock Slide", 44, 36, atk = 235.0, def = 164.0, hp = 182, glRank = 310, ulRank = 210, mlRank = 42),
-            PokemonMeta("Necrozma (Dusk Mane)", "necrozma_dusk_mane", "necrozma", "Dusk Mane", listOf("psychic", "steel"), 4634, "Shadow Claw", 2, "Sunsteel Strike", "Dark Pulse", 54, 40, atk = 249.0, def = 200.0, hp = 179, glRank = 400, ulRank = 280, mlRank = 4),
-            PokemonMeta("Necrozma (Dawn Wings)", "necrozma_dawn_wings", "necrozma", "Dawn Wings", listOf("psychic", "ghost"), 4634, "Shadow Claw", 2, "Moongeist Beam", "Dark Pulse", 54, 40, atk = 249.0, def = 200.0, hp = 179, glRank = 405, ulRank = 285, mlRank = 6),
-            PokemonMeta("Necrozma", "necrozma", "necrozma", "Base", listOf("psychic"), 4163, "Shadow Claw", 2, "Dark Pulse", "Iron Head", 38, 30, atk = 225.0, def = 176.0, hp = 179, glRank = 450, ulRank = 310, mlRank = 65),
-            PokemonMeta("Kyurem (Black)", "kyurem_black", "kyurem", "Black", listOf("dragon", "ice"), 4605, "Shadow Claw", 2, "Freeze Shock", "Fusion Bolt", 58, 48, atk = 278.0, def = 171.0, hp = 218, glRank = 200, ulRank = 80, mlRank = 1, chargedMove3 = "Outrage"),
-            PokemonMeta("Kyurem (White)", "kyurem_white", "kyurem", "White", listOf("dragon", "ice"), 4605, "Dragon Breath", 1, "Ice Burn", "Fusion Flare", 58, 48, atk = 278.0, def = 171.0, hp = 218, glRank = 210, ulRank = 85, mlRank = 2, chargedMove3 = "Blizzard"),
-            PokemonMeta("Kyurem", "kyurem", "kyurem", "Base", listOf("dragon", "ice"), 4041, "Dragon Breath", 1, "Glaciate", "Dragon Claw", 38, 30, atk = 219.0, def = 154.0, hp = 218, glRank = 310, ulRank = 95, mlRank = 18, chargedMove3 = "Blizzard"),
-            PokemonMeta("Enamorus (Incarnate)", "enamorus", "enamorus", "Incarnate", listOf("fairy", "flying"), 3873, "Fairy Wind", 2, "Fly", "Dazzling Gleam", 42, 48, atk = 250.0, def = 148.0, hp = 158, glRank = 280, ulRank = 130, mlRank = 17),
-            PokemonMeta("Enamorus (Therian)", "enamorus_therian", "enamorus", "Therian", listOf("fairy", "flying"), 3873, "Fairy Wind", 2, "Fly", "Moonblast", 42, 50, atk = 225.0, def = 182.0, hp = 158, glRank = 290, ulRank = 140, mlRank = 25),
-            PokemonMeta("Urshifu (Single Strike)", "urshifu_single", "urshifu", "Single", listOf("fighting", "dark"), 4077, "Counter", 2, "Dynamic Punch", "Payback", 44, 52, atk = 226.0, def = 166.0, hp = 200, glRank = 210, ulRank = 110, mlRank = 22),
-            PokemonMeta("Urshifu (Rapid Strike)", "urshifu_rapid", "urshifu", "Rapid", listOf("fighting", "water"), 4077, "Counter", 2, "Aqua Jet", "Close Combat", 34, 48, atk = 226.0, def = 166.0, hp = 200, glRank = 215, ulRank = 115, mlRank = 24),
-            PokemonMeta("Sandslash (Alolan)", "sandslash_alolan", "sandslash", "Alolan", listOf("ice", "steel"), 2432, "Powder Snow", 2, "Ice Punch", "Drill Run", 32, 42, atk = 115.0, def = 139.0, hp = 132, glRank = 9, ulRank = 16, mlRank = 350),
-            PokemonMeta("Sandslash", "sandslash", "sandslash", "Kanto", listOf("ground"), 2374, "Mud Shot", 2, "Scorching Sands", "Night Slash", 42, 28, atk = 126.0, def = 128.0, hp = 132, glRank = 48, ulRank = 75, mlRank = 380),
-            PokemonMeta("Marowak (Alolan)", "marowak_alolan", "marowak", "Alolan", listOf("fire", "ghost"), 1835, "Fire Spin", 3, "Bone Club", "Shadow Bone", 28, 44, atk = 110.0, def = 144.0, hp = 125, glRank = 35, ulRank = 310, mlRank = 450),
-            PokemonMeta("Marowak", "marowak", "marowak", "Kanto", listOf("ground"), 1835, "Mud-Slap", 3, "Bone Club", "Rock Slide", 28, 40, atk = 110.0, def = 144.0, hp = 125, glRank = 12, ulRank = 290, mlRank = 440),
-            PokemonMeta("Stunfisk (Galarian)", "stunfisk_galarian", "stunfisk", "Galarian", listOf("ground", "steel"), 2445, "Mud Shot", 2, "Rock Slide", "Earthquake", 38, 52, atk = 102.0, def = 126.0, hp = 172, glRank = 30, ulRank = 28, mlRank = 340),
-            PokemonMeta("Stunfisk", "stunfisk", "stunfisk", "Unovan", listOf("ground", "electric"), 2445, "Thunder Shock", 2, "Mud Bomb", "Discharge", 34, 38, atk = 102.0, def = 126.0, hp = 172, glRank = 26, ulRank = 34, mlRank = 350),
-            PokemonMeta("Muk (Alolan)", "muk_alolan", "muk", "Alolan", listOf("poison", "dark"), 2757, "Poison Jab", 2, "Dark Pulse", "Acid Spray", 40, 20, atk = 152.0, def = 148.0, hp = 190, glRank = 95, ulRank = 22, mlRank = 180),
-            PokemonMeta("Muk", "muk", "muk", "Kanto", listOf("poison"), 2757, "Poison Jab", 2, "Thunder Punch", "Dark Pulse", 32, 40, atk = 152.0, def = 148.0, hp = 190, glRank = 110, ulRank = 36, mlRank = 190),
-            PokemonMeta("Weezing (Galarian)", "weezing_galarian", "weezing", "Galarian", listOf("poison", "fairy"), 2488, "Fairy Wind", 2, "Brutal Swing", "Overheat", 34, 62, atk = 136.0, def = 162.0, hp = 138, glRank = 25, ulRank = 11, mlRank = 290),
-            PokemonMeta("Qwilfish (Hisuian)", "qwilfish_hisuian", "qwilfish", "Hisuian", listOf("dark", "poison"), 2290, "Poison Sting", 2, "Aqua Tail", "Shadow Ball", 30, 44, atk = 125.0, def = 114.0, hp = 134, glRank = 36, ulRank = 90, mlRank = 380),
+            PokemonMeta("Zacian (Crowned)", "zacian_crowned", "zacian", "Crowned", listOf("fairy", "steel"), 4620, "Metal Claw", 2, "Behemoth Blade", "Close Combat", 52, 48, atk = 332.0, def = 240.0, hp = 192, glRank = 400, ulRank = 300, mlRank = 2, chargedMove3 = "Play Rough", isRawBaseStats = true, defaultIvsGl = "7/9/12", defaultIvsUl = "6/13/15"),
+            PokemonMeta("Zacian (Hero)", "zacian_hero", "zacian", "Hero", listOf("fairy"), 4329, "Quick Attack", 1, "Close Combat", "Play Rough", 44, 42, atk = 254.0, def = 236.0, hp = 192, glRank = 420, ulRank = 310, mlRank = 18, chargedMove3 = "Wild Charge", isRawBaseStats = true, defaultIvsGl = "5/7/14", defaultIvsUl = "5/10/13"),
+            PokemonMeta("Zamazenta (Crowned)", "zamazenta_crowned", "zamazenta", "Crowned", listOf("fighting", "steel"), 4620, "Metal Claw", 2, "Behemoth Bash", "Close Combat", 46, 48, atk = 250.0, def = 292.0, hp = 192, glRank = 390, ulRank = 280, mlRank = 12, chargedMove3 = "Moonblast", isRawBaseStats = true, defaultIvsGl = "6/13/14", defaultIvsUl = "6/7/14"),
+            PokemonMeta("Zamazenta (Hero)", "zamazenta_hero", "zamazenta", "Hero", listOf("fighting"), 4329, "Snarl", 3, "Close Combat", "Crunch", 46, 32, atk = 254.0, def = 236.0, hp = 192, glRank = 410, ulRank = 290, mlRank = 20, chargedMove3 = "Moonblast", isRawBaseStats = true, defaultIvsGl = "5/7/14", defaultIvsUl = "5/10/13"),
+            PokemonMeta("Keldeo (Resolute)", "keldeo_resolute", "keldeo", "Resolute", listOf("water", "fighting"), 4181, "Low Kick", 2, "Secret Sword", "Aqua Jet", 42, 38, atk = 260.0, def = 192.0, hp = 209, glRank = 140, ulRank = 65, mlRank = 14, chargedMove3 = "Hydro Pump", isRawBaseStats = true, defaultIvsGl = "12/12/13", defaultIvsUl = "11/14/13"),
+            PokemonMeta("Keldeo (Ordinary)", "keldeo_ordinary", "keldeo", "Ordinary", listOf("water", "fighting"), 4181, "Low Kick", 2, "Sacred Sword", "Aqua Jet", 38, 38, atk = 260.0, def = 192.0, hp = 209, glRank = 150, ulRank = 70, mlRank = 19, chargedMove3 = "Hydro Pump", isRawBaseStats = true, defaultIvsGl = "0/0/0", defaultIvsUl = "11/14/13"),
+            PokemonMeta("Giratina (Origin)", "giratina_origin", "giratina", "Origin", listOf("ghost", "dragon"), 4164, "Shadow Claw", 2, "Shadow Ball", "Ominous Wind", 46, 22, atk = 225.0, def = 187.0, hp = 284, glRank = 180, ulRank = 35, mlRank = 9, isRawBaseStats = true, defaultIvsGl = "7/9/14", defaultIvsUl = "6/14/9"),
+            PokemonMeta("Giratina (Altered)", "giratina_altered", "giratina", "Altered", listOf("ghost", "dragon"), 3820, "Shadow Claw", 2, "Dragon Claw", "Ancient Power", 28, 26, atk = 187.0, def = 225.0, hp = 284, glRank = 190, ulRank = 3, mlRank = 26, isRawBaseStats = true, defaultIvsGl = "6/15/6", defaultIvsUl = "5/15/8"),
+            PokemonMeta("Ninetales (Alolan)", "ninetales_alolan", "ninetales", "Alolan", listOf("ice", "fairy"), 2610, "Powder Snow", 2, "Weather Ball (Ice)", "Chilling Water", 34, 46, atk = 170.0, def = 193.0, hp = 177, glRank = 16, ulRank = 25, mlRank = 320, chargedMove3 = "Psyshock", isRawBaseStats = true, defaultIvsGl = "5/15/15", defaultIvsUl = "13/15/14"),
+            PokemonMeta("Kanto Ninetales", "ninetales", "ninetales", "Kanto", listOf("fire"), 1498, "Ember", 2, "Weather Ball (Fire)", "Energy Ball", 34, 44, atk = 169.0, def = 190.0, hp = 177, glRank = 58, ulRank = 34, mlRank = 350, chargedMove3 = "Psyshock", isRawBaseStats = true, defaultIvsGl = "4/15/14", defaultIvsUl = "12/15/14"),
+            PokemonMeta("Deoxys (Defense)", "deoxys_defense", "deoxys", "Defense", listOf("psychic"), 2570, "Counter", 2, "Psycho Boost", "Thunderbolt", 36, 44, atk = 144.0, def = 330.0, hp = 137, glRank = 24, ulRank = 48, mlRank = 390, isRawBaseStats = true, defaultIvsGl = "12/12/15", defaultIvsUl = "11/13/14"),
+            PokemonMeta("Deoxys (Normal)", "deoxys_normal", "deoxys", "Normal", listOf("psychic"), 3573, "Counter", 2, "Psycho Boost", "Thunderbolt", 48, 56, atk = 345.0, def = 115.0, hp = 137, glRank = 650, ulRank = 600, mlRank = 450, isRawBaseStats = true, defaultIvsGl = "11/11/14", defaultIvsUl = "12/13/11"),
+            PokemonMeta("Dialga (Origin)", "dialga_origin", "dialga", "Origin", listOf("steel", "dragon"), 4624, "Dragon Breath", 1, "Roar of Time", "Iron Head", 52, 34, atk = 270.0, def = 225.0, hp = 205, glRank = 350, ulRank = 240, mlRank = 3, isRawBaseStats = true, defaultIvsGl = "5/15/8", defaultIvsUl = "7/14/14"),
+            PokemonMeta("Dialga", "dialga", "dialga", "Altered", listOf("steel", "dragon"), 4565, "Dragon Breath", 1, "Draco Meteor", "Iron Head", 50, 32, atk = 275.0, def = 211.0, hp = 205, glRank = 360, ulRank = 250, mlRank = 14, isRawBaseStats = true, defaultIvsGl = "7/11/14", defaultIvsUl = "6/14/12"),
+            PokemonMeta("Palkia (Origin)", "palkia_origin", "palkia", "Origin", listOf("water", "dragon"), 4683, "Dragon Breath", 1, "Spacial Rend", "Aqua Tail", 46, 28, atk = 286.0, def = 223.0, hp = 189, glRank = 330, ulRank = 210, mlRank = 1, isRawBaseStats = true, defaultIvsGl = "7/15/13", defaultIvsUl = "11/13/15"),
+            PokemonMeta("Palkia", "palkia", "palkia", "Altered", listOf("water", "dragon"), 4512, "Dragon Breath", 1, "Aqua Tail", "Draco Meteor", 28, 52, atk = 280.0, def = 215.0, hp = 189, glRank = 340, ulRank = 230, mlRank = 22, isRawBaseStats = true, defaultIvsGl = "5/15/4", defaultIvsUl = "5/10/13"),
+            PokemonMeta("Landorus (Therian)", "landorus_therian", "landorus", "Therian", listOf("ground", "flying"), 4434, "Mud Shot", 2, "Sandsear Storm", "Stone Edge", 42, 46, atk = 289.0, def = 179.0, hp = 205, glRank = 280, ulRank = 190, mlRank = 5, isRawBaseStats = true, defaultIvsGl = "6/9/15", defaultIvsUl = "6/15/12"),
+            PokemonMeta("Landorus (Incarnate)", "landorus", "landorus", "Incarnate", listOf("ground", "flying"), 4057, "Mud Shot", 2, "Earth Power", "Rock Slide", 44, 36, atk = 261.0, def = 182.0, hp = 205, glRank = 310, ulRank = 210, mlRank = 42, isRawBaseStats = true, defaultIvsGl = "10/13/14", defaultIvsUl = "5/8/11"),
+            PokemonMeta("Necrozma (Dusk Mane)", "necrozma_dusk_mane", "necrozma", "Dusk Mane", listOf("psychic", "steel"), 4634, "Shadow Claw", 2, "Sunsteel Strike", "Dark Pulse", 54, 40, atk = 277.0, def = 220.0, hp = 200, glRank = 400, ulRank = 280, mlRank = 4, isRawBaseStats = true, defaultIvsGl = "4/9/14", defaultIvsUl = "4/15/9"),
+            PokemonMeta("Necrozma (Dawn Wings)", "necrozma_dawn_wings", "necrozma", "Dawn Wings", listOf("psychic", "ghost"), 4634, "Shadow Claw", 2, "Moongeist Beam", "Dark Pulse", 54, 40, atk = 277.0, def = 220.0, hp = 200, glRank = 405, ulRank = 285, mlRank = 6, isRawBaseStats = true, defaultIvsGl = "4/9/14", defaultIvsUl = "4/15/9"),
+            PokemonMeta("Necrozma", "necrozma", "necrozma", "Base", listOf("psychic"), 4163, "Shadow Claw", 2, "Dark Pulse", "Iron Head", 38, 30, atk = 251.0, def = 195.0, hp = 219, glRank = 450, ulRank = 310, mlRank = 65, isRawBaseStats = true, defaultIvsGl = "4/13/13", defaultIvsUl = "4/11/15"),
+            PokemonMeta("Kyurem (Black)", "kyurem_black", "kyurem", "Black", listOf("dragon", "ice"), 4605, "Shadow Claw", 2, "Freeze Shock", "Fusion Bolt", 58, 48, atk = 310.0, def = 183.0, hp = 245, glRank = 200, ulRank = 80, mlRank = 1, chargedMove3 = "Outrage", isRawBaseStats = true, defaultIvsGl = "7/10/8", defaultIvsUl = "9/13/14"),
+            PokemonMeta("Kyurem (White)", "kyurem_white", "kyurem", "White", listOf("dragon", "ice"), 4605, "Dragon Breath", 1, "Ice Burn", "Fusion Flare", 58, 48, atk = 310.0, def = 183.0, hp = 245, glRank = 210, ulRank = 85, mlRank = 2, chargedMove3 = "Blizzard", isRawBaseStats = true, defaultIvsGl = "7/10/8", defaultIvsUl = "9/13/14"),
+            PokemonMeta("Kyurem", "kyurem", "kyurem", "Base", listOf("dragon", "ice"), 4041, "Dragon Breath", 1, "Glaciate", "Dragon Claw", 38, 30, atk = 246.0, def = 170.0, hp = 245, glRank = 310, ulRank = 95, mlRank = 18, chargedMove3 = "Blizzard", isRawBaseStats = true, defaultIvsGl = "9/15/14", defaultIvsUl = "5/8/14"),
+            PokemonMeta("Enamorus (Incarnate)", "enamorus", "enamorus", "Incarnate", listOf("fairy", "flying"), 3873, "Fairy Wind", 2, "Fly", "Dazzling Gleam", 42, 48, atk = 281.0, def = 162.0, hp = 179, glRank = 280, ulRank = 130, mlRank = 17, isRawBaseStats = true, defaultIvsGl = "7/13/11", defaultIvsUl = "5/13/9"),
+            PokemonMeta("Enamorus (Therian)", "enamorus_therian", "enamorus", "Therian", listOf("fairy", "flying"), 3873, "Fairy Wind", 2, "Fly", "Moonblast", 42, 50, atk = 250.0, def = 201.0, hp = 179, glRank = 290, ulRank = 140, mlRank = 25, isRawBaseStats = true, defaultIvsGl = "4/9/11", defaultIvsUl = "6/15/11"),
+            PokemonMeta("Urshifu (Single Strike)", "urshifu_single", "urshifu", "Single", listOf("fighting", "dark"), 4077, "Counter", 2, "Dynamic Punch", "Payback", 44, 52, atk = 254.0, def = 177.0, hp = 225, glRank = 210, ulRank = 110, mlRank = 22, isRawBaseStats = true, defaultIvsGl = "10/12/10", defaultIvsUl = "13/13/14"),
+            PokemonMeta("Urshifu (Rapid Strike)", "urshifu_rapid", "urshifu", "Rapid", listOf("fighting", "water"), 4077, "Counter", 2, "Aqua Jet", "Close Combat", 34, 48, atk = 254.0, def = 177.0, hp = 225, glRank = 215, ulRank = 115, mlRank = 24, isRawBaseStats = true, defaultIvsGl = "10/12/10", defaultIvsUl = "13/13/14"),
+            PokemonMeta("Sandslash (Alolan)", "sandslash_alolan", "sandslash", "Alolan", listOf("ice", "steel"), 2432, "Powder Snow", 2, "Ice Punch", "Drill Run", 32, 42, atk = 177.0, def = 195.0, hp = 181, glRank = 9, ulRank = 16, mlRank = 350, isRawBaseStats = true, defaultIvsGl = "4/13/15", defaultIvsUl = "4/12/15"),
+            PokemonMeta("Sandslash", "sandslash", "sandslash", "Kanto", listOf("ground"), 2374, "Mud Shot", 2, "Scorching Sands", "Night Slash", 42, 28, atk = 182.0, def = 175.0, hp = 181, glRank = 48, ulRank = 75, mlRank = 380, isRawBaseStats = true, defaultIvsGl = "4/15/13", defaultIvsUl = "4/13/14"),
+            PokemonMeta("Marowak (Alolan)", "marowak_alolan", "marowak", "Alolan", listOf("fire", "ghost"), 1835, "Fire Spin", 3, "Bone Club", "Shadow Bone", 28, 44, atk = 144.0, def = 186.0, hp = 155, glRank = 35, ulRank = 310, mlRank = 450, isRawBaseStats = true, defaultIvsGl = "4/15/14", defaultIvsUl = "15/15/15"),
+            PokemonMeta("Marowak", "marowak", "marowak", "Kanto", listOf("ground"), 1835, "Mud-Slap", 3, "Bone Club", "Rock Slide", 28, 40, atk = 144.0, def = 186.0, hp = 155, glRank = 12, ulRank = 290, mlRank = 440, isRawBaseStats = true, defaultIvsGl = "4/15/14", defaultIvsUl = "15/15/15"),
+            PokemonMeta("Stunfisk (Galarian)", "stunfisk_galarian", "stunfisk", "Galarian", listOf("ground", "steel"), 2445, "Mud Shot", 2, "Rock Slide", "Earthquake", 38, 52, atk = 144.0, def = 171.0, hp = 240, glRank = 30, ulRank = 28, mlRank = 340, isRawBaseStats = true, defaultIvsGl = "5/15/13", defaultIvsUl = "15/15/15"),
+            PokemonMeta("Stunfisk", "stunfisk", "stunfisk", "Unovan", listOf("ground", "electric"), 2445, "Thunder Shock", 2, "Mud Bomb", "Discharge", 34, 38, atk = 144.0, def = 171.0, hp = 240, glRank = 26, ulRank = 34, mlRank = 350, isRawBaseStats = true, defaultIvsGl = "5/15/13", defaultIvsUl = "15/15/15"),
+            PokemonMeta("Muk (Alolan)", "muk_alolan", "muk", "Alolan", listOf("poison", "dark"), 2757, "Poison Jab", 2, "Dark Pulse", "Acid Spray", 40, 20, atk = 190.0, def = 172.0, hp = 233, glRank = 95, ulRank = 22, mlRank = 180, isRawBaseStats = true, defaultIvsGl = "4/15/15", defaultIvsUl = "4/15/15"),
+            PokemonMeta("Muk", "muk", "muk", "Kanto", listOf("poison"), 2757, "Poison Jab", 2, "Thunder Punch", "Dark Pulse", 32, 40, atk = 190.0, def = 172.0, hp = 233, glRank = 110, ulRank = 36, mlRank = 190, isRawBaseStats = true, defaultIvsGl = "4/15/15", defaultIvsUl = "4/15/15"),
+            PokemonMeta("Weezing (Galarian)", "weezing_galarian", "weezing", "Galarian", listOf("poison", "fairy"), 2488, "Fairy Wind", 2, "Brutal Swing", "Overheat", 34, 62, atk = 174.0, def = 197.0, hp = 163, glRank = 25, ulRank = 11, mlRank = 290, isRawBaseStats = true, defaultIvsGl = "4/14/13", defaultIvsUl = "12/14/13"),
+            PokemonMeta("Qwilfish (Hisuian)", "qwilfish_hisuian", "qwilfish", "Hisuian", listOf("dark", "poison"), 2290, "Poison Sting", 2, "Aqua Tail", "Shadow Ball", 30, 44, atk = 184.0, def = 151.0, hp = 163, glRank = 36, ulRank = 90, mlRank = 380, isRawBaseStats = true, defaultIvsGl = "4/14/15", defaultIvsUl = "15/15/15"),
 
             // --- User Custom Great & Ultra League Team Pokémon ---
-            PokemonMeta("Fearow", "fearow", "fearow", "Base", listOf("normal", "flying"), 1500, "Peck", 2, "Drill Run", "Drill Peck", 42, 34, atk = 131.0, def = 96.0, hp = 120, glRank = 85, ulRank = 250, mlRank = 420),
-            PokemonMeta("Shadow Pidgeot", "pidgeot_shadow", "pidgeot", "Shadow", listOf("normal", "flying"), 1490, "Gust", 4, "Twister", "Brave Bird", 28, 62, atk = 117.0, def = 112.0, hp = 142, glRank = 28, ulRank = 18, mlRank = 310),
-            PokemonMeta("Pidgeot", "pidgeot", "pidgeot", "Base", listOf("normal", "flying"), 1490, "Gust", 4, "Twister", "Brave Bird", 24, 52, atk = 117.0, def = 112.0, hp = 142, glRank = 32, ulRank = 15, mlRank = 300),
-            PokemonMeta("Zygarde", "zygarde_complete", "zygarde", "Complete", listOf("dragon", "ground"), 2472, "Dragon Tail", 3, "Crunch", "Earthquake", 32, 52, atk = 126.0, def = 148.0, hp = 266, glRank = 80, ulRank = 1, mlRank = 5),
-            PokemonMeta("Corviknight", "corviknight", "corviknight", "Base", listOf("flying", "steel"), 2499, "Sand Attack", 1, "Air Cutter", "Iron Head", 32, 34, atk = 148.0, def = 178.0, hp = 202, glRank = 14, ulRank = 7, mlRank = 120, chargedMove3 = "Sky Attack"),
-            PokemonMeta("Mimikyu", "mimikyu", "mimikyu", "Disguised", listOf("ghost", "fairy"), 2497, "Shadow Claw", 2, "Play Rough", "Shadow Sneak", 44, 28, atk = 162.0, def = 184.0, hp = 138, glRank = 40, ulRank = 25, mlRank = 210),
+            PokemonMeta("Fearow", "fearow", "fearow", "Base", listOf("normal", "flying"), 1500, "Peck", 2, "Drill Run", "Drill Peck", 42, 34, atk = 182.0, def = 133.0, hp = 163, glRank = 85, ulRank = 250, mlRank = 420, isRawBaseStats = true, defaultIvsGl = "4/15/13", defaultIvsUl = "15/15/15"),
+            PokemonMeta("Shadow Pidgeot", "pidgeot_shadow", "pidgeot", "Shadow", listOf("normal", "flying"), 1490, "Gust", 4, "Twister", "Brave Bird", 28, 62, atk = 166.0, def = 154.0, hp = 195, glRank = 28, ulRank = 18, mlRank = 310, isRawBaseStats = true, defaultIvsGl = "4/14/12", defaultIvsUl = "15/15/15"),
+            PokemonMeta("Pidgeot", "pidgeot", "pidgeot", "Base", listOf("normal", "flying"), 1490, "Gust", 4, "Twister", "Brave Bird", 24, 52, atk = 166.0, def = 154.0, hp = 195, glRank = 32, ulRank = 15, mlRank = 300, isRawBaseStats = true, defaultIvsGl = "4/14/12", defaultIvsUl = "15/15/15"),
+            PokemonMeta("Zygarde", "zygarde_complete", "zygarde", "Complete", listOf("dragon", "ground"), 2472, "Dragon Tail", 3, "Crunch", "Earthquake", 32, 52, atk = 184.0, def = 207.0, hp = 389, glRank = 80, ulRank = 1, mlRank = 5, isRawBaseStats = true, defaultIvsGl = "0/0/0", defaultIvsUl = "13/10/15"),
+            PokemonMeta("Corviknight", "corviknight", "corviknight", "Base", listOf("flying", "steel"), 2499, "Sand Attack", 1, "Air Cutter", "Iron Head", 32, 34, atk = 163.0, def = 192.0, hp = 221, glRank = 14, ulRank = 7, mlRank = 120, chargedMove3 = "Sky Attack", isRawBaseStats = true, defaultIvsGl = "4/12/14", defaultIvsUl = "4/14/13"),
+            PokemonMeta("Mimikyu", "mimikyu", "mimikyu", "Disguised", listOf("ghost", "fairy"), 2497, "Shadow Claw", 2, "Play Rough", "Shadow Sneak", 44, 28, atk = 177.0, def = 199.0, hp = 146, glRank = 40, ulRank = 25, mlRank = 210, isRawBaseStats = true, defaultIvsGl = "4/14/15", defaultIvsUl = "13/15/15"),
 
             // --- Master League Core Meta ---
-            PokemonMeta("Lugia", "lugia", "lugia", "Base", listOf("psychic", "flying"), 4179, "Dragon Tail", 3, "Aeroblast", "Earth Power", 54, 34, atk = 176.0, def = 274.0, hp = 211, glRank = 75, ulRank = 45, mlRank = 12),
-            PokemonMeta("Kyogre", "kyogre", "kyogre", "Base", listOf("water"), 4652, "Waterfall", 3, "Origin Pulse", "Avalanche", 56, 40, atk = 243.0, def = 204.0, hp = 184, glRank = 310, ulRank = 180, mlRank = 10),
-            PokemonMeta("Groudon", "groudon", "groudon", "Base", listOf("ground"), 4652, "Mud Shot", 2, "Precipice Blades", "Fire Punch", 55, 26, atk = 243.0, def = 204.0, hp = 184, glRank = 300, ulRank = 175, mlRank = 11),
-            PokemonMeta("Ho-Oh", "ho_oh", "ho-oh", "Base", listOf("fire", "flying"), 4367, "Incinerate", 5, "Sacred Fire", "Brave Bird", 54, 52, atk = 216.0, def = 219.0, hp = 193, glRank = 140, ulRank = 70, mlRank = 7),
-            PokemonMeta("Yveltal", "yveltal", "yveltal", "Base", listOf("dark", "flying"), 4275, "Snarl", 3, "Dark Pulse", "Oblivion Wing", 42, 42, atk = 225.0, def = 169.0, hp = 226, glRank = 260, ulRank = 95, mlRank = 8),
-            PokemonMeta("Xerneas", "xerneas", "xerneas", "Base", listOf("fairy"), 4275, "Geomancy", 3, "Close Combat", "Moonblast", 44, 48, atk = 225.0, def = 169.0, hp = 226, glRank = 270, ulRank = 98, mlRank = 13),
-            PokemonMeta("Solgaleo", "solgaleo", "solgaleo", "Base", listOf("psychic", "steel"), 4545, "Fire Spin", 3, "Psychic Fangs", "Iron Head", 24, 32, atk = 229.0, def = 174.0, hp = 234, glRank = 290, ulRank = 120, mlRank = 15),
-            PokemonMeta("Lunala", "lunala", "lunala", "Base", listOf("psychic", "ghost"), 4545, "Shadow Claw", 2, "Shadow Ball", "Moonblast", 46, 48, atk = 229.0, def = 174.0, hp = 234, glRank = 310, ulRank = 140, mlRank = 18),
-            PokemonMeta("Mewtwo", "mewtwo", "mewtwo", "Base", listOf("psychic"), 4724, "Psycho Cut", 2, "Psystrike", "Shadow Ball", 48, 44, atk = 266.0, def = 166.0, hp = 193, glRank = 380, ulRank = 210, mlRank = 16),
-            PokemonMeta("Rhyperior", "rhyperior", "rhyperior", "Base", listOf("ground", "rock"), 4221, "Mud-Slap", 3, "Rock Wrecker", "Breaking Swipe", 52, 25, atk = 216.0, def = 174.0, hp = 219, glRank = 210, ulRank = 110, mlRank = 9),
-            PokemonMeta("Dragonite", "dragonite", "dragonite", "Base", listOf("dragon", "flying"), 4287, "Dragon Breath", 1, "Dragon Claw", "Superpower", 30, 42, atk = 235.0, def = 181.0, hp = 188, glRank = 95, ulRank = 52, mlRank = 19),
-            PokemonMeta("Garchomp", "garchomp", "garchomp", "Base", listOf("dragon", "ground"), 4479, "Mud Shot", 2, "Earth Power", "Outrage", 48, 48, atk = 233.0, def = 176.0, hp = 214, glRank = 220, ulRank = 130, mlRank = 24),
-            PokemonMeta("Metagross", "metagross", "metagross", "Base", listOf("steel", "psychic"), 4286, "Bullet Punch", 2, "Meteor Mash", "Earthquake", 48, 52, atk = 229.0, def = 204.0, hp = 172, glRank = 290, ulRank = 160, mlRank = 25),
-            PokemonMeta("Melmetal", "melmetal", "melmetal", "Base", listOf("steel"), 4144, "Thunder Shock", 2, "Superpower", "Rock Slide", 42, 34, atk = 204.0, def = 174.0, hp = 234, glRank = 130, ulRank = 65, mlRank = 23),
-            PokemonMeta("Florges", "florges", "florges", "Base", listOf("fairy"), 3657, "Fairy Wind", 2, "Disarming Voice", "Moonblast", 30, 48, atk = 191.0, def = 218.0, hp = 169, glRank = 110, ulRank = 38, mlRank = 20),
-            PokemonMeta("Primarina", "primarina", "primarina", "Base", listOf("water", "fairy"), 3618, "Charm", 3, "Hydro Cannon", "Moonblast", 42, 48, atk = 206.0, def = 178.0, hp = 172, glRank = 90, ulRank = 42, mlRank = 21),
-            PokemonMeta("Mamoswine", "mamoswine", "mamoswine", "Base", listOf("ice", "ground"), 3763, "Powder Snow", 2, "Avalanche", "High Horsepower", 44, 48, atk = 221.0, def = 138.0, hp = 215, glRank = 190, ulRank = 120, mlRank = 27),
-            PokemonMeta("Excadrill", "excadrill", "excadrill", "Base", listOf("ground", "steel"), 3667, "Mud Shot", 2, "Drill Run", "Rock Slide", 40, 32, atk = 228.0, def = 125.0, hp = 215, glRank = 230, ulRank = 140, mlRank = 28),
-            PokemonMeta("Reshiram", "reshiram", "reshiram", "Base", listOf("dragon", "fire"), 4565, "Dragon Breath", 1, "Fusion Flare", "Overheat", 52, 70, atk = 246.0, def = 190.0, hp = 184, glRank = 350, ulRank = 220, mlRank = 29),
-            PokemonMeta("Zekrom", "zekrom", "zekrom", "Base", listOf("dragon", "electric"), 4565, "Dragon Breath", 1, "Fusion Bolt", "Crunch", 50, 32, atk = 246.0, def = 190.0, hp = 184, glRank = 345, ulRank = 215, mlRank = 30),
-            PokemonMeta("Raikou", "raikou", "raikou", "Base", listOf("electric"), 3902, "Thunder Shock", 2, "Wild Charge", "Shadow Ball", 48, 44, atk = 216.0, def = 178.0, hp = 188, glRank = 180, ulRank = 115, mlRank = 45),
-            PokemonMeta("Entei", "entei", "entei", "Base", listOf("fire"), 3926, "Fire Fang", 2, "Flame Charge", "Overheat", 28, 72, atk = 211.0, def = 161.0, hp = 223, glRank = 240, ulRank = 165, mlRank = 55),
-            PokemonMeta("Suicune", "suicune", "suicune", "Base", listOf("water"), 3372, "Snarl", 3, "Ice Beam", "Hydro Pump", 36, 52, atk = 166.0, def = 211.0, hp = 205, glRank = 170, ulRank = 95, mlRank = 75),
-            PokemonMeta("Zarude", "zarude", "zarude", "Base", listOf("dark", "grass"), 4334, "Vine Whip", 2, "Dark Pulse", "Power Whip", 40, 44, atk = 215.0, def = 191.0, hp = 209, glRank = 210, ulRank = 95, mlRank = 17),
-            PokemonMeta("Meloetta", "meloetta_aria", "meloetta", "Aria", listOf("normal", "psychic"), 4490, "Quick Attack", 1, "Psyshock", "Dazzling Gleam", 34, 46, atk = 224.0, def = 201.0, hp = 200, glRank = 260, ulRank = 110, mlRank = 16),
-            PokemonMeta("Ursaluna", "ursaluna", "ursaluna", "Base", listOf("ground", "normal"), 4358, "Tackle", 1, "Ice Punch", "High Horsepower", 30, 50, atk = 216.0, def = 176.0, hp = 246, glRank = 250, ulRank = 130, mlRank = 21),
-            PokemonMeta("Togekiss", "togekiss", "togekiss", "Base", listOf("fairy", "flying"), 3767, "Charm", 3, "Ancient Power", "Aura Sphere", 30, 46, atk = 201.0, def = 195.0, hp = 178, glRank = 150, ulRank = 48, mlRank = 24),
-            PokemonMeta("Gyarados", "gyarados", "gyarados", "Base", listOf("water", "flying"), 3834, "Dragon Breath", 1, "Aqua Tail", "Crunch", 28, 34, atk = 212.0, def = 168.0, hp = 193, glRank = 160, ulRank = 42, mlRank = 26),
-            PokemonMeta("Snorlax", "snorlax", "snorlax", "Base", listOf("normal"), 3647, "Psywave", 1, "Body Slam", "Earthquake", 26, 52, atk = 171.0, def = 154.0, hp = 285, glRank = 95, ulRank = 38, mlRank = 30, chargedMove3 = "Superpower"),
-            PokemonMeta("Gholdengo", "gholdengo", "gholdengo", "Base", listOf("steel", "ghost"), 3976, "Hex", 3, "Shadow Ball", "Focus Blast", 46, 56, atk = 226.0, def = 175.0, hp = 181, glRank = 280, ulRank = 140, mlRank = 23),
-            PokemonMeta("Baxcalibur", "baxcalibur", "baxcalibur", "Base", listOf("dragon", "ice"), 4286, "Dragon Breath", 1, "Avalanche", "Dragon Claw", 44, 28, atk = 228.0, def = 154.0, hp = 218, glRank = 90, ulRank = 55, mlRank = 22),
-            PokemonMeta("Tapu Bulu", "tapu_bulu", "tapu bulu", "Base", listOf("grass", "fairy"), 3865, "Bullet Seed", 3, "Nature's Madness", "Grass Knot", 42, 44, atk = 222.0, def = 191.0, hp = 158, glRank = 290, ulRank = 110, mlRank = 14),
-            PokemonMeta("Tapu Fini", "tapu_fini", "tapu fini", "Base", listOf("water", "fairy"), 3230, "Water Gun", 1, "Surf", "Nature's Madness", 34, 42, atk = 135.0, def = 214.0, hp = 158, glRank = 32, ulRank = 3, mlRank = 55),
-            PokemonMeta("Tapu Lele", "tapu_lele", "tapu lele", "Base", listOf("psychic", "fairy"), 3950, "Astonish", 3, "Nature's Madness", "Psyshock", 44, 36, atk = 232.0, def = 191.0, hp = 158, glRank = 300, ulRank = 120, mlRank = 19),
-            PokemonMeta("Tapu Koko", "tapu_koko", "tapu koko", "Base", listOf("electric", "fairy"), 3582, "Volt Switch", 4, "Nature's Madness", "Brave Bird", 42, 52, atk = 224.0, def = 166.0, hp = 158, glRank = 270, ulRank = 95, mlRank = 35),
+            PokemonMeta("Lugia", "lugia", "lugia", "Base", listOf("psychic", "flying"), 4179, "Dragon Tail", 3, "Aeroblast", "Earth Power", 54, 34, atk = 193.0, def = 310.0, hp = 235, glRank = 75, ulRank = 45, mlRank = 12, isRawBaseStats = true, defaultIvsGl = "5/13/12", defaultIvsUl = "5/13/12"),
+            PokemonMeta("Kyogre", "kyogre", "kyogre", "Base", listOf("water"), 4652, "Waterfall", 3, "Origin Pulse", "Avalanche", 56, 40, atk = 270.0, def = 228.0, hp = 205, glRank = 310, ulRank = 180, mlRank = 10, isRawBaseStats = true, defaultIvsGl = "6/14/5", defaultIvsUl = "4/9/12"),
+            PokemonMeta("Groudon", "groudon", "groudon", "Base", listOf("ground"), 4652, "Mud Shot", 2, "Precipice Blades", "Fire Punch", 55, 26, atk = 270.0, def = 228.0, hp = 205, glRank = 300, ulRank = 175, mlRank = 11, isRawBaseStats = true, defaultIvsGl = "6/14/5", defaultIvsUl = "4/9/12"),
+            PokemonMeta("Ho-Oh", "ho_oh", "ho-oh", "Base", listOf("fire", "flying"), 4367, "Incinerate", 5, "Sacred Fire", "Brave Bird", 54, 52, atk = 239.0, def = 244.0, hp = 214, glRank = 140, ulRank = 70, mlRank = 7, isRawBaseStats = true, defaultIvsGl = "7/13/15", defaultIvsUl = "5/15/13"),
+            PokemonMeta("Yveltal", "yveltal", "yveltal", "Base", listOf("dark", "flying"), 4275, "Snarl", 3, "Dark Pulse", "Oblivion Wing", 42, 42, atk = 250.0, def = 185.0, hp = 246, glRank = 260, ulRank = 95, mlRank = 8, isRawBaseStats = true, defaultIvsGl = "7/13/11", defaultIvsUl = "4/14/8"),
+            PokemonMeta("Xerneas", "xerneas", "xerneas", "Base", listOf("fairy"), 4275, "Geomancy", 3, "Close Combat", "Moonblast", 44, 48, atk = 250.0, def = 185.0, hp = 246, glRank = 270, ulRank = 98, mlRank = 13, isRawBaseStats = true, defaultIvsGl = "7/13/11", defaultIvsUl = "4/14/8"),
+            PokemonMeta("Solgaleo", "solgaleo", "solgaleo", "Base", listOf("psychic", "steel"), 4545, "Fire Spin", 3, "Psychic Fangs", "Iron Head", 24, 32, atk = 255.0, def = 191.0, hp = 264, glRank = 290, ulRank = 120, mlRank = 15, isRawBaseStats = true, defaultIvsGl = "4/15/12", defaultIvsUl = "5/13/5"),
+            PokemonMeta("Lunala", "lunala", "lunala", "Base", listOf("psychic", "ghost"), 4545, "Shadow Claw", 2, "Shadow Ball", "Moonblast", 46, 48, atk = 255.0, def = 191.0, hp = 264, glRank = 310, ulRank = 140, mlRank = 18, isRawBaseStats = true, defaultIvsGl = "4/15/12", defaultIvsUl = "5/13/5"),
+            PokemonMeta("Mewtwo", "mewtwo", "mewtwo", "Base", listOf("psychic"), 4724, "Psycho Cut", 2, "Psystrike", "Shadow Ball", 48, 44, atk = 300.0, def = 182.0, hp = 214, glRank = 380, ulRank = 210, mlRank = 16, isRawBaseStats = true, defaultIvsGl = "4/14/13", defaultIvsUl = "8/13/14"),
+            PokemonMeta("Rhyperior", "rhyperior", "rhyperior", "Base", listOf("ground", "rock"), 4221, "Mud-Slap", 3, "Rock Wrecker", "Breaking Swipe", 52, 25, atk = 241.0, def = 190.0, hp = 251, glRank = 210, ulRank = 110, mlRank = 9, isRawBaseStats = true, defaultIvsGl = "4/12/8", defaultIvsUl = "5/14/14"),
+            PokemonMeta("Dragonite", "dragonite", "dragonite", "Base", listOf("dragon", "flying"), 4287, "Dragon Breath", 1, "Dragon Claw", "Superpower", 30, 42, atk = 263.0, def = 198.0, hp = 209, glRank = 95, ulRank = 52, mlRank = 19, isRawBaseStats = true, defaultIvsGl = "4/13/14", defaultIvsUl = "5/15/13"),
+            PokemonMeta("Garchomp", "garchomp", "garchomp", "Base", listOf("dragon", "ground"), 4479, "Mud Shot", 2, "Earth Power", "Outrage", 48, 48, atk = 261.0, def = 193.0, hp = 239, glRank = 220, ulRank = 130, mlRank = 24, isRawBaseStats = true, defaultIvsGl = "4/10/14", defaultIvsUl = "4/15/14"),
+            PokemonMeta("Metagross", "metagross", "metagross", "Base", listOf("steel", "psychic"), 4286, "Bullet Punch", 2, "Meteor Mash", "Earthquake", 48, 52, atk = 257.0, def = 228.0, hp = 190, glRank = 290, ulRank = 160, mlRank = 25, isRawBaseStats = true, defaultIvsGl = "4/12/15", defaultIvsUl = "5/14/15"),
+            PokemonMeta("Melmetal", "melmetal", "melmetal", "Base", listOf("steel"), 4144, "Thunder Shock", 2, "Superpower", "Rock Slide", 42, 34, atk = 226.0, def = 190.0, hp = 264, glRank = 130, ulRank = 65, mlRank = 23, isRawBaseStats = true, defaultIvsGl = "4/10/14", defaultIvsUl = "4/15/14"),
+            PokemonMeta("Florges", "florges", "florges", "Base", listOf("fairy"), 3657, "Fairy Wind", 2, "Disarming Voice", "Moonblast", 30, 48, atk = 212.0, def = 244.0, hp = 186, glRank = 110, ulRank = 38, mlRank = 20, isRawBaseStats = true, defaultIvsGl = "6/13/14", defaultIvsUl = "4/13/15"),
+            PokemonMeta("Primarina", "primarina", "primarina", "Base", listOf("water", "fairy"), 3618, "Charm", 3, "Hydro Cannon", "Moonblast", 42, 48, atk = 232.0, def = 195.0, hp = 190, glRank = 90, ulRank = 42, mlRank = 21, isRawBaseStats = true, defaultIvsGl = "7/15/14", defaultIvsUl = "5/14/15"),
+            PokemonMeta("Mamoswine", "mamoswine", "mamoswine", "Base", listOf("ice", "ground"), 3763, "Powder Snow", 2, "Avalanche", "High Horsepower", 44, 48, atk = 247.0, def = 146.0, hp = 242, glRank = 190, ulRank = 120, mlRank = 27, isRawBaseStats = true, defaultIvsGl = "4/15/14", defaultIvsUl = "4/14/15"),
+            PokemonMeta("Excadrill", "excadrill", "excadrill", "Base", listOf("ground", "steel"), 3667, "Mud Shot", 2, "Drill Run", "Rock Slide", 40, 32, atk = 255.0, def = 129.0, hp = 242, glRank = 230, ulRank = 140, mlRank = 28, isRawBaseStats = true, defaultIvsGl = "4/14/13", defaultIvsUl = "6/15/13"),
+            PokemonMeta("Reshiram", "reshiram", "reshiram", "Base", listOf("dragon", "fire"), 4565, "Dragon Breath", 1, "Fusion Flare", "Overheat", 52, 70, atk = 275.0, def = 211.0, hp = 205, glRank = 350, ulRank = 220, mlRank = 29, isRawBaseStats = true, defaultIvsGl = "7/11/14", defaultIvsUl = "6/14/12"),
+            PokemonMeta("Zekrom", "zekrom", "zekrom", "Base", listOf("dragon", "electric"), 4565, "Dragon Breath", 1, "Fusion Bolt", "Crunch", 50, 32, atk = 275.0, def = 211.0, hp = 205, glRank = 345, ulRank = 215, mlRank = 30, isRawBaseStats = true, defaultIvsGl = "7/11/14", defaultIvsUl = "6/14/12"),
+            PokemonMeta("Raikou", "raikou", "raikou", "Base", listOf("electric"), 3902, "Thunder Shock", 2, "Wild Charge", "Shadow Ball", 48, 44, atk = 241.0, def = 195.0, hp = 207, glRank = 180, ulRank = 115, mlRank = 45, isRawBaseStats = true, defaultIvsGl = "6/12/11", defaultIvsUl = "5/13/13"),
+            PokemonMeta("Entei", "entei", "entei", "Base", listOf("fire"), 3926, "Fire Fang", 2, "Flame Charge", "Overheat", 28, 72, atk = 235.0, def = 171.0, hp = 251, glRank = 240, ulRank = 165, mlRank = 55, isRawBaseStats = true, defaultIvsGl = "7/9/11", defaultIvsUl = "6/12/12"),
+            PokemonMeta("Suicune", "suicune", "suicune", "Base", listOf("water"), 3372, "Snarl", 3, "Ice Beam", "Hydro Pump", 36, 52, atk = 180.0, def = 235.0, hp = 225, glRank = 170, ulRank = 95, mlRank = 75, isRawBaseStats = true, defaultIvsGl = "5/14/14", defaultIvsUl = "5/15/12"),
+            PokemonMeta("Zarude", "zarude", "zarude", "Base", listOf("dark", "grass"), 4334, "Vine Whip", 2, "Dark Pulse", "Power Whip", 40, 44, atk = 242.0, def = 215.0, hp = 233, glRank = 210, ulRank = 95, mlRank = 17, isRawBaseStats = true, defaultIvsGl = "13/11/12", defaultIvsUl = "11/12/10"),
+            PokemonMeta("Meloetta", "meloetta_aria", "meloetta", "Aria", listOf("normal", "psychic"), 4490, "Quick Attack", 1, "Psyshock", "Dazzling Gleam", 34, 46, atk = 250.0, def = 225.0, hp = 225, glRank = 260, ulRank = 110, mlRank = 16, isRawBaseStats = true, defaultIvsGl = "12/14/10", defaultIvsUl = "10/12/14"),
+            PokemonMeta("Ursaluna", "ursaluna", "ursaluna", "Base", listOf("ground", "normal"), 4358, "Tackle", 1, "Ice Punch", "High Horsepower", 30, 50, atk = 243.0, def = 181.0, hp = 277, glRank = 250, ulRank = 130, mlRank = 21, isRawBaseStats = true, defaultIvsGl = "4/13/7", defaultIvsUl = "4/10/15"),
+            PokemonMeta("Togekiss", "togekiss", "togekiss", "Base", listOf("fairy", "flying"), 3767, "Charm", 3, "Ancient Power", "Aura Sphere", 30, 46, atk = 225.0, def = 217.0, hp = 198, glRank = 150, ulRank = 48, mlRank = 24, isRawBaseStats = true, defaultIvsGl = "4/15/15", defaultIvsUl = "5/13/15"),
+            PokemonMeta("Gyarados", "gyarados", "gyarados", "Base", listOf("water", "flying"), 3834, "Dragon Breath", 1, "Aqua Tail", "Crunch", 28, 34, atk = 237.0, def = 186.0, hp = 216, glRank = 160, ulRank = 42, mlRank = 26, isRawBaseStats = true, defaultIvsGl = "4/14/7", defaultIvsUl = "5/13/15"),
+            PokemonMeta("Snorlax", "snorlax", "snorlax", "Base", listOf("normal"), 3647, "Psywave", 1, "Body Slam", "Earthquake", 26, 52, atk = 190.0, def = 169.0, hp = 330, glRank = 95, ulRank = 38, mlRank = 30, chargedMove3 = "Superpower", isRawBaseStats = true, defaultIvsGl = "4/14/5", defaultIvsUl = "5/15/14"),
+            PokemonMeta("Gholdengo", "gholdengo", "gholdengo", "Base", listOf("steel", "ghost"), 3976, "Hex", 3, "Shadow Ball", "Focus Blast", 46, 56, atk = 252.0, def = 190.0, hp = 202, glRank = 280, ulRank = 140, mlRank = 23, isRawBaseStats = true, defaultIvsGl = "4/15/15", defaultIvsUl = "4/14/15"),
+            PokemonMeta("Baxcalibur", "baxcalibur", "baxcalibur", "Base", listOf("dragon", "ice"), 4286, "Dragon Breath", 1, "Avalanche", "Dragon Claw", 44, 28, atk = 254.0, def = 168.0, hp = 229, glRank = 90, ulRank = 55, mlRank = 22, isRawBaseStats = true, defaultIvsGl = "4/14/14", defaultIvsUl = "6/15/15"),
+            PokemonMeta("Tapu Bulu", "tapu_bulu", "tapu bulu", "Base", listOf("grass", "fairy"), 3865, "Bullet Seed", 3, "Nature's Madness", "Grass Knot", 42, 44, atk = 249.0, def = 215.0, hp = 172, glRank = 290, ulRank = 110, mlRank = 14, isRawBaseStats = true, defaultIvsGl = "4/13/5", defaultIvsUl = "5/8/14"),
+            PokemonMeta("Tapu Fini", "tapu_fini", "tapu fini", "Base", listOf("water", "fairy"), 3230, "Water Gun", 1, "Surf", "Nature's Madness", 34, 42, atk = 189.0, def = 254.0, hp = 172, glRank = 32, ulRank = 3, mlRank = 55, isRawBaseStats = true, defaultIvsGl = "5/11/4", defaultIvsUl = "5/11/14"),
+            PokemonMeta("Tapu Lele", "tapu_lele", "tapu lele", "Base", listOf("psychic", "fairy"), 3950, "Astonish", 3, "Nature's Madness", "Psyshock", 44, 36, atk = 259.0, def = 208.0, hp = 172, glRank = 300, ulRank = 120, mlRank = 19, isRawBaseStats = true, defaultIvsGl = "5/9/10", defaultIvsUl = "5/14/13"),
+            PokemonMeta("Tapu Koko", "tapu_koko", "tapu koko", "Base", listOf("electric", "fairy"), 3582, "Volt Switch", 4, "Nature's Madness", "Brave Bird", 42, 52, atk = 250.0, def = 181.0, hp = 172, glRank = 270, ulRank = 95, mlRank = 35, isRawBaseStats = true, defaultIvsGl = "6/7/15", defaultIvsUl = "6/12/12"),
 
             // --- Great League & Ultra League Core Meta ---
-            PokemonMeta("Clodsire", "clodsire", "clodsire", "Base", listOf("poison", "ground"), 1494, "Poison Sting", 2, "Earthquake", "Stone Edge", 46, 42, atk = 89.0, def = 123.0, hp = 222, glRank = 1, ulRank = 90, mlRank = 400),
-            PokemonMeta("Feraligatr", "feraligatr", "feraligatr", "Base", listOf("water"), 2488, "Shadow Claw", 2, "Hydro Cannon", "Ice Beam", 44, 38, atk = 164.0, def = 155.0, hp = 161, glRank = 2, ulRank = 2, mlRank = 85),
-            PokemonMeta("Mandibuzz", "mandibuzz", "mandibuzz", "Base", listOf("dark", "flying"), 2417, "Snarl", 3, "Dark Pulse", "Aerial Ace", 38, 28, atk = 118.0, def = 191.0, hp = 208, glRank = 3, ulRank = 12, mlRank = 280),
-            PokemonMeta("Azumarill", "azumarill", "azumarill", "Base", listOf("water", "fairy"), 1499, "Bubble", 3, "Ice Beam", "Play Rough", 36, 40, atk = 94.0, def = 132.0, hp = 188, glRank = 4, ulRank = 350, mlRank = 500),
-            PokemonMeta("Gastrodon", "gastrodon", "gastrodon", "Base", listOf("water", "ground"), 2485, "Mud-Slap", 3, "Body Slam", "Earth Power", 26, 44, atk = 112.0, def = 115.0, hp = 182, glRank = 5, ulRank = 24, mlRank = 310),
-            PokemonMeta("Malamar", "malamar", "malamar", "Base", listOf("dark", "psychic"), 2488, "Psywave", 1, "Foul Play", "Superpower", 36, 42, atk = 118.0, def = 124.0, hp = 154, glRank = 6, ulRank = 18, mlRank = 320),
-            PokemonMeta("Dunsparce", "dunsparce", "dunsparce", "Base", listOf("normal"), 1498, "Rollout", 3, "Rock Slide", "Drill Run", 36, 40, atk = 104.0, def = 108.0, hp = 178, glRank = 7, ulRank = 310, mlRank = 480),
-            PokemonMeta("Annihilape", "annihilape", "annihilape", "Base", listOf("fighting", "ghost"), 3695, "Counter", 2, "Rage Fist", "Ice Punch", 32, 30, atk = 198.0, def = 162.0, hp = 215, glRank = 8, ulRank = 9, mlRank = 32),
-            PokemonMeta("Primeape", "primeape", "primeape", "Base", listOf("fighting"), 2488, "Karate Chop", 2, "Rage Fist", "Close Combat", 32, 48, atk = 132.0, def = 108.0, hp = 128, glRank = 10, ulRank = 20, mlRank = 340),
-            PokemonMeta("Cresselia", "cresselia", "cresselia", "Base", listOf("psychic"), 2488, "Psycho Cut", 2, "Grass Knot", "Moonblast", 36, 46, atk = 124.0, def = 215.0, hp = 197, glRank = 11, ulRank = 4, mlRank = 110),
-            PokemonMeta("Jumpluff", "jumpluff", "jumpluff", "Base", listOf("grass", "flying"), 1498, "Fairy Wind", 2, "Aerial Ace", "Energy Ball", 28, 42, atk = 96.0, def = 154.0, hp = 152, glRank = 13, ulRank = 300, mlRank = 480),
-            PokemonMeta("Swampert", "swampert", "swampert", "Base", listOf("water", "ground"), 2495, "Mud Shot", 2, "Hydro Cannon", "Earthquake", 44, 52, atk = 167.0, def = 143.0, hp = 175, glRank = 15, ulRank = 14, mlRank = 60),
-            PokemonMeta("Quagsire", "quagsire", "quagsire", "Base", listOf("water", "ground"), 1499, "Mud Shot", 2, "Aqua Tail", "Stone Edge", 28, 46, atk = 112.0, def = 114.0, hp = 164, glRank = 17, ulRank = 280, mlRank = 450),
-            PokemonMeta("Whiscash", "whiscash", "whiscash", "Base", listOf("water", "ground"), 1499, "Mud Shot", 2, "Scald", "Mud Bomb", 40, 32, atk = 108.0, def = 106.0, hp = 180, glRank = 19, ulRank = 290, mlRank = 450),
-            PokemonMeta("Talonflame", "talonflame", "talonflame", "Base", listOf("fire", "flying"), 2493, "Incinerate", 5, "Fly", "Flame Charge", 42, 28, atk = 159.0, def = 143.0, hp = 169, glRank = 18, ulRank = 10, mlRank = 180),
-            PokemonMeta("Serperior", "serperior", "serperior", "Base", listOf("grass"), 2480, "Vine Whip", 2, "Frenzy Plant", "Aerial Ace", 44, 28, atk = 110.0, def = 162.0, hp = 142, glRank = 20, ulRank = 26, mlRank = 310),
-            PokemonMeta("Wigglytuff", "wigglytuff", "wigglytuff", "Base", listOf("normal", "fairy"), 1499, "Charm", 3, "Icy Wind", "Swift", 30, 32, atk = 109.0, def = 82.0, hp = 225, glRank = 21, ulRank = 320, mlRank = 480),
-            PokemonMeta("Clefable", "clefable", "clefable", "Base", listOf("fairy"), 2488, "Fairy Wind", 2, "Meteor Mash", "Swift", 46, 30, atk = 148.0, def = 144.0, hp = 176, glRank = 23, ulRank = 13, mlRank = 240),
-            PokemonMeta("Skeledirge", "skeledirge", "skeledirge", "Base", listOf("fire", "ghost"), 2491, "Incinerate", 5, "Torch Song", "Shadow Ball", 38, 46, atk = 158.0, def = 144.0, hp = 184, glRank = 22, ulRank = 15, mlRank = 70, chargedMove3 = "Disarming Voice"),
-            PokemonMeta("Lickilicky", "lickilicky", "lickilicky", "Base", listOf("normal"), 2488, "Rollout", 3, "Body Slam", "Shadow Ball", 26, 44, atk = 136.0, def = 152.0, hp = 190, glRank = 27, ulRank = 8, mlRank = 210),
-            PokemonMeta("Lickitung", "lickitung", "lickitung", "Base", listOf("normal"), 1499, "Lick", 1, "Body Slam", "Power Whip", 26, 42, atk = 96.0, def = 126.0, hp = 184, glRank = 29, ulRank = 400, mlRank = 500),
-            PokemonMeta("Bastiodon", "bastiodon", "bastiodon", "Base", listOf("rock", "steel"), 1499, "Smack Down", 3, "Stone Edge", "Flamethrower", 42, 38, atk = 84.0, def = 238.0, hp = 138, glRank = 31, ulRank = 400, mlRank = 500),
-            PokemonMeta("Carbink", "carbink", "carbink", "Base", listOf("rock", "fairy"), 1499, "Rock Throw", 2, "Rock Slide", "Moonblast", 36, 46, atk = 86.0, def = 242.0, hp = 126, glRank = 33, ulRank = 410, mlRank = 500),
-            PokemonMeta("Registeel", "registeel", "registeel", "Base", listOf("steel"), 2488, "Lock-On", 1, "Focus Blast", "Zap Cannon", 56, 56, atk = 118.0, def = 236.0, hp = 162, glRank = 34, ulRank = 5, mlRank = 190),
-            PokemonMeta("Skarmory", "skarmory", "skarmory", "Base", listOf("steel", "flying"), 2380, "Steel Wing", 2, "Sky Attack", "Brave Bird", 36, 52, atk = 104.0, def = 178.0, hp = 126, glRank = 37, ulRank = 65, mlRank = 360),
-            PokemonMeta("Umbreon", "umbreon", "umbreon", "Base", listOf("dark"), 2416, "Snarl", 3, "Foul Play", "Last Resort", 34, 40, atk = 94.0, def = 192.0, hp = 166, glRank = 38, ulRank = 30, mlRank = 340),
-            PokemonMeta("Lanturn", "lanturn", "lanturn", "Base", listOf("water", "electric"), 1499, "Spark", 2, "Surf", "Thunderbolt", 34, 44, atk = 102.0, def = 108.0, hp = 202, glRank = 39, ulRank = 260, mlRank = 450),
-            PokemonMeta("Medicham", "medicham", "medicham", "Base", listOf("fighting", "psychic"), 1499, "Counter", 2, "Ice Punch", "Psychic", 28, 38, atk = 108.0, def = 128.0, hp = 136, glRank = 41, ulRank = 420, mlRank = 500),
-            PokemonMeta("Sableye", "sableye", "sableye", "Base", listOf("dark", "ghost"), 1499, "Shadow Claw", 2, "Foul Play", "Power Gem", 36, 40, atk = 116.0, def = 118.0, hp = 124, glRank = 42, ulRank = 410, mlRank = 500),
-            PokemonMeta("Drapion", "drapion", "drapion", "Base", listOf("poison", "dark"), 2488, "Poison Sting", 2, "Crunch", "Aqua Tail", 34, 28, atk = 152.0, def = 164.0, hp = 148, glRank = 43, ulRank = 17, mlRank = 260),
-            PokemonMeta("Toxapex", "toxapex", "toxapex", "Base", listOf("poison", "water"), 1499, "Poison Jab", 2, "Brine", "Sludge Wave", 28, 48, atk = 92.0, def = 216.0, hp = 126, glRank = 44, ulRank = 380, mlRank = 490),
-            PokemonMeta("Gligar", "gligar", "gligar", "Base", listOf("ground", "flying"), 1499, "Wing Attack", 2, "Aerial Ace", "Dig", 28, 44, atk = 108.0, def = 148.0, hp = 132, glRank = 45, ulRank = 360, mlRank = 490),
-            PokemonMeta("Gliscor", "gliscor", "gliscor", "Base", listOf("ground", "flying"), 2492, "Wing Attack", 2, "Night Slash", "Earthquake", 28, 52, atk = 156.0, def = 182.0, hp = 152, glRank = 65, ulRank = 29, mlRank = 180),
-            PokemonMeta("Poliwrath", "poliwrath", "poliwrath", "Base", listOf("water", "fighting"), 2495, "Counter", 2, "Icy Wind", "Scald", 30, 42, atk = 154.0, def = 152.0, hp = 172, glRank = 46, ulRank = 19, mlRank = 190),
-            PokemonMeta("Pelipper", "pelipper", "pelipper", "Base", listOf("water", "flying"), 1499, "Wing Attack", 2, "Weather Ball", "Hurricane", 32, 52, atk = 118.0, def = 132.0, hp = 126, glRank = 47, ulRank = 280, mlRank = 460),
-            PokemonMeta("Mantine", "mantine", "mantine", "Base", listOf("water", "flying"), 1499, "Wing Attack", 2, "Aerial Ace", "Ice Beam", 28, 38, atk = 98.0, def = 168.0, hp = 148, glRank = 49, ulRank = 240, mlRank = 440),
-            PokemonMeta("Dewgong", "dewgong", "dewgong", "Base", listOf("water", "ice"), 1499, "Ice Shard", 3, "Icy Wind", "Drill Run", 30, 40, atk = 104.0, def = 138.0, hp = 162, glRank = 50, ulRank = 290, mlRank = 460),
-            PokemonMeta("Walrein", "walrein", "walrein", "Base", listOf("ice", "water"), 2492, "Powder Snow", 2, "Icicle Spear", "Earthquake", 32, 52, atk = 152.0, def = 148.0, hp = 188, glRank = 68, ulRank = 33, mlRank = 170),
-            PokemonMeta("Abomasnow", "abomasnow", "abomasnow", "Base", listOf("grass", "ice"), 2485, "Powder Snow", 2, "Weather Ball", "Energy Ball", 32, 44, atk = 148.0, def = 136.0, hp = 172, glRank = 52, ulRank = 37, mlRank = 280),
-            PokemonMeta("Trevenant", "trevenant", "trevenant", "Base", listOf("ghost", "grass"), 2492, "Shadow Claw", 2, "Seed Bomb", "Shadow Ball", 32, 46, atk = 168.0, def = 134.0, hp = 166, glRank = 54, ulRank = 31, mlRank = 220),
-            PokemonMeta("Goodra", "goodra", "goodra", "Base", listOf("dragon"), 2495, "Dragon Breath", 1, "Aqua Tail", "Thunder Punch", 28, 30, atk = 158.0, def = 188.0, hp = 168, glRank = 56, ulRank = 36, mlRank = 85),
-            PokemonMeta("Guzzlord", "guzzlord", "guzzlord", "Base", listOf("dark", "dragon"), 2492, "Dragon Tail", 3, "Dragon Claw", "Crunch", 28, 34, atk = 142.0, def = 86.0, hp = 320, glRank = 60, ulRank = 21, mlRank = 160),
-            PokemonMeta("Morpeko", "morpeko", "morpeko", "Full Belly", listOf("electric", "dark"), 1499, "Thunder Shock", 2, "Aura Wheel", "Psychic Fangs", 52, 24, atk = 142.0, def = 96.0, hp = 114, glRank = 15, ulRank = 340, mlRank = 480),
-            PokemonMeta("Dusknoir", "dusknoir", "dusknoir", "Base", listOf("ghost"), 2480, "Astonish", 3, "Shadow Punch", "Dynamic Punch", 28, 42, atk = 146.0, def = 192.0, hp = 122, glRank = 55, ulRank = 40, mlRank = 290),
-            PokemonMeta("Pangoro", "pangoro", "pangoro", "Base", listOf("fighting", "dark"), 2492, "Karate Chop", 2, "Night Slash", "Close Combat", 28, 48, atk = 168.0, def = 132.0, hp = 178, glRank = 59, ulRank = 27, mlRank = 180),
-            PokemonMeta("Greedent", "greedent", "greedent", "Base", listOf("normal"), 2485, "Mud Shot", 2, "Body Slam", "Crunch", 26, 34, atk = 134.0, def = 138.0, hp = 216, glRank = 64, ulRank = 23, mlRank = 290),
-            PokemonMeta("Dubwool", "dubwool", "dubwool", "Base", listOf("normal"), 2478, "Double Kick", 3, "Body Slam", "Payback", 26, 50, atk = 138.0, def = 168.0, hp = 154, glRank = 66, ulRank = 39, mlRank = 300),
-            PokemonMeta("Ampharos", "ampharos", "ampharos", "Base", listOf("electric"), 2495, "Volt Switch", 4, "Brutal Swing", "Trailblaze", 32, 34, atk = 168.0, def = 142.0, hp = 172, glRank = 92, ulRank = 41, mlRank = 210),
-            PokemonMeta("Tentacruel", "tentacruel", "tentacruel", "Base", listOf("water", "poison"), 2485, "Poison Jab", 2, "Scald", "Acid Spray", 40, 20, atk = 142.0, def = 178.0, hp = 164, glRank = 70, ulRank = 18, mlRank = 260),
-            PokemonMeta("Cobalion", "cobalion", "cobalion", "Base", listOf("steel", "fighting"), 2492, "Double Kick", 3, "Sacred Sword", "Stone Edge", 38, 42, atk = 152.0, def = 182.0, hp = 169, glRank = 95, ulRank = 6, mlRank = 90),
-            PokemonMeta("Virizion", "virizion", "virizion", "Base", listOf("grass", "fighting"), 2490, "Double Kick", 3, "Sacred Sword", "Leaf Blade", 38, 36, atk = 152.0, def = 182.0, hp = 169, glRank = 110, ulRank = 8, mlRank = 95),
-            PokemonMeta("Venusaur", "venusaur", "venusaur", "Base", listOf("grass", "poison"), 2495, "Vine Whip", 2, "Frenzy Plant", "Sludge Bomb", 46, 40, atk = 158.0, def = 156.0, hp = 162, glRank = 72, ulRank = 44, mlRank = 220),
-            PokemonMeta("Charizard", "charizard", "charizard", "Base", listOf("fire", "flying"), 2495, "Wing Attack", 2, "Blast Burn", "Dragon Claw", 50, 28, atk = 172.0, def = 142.0, hp = 158, glRank = 78, ulRank = 46, mlRank = 190),
-            PokemonMeta("Blastoise", "blastoise", "blastoise", "Base", listOf("water"), 2466, "Rollout", 3, "Hydro Cannon", "Ice Beam", 44, 38, atk = 142.0, def = 176.0, hp = 162, glRank = 62, ulRank = 43, mlRank = 250),
-            PokemonMeta("Greninja", "greninja", "greninja", "Base", listOf("water", "dark"), 2492, "Water Shuriken", 3, "Hydro Cannon", "Brutal Swing", 44, 34, atk = 178.0, def = 128.0, hp = 148, glRank = 74, ulRank = 35, mlRank = 210, chargedMove3 = "Night Slash"),
-            PokemonMeta("Chesnaught", "chesnaught", "chesnaught", "Base", listOf("grass", "fighting"), 2492, "Vine Whip", 2, "Frenzy Plant", "Superpower", 46, 42, atk = 158.0, def = 166.0, hp = 168, glRank = 67, ulRank = 50, mlRank = 160),
-            PokemonMeta("Typhlosion", "typhlosion", "typhlosion", "Base", listOf("fire"), 2495, "Incinerate", 5, "Blast Burn", "Thunder Punch", 50, 30, atk = 172.0, def = 142.0, hp = 158, glRank = 76, ulRank = 47, mlRank = 230),
-            PokemonMeta("Decidueye", "decidueye", "decidueye", "Base", listOf("grass", "ghost"), 2492, "Astonish", 3, "Frenzy Plant", "Spirit Shackle", 46, 36, atk = 166.0, def = 146.0, hp = 158, glRank = 79, ulRank = 54, mlRank = 240),
-            PokemonMeta("Incineroar", "incineroar", "incineroar", "Base", listOf("fire", "dark"), 2495, "Snarl", 3, "Blast Burn", "Darkest Lariat", 50, 44, atk = 168.0, def = 144.0, hp = 172, glRank = 88, ulRank = 52, mlRank = 170),
-            PokemonMeta("Empoleon", "empoleon", "empoleon", "Base", listOf("water", "steel"), 2495, "Steel Wing", 2, "Hydro Cannon", "Drill Peck", 44, 34, atk = 166.0, def = 152.0, hp = 166, glRank = 71, ulRank = 49, mlRank = 180),
-            PokemonMeta("Machamp", "machamp", "machamp", "Base", listOf("fighting"), 2495, "Karate Chop", 2, "Cross Chop", "Stone Edge", 28, 44, atk = 182.0, def = 132.0, hp = 172, glRank = 73, ulRank = 51, mlRank = 120),
-            PokemonMeta("Scrafty", "scrafty", "scrafty", "Base", listOf("dark", "fighting"), 2283, "Counter", 2, "Foul Play", "Power-Up Punch", 36, 20, atk = 132.0, def = 182.0, hp = 142, glRank = 82, ulRank = 58, mlRank = 340),
-            PokemonMeta("Obstagoon", "obstagoon", "obstagoon", "Base", listOf("dark", "normal"), 2492, "Counter", 2, "Night Slash", "Cross Chop", 28, 28, atk = 148.0, def = 164.0, hp = 174, glRank = 84, ulRank = 56, mlRank = 210),
-            PokemonMeta("Diggersby", "diggersby", "diggersby", "Base", listOf("normal", "ground"), 1499, "Quick Attack", 1, "Scorching Sands", "Fire Punch", 40, 28, atk = 94.0, def = 132.0, hp = 178, glRank = 36, ulRank = 380, mlRank = 490),
-            PokemonMeta("Jellicent", "jellicent", "jellicent", "Base", listOf("water", "ghost"), 2488, "Hex", 3, "Surf", "Shadow Ball", 34, 46, atk = 136.0, def = 158.0, hp = 184, glRank = 61, ulRank = 28, mlRank = 270),
-            PokemonMeta("Cofagrigus", "cofagrigus", "cofagrigus", "Base", listOf("ghost"), 2480, "Shadow Claw", 2, "Shadow Ball", "Dark Pulse", 46, 38, atk = 134.0, def = 196.0, hp = 136, glRank = 86, ulRank = 60, mlRank = 310),
-            PokemonMeta("Runerigus", "runerigus", "runerigus", "Base", listOf("ground", "ghost"), 2480, "Shadow Claw", 2, "Sand Tomb", "Shadow Ball", 24, 46, atk = 134.0, def = 196.0, hp = 136, glRank = 89, ulRank = 62, mlRank = 315),
-            PokemonMeta("Ferrothorn", "ferrothorn", "ferrothorn", "Base", listOf("grass", "steel"), 2480, "Bullet Seed", 3, "Power Whip", "Thunder", 42, 44, atk = 132.0, def = 192.0, hp = 148, glRank = 51, ulRank = 64, mlRank = 290),
-            PokemonMeta("Galvantula", "galvantula", "galvantula", "Base", listOf("bug", "electric"), 2494, "Volt Switch", 4, "Lunge", "Discharge", 32, 36, atk = 166.0, def = 128.0, hp = 146, glRank = 87, ulRank = 68, mlRank = 350),
-            PokemonMeta("Araquanid", "araquanid", "araquanid", "Base", listOf("water", "bug"), 1499, "Bug Bite", 1, "Bubble Beam", "Bug Buzz", 22, 44, atk = 88.0, def = 168.0, hp = 138, glRank = 53, ulRank = 320, mlRank = 480),
-            PokemonMeta("Golisopod", "golisopod", "golisopod", "Base", listOf("bug", "water"), 2495, "Shadow Claw", 2, "Liquidation", "X-Scissor", 36, 32, atk = 164.0, def = 178.0, hp = 152, glRank = 69, ulRank = 24, mlRank = 150),
-            PokemonMeta("Altaria", "altaria", "altaria", "Base", listOf("dragon", "flying"), 1499, "Dragon Breath", 1, "Sky Attack", "Moonblast", 36, 48, atk = 98.0, def = 154.0, hp = 148, glRank = 63, ulRank = 310, mlRank = 470),
-            PokemonMeta("Noctowl", "noctowl", "noctowl", "Base", listOf("normal", "flying"), 1499, "Wing Attack", 2, "Sky Attack", "Shadow Ball", 36, 44, atk = 102.0, def = 132.0, hp = 182, glRank = 90, ulRank = 340, mlRank = 480),
-            PokemonMeta("Vigoroth", "vigoroth", "vigoroth", "Base", listOf("normal"), 1499, "Counter", 2, "Body Slam", "Rock Slide", 26, 36, atk = 114.0, def = 112.0, hp = 158, glRank = 77, ulRank = 360, mlRank = 490),
-            PokemonMeta("Toxicroak", "toxicroak", "toxicroak", "Base", listOf("poison", "fighting"), 2488, "Mud Shot", 2, "Mud Bomb", "Shadow Ball", 32, 44, atk = 168.0, def = 122.0, hp = 166, glRank = 81, ulRank = 57, mlRank = 290),
-            PokemonMeta("Nidoqueen", "nidoqueen", "nidoqueen", "Base", listOf("poison", "ground"), 2488, "Poison Jab", 2, "Poison Fang", "Earth Power", 24, 46, atk = 152.0, def = 156.0, hp = 176, glRank = 83, ulRank = 59, mlRank = 260),
-            PokemonMeta("Steelix", "steelix", "steelix", "Base", listOf("steel", "ground"), 2485, "Dragon Tail", 3, "Breaking Swipe", "Earthquake", 24, 52, atk = 128.0, def = 216.0, hp = 152, glRank = 80, ulRank = 30, mlRank = 250),
-            PokemonMeta("Tinkaton", "tinkaton", "tinkaton", "Base", listOf("fairy", "steel"), 2488, "Fairy Wind", 2, "Gigaton Hammer", "Bulldoze", 42, 36, atk = 138.0, def = 176.0, hp = 166, glRank = 40, ulRank = 32, mlRank = 260, chargedMove3 = "Brutal Swing"),
-            PokemonMeta("Rillaboom", "rillaboom", "rillaboom", "Base", listOf("grass"), 2485, "Scratch", 1, "Drum Beating", "Earth Power", 36, 44, atk = 178.0, def = 138.0, hp = 172, glRank = 82, ulRank = 45, mlRank = 88, chargedMove3 = "Frenzy Plant"),
-            PokemonMeta("Cetitan", "cetitan", "cetitan", "Base", listOf("ice"), 2495, "Powder Snow", 2, "Body Slam", "Avalanche", 26, 44, atk = 156.0, def = 118.0, hp = 232, glRank = 57, ulRank = 38, mlRank = 95),
-            PokemonMeta("Bellibolt", "bellibolt", "bellibolt", "Base", listOf("electric"), 2492, "Sucker Punch", 2, "Discharge", "Zap Cannon", 34, 56, atk = 144.0, def = 146.0, hp = 198, glRank = 75, ulRank = 42, mlRank = 220)
+            PokemonMeta("Clodsire", "clodsire", "clodsire", "Base", listOf("poison", "ground"), 1494, "Poison Sting", 2, "Earthquake", "Stone Edge", 46, 42, atk = 127.0, def = 151.0, hp = 277, glRank = 1, ulRank = 90, mlRank = 400, isRawBaseStats = true, defaultIvsGl = "4/14/10", defaultIvsUl = "15/15/15"),
+            PokemonMeta("Feraligatr", "feraligatr", "feraligatr", "Base", listOf("water"), 2488, "Shadow Claw", 2, "Hydro Cannon", "Ice Beam", 44, 38, atk = 205.0, def = 188.0, hp = 198, glRank = 2, ulRank = 2, mlRank = 85, isRawBaseStats = true, defaultIvsGl = "5/11/14", defaultIvsUl = "4/15/11"),
+            PokemonMeta("Mandibuzz", "mandibuzz", "mandibuzz", "Base", listOf("dark", "flying"), 2417, "Snarl", 3, "Dark Pulse", "Aerial Ace", 38, 28, atk = 129.0, def = 205.0, hp = 242, glRank = 3, ulRank = 12, mlRank = 280, isRawBaseStats = true, defaultIvsGl = "5/15/13", defaultIvsUl = "15/15/15"),
+            PokemonMeta("Azumarill", "azumarill", "azumarill", "Base", listOf("water", "fairy"), 1499, "Bubble", 3, "Ice Beam", "Play Rough", 36, 40, atk = 112.0, def = 152.0, hp = 225, glRank = 4, ulRank = 350, mlRank = 500, isRawBaseStats = true, defaultIvsGl = "4/15/13", defaultIvsUl = "15/15/15"),
+            PokemonMeta("Gastrodon", "gastrodon", "gastrodon", "Base", listOf("water", "ground"), 2485, "Mud-Slap", 3, "Body Slam", "Earth Power", 26, 44, atk = 169.0, def = 143.0, hp = 244, glRank = 5, ulRank = 24, mlRank = 310, isRawBaseStats = true, defaultIvsGl = "4/15/14", defaultIvsUl = "12/15/13"),
+            PokemonMeta("Malamar", "malamar", "malamar", "Base", listOf("dark", "psychic"), 2488, "Psywave", 1, "Foul Play", "Superpower", 36, 42, atk = 177.0, def = 165.0, hp = 200, glRank = 6, ulRank = 18, mlRank = 320, isRawBaseStats = true, defaultIvsGl = "4/15/15", defaultIvsUl = "4/13/15"),
+            PokemonMeta("Dunsparce", "dunsparce", "dunsparce", "Base", listOf("normal"), 1498, "Rollout", 3, "Rock Slide", "Drill Run", 36, 40, atk = 131.0, def = 128.0, hp = 225, glRank = 7, ulRank = 310, mlRank = 480, isRawBaseStats = true, defaultIvsGl = "4/15/13", defaultIvsUl = "15/15/15"),
+            PokemonMeta("Annihilape", "annihilape", "annihilape", "Base", listOf("fighting", "ghost"), 3695, "Counter", 2, "Rage Fist", "Ice Punch", 32, 30, atk = 220.0, def = 178.0, hp = 242, glRank = 8, ulRank = 9, mlRank = 32, isRawBaseStats = true, defaultIvsGl = "4/13/13", defaultIvsUl = "5/14/15"),
+            PokemonMeta("Primeape", "primeape", "primeape", "Base", listOf("fighting"), 2488, "Karate Chop", 2, "Rage Fist", "Close Combat", 32, 48, atk = 207.0, def = 138.0, hp = 163, glRank = 10, ulRank = 20, mlRank = 340, isRawBaseStats = true, defaultIvsGl = "5/15/15", defaultIvsUl = "12/15/14"),
+            PokemonMeta("Cresselia", "cresselia", "cresselia", "Base", listOf("psychic"), 2488, "Psycho Cut", 2, "Grass Knot", "Moonblast", 36, 46, atk = 152.0, def = 258.0, hp = 260, glRank = 11, ulRank = 4, mlRank = 110, isRawBaseStats = true, defaultIvsGl = "4/11/9", defaultIvsUl = "4/11/11"),
+            PokemonMeta("Jumpluff", "jumpluff", "jumpluff", "Base", listOf("grass", "flying"), 1498, "Fairy Wind", 2, "Aerial Ace", "Energy Ball", 28, 42, atk = 118.0, def = 183.0, hp = 181, glRank = 13, ulRank = 300, mlRank = 480, isRawBaseStats = true, defaultIvsGl = "4/15/12", defaultIvsUl = "15/15/15"),
+            PokemonMeta("Swampert", "swampert", "swampert", "Base", listOf("water", "ground"), 2495, "Mud Shot", 2, "Hydro Cannon", "Earthquake", 44, 52, atk = 208.0, def = 175.0, hp = 225, glRank = 15, ulRank = 14, mlRank = 60, isRawBaseStats = true, defaultIvsGl = "6/15/12", defaultIvsUl = "4/15/14"),
+            PokemonMeta("Quagsire", "quagsire", "quagsire", "Base", listOf("water", "ground"), 1499, "Mud Shot", 2, "Aqua Tail", "Stone Edge", 28, 46, atk = 152.0, def = 143.0, hp = 216, glRank = 17, ulRank = 280, mlRank = 450, isRawBaseStats = true, defaultIvsGl = "4/15/10", defaultIvsUl = "15/15/15"),
+            PokemonMeta("Whiscash", "whiscash", "whiscash", "Base", listOf("water", "ground"), 1499, "Mud Shot", 2, "Scald", "Mud Bomb", 40, 32, atk = 151.0, def = 141.0, hp = 242, glRank = 19, ulRank = 290, mlRank = 450, isRawBaseStats = true, defaultIvsGl = "4/15/15", defaultIvsUl = "15/15/15"),
+            PokemonMeta("Talonflame", "talonflame", "talonflame", "Base", listOf("fire", "flying"), 2493, "Incinerate", 5, "Fly", "Flame Charge", 42, 28, atk = 176.0, def = 155.0, hp = 186, glRank = 18, ulRank = 10, mlRank = 180, isRawBaseStats = true, defaultIvsGl = "4/12/15", defaultIvsUl = "15/15/15"),
+            PokemonMeta("Serperior", "serperior", "serperior", "Base", listOf("grass"), 2480, "Vine Whip", 2, "Frenzy Plant", "Aerial Ace", 44, 28, atk = 161.0, def = 204.0, hp = 181, glRank = 20, ulRank = 26, mlRank = 310, isRawBaseStats = true, defaultIvsGl = "4/9/14", defaultIvsUl = "13/15/15"),
+            PokemonMeta("Wigglytuff", "wigglytuff", "wigglytuff", "Base", listOf("normal", "fairy"), 1499, "Charm", 3, "Icy Wind", "Swift", 30, 32, atk = 156.0, def = 90.0, hp = 295, glRank = 21, ulRank = 320, mlRank = 480, isRawBaseStats = true, defaultIvsGl = "4/15/15", defaultIvsUl = "15/15/15"),
+            PokemonMeta("Clefable", "clefable", "clefable", "Base", listOf("fairy"), 2488, "Fairy Wind", 2, "Meteor Mash", "Swift", 46, 30, atk = 178.0, def = 162.0, hp = 216, glRank = 23, ulRank = 13, mlRank = 240, isRawBaseStats = true, defaultIvsGl = "4/13/14", defaultIvsUl = "4/12/15"),
+            PokemonMeta("Skeledirge", "skeledirge", "skeledirge", "Base", listOf("fire", "ghost"), 2491, "Incinerate", 5, "Torch Song", "Shadow Ball", 38, 46, atk = 207.0, def = 178.0, hp = 232, glRank = 22, ulRank = 15, mlRank = 70, chargedMove3 = "Disarming Voice", isRawBaseStats = true, defaultIvsGl = "4/13/11", defaultIvsUl = "6/15/13"),
+            PokemonMeta("Lickilicky", "lickilicky", "lickilicky", "Base", listOf("normal"), 2488, "Rollout", 3, "Body Slam", "Shadow Ball", 26, 44, atk = 161.0, def = 181.0, hp = 242, glRank = 27, ulRank = 8, mlRank = 210, isRawBaseStats = true, defaultIvsGl = "4/15/8", defaultIvsUl = "4/13/13"),
+            PokemonMeta("Lickitung", "lickitung", "lickitung", "Base", listOf("normal"), 1499, "Lick", 1, "Body Slam", "Power Whip", 26, 42, atk = 108.0, def = 137.0, hp = 207, glRank = 29, ulRank = 400, mlRank = 500, isRawBaseStats = true, defaultIvsGl = "7/15/15", defaultIvsUl = "15/15/15"),
+            PokemonMeta("Bastiodon", "bastiodon", "bastiodon", "Base", listOf("rock", "steel"), 1499, "Smack Down", 3, "Stone Edge", "Flamethrower", 42, 38, atk = 94.0, def = 286.0, hp = 155, glRank = 31, ulRank = 400, mlRank = 500, isRawBaseStats = true, defaultIvsGl = "4/15/14", defaultIvsUl = "15/15/15"),
+            PokemonMeta("Carbink", "carbink", "carbink", "Base", listOf("rock", "fairy"), 1499, "Rock Throw", 2, "Rock Slide", "Moonblast", 36, 46, atk = 95.0, def = 285.0, hp = 137, glRank = 33, ulRank = 410, mlRank = 500, isRawBaseStats = true, defaultIvsGl = "5/15/13", defaultIvsUl = "15/15/15"),
+            PokemonMeta("Registeel", "registeel", "registeel", "Base", listOf("steel"), 2488, "Lock-On", 1, "Focus Blast", "Zap Cannon", 56, 56, atk = 143.0, def = 285.0, hp = 190, glRank = 34, ulRank = 5, mlRank = 190, isRawBaseStats = true, defaultIvsGl = "8/15/14", defaultIvsUl = "4/6/14"),
+            PokemonMeta("Skarmory", "skarmory", "skarmory", "Base", listOf("steel", "flying"), 2380, "Steel Wing", 2, "Sky Attack", "Brave Bird", 36, 52, atk = 148.0, def = 226.0, hp = 163, glRank = 37, ulRank = 65, mlRank = 360, isRawBaseStats = true, defaultIvsGl = "4/14/12", defaultIvsUl = "15/15/15"),
+            PokemonMeta("Umbreon", "umbreon", "umbreon", "Base", listOf("dark"), 2416, "Snarl", 3, "Foul Play", "Last Resort", 34, 40, atk = 126.0, def = 240.0, hp = 216, glRank = 38, ulRank = 30, mlRank = 340, isRawBaseStats = true, defaultIvsGl = "4/15/9", defaultIvsUl = "15/15/15"),
+            PokemonMeta("Lanturn", "lanturn", "lanturn", "Base", listOf("water", "electric"), 1499, "Spark", 2, "Surf", "Thunderbolt", 34, 44, atk = 146.0, def = 137.0, hp = 268, glRank = 39, ulRank = 260, mlRank = 450, isRawBaseStats = true, defaultIvsGl = "5/15/12", defaultIvsUl = "15/15/15"),
+            PokemonMeta("Medicham", "medicham", "medicham", "Base", listOf("fighting", "psychic"), 1499, "Counter", 2, "Ice Punch", "Psychic", 28, 38, atk = 121.0, def = 152.0, hp = 155, glRank = 41, ulRank = 420, mlRank = 500, isRawBaseStats = true, defaultIvsGl = "7/15/14", defaultIvsUl = "15/15/15"),
+            PokemonMeta("Sableye", "sableye", "sableye", "Base", listOf("dark", "ghost"), 1499, "Shadow Claw", 2, "Foul Play", "Power Gem", 36, 40, atk = 141.0, def = 136.0, hp = 137, glRank = 42, ulRank = 410, mlRank = 500, isRawBaseStats = true, defaultIvsGl = "4/15/15", defaultIvsUl = "15/15/15"),
+            PokemonMeta("Drapion", "drapion", "drapion", "Base", listOf("poison", "dark"), 2488, "Poison Sting", 2, "Crunch", "Aqua Tail", 34, 28, atk = 180.0, def = 202.0, hp = 172, glRank = 43, ulRank = 17, mlRank = 260, isRawBaseStats = true, defaultIvsGl = "6/14/15", defaultIvsUl = "4/15/15"),
+            PokemonMeta("Toxapex", "toxapex", "toxapex", "Base", listOf("poison", "water"), 1499, "Poison Jab", 2, "Brine", "Sludge Wave", 28, 48, atk = 114.0, def = 273.0, hp = 137, glRank = 44, ulRank = 380, mlRank = 490, isRawBaseStats = true, defaultIvsGl = "4/15/15", defaultIvsUl = "15/15/15"),
+            PokemonMeta("Gligar", "gligar", "gligar", "Base", listOf("ground", "flying"), 1499, "Wing Attack", 2, "Aerial Ace", "Dig", 28, 44, atk = 143.0, def = 184.0, hp = 163, glRank = 45, ulRank = 360, mlRank = 490, isRawBaseStats = true, defaultIvsGl = "4/13/15", defaultIvsUl = "15/15/15"),
+            PokemonMeta("Gliscor", "gliscor", "gliscor", "Base", listOf("ground", "flying"), 2492, "Wing Attack", 2, "Night Slash", "Earthquake", 28, 52, atk = 185.0, def = 222.0, hp = 181, glRank = 65, ulRank = 29, mlRank = 180, isRawBaseStats = true, defaultIvsGl = "4/14/9", defaultIvsUl = "4/15/11"),
+            PokemonMeta("Poliwrath", "poliwrath", "poliwrath", "Base", listOf("water", "fighting"), 2495, "Counter", 2, "Icy Wind", "Scald", 30, 42, atk = 182.0, def = 184.0, hp = 207, glRank = 46, ulRank = 19, mlRank = 190, isRawBaseStats = true, defaultIvsGl = "5/13/15", defaultIvsUl = "4/14/15"),
+            PokemonMeta("Pelipper", "pelipper", "pelipper", "Base", listOf("water", "flying"), 1499, "Wing Attack", 2, "Weather Ball", "Hurricane", 32, 52, atk = 175.0, def = 174.0, hp = 155, glRank = 47, ulRank = 280, mlRank = 460, isRawBaseStats = true, defaultIvsGl = "6/15/14", defaultIvsUl = "15/15/15"),
+            PokemonMeta("Mantine", "mantine", "mantine", "Base", listOf("water", "flying"), 1499, "Wing Attack", 2, "Aerial Ace", "Ice Beam", 28, 38, atk = 148.0, def = 226.0, hp = 163, glRank = 49, ulRank = 240, mlRank = 440, isRawBaseStats = true, defaultIvsGl = "4/14/12", defaultIvsUl = "15/15/15"),
+            PokemonMeta("Dewgong", "dewgong", "dewgong", "Base", listOf("water", "ice"), 1499, "Ice Shard", 3, "Icy Wind", "Drill Run", 30, 40, atk = 139.0, def = 177.0, hp = 207, glRank = 50, ulRank = 290, mlRank = 460, isRawBaseStats = true, defaultIvsGl = "4/15/14", defaultIvsUl = "15/15/15"),
+            PokemonMeta("Walrein", "walrein", "walrein", "Base", listOf("ice", "water"), 2492, "Powder Snow", 2, "Icicle Spear", "Earthquake", 32, 52, atk = 182.0, def = 176.0, hp = 242, glRank = 68, ulRank = 33, mlRank = 170, isRawBaseStats = true, defaultIvsGl = "4/14/14", defaultIvsUl = "4/13/14"),
+            PokemonMeta("Abomasnow", "abomasnow", "abomasnow", "Base", listOf("grass", "ice"), 2485, "Powder Snow", 2, "Weather Ball", "Energy Ball", 32, 44, atk = 178.0, def = 158.0, hp = 207, glRank = 52, ulRank = 37, mlRank = 280, isRawBaseStats = true, defaultIvsGl = "4/15/15", defaultIvsUl = "4/15/11"),
+            PokemonMeta("Trevenant", "trevenant", "trevenant", "Base", listOf("ghost", "grass"), 2492, "Shadow Claw", 2, "Seed Bomb", "Shadow Ball", 32, 46, atk = 201.0, def = 154.0, hp = 198, glRank = 54, ulRank = 31, mlRank = 220, isRawBaseStats = true, defaultIvsGl = "3/13/12", defaultIvsUl = "4/14/10"),
+            PokemonMeta("Goodra", "goodra", "goodra", "Base", listOf("dragon"), 2495, "Dragon Breath", 1, "Aqua Tail", "Thunder Punch", 28, 30, atk = 220.0, def = 242.0, hp = 207, glRank = 56, ulRank = 36, mlRank = 85, isRawBaseStats = true, defaultIvsGl = "4/9/12", defaultIvsUl = "5/15/15"),
+            PokemonMeta("Guzzlord", "guzzlord", "guzzlord", "Base", listOf("dark", "dragon"), 2492, "Dragon Tail", 3, "Dragon Claw", "Crunch", 28, 34, atk = 188.0, def = 99.0, hp = 440, glRank = 60, ulRank = 21, mlRank = 160, isRawBaseStats = true, defaultIvsGl = "4/13/10", defaultIvsUl = "4/15/14"),
+            PokemonMeta("Morpeko", "morpeko", "morpeko", "Full Belly", listOf("electric", "dark"), 1499, "Thunder Shock", 2, "Aura Wheel", "Psychic Fangs", 52, 24, atk = 192.0, def = 121.0, hp = 151, glRank = 15, ulRank = 340, mlRank = 480, isRawBaseStats = true, defaultIvsGl = "5/14/15", defaultIvsUl = "15/15/15"),
+            PokemonMeta("Dusknoir", "dusknoir", "dusknoir", "Base", listOf("ghost"), 2480, "Astonish", 3, "Shadow Punch", "Dynamic Punch", 28, 42, atk = 180.0, def = 254.0, hp = 128, glRank = 55, ulRank = 40, mlRank = 290, isRawBaseStats = true, defaultIvsGl = "5/15/11", defaultIvsUl = "4/13/15"),
+            PokemonMeta("Pangoro", "pangoro", "pangoro", "Base", listOf("fighting", "dark"), 2492, "Karate Chop", 2, "Night Slash", "Close Combat", 28, 48, atk = 226.0, def = 146.0, hp = 216, glRank = 59, ulRank = 27, mlRank = 180, isRawBaseStats = true, defaultIvsGl = "4/15/14", defaultIvsUl = "4/15/15"),
+            PokemonMeta("Greedent", "greedent", "greedent", "Base", listOf("normal"), 2485, "Mud Shot", 2, "Body Slam", "Crunch", 26, 34, atk = 160.0, def = 156.0, hp = 260, glRank = 64, ulRank = 23, mlRank = 290, isRawBaseStats = true, defaultIvsGl = "5/15/14", defaultIvsUl = "4/15/15"),
+            PokemonMeta("Dubwool", "dubwool", "dubwool", "Base", listOf("normal"), 2478, "Double Kick", 3, "Body Slam", "Payback", 26, 50, atk = 159.0, def = 198.0, hp = 176, glRank = 66, ulRank = 39, mlRank = 300, isRawBaseStats = true, defaultIvsGl = "5/14/14", defaultIvsUl = "15/15/15"),
+            PokemonMeta("Ampharos", "ampharos", "ampharos", "Base", listOf("electric"), 2495, "Volt Switch", 4, "Brutal Swing", "Trailblaze", 32, 34, atk = 211.0, def = 169.0, hp = 207, glRank = 92, ulRank = 41, mlRank = 210, isRawBaseStats = true, defaultIvsGl = "4/14/12", defaultIvsUl = "4/12/15"),
+            PokemonMeta("Tentacruel", "tentacruel", "tentacruel", "Base", listOf("water", "poison"), 2485, "Poison Jab", 2, "Scald", "Acid Spray", 40, 20, atk = 166.0, def = 209.0, hp = 190, glRank = 70, ulRank = 18, mlRank = 260, isRawBaseStats = true, defaultIvsGl = "4/15/15", defaultIvsUl = "4/14/14"),
+            PokemonMeta("Cobalion", "cobalion", "cobalion", "Base", listOf("steel", "fighting"), 2492, "Double Kick", 3, "Sacred Sword", "Stone Edge", 38, 42, atk = 192.0, def = 229.0, hp = 209, glRank = 95, ulRank = 6, mlRank = 90, isRawBaseStats = true, defaultIvsGl = "4/10/4", defaultIvsUl = "6/15/11"),
+            PokemonMeta("Virizion", "virizion", "virizion", "Base", listOf("grass", "fighting"), 2490, "Double Kick", 3, "Sacred Sword", "Leaf Blade", 38, 36, atk = 192.0, def = 229.0, hp = 209, glRank = 110, ulRank = 8, mlRank = 95, isRawBaseStats = true, defaultIvsGl = "4/10/4", defaultIvsUl = "6/15/11"),
+            PokemonMeta("Venusaur", "venusaur", "venusaur", "Base", listOf("grass", "poison"), 2495, "Vine Whip", 2, "Frenzy Plant", "Sludge Bomb", 46, 40, atk = 198.0, def = 189.0, hp = 190, glRank = 72, ulRank = 44, mlRank = 220, isRawBaseStats = true, defaultIvsGl = "4/13/14", defaultIvsUl = "4/14/15"),
+            PokemonMeta("Charizard", "charizard", "charizard", "Base", listOf("fire", "flying"), 2495, "Wing Attack", 2, "Blast Burn", "Dragon Claw", 50, 28, atk = 223.0, def = 173.0, hp = 186, glRank = 78, ulRank = 46, mlRank = 190, isRawBaseStats = true, defaultIvsGl = "5/14/15", defaultIvsUl = "4/13/14"),
+            PokemonMeta("Blastoise", "blastoise", "blastoise", "Base", listOf("water"), 2466, "Rollout", 3, "Hydro Cannon", "Ice Beam", 44, 38, atk = 171.0, def = 207.0, hp = 188, glRank = 62, ulRank = 43, mlRank = 250, isRawBaseStats = true, defaultIvsGl = "4/8/15", defaultIvsUl = "5/15/15"),
+            PokemonMeta("Greninja", "greninja", "greninja", "Base", listOf("water", "dark"), 2492, "Water Shuriken", 3, "Hydro Cannon", "Brutal Swing", 44, 34, atk = 223.0, def = 152.0, hp = 176, glRank = 74, ulRank = 35, mlRank = 210, chargedMove3 = "Night Slash", isRawBaseStats = true, defaultIvsGl = "5/12/12", defaultIvsUl = "4/13/15"),
+            PokemonMeta("Chesnaught", "chesnaught", "chesnaught", "Base", listOf("grass", "fighting"), 2492, "Vine Whip", 2, "Frenzy Plant", "Superpower", 46, 42, atk = 201.0, def = 204.0, hp = 204, glRank = 67, ulRank = 50, mlRank = 160, isRawBaseStats = true, defaultIvsGl = "4/14/9", defaultIvsUl = "4/15/11"),
+            PokemonMeta("Typhlosion", "typhlosion", "typhlosion", "Base", listOf("fire"), 2495, "Incinerate", 5, "Blast Burn", "Thunder Punch", 50, 30, atk = 223.0, def = 173.0, hp = 186, glRank = 76, ulRank = 47, mlRank = 230, isRawBaseStats = true, defaultIvsGl = "5/14/15", defaultIvsUl = "4/13/14"),
+            PokemonMeta("Decidueye", "decidueye", "decidueye", "Base", listOf("grass", "ghost"), 2492, "Astonish", 3, "Frenzy Plant", "Spirit Shackle", 46, 36, atk = 210.0, def = 179.0, hp = 186, glRank = 79, ulRank = 54, mlRank = 240, isRawBaseStats = true, defaultIvsGl = "4/14/14", defaultIvsUl = "4/14/12"),
+            PokemonMeta("Incineroar", "incineroar", "incineroar", "Base", listOf("fire", "dark"), 2495, "Snarl", 3, "Blast Burn", "Darkest Lariat", 50, 44, atk = 214.0, def = 175.0, hp = 216, glRank = 88, ulRank = 52, mlRank = 170, isRawBaseStats = true, defaultIvsGl = "4/15/12", defaultIvsUl = "4/15/14"),
+            PokemonMeta("Empoleon", "empoleon", "empoleon", "Base", listOf("water", "steel"), 2495, "Steel Wing", 2, "Hydro Cannon", "Drill Peck", 44, 34, atk = 210.0, def = 186.0, hp = 197, glRank = 71, ulRank = 49, mlRank = 180, isRawBaseStats = true, defaultIvsGl = "5/15/13", defaultIvsUl = "6/15/14"),
+            PokemonMeta("Machamp", "machamp", "machamp", "Base", listOf("fighting"), 2495, "Karate Chop", 2, "Cross Chop", "Stone Edge", 28, 44, atk = 234.0, def = 159.0, hp = 207, glRank = 73, ulRank = 51, mlRank = 120, isRawBaseStats = true, defaultIvsGl = "5/15/12", defaultIvsUl = "4/15/14"),
+            PokemonMeta("Scrafty", "scrafty", "scrafty", "Base", listOf("dark", "fighting"), 2283, "Counter", 2, "Foul Play", "Power-Up Punch", 36, 20, atk = 163.0, def = 222.0, hp = 163, glRank = 82, ulRank = 58, mlRank = 340, isRawBaseStats = true, defaultIvsGl = "4/15/14", defaultIvsUl = "12/12/14"),
+            PokemonMeta("Obstagoon", "obstagoon", "obstagoon", "Base", listOf("dark", "normal"), 2492, "Counter", 2, "Night Slash", "Cross Chop", 28, 28, atk = 180.0, def = 194.0, hp = 212, glRank = 84, ulRank = 56, mlRank = 210, isRawBaseStats = true, defaultIvsGl = "5/15/12", defaultIvsUl = "4/15/14"),
+            PokemonMeta("Diggersby", "diggersby", "diggersby", "Base", listOf("normal", "ground"), 1499, "Quick Attack", 1, "Scorching Sands", "Fire Punch", 40, 28, atk = 112.0, def = 155.0, hp = 198, glRank = 36, ulRank = 380, mlRank = 490, isRawBaseStats = true, defaultIvsGl = "4/15/14", defaultIvsUl = "15/15/15"),
+            PokemonMeta("Jellicent", "jellicent", "jellicent", "Base", listOf("water", "ghost"), 2488, "Hex", 3, "Surf", "Shadow Ball", 34, 46, atk = 159.0, def = 178.0, hp = 225, glRank = 61, ulRank = 28, mlRank = 270, isRawBaseStats = true, defaultIvsGl = "4/15/14", defaultIvsUl = "12/14/12"),
+            PokemonMeta("Cofagrigus", "cofagrigus", "cofagrigus", "Base", listOf("ghost"), 2480, "Shadow Claw", 2, "Shadow Ball", "Dark Pulse", 46, 38, atk = 163.0, def = 237.0, hp = 151, glRank = 86, ulRank = 60, mlRank = 310, isRawBaseStats = true, defaultIvsGl = "6/13/14", defaultIvsUl = "12/12/15"),
+            PokemonMeta("Runerigus", "runerigus", "runerigus", "Base", listOf("ground", "ghost"), 2480, "Shadow Claw", 2, "Sand Tomb", "Shadow Ball", 24, 46, atk = 163.0, def = 237.0, hp = 151, glRank = 89, ulRank = 62, mlRank = 315, isRawBaseStats = true, defaultIvsGl = "6/13/14", defaultIvsUl = "12/12/15"),
+            PokemonMeta("Ferrothorn", "ferrothorn", "ferrothorn", "Base", listOf("grass", "steel"), 2480, "Bullet Seed", 3, "Power Whip", "Thunder", 42, 44, atk = 158.0, def = 223.0, hp = 179, glRank = 51, ulRank = 64, mlRank = 290, isRawBaseStats = true, defaultIvsGl = "4/8/15", defaultIvsUl = "13/14/15"),
+            PokemonMeta("Galvantula", "galvantula", "galvantula", "Base", listOf("bug", "electric"), 2494, "Volt Switch", 4, "Lunge", "Discharge", 32, 36, atk = 201.0, def = 128.0, hp = 172, glRank = 87, ulRank = 68, mlRank = 350, isRawBaseStats = true, defaultIvsGl = "4/15/9", defaultIvsUl = "15/15/15"),
+            PokemonMeta("Araquanid", "araquanid", "araquanid", "Base", listOf("water", "bug"), 1499, "Bug Bite", 1, "Bubble Beam", "Bug Buzz", 22, 44, atk = 126.0, def = 219.0, hp = 169, glRank = 53, ulRank = 320, mlRank = 480, isRawBaseStats = true, defaultIvsGl = "5/15/14", defaultIvsUl = "15/15/15"),
+            PokemonMeta("Golisopod", "golisopod", "golisopod", "Base", listOf("bug", "water"), 2495, "Shadow Claw", 2, "Liquidation", "X-Scissor", 36, 32, atk = 218.0, def = 226.0, hp = 181, glRank = 69, ulRank = 24, mlRank = 150, isRawBaseStats = true, defaultIvsGl = "4/15/13", defaultIvsUl = "5/13/15"),
+            PokemonMeta("Altaria", "altaria", "altaria", "Base", listOf("dragon", "flying"), 1499, "Dragon Breath", 1, "Sky Attack", "Moonblast", 36, 48, atk = 141.0, def = 201.0, hp = 181, glRank = 63, ulRank = 310, mlRank = 470, isRawBaseStats = true, defaultIvsGl = "4/12/13", defaultIvsUl = "15/15/15"),
+            PokemonMeta("Noctowl", "noctowl", "noctowl", "Base", listOf("normal", "flying"), 1499, "Wing Attack", 2, "Sky Attack", "Shadow Ball", 36, 44, atk = 145.0, def = 156.0, hp = 225, glRank = 90, ulRank = 340, mlRank = 480, isRawBaseStats = true, defaultIvsGl = "4/14/14", defaultIvsUl = "15/15/15"),
+            PokemonMeta("Vigoroth", "vigoroth", "vigoroth", "Base", listOf("normal"), 1499, "Counter", 2, "Body Slam", "Rock Slide", 26, 36, atk = 159.0, def = 145.0, hp = 190, glRank = 77, ulRank = 360, mlRank = 490, isRawBaseStats = true, defaultIvsGl = "4/15/14", defaultIvsUl = "15/15/15"),
+            PokemonMeta("Toxicroak", "toxicroak", "toxicroak", "Base", listOf("poison", "fighting"), 2488, "Mud Shot", 2, "Mud Bomb", "Shadow Ball", 32, 44, atk = 211.0, def = 133.0, hp = 195, glRank = 81, ulRank = 57, mlRank = 290, isRawBaseStats = true, defaultIvsGl = "4/15/9", defaultIvsUl = "4/15/14"),
+            PokemonMeta("Nidoqueen", "nidoqueen", "nidoqueen", "Base", listOf("poison", "ground"), 2488, "Poison Jab", 2, "Poison Fang", "Earth Power", 24, 46, atk = 180.0, def = 173.0, hp = 207, glRank = 83, ulRank = 59, mlRank = 260, isRawBaseStats = true, defaultIvsGl = "4/14/13", defaultIvsUl = "4/13/15"),
+            PokemonMeta("Steelix", "steelix", "steelix", "Base", listOf("steel", "ground"), 2485, "Dragon Tail", 3, "Breaking Swipe", "Earthquake", 24, 52, atk = 148.0, def = 272.0, hp = 181, glRank = 80, ulRank = 30, mlRank = 250, isRawBaseStats = true, defaultIvsGl = "4/11/14", defaultIvsUl = "4/14/15"),
+            PokemonMeta("Tinkaton", "tinkaton", "tinkaton", "Base", listOf("fairy", "steel"), 2488, "Fairy Wind", 2, "Gigaton Hammer", "Bulldoze", 42, 36, atk = 155.0, def = 196.0, hp = 198, glRank = 40, ulRank = 32, mlRank = 260, chargedMove3 = "Brutal Swing", isRawBaseStats = true, defaultIvsGl = "4/15/14", defaultIvsUl = "12/15/15"),
+            PokemonMeta("Rillaboom", "rillaboom", "rillaboom", "Base", listOf("grass"), 2485, "Scratch", 1, "Drum Beating", "Earth Power", 36, 44, atk = 239.0, def = 168.0, hp = 225, glRank = 82, ulRank = 45, mlRank = 88, chargedMove3 = "Frenzy Plant", isRawBaseStats = true, defaultIvsGl = "5/15/13", defaultIvsUl = "4/14/15"),
+            PokemonMeta("Cetitan", "cetitan", "cetitan", "Base", listOf("ice"), 2495, "Powder Snow", 2, "Body Slam", "Avalanche", 26, 44, atk = 208.0, def = 123.0, hp = 347, glRank = 57, ulRank = 38, mlRank = 95, isRawBaseStats = true, defaultIvsGl = "4/13/10", defaultIvsUl = "4/15/15"),
+            PokemonMeta("Bellibolt", "bellibolt", "bellibolt", "Base", listOf("electric"), 2492, "Sucker Punch", 2, "Discharge", "Zap Cannon", 34, 56, atk = 184.0, def = 165.0, hp = 240, glRank = 75, ulRank = 42, mlRank = 220, isRawBaseStats = true, defaultIvsGl = "4/15/12", defaultIvsUl = "4/15/15")
         )
 
         // Dynamically loaded species & moves from PvPoke gamemaster.json (1,100+ Pokémon)
@@ -1445,7 +1445,7 @@ class OverlayService : LifecycleService() {
             "Drum Beating" to 35,
             "Gigaton Hammer" to 60,
             "Bulldoze" to 55,
-            "Air Cutter" to 55,
+            "Air Cutter" to 40,
             "Behemoth Blade" to 55,
             "Behemoth Bash" to 45,
             "Secret Sword" to 35,
@@ -1460,9 +1460,9 @@ class OverlayService : LifecycleService() {
             "Draco Meteor" to 65,
             "Thunder" to 60,
             "Aeroblast" to 75,
-            "Sky Attack" to 55,
+            "Sky Attack" to 50,
             "Future Sight" to 65,
-            "Surf" to 40,
+            "Surf" to 45,
             "Origin Pulse" to 60,
             "Hydro Pump" to 75,
             "Blizzard" to 75,
@@ -1470,19 +1470,19 @@ class OverlayService : LifecycleService() {
             "Brave Bird" to 55,
             "Play Rough" to 60,
             "Wild Charge" to 45,
-            "Shadow Ball" to 55,
+            "Shadow Ball" to 50,
             "Ominous Wind" to 45,
-            "Dragon Claw" to 35,
+            "Dragon Claw" to 50,
             "Ancient Power" to 45,
-            "Shadow Force" to 90,
-            "Spacial Rend" to 50,
+            "Shadow Force" to 65,
+            "Spacial Rend" to 55,
             "Aqua Tail" to 35,
             "Precipice Blades" to 60,
             "Fire Punch" to 40,
             "Psystrike" to 45,
             "Ice Beam" to 55,
-            "Moonblast" to 60,
-            "Dark Pulse" to 50,
+            "Moonblast" to 50,
+            "Dark Pulse" to 45,
             "Oblivion Wing" to 50,
             "Crunch" to 45,
             "Earthquake" to 65,
@@ -1493,14 +1493,14 @@ class OverlayService : LifecycleService() {
             "Sunsteel Strike" to 65,
             "Moongeist Beam" to 65,
             "Rock Slide" to 45,
-            "Earth Power" to 55,
+            "Earth Power" to 50,
             "Outrage" to 60,
-            "Meteor Mash" to 50,
-            "Drill Run" to 45,
+            "Meteor Mash" to 45,
+            "Drill Run" to 40,
             "Rock Wrecker" to 50,
-            "Breaking Swipe" to 35,
+            "Breaking Swipe" to 50,
             "Avalanche" to 45,
-            "High Horsepower" to 60,
+            "High Horsepower" to 55,
             "Ice Punch" to 40,
             "Fusion Flare" to 45,
             "Overheat" to 55,
@@ -2063,33 +2063,92 @@ class OverlayService : LifecycleService() {
             return results.take(limit)
         }
 
+        private val CPM_TABLE: List<Pair<Double, Double>> = listOf(
+            1.0 to 0.094, 1.5 to 0.135137432, 2.0 to 0.16639787, 2.5 to 0.192650919,
+            3.0 to 0.21573247, 3.5 to 0.236572661, 4.0 to 0.25572005, 4.5 to 0.273530381,
+            5.0 to 0.29024988, 5.5 to 0.306057377, 6.0 to 0.3210876, 6.5 to 0.335445036,
+            7.0 to 0.34921268, 7.5 to 0.362457751, 8.0 to 0.37523559, 8.5 to 0.387592406,
+            9.0 to 0.39956728, 9.5 to 0.411193551, 10.0 to 0.42250001, 10.5 to 0.432926419,
+            11.0 to 0.44310755, 11.5 to 0.453059958, 12.0 to 0.46279839, 12.5 to 0.472336083,
+            13.0 to 0.48168495, 13.5 to 0.4908558, 14.0 to 0.49985844, 14.5 to 0.508701765,
+            15.0 to 0.51739395, 15.5 to 0.525942511, 16.0 to 0.53435433, 16.5 to 0.542635767,
+            17.0 to 0.55079269, 17.5 to 0.558830576, 18.0 to 0.56675452, 18.5 to 0.574569153,
+            19.0 to 0.58227891, 19.5 to 0.589887917, 20.0 to 0.59740001, 20.5 to 0.604818814,
+            21.0 to 0.61215729, 21.5 to 0.619404122, 22.0 to 0.62656713, 22.5 to 0.633649143,
+            23.0 to 0.64065295, 23.5 to 0.647580967, 24.0 to 0.65443563, 24.5 to 0.661219252,
+            25.0 to 0.667934, 25.5 to 0.674581896, 26.0 to 0.68116492, 26.5 to 0.687684904,
+            27.0 to 0.69414365, 27.5 to 0.70054287, 28.0 to 0.70688421, 28.5 to 0.713168999,
+            29.0 to 0.71939909, 29.5 to 0.725575614, 30.0 to 0.7317, 30.5 to 0.734741009,
+            31.0 to 0.73776948, 31.5 to 0.740785574, 32.0 to 0.74378943, 32.5 to 0.746781211,
+            33.0 to 0.74976104, 33.5 to 0.752729087, 34.0 to 0.75568551, 34.5 to 0.758630378,
+            35.0 to 0.76156384, 35.5 to 0.764486065, 36.0 to 0.76739717, 36.5 to 0.770297266,
+            37.0 to 0.7731865, 37.5 to 0.776064962, 38.0 to 0.77893275, 38.5 to 0.781790055,
+            39.0 to 0.78463697, 39.5 to 0.787473578, 40.0 to 0.7903, 40.5 to 0.792803968,
+            41.0 to 0.79530001, 41.5 to 0.797800015, 42.0 to 0.8003, 42.5 to 0.802799995,
+            43.0 to 0.8053, 43.5 to 0.8078, 44.0 to 0.81029999, 44.5 to 0.812799985,
+            45.0 to 0.81529999, 45.5 to 0.81779999, 46.0 to 0.82029999, 46.5 to 0.82279999,
+            47.0 to 0.82529999, 47.5 to 0.82779999, 48.0 to 0.83029999, 48.5 to 0.83279999,
+            49.0 to 0.83529999, 49.5 to 0.83779999, 50.0 to 0.84029999
+        )
+
+        private fun solveLeagueLevelCpm(uAtk: Double, uDef: Double, uHp: Double, leagueCap: Int): Pair<Double, Int> {
+            var bestCpm = 0.094
+            var bestCp = 10
+            for ((_, cpm) in CPM_TABLE) {
+                val cp = floor(uAtk * kotlin.math.sqrt(uDef * uHp) * cpm * cpm / 10.0).toInt().coerceAtLeast(10)
+                if (cp <= leagueCap) {
+                    bestCpm = cpm
+                    bestCp = cp
+                } else {
+                    break
+                }
+            }
+            return bestCpm to bestCp
+        }
+
         /**
          * Resolves PvPoke recommended Fast Move, Charged Move 1, Charged Move 2, and default CP for a Pokémon name,
          * prioritizing live rankings JSON moves when available.
          */
-        fun resolveRecommendedMovesForSpecies(rawName: String, league: String = "GREAT LEAGUE"): PokemonMeta? {
+        fun resolveRecommendedMovesForSpecies(
+            rawName: String,
+            league: String = "GREAT LEAGUE",
+            customCp: Int? = null,
+            customIvs: String? = null
+        ): PokemonMeta? {
             val trimmed = rawName.trim()
             if (trimmed.isEmpty()) return null
-            val isShadowInput = trimmed.startsWith("Shadow ", ignoreCase = true)
-            val cleanNoShadow = trimmed.replace(Regex("^Shadow\\s+", RegexOption.IGNORE_CASE), "").trim()
+            val isShadowInput = trimmed.startsWith("Shadow ", ignoreCase = true) || trimmed.contains("(Shadow)", ignoreCase = true)
+            val cleanNoShadow = trimmed
+                .replace(Regex("^Shadow\\s+", RegexOption.IGNORE_CASE), "")
+                .replace(Regex("\\s*\\(Shadow\\)", RegexOption.IGNORE_CASE), "")
+                .trim()
             val allMeta = getAllPokemonMeta()
 
-            val exact = allMeta.find {
+            val exactByName = allMeta.find {
                 it.name.equals(trimmed, ignoreCase = true) ||
                     it.name.equals(cleanNoShadow, ignoreCase = true) ||
-                    it.speciesId.equals(trimmed.replace(" ", "_"), ignoreCase = true)
+                    (cleanNoShadow.contains("zygarde", ignoreCase = true) && cleanNoShadow.contains("complete", ignoreCase = true) && it.speciesId.equals("zygarde_complete", ignoreCase = true))
             }
-            if (exact != null) {
-                val withRankMoves = applyRankingMovesForLeague(applyRecommendedMoves(exact), league, isShadowInput)
-                return computeEffectiveCombatStats(withRankMoves, league)
+            if (exactByName != null) {
+                val withRankMoves = applyRankingMovesForLeague(applyRecommendedMoves(exactByName), league, isShadowInput)
+                return computeEffectiveCombatStats(withRankMoves, league, customCp, customIvs)
             }
 
             val base = FormResolver.extractBaseSpecies(cleanNoShadow)
             val variants = FormResolver.getVariantsForSpecies(base, league)
             if (variants.isNotEmpty()) {
-                val chosen = FormResolver.resolveBestDefaultVariant(variants.first(), trimmed, league)
+                val chosen = FormResolver.resolveBestDefaultVariant(variants.first(), cleanNoShadow, league)
                 val withRankMoves = applyRankingMovesForLeague(applyRecommendedMoves(chosen), league, isShadowInput)
-                return computeEffectiveCombatStats(withRankMoves, league)
+                return computeEffectiveCombatStats(withRankMoves, league, customCp, customIvs)
+            }
+
+            val exactById = allMeta.find {
+                it.speciesId.equals(cleanNoShadow.replace(" ", "_"), ignoreCase = true)
+            }
+            if (exactById != null) {
+                val withRankMoves = applyRankingMovesForLeague(applyRecommendedMoves(exactById), league, isShadowInput)
+                return computeEffectiveCombatStats(withRankMoves, league, customCp, customIvs)
             }
 
             val partial = allMeta.firstOrNull {
@@ -2098,7 +2157,7 @@ class OverlayService : LifecycleService() {
             }
             return partial?.let {
                 val withRankMoves = applyRankingMovesForLeague(applyRecommendedMoves(it), league, isShadowInput)
-                computeEffectiveCombatStats(withRankMoves, league)
+                computeEffectiveCombatStats(withRankMoves, league, customCp, customIvs)
             }
         }
 
@@ -2131,7 +2190,7 @@ class OverlayService : LifecycleService() {
 
         /**
          * Computes League CP-scaled and IV-adjusted effective combat stats (Atk, Def, HP, and CP).
-         * Automatically defaults to PvPoke standard IVs when customIvs is blank.
+         * Automatically defaults to PvPoke standard IVs and official half-level CPM when customIvs/customCp is blank.
          */
         fun computeEffectiveCombatStats(
             meta: PokemonMeta,
@@ -2153,13 +2212,12 @@ class OverlayService : LifecycleService() {
                 val uAtk = (meta.atk + actualIvs.first).coerceAtLeast(20.0)
                 val uDef = (meta.def + actualIvs.second).coerceAtLeast(20.0)
                 val uHp = (meta.hp.toDouble() + actualIvs.third).coerceAtLeast(20.0)
-                val maxCp50 = floor(uAtk * kotlin.math.sqrt(uDef * uHp) * 0.8403 * 0.8403 / 10.0).toInt().coerceAtLeast(10)
-                val targetCp = if (customCp != null && customCp in 100..(leagueCap + 100)) {
-                    customCp
+                val (cpm, targetCp) = if (customCp != null && customCp in 100..(leagueCap + 100)) {
+                    val solvedCpm = kotlin.math.sqrt((customCp * 10.0) / (uAtk * kotlin.math.sqrt(uDef * uHp))).coerceIn(0.094, 0.8453)
+                    solvedCpm to customCp
                 } else {
-                    min(maxCp50, leagueCap)
+                    solveLeagueLevelCpm(uAtk, uDef, uHp, leagueCap)
                 }
-                val cpm = kotlin.math.sqrt((targetCp * 10.0) / (uAtk * kotlin.math.sqrt(uDef * uHp))).coerceIn(0.094, 0.8453)
                 return meta.copy(
                     defaultCp = targetCp,
                     atk = uAtk * cpm,
@@ -2480,13 +2538,15 @@ class OverlayService : LifecycleService() {
             league: String,
             myFastMove: String? = null,
             myCharged1: String? = null,
-            myCharged2: String? = null
+            myCharged2: String? = null,
+            myCp: Int? = null,
+            myIvs: String? = null
         ): Pair<Int, Int> {
             val myShadow = myName.trim().startsWith("Shadow ", ignoreCase = true) || myName.contains("(Shadow)", ignoreCase = true)
             val oppShadow = oppName.trim().startsWith("Shadow ", ignoreCase = true) || oppName.contains("(Shadow)", ignoreCase = true)
 
-            val myMeta = resolveRecommendedMovesForSpecies(myName, league)
-                ?: POKEMON_META_DATABASE.first().let { computeEffectiveCombatStats(it, league) }
+            val myMeta = resolveRecommendedMovesForSpecies(myName, league, myCp, myIvs)
+                ?: POKEMON_META_DATABASE.first().let { computeEffectiveCombatStats(it, league, myCp, myIvs) }
             val oppMeta = resolveRecommendedMovesForSpecies(oppName, league)
                 ?: POKEMON_META_DATABASE.first().let { computeEffectiveCombatStats(it, league) }
 
@@ -2513,6 +2573,34 @@ class OverlayService : LifecycleService() {
             val rating1s = (500.0 + ((bestUserCharged + minUserCharged) * 0.5 - (bestOppCharged + minOppCharged) * 0.5) * 2.8 + (userFastEff - oppFastEff) * 120.0 + shadowBulkDelta).roundToInt().coerceIn(150, 850)
             val rating2s = (500.0 + (minUserCharged - minOppCharged) * 2.0 + (userFastEff - oppFastEff) * 155.0 + shadowBulkDelta * 2).roundToInt().coerceIn(150, 850)
             return rating1s to rating2s
+        }
+
+        fun calculateAutoLeadMatchupStatic(
+            myLead: String,
+            oppLead: String,
+            league: String,
+            myFastMove: String? = null,
+            myCharged1: String? = null,
+            myCharged2: String? = null,
+            myCp: Int? = null,
+            myIvs: String? = null
+        ): String {
+            if (myLead.isBlank() || oppLead.isBlank()) return "NEUTRAL"
+            val (rating1s, _) = calculate1v1And2v2RatingsStatic(
+                myName = myLead,
+                oppName = oppLead,
+                league = league,
+                myFastMove = myFastMove,
+                myCharged1 = myCharged1,
+                myCharged2 = myCharged2,
+                myCp = myCp,
+                myIvs = myIvs
+            )
+            return when {
+                rating1s >= 530 -> "FAVORABLE"
+                rating1s <= 470 -> "NEGATIVE"
+                else -> "NEUTRAL"
+            }
         }
 
         fun getTopMetaPoolForLeagueStatic(league: String): List<String> {
@@ -2574,7 +2662,7 @@ class OverlayService : LifecycleService() {
 
             // 2. Lead Score (S_lead): 50% 1v1 + 50% 2v2
             val (lead1v1, lead2v2) = calculate1v1And2v2RatingsStatic(
-                myLead, oppLead, league, slot0?.fastMove, slot0?.chargedMove1, slot0?.chargedMove2
+                myLead, oppLead, league, slot0?.fastMove, slot0?.chargedMove1, slot0?.chargedMove2, slot0?.cp, slot0?.ivs
             )
             val sLead = 0.50 * lead1v1.toDouble() + 0.50 * lead2v2.toDouble()
 
@@ -2583,16 +2671,16 @@ class OverlayService : LifecycleService() {
             val scoreB: Double
             if (!unrevealedThird) {
                 val rSwapVsOppSwap = calculate1v1And2v2RatingsStatic(
-                    mySwap, oppSwap, league, slot1?.fastMove, slot1?.chargedMove1, slot1?.chargedMove2
+                    mySwap, oppSwap, league, slot1?.fastMove, slot1?.chargedMove1, slot1?.chargedMove2, slot1?.cp, slot1?.ivs
                 ).first.toDouble()
                 val rCloseVsOppClose = calculate1v1And2v2RatingsStatic(
-                    myClose, oppClose, league, slot2?.fastMove, slot2?.chargedMove1, slot2?.chargedMove2
+                    myClose, oppClose, league, slot2?.fastMove, slot2?.chargedMove1, slot2?.chargedMove2, slot2?.cp, slot2?.ivs
                 ).first.toDouble()
                 val rSwapVsOppClose = calculate1v1And2v2RatingsStatic(
-                    mySwap, oppClose, league, slot1?.fastMove, slot1?.chargedMove1, slot1?.chargedMove2
+                    mySwap, oppClose, league, slot1?.fastMove, slot1?.chargedMove1, slot1?.chargedMove2, slot1?.cp, slot1?.ivs
                 ).first.toDouble()
                 val rCloseVsOppSwap = calculate1v1And2v2RatingsStatic(
-                    myClose, oppSwap, league, slot2?.fastMove, slot2?.chargedMove1, slot2?.chargedMove2
+                    myClose, oppSwap, league, slot2?.fastMove, slot2?.chargedMove1, slot2?.chargedMove2, slot2?.cp, slot2?.ivs
                 ).first.toDouble()
 
                 scoreA = (rSwapVsOppSwap + rCloseVsOppClose) / 2.0
@@ -2602,23 +2690,23 @@ class OverlayService : LifecycleService() {
                 val rBarSwap = if (activeMetaPool.isNotEmpty()) {
                     activeMetaPool.map { m ->
                         calculate1v1And2v2RatingsStatic(
-                            mySwap, m, league, slot1?.fastMove, slot1?.chargedMove1, slot1?.chargedMove2
+                            mySwap, m, league, slot1?.fastMove, slot1?.chargedMove1, slot1?.chargedMove2, slot1?.cp, slot1?.ivs
                         ).first.toDouble()
                     }.average()
                 } else 500.0
                 val rBarClose = if (activeMetaPool.isNotEmpty()) {
                     activeMetaPool.map { m ->
                         calculate1v1And2v2RatingsStatic(
-                            myClose, m, league, slot2?.fastMove, slot2?.chargedMove1, slot2?.chargedMove2
+                            myClose, m, league, slot2?.fastMove, slot2?.chargedMove1, slot2?.chargedMove2, slot2?.cp, slot2?.ivs
                         ).first.toDouble()
                     }.average()
                 } else 500.0
 
                 val rSwapVsOppSwap = calculate1v1And2v2RatingsStatic(
-                    mySwap, oppSwap, league, slot1?.fastMove, slot1?.chargedMove1, slot1?.chargedMove2
+                    mySwap, oppSwap, league, slot1?.fastMove, slot1?.chargedMove1, slot1?.chargedMove2, slot1?.cp, slot1?.ivs
                 ).first.toDouble()
                 val rCloseVsOppSwap = calculate1v1And2v2RatingsStatic(
-                    myClose, oppSwap, league, slot2?.fastMove, slot2?.chargedMove1, slot2?.chargedMove2
+                    myClose, oppSwap, league, slot2?.fastMove, slot2?.chargedMove1, slot2?.chargedMove2, slot2?.cp, slot2?.ivs
                 ).first.toDouble()
 
                 scoreA = (rSwapVsOppSwap + rBarClose) / 2.0
@@ -3797,6 +3885,9 @@ class OverlayService : LifecycleService() {
             val (matched, rawMatchedLine) = finalPair
             val newBaseSpecies = matched.baseSpecies.lowercase()
 
+            val anyLineHasShadow = rawMatchedLine.contains("shadow", ignoreCase = true) ||
+                sortedLines.any { it.text.contains("shadow", ignoreCase = true) }
+
             // Trigger immediately when opponent spawns or switches/faints into a different species
             if (System.currentTimeMillis() - lastBattleResetTimeMs < 600L) return
             if (isWaitingForOpponent || !newBaseSpecies.equals(activeOpponentSpecies, ignoreCase = true)) {
@@ -3810,7 +3901,7 @@ class OverlayService : LifecycleService() {
 
                 isOpponentShadow = when {
                     manualShadowOverrides.containsKey(newBaseSpecies) -> manualShadowOverrides[newBaseSpecies]!!
-                    rawMatchedLine.contains("shadow", ignoreCase = true) -> {
+                    anyLineHasShadow -> {
                         manualShadowOverrides[newBaseSpecies] = true
                         true
                     }
@@ -3828,6 +3919,10 @@ class OverlayService : LifecycleService() {
                         Toast.LENGTH_SHORT
                     ).show()
                 }
+            } else if (anyLineHasShadow && !manualShadowOverrides.containsKey(newBaseSpecies) && !isOpponentShadow) {
+                isOpponentShadow = true
+                manualShadowOverrides[newBaseSpecies] = true
+                recalculateAndPushBattleData()
             }
         }
     }
@@ -4131,8 +4226,9 @@ class OverlayService : LifecycleService() {
 
     fun toggleShadowModifier() {
         isOpponentShadow = !isOpponentShadow
-        if (activeOpponentSpecies.isNotBlank()) {
-            manualShadowOverrides[activeOpponentSpecies.lowercase()] = isOpponentShadow
+        val baseKey = activeOpponentSpecies.ifBlank { FormResolver.extractBaseSpecies(activeOpponentName) }.lowercase()
+        if (baseKey.isNotBlank()) {
+            manualShadowOverrides[baseKey] = isOpponentShadow
         }
         recalculateAndPushBattleData()
     }
@@ -4196,7 +4292,10 @@ class OverlayService : LifecycleService() {
         manualFormOverrides.clear()
         for (rawOpp in opponentsList.take(3)) {
             val isShad = rawOpp.contains("Shadow", ignoreCase = true)
-            val clean = rawOpp.replace(Regex("^Shadow\\s+", RegexOption.IGNORE_CASE), "").trim()
+            val clean = rawOpp
+                .replace(Regex("^Shadow\\s+", RegexOption.IGNORE_CASE), "")
+                .replace(Regex("\\s*\\(Shadow\\)", RegexOption.IGNORE_CASE), "")
+                .trim()
             val base = FormResolver.extractBaseSpecies(clean).lowercase()
             if (isShad) {
                 manualShadowOverrides[base] = true
@@ -4373,34 +4472,35 @@ class OverlayService : LifecycleService() {
         }
 
         val allMeta = getAllPokemonMeta()
-        val exact = allMeta.find {
+        val exactByName = allMeta.find {
             it.name.equals(name, ignoreCase = true) ||
                 it.name.equals(cleanNoShadow, ignoreCase = true) ||
                 it.name.equals(normalizedParenName, ignoreCase = true) ||
-                it.speciesId.equals(cleanNoShadow.replace(" ", "_"), ignoreCase = true)
+                (cleanNoShadow.contains("zygarde", ignoreCase = true) && cleanNoShadow.contains("complete", ignoreCase = true) && it.speciesId.equals("zygarde_complete", ignoreCase = true))
         }
-        val found = if (exact != null) {
-            exact
+        val found = if (exactByName != null) {
+            exactByName
         } else {
             val variants = FormResolver.getVariantsForSpecies(base, activeLeague)
-            FormResolver.resolveBestDefaultVariant(
-                variants.firstOrNull() ?: PokemonMeta(
-                    name = name,
-                    speciesId = base,
-                    baseSpecies = base,
-                    formLabel = "Base",
-                    types = listOf("normal"),
-                    defaultCp = 2500,
-                    defaultFastMove = "Fast Attack",
-                    fastTurns = 2,
-                    chargedMove1 = "Charged Move 1",
-                    chargedMove2 = "Charged Move 2",
-                    c1Dmg = 35,
-                    c2Dmg = 45
-                ),
-                cleanNoShadow,
-                activeLeague
-            )
+            if (variants.isNotEmpty()) {
+                FormResolver.resolveBestDefaultVariant(variants.first(), cleanNoShadow, activeLeague)
+            } else {
+                allMeta.find { it.speciesId.equals(cleanNoShadow.replace(" ", "_"), ignoreCase = true) }
+                    ?: PokemonMeta(
+                        name = name,
+                        speciesId = base,
+                        baseSpecies = base,
+                        formLabel = "Base",
+                        types = listOf("normal"),
+                        defaultCp = 2500,
+                        defaultFastMove = "Fast Attack",
+                        fastTurns = 2,
+                        chargedMove1 = "Charged Move 1",
+                        chargedMove2 = "Charged Move 2",
+                        c1Dmg = 35,
+                        c2Dmg = 45
+                    )
+            }
         }
         return applyRankingMovesForLeague(applyRecommendedMoves(found), activeLeague, isShadow)
     }
@@ -5115,13 +5215,13 @@ class OverlayService : LifecycleService() {
         // Compute shared 1st-throw maximum turn horizon across all 5 moves (Opponent's 3 + Player's 2)
         val oppFirstTurns = oppChargedMoveNames.map { moveName ->
             val mStats = resolveChargedMoveStatsStatic(moveName, oppMeta.types.firstOrNull() ?: "normal")
-            val mEnergy = MOVE_ENERGY_COST[moveName] ?: mStats.energyCost
+            val mEnergy = mStats.energyCost.takeIf { it > 0 } ?: MOVE_ENERGY_COST[moveName] ?: 50
             val fasts = kotlin.math.ceil(mEnergy.toDouble() / oppFastEnergy.toDouble()).toInt().coerceAtLeast(1)
             fasts * oppFastTurns
         }
         val myFirstTurns = myChargedMoveNames.map { mName ->
             val mStats = resolveChargedMoveStatsStatic(mName, userMeta.types.firstOrNull() ?: "normal")
-            val mEnergy = MOVE_ENERGY_COST[mName] ?: mStats.energyCost
+            val mEnergy = mStats.energyCost.takeIf { it > 0 } ?: MOVE_ENERGY_COST[mName] ?: 50
             val fasts = kotlin.math.ceil(mEnergy.toDouble() / userFastEnergy.toDouble()).toInt().coerceAtLeast(1)
             fasts * userFastTurns
         }
@@ -5131,7 +5231,7 @@ class OverlayService : LifecycleService() {
         val oppReadyTurnsSet = mutableSetOf<Int>()
         for (moveName in oppChargedMoveNames) {
             val mStats = resolveChargedMoveStatsStatic(moveName, oppMeta.types.firstOrNull() ?: "normal")
-            val mEnergy = MOVE_ENERGY_COST[moveName] ?: mStats.energyCost
+            val mEnergy = mStats.energyCost.takeIf { it > 0 } ?: MOVE_ENERGY_COST[moveName] ?: 50
             var leftE = 0
             var cumF = 0
             for (c in 1..3) {
@@ -5146,7 +5246,7 @@ class OverlayService : LifecycleService() {
         // Build per-move timing, catch/CMP, multi-cycle turn-aligned segments & 3-column team threat rows
         val oppMoveTimingRows = oppChargedMoveNames.map { moveName ->
             val mStats = resolveChargedMoveStatsStatic(moveName, oppMeta.types.firstOrNull() ?: "normal")
-            val mEnergy = MOVE_ENERGY_COST[moveName] ?: mStats.energyCost
+            val mEnergy = mStats.energyCost.takeIf { it > 0 } ?: MOVE_ENERGY_COST[moveName] ?: 50
             val oppFasts = kotlin.math.ceil(mEnergy.toDouble() / oppFastEnergy.toDouble()).toInt().coerceAtLeast(1)
             val oppReadyTurn = oppFasts * oppFastTurns
 
@@ -5281,7 +5381,7 @@ class OverlayService : LifecycleService() {
 
         val myMoveTimingRows = myChargedMoveNames.map { mName ->
             val mStats = resolveChargedMoveStatsStatic(mName, userMeta.types.firstOrNull() ?: "normal")
-            val mEnergy = MOVE_ENERGY_COST[mName] ?: mStats.energyCost
+            val mEnergy = mStats.energyCost.takeIf { it > 0 } ?: MOVE_ENERGY_COST[mName] ?: 50
             val myTapsNeeded = kotlin.math.ceil(mEnergy.toDouble() / userFastEnergy.toDouble()).toInt().coerceAtLeast(1)
             val myReadyTurn = myTapsNeeded * userFastTurns
 
@@ -5516,9 +5616,10 @@ class OverlayService : LifecycleService() {
             val userFastEff = getTypeEffectiveness(userFastType, oppMeta.types)
             val oppFastEff = getTypeEffectiveness(oppFastType, userMeta.types)
 
-            val rating0s = (500.0 + (bestUserCharged - bestOppCharged) * 3.4 + (userFastEff - oppFastEff) * 95.0).roundToInt()
-            val rating1s = (500.0 + ((bestUserCharged + minUserCharged) * 0.5 - (bestOppCharged + minOppCharged) * 0.5) * 2.8 + (userFastEff - oppFastEff) * 120.0).roundToInt()
-            val rating2s = (500.0 + (minUserCharged - minOppCharged) * 2.0 + (userFastEff - oppFastEff) * 155.0).roundToInt()
+            val shadowBulkDelta = (if (isUserShad) -12 else 0) + (if (isOppShad) 12 else 0)
+            val rating0s = (500.0 + (bestUserCharged - bestOppCharged) * 3.4 + (userFastEff - oppFastEff) * 95.0 + shadowBulkDelta).roundToInt()
+            val rating1s = (500.0 + ((bestUserCharged + minUserCharged) * 0.5 - (bestOppCharged + minOppCharged) * 0.5) * 2.8 + (userFastEff - oppFastEff) * 120.0 + shadowBulkDelta).roundToInt()
+            val rating2s = (500.0 + (minUserCharged - minOppCharged) * 2.0 + (userFastEff - oppFastEff) * 155.0 + shadowBulkDelta * 2).roundToInt()
 
             fun toTier(r: Int): String = when {
                 r >= 620 -> "SW"

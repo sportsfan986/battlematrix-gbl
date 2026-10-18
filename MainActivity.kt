@@ -101,6 +101,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var pageTeams: android.view.View
     private lateinit var pageSettings: android.view.View
     private lateinit var pageBattleLog: android.view.View
+    private lateinit var btnReparseBattlesSettings: Button
+    private lateinit var textReparseBattlesStatus: TextView
     private lateinit var btnToggleOppCountBasis: Button
     private lateinit var textOppCountBasisDesc: TextView
     private lateinit var btnToggleOppChargedMoves: Button
@@ -298,6 +300,8 @@ class MainActivity : AppCompatActivity() {
         pageTeams = findViewById(R.id.page_teams)
         pageSettings = findViewById(R.id.page_settings)
         pageBattleLog = findViewById(R.id.page_battle_log)
+        btnReparseBattlesSettings = findViewById(R.id.btn_reparse_battles_settings)
+        textReparseBattlesStatus = findViewById(R.id.text_reparse_battles_status)
         btnToggleOppCountBasis = findViewById(R.id.btn_toggle_opp_count_basis)
         textOppCountBasisDesc = findViewById(R.id.text_opp_count_basis_desc)
         btnToggleOppChargedMoves = findViewById(R.id.btn_toggle_opp_charged_moves)
@@ -405,6 +409,10 @@ class MainActivity : AppCompatActivity() {
 
         btnDownloadDb.setOnClickListener {
             downloadPvPokeGamemaster()
+        }
+
+        btnReparseBattlesSettings.setOnClickListener {
+            reparseAllCompletedBattles(silent = false)
         }
 
         btnAddPreset.setOnClickListener {
@@ -1055,6 +1063,12 @@ class MainActivity : AppCompatActivity() {
      * - Persists the enriched schema back to storage so recalculation does not re-run on every render.
      */
     private fun migrateExistingBattleLogs() {
+        val reparseVer = prefs.getInt("damage_reparse_version", 0)
+        if (reparseVer < 215) {
+            reparseAllCompletedBattles(silent = true)
+            prefs.edit().putInt("damage_reparse_version", 215).apply()
+            return
+        }
         val raw = prefs.getString(PREFS_KEY_BATTLE_LOGS, null) ?: return
         try {
             val type = object : TypeToken<List<BattleLogEntry>>() {}.type
@@ -1068,7 +1082,7 @@ class MainActivity : AppCompatActivity() {
                     entry
                 } else {
                     didMutate = true
-                    val computed = resolveEntryQuality(entry, presets)
+                    val computed = resolveEntryQuality(entry, presets, forceRecalculate = true)
                     entry.copy(quality = computed, qualityEvaluated = true)
                 }
             }
@@ -1078,9 +1092,107 @@ class MainActivity : AppCompatActivity() {
         } catch (_: Exception) {}
     }
 
-    private fun resolveEntryQuality(entry: BattleLogEntry, presets: List<TeamPreset>): OverlayService.BattleQualityMetadata? {
-        if (entry.quality != null) return entry.quality
-        if (entry.qualityEvaluated) return null
+    /**
+     * Re-evaluates all completed battles (and trash battles) from scratch using the latest
+     * damage multipliers (2.56x dual-type effectiveness, 1.2x Shadow attack, half-level CPM stats)
+     * and recalculates both Lead Matchup (Favorable/Neutral/Negative) and Win Quality (WAE).
+     */
+    private fun reparseAllCompletedBattles(silent: Boolean) {
+        try {
+            val cacheFile = File(filesDir, "pvpoke_gamemaster.json")
+            if (cacheFile.exists() && cacheFile.length() > 1000 && OverlayService.DYNAMIC_POKEMON_DATABASE.isEmpty()) {
+                OverlayService.parseGamemasterJsonStatic(cacheFile.readText())
+            }
+            for ((leagueKey, fileName, _) in RANKINGS_ENDPOINTS) {
+                val rFile = File(filesDir, fileName)
+                if (rFile.exists() && rFile.length() > 200 && OverlayService.getLeagueRankingsCount(leagueKey) == 0) {
+                    OverlayService.parseRankingsJsonStatic(leagueKey, rFile.readText())
+                }
+            }
+        } catch (_: Exception) {}
+
+        val presets = loadPresets()
+        val nowMs = System.currentTimeMillis()
+
+        fun reparseEntry(entry: BattleLogEntry): BattleLogEntry {
+            val matchedPreset = presets.find {
+                (entry.presetId.isNotBlank() && it.id == entry.presetId) ||
+                    it.name.equals(entry.userTeamName, ignoreCase = true)
+            }
+            val myMons = if (entry.userPokemon.size >= 3) {
+                entry.userPokemon
+            } else if (matchedPreset != null && matchedPreset.pokemon.isNotEmpty()) {
+                matchedPreset.pokemon.map { it.name }
+            } else {
+                entry.userPokemon
+            }
+            val leadSlot = matchedPreset?.pokemon?.firstOrNull()
+            val myLeadName = myMons.firstOrNull()?.trim().orEmpty()
+            val oppLeadName = entry.opponents.firstOrNull()?.trim().orEmpty()
+            val updatedLead = if (myLeadName.isNotEmpty() && oppLeadName.isNotEmpty()) {
+                OverlayService.calculateAutoLeadMatchupStatic(
+                    myLead = myLeadName,
+                    oppLead = oppLeadName,
+                    league = entry.league,
+                    myFastMove = leadSlot?.fastMove,
+                    myCharged1 = leadSlot?.chargedMove1,
+                    myCharged2 = leadSlot?.chargedMove2,
+                    myCp = leadSlot?.cp,
+                    myIvs = leadSlot?.ivs
+                )
+            } else {
+                entry.leadMatchup
+            }
+            val freshQuality = resolveEntryQuality(entry, presets, forceRecalculate = true)
+            return entry.copy(
+                userPokemon = if (entry.userPokemon.isEmpty() && myMons.isNotEmpty()) myMons else entry.userPokemon,
+                leadMatchup = updatedLead,
+                quality = freshQuality,
+                qualityEvaluated = true,
+                updatedAt = nowMs
+            )
+        }
+
+        val activeLogs = loadBattleLogs()
+        val reparsedActive = activeLogs.map { reparseEntry(it) }
+        if (reparsedActive.isNotEmpty()) {
+            saveBattleLogs(reparsedActive)
+        }
+
+        val trashLogs = loadDeletedBattlesTrash()
+        if (trashLogs.isNotEmpty()) {
+            val reparsedTrash = trashLogs.map { reparseEntry(it) }
+            saveDeletedBattlesTrash(reparsedTrash)
+        }
+
+        val aggWae = OverlayService.calculateAggregateWAEStatic(reparsedActive.map { it.quality })
+        if (::textReparseBattlesStatus.isInitialized) {
+            val timeFmt = java.text.SimpleDateFormat("h:mm a", java.util.Locale.US).format(java.util.Date(nowMs))
+            textReparseBattlesStatus.text = "✅ Reparsed ${reparsedActive.size} battle(s) at $timeFmt • Ranked: ${aggWae.rankedCount} • Overall WAE: ${aggWae.formatted}"
+        }
+
+        renderBattleLogPage()
+        updateSyncStatusUi()
+
+        if (!silent) {
+            Toast.makeText(
+                this,
+                "✅ Reparsed ${reparsedActive.size} completed battle(s) with latest damage & WAE (${aggWae.formatted})!",
+                Toast.LENGTH_LONG
+            ).show()
+            triggerTwoDeviceCloudSync(silent = true)
+        }
+    }
+
+    private fun resolveEntryQuality(
+        entry: BattleLogEntry,
+        presets: List<TeamPreset>,
+        forceRecalculate: Boolean = false
+    ): OverlayService.BattleQualityMetadata? {
+        if (!forceRecalculate) {
+            if (entry.quality != null) return entry.quality
+            if (entry.qualityEvaluated) return null
+        }
 
         val firstSwap = entry.opponents.getOrNull(1)?.trim().orEmpty()
         if (firstSwap.isEmpty()) return null
@@ -2242,15 +2354,7 @@ class MainActivity : AppCompatActivity() {
         val replayBridge = object {
             @android.webkit.JavascriptInterface
             fun selectActiveUserPokemon(pokemonName: String) {
-                val uIdx = teamMembers.indexOfFirst { it.name.equals(pokemonName, ignoreCase = true) }.coerceAtLeast(0)
-                replayEngine.configureReplayState(
-                    preset = servicePreset,
-                    opponentsList = replayOpponents,
-                    activeOppIdx = 0,
-                    activeUserIdx = uIdx,
-                    oppCountModeVal = oppCountModeVal,
-                    enable4ChargedVal = enable4Val
-                )
+                replayEngine.selectActiveUserPokemon(pokemonName)
                 pushReplayStateToWeb()
             }
 
@@ -3101,6 +3205,7 @@ class MainActivity : AppCompatActivity() {
                 } catch (_: Exception) {}
                 withContext(Dispatchers.Main) {
                     dbStatusText.text = formatDbAndLeagueStatusText()
+                    reparseAllCompletedBattles(silent = true)
                 }
             }
         } else {
@@ -3143,6 +3248,7 @@ class MainActivity : AppCompatActivity() {
                     withContext(Dispatchers.Main) {
                         dbStatusText.text = formatDbAndLeagueStatusText()
                         btnDownloadDb.isEnabled = true
+                        reparseAllCompletedBattles(silent = true)
                         Toast.makeText(this@MainActivity, "PvPoke gamemaster & all 4 league rankings synced!", Toast.LENGTH_SHORT).show()
                     }
                 }
