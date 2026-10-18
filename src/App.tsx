@@ -116,12 +116,22 @@ function renderTierDots(tierStr: string) {
   );
 }
 
-export default function App() {
-  // Navigation tabs
-  const [activeTab, setActiveTab] = useState<'simulator' | 'presets' | 'turn_matrix' | 'android_code'>('simulator');
+export interface WebBattleLogEntry {
+  id: string;
+  timestampMs: number;
+  league: string;
+  userTeamName: string;
+  opponents: string[];
+  result: string;
+}
 
-  // Floating Overlay Visibility
+export default function App() {
+  // Navigation tabs (includes separated Teams, Settings, and Battle Log pages)
+  const [activeTab, setActiveTab] = useState<'simulator' | 'presets' | 'settings' | 'battle_log' | 'turn_matrix' | 'android_code'>('simulator');
+
+  // Floating Overlay Visibility & Minimized Bubble State
   const [isOverlayVisible, setIsOverlayVisible] = useState(true);
+  const [isOverlayMinimized, setIsOverlayMinimized] = useState(false);
 
   // PvPoke Gamemaster + League Rankings Sync State
   const [isSyncingPvPoke, setIsSyncingPvPoke] = useState(false);
@@ -195,11 +205,53 @@ export default function App() {
     } catch {}
   };
 
+  // App-Level Setting: Overlay Background Transparency (0% - 100%, Default 72%, step 2%)
+  const [overlayTransparencyPct, setOverlayTransparencyPct] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('gbl_overlay_transparency_pct');
+      if (saved !== null) {
+        const num = Number(saved);
+        if (!Number.isNaN(num) && num >= 0 && num <= 100) {
+          return Math.round(num / 2) * 2;
+        }
+      }
+    } catch {}
+    return 72;
+  });
+
+  const handleSetOverlayTransparencyPct = (pct: number) => {
+    const clamped = Math.max(0, Math.min(100, Math.round(pct / 2) * 2));
+    setOverlayTransparencyPct(clamped);
+    try {
+      localStorage.setItem('gbl_overlay_transparency_pct', String(clamped));
+    } catch {}
+  };
+
+  // Provisioned Battle Log State (Page 3)
+  const [battleLogs, setBattleLogs] = useState<WebBattleLogEntry[]>(() => {
+    try {
+      const raw = localStorage.getItem('gbl_battle_logs_v1');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    return [];
+  });
+
+  const handleClearBattleLogs = () => {
+    setBattleLogs([]);
+    try {
+      localStorage.removeItem('gbl_battle_logs_v1');
+    } catch {}
+  };
+
   // Overlay Custom Position (Positioned below top header: y=118px, x=8px so it never obscures top opponent HP bar)
   const [overlayPos, setOverlayPos] = useState<{ x: number; y: number }>({ x: 8, y: 118 });
 
-  // Mouse & Touch drag handling for moving overlay in simulator
+  // Mouse & Touch drag handling for moving overlay or minimized bubble in simulator
   const [isDragging, setIsDragging] = useState(false);
+  const [didMoveDuringDrag, setDidMoveDuringDrag] = useState(false);
   const [dragStart, setDragStart] = useState<{ x: number; y: number; initialOverlayX: number; initialOverlayY: number }>({
     x: 0,
     y: 0,
@@ -211,6 +263,7 @@ export default function App() {
     const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
     const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
     setIsDragging(true);
+    setDidMoveDuringDrag(false);
     setDragStart({
       x: clientX,
       y: clientY,
@@ -225,10 +278,13 @@ export default function App() {
     const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
     const deltaX = clientX - dragStart.x;
     const deltaY = clientY - dragStart.y;
-    
-    // Clamp so overlay stays comfortably on screen
-    const newX = Math.max(0, Math.min(dragStart.initialOverlayX + deltaX, 110));
-    const newY = Math.max(22, Math.min(dragStart.initialOverlayY + deltaY, 440));
+    if (Math.abs(deltaX) > 6 || Math.abs(deltaY) > 6) {
+      setDidMoveDuringDrag(true);
+    }
+    const maxX = isOverlayMinimized ? 330 : 110;
+    const maxY = isOverlayMinimized ? 700 : 440;
+    const newX = Math.max(0, Math.min(dragStart.initialOverlayX + deltaX, maxX));
+    const newY = Math.max(22, Math.min(dragStart.initialOverlayY + deltaY, maxY));
     setOverlayPos({ x: newX, y: newY });
   };
 
@@ -935,7 +991,7 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <h1 className="font-bold text-base md:text-lg tracking-tight text-white">BattleMatrix GBL</h1>
                 <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20">
-                  v1.23 • Android Native Overlay
+                  v1.30 • Android Native Overlay
                 </span>
               </div>
               <p className="text-xs text-slate-400 hidden sm:block">
@@ -946,7 +1002,7 @@ export default function App() {
 
           {/* Navigation Tabs & Donation Button */}
           <div className="flex items-center gap-2 flex-wrap justify-end">
-            <nav className="flex items-center gap-1 bg-slate-950/70 p-1 rounded-xl border border-slate-800 text-xs font-semibold">
+            <nav className="flex items-center gap-1 bg-slate-950/70 p-1 rounded-xl border border-slate-800 text-xs font-semibold flex-wrap">
               <button
                 onClick={() => setActiveTab('simulator')}
                 className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition ${
@@ -967,21 +1023,32 @@ export default function App() {
                 }`}
               >
                 <Layers className="w-3.5 h-3.5" />
-                <span>Team Presets</span>
+                <span>⚔️ Teams</span>
                 <span className="ml-0.5 px-1.5 py-0.2 rounded-full bg-slate-800 text-[10px] text-sky-400 border border-slate-700">
                   {presets.length}
                 </span>
               </button>
               <button
-                onClick={() => setActiveTab('turn_matrix')}
+                onClick={() => setActiveTab('settings')}
                 className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition ${
-                  activeTab === 'turn_matrix'
+                  activeTab === 'settings'
+                    ? 'bg-sky-500 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                }`}
+              >
+                <Settings className="w-3.5 h-3.5" />
+                <span>⚙️ Settings</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('battle_log')}
+                className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition ${
+                  activeTab === 'battle_log'
                     ? 'bg-sky-500 text-white shadow-sm'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
                 }`}
               >
                 <Target className="w-3.5 h-3.5" />
-                <span>Turn Alignment</span>
+                <span>📜 Battle Log</span>
               </button>
               <button
                 onClick={() => setActiveTab('android_code')}
@@ -1234,12 +1301,40 @@ export default function App() {
                   </div>
 
                   {/* =========================================================================
-                      FLOATING OVERLAY OPTION 1: Top-Left Sky Trench
-                      (Ultra-transparent, full-width header, Reset Opp, 1-per-species full names, 3-letter damage rows)
+                      FLOATING OVERLAY OPTION 1: Top-Left Sky Trench OR Minimized App-Icon Bubble
                      ========================================================================= */}
-                  {isOverlayVisible && (
+                  {isOverlayVisible && isOverlayMinimized && (
+                    <div
+                      onMouseDown={onDragStart}
+                      onTouchStart={onDragStart}
+                      onClick={() => {
+                        if (!didMoveDuringDrag) {
+                          setIsOverlayMinimized(false);
+                        }
+                      }}
+                      title="Drag bubble anywhere • Tap to restore overlay & resume 1 Hz OCR"
+                      style={{
+                        top: `${overlayPos.y}px`,
+                        left: `${overlayPos.x}px`
+                      }}
+                      className={`absolute z-30 w-12 h-12 rounded-full bg-slate-950 border-2 border-sky-400 shadow-[0_4px_16px_rgba(0,0,0,0.85),0_0_10px_rgba(56,189,248,0.5)] flex items-center justify-center cursor-pointer active:scale-95 transition-transform ${
+                        isDragging ? 'ring-2 ring-amber-400' : ''
+                      }`}
+                    >
+                      <img
+                        src="/favicon.svg"
+                        alt="BattleMatrix Minimized Bubble"
+                        className="w-9 h-9 rounded-full pointer-events-none select-none"
+                      />
+                      <span className="absolute -bottom-2 px-1 py-0.2 rounded bg-amber-500 text-slate-950 font-black text-[7px] uppercase tracking-tighter shadow">
+                        OCR Paused
+                      </span>
+                    </div>
+                  )}
+
+                  {isOverlayVisible && !isOverlayMinimized && (
                     <div 
-                      className={`absolute z-30 rounded-lg p-1.5 border border-white/15 shadow-lg transition-all ${
+                      className={`absolute z-30 rounded-lg p-1.5 shadow-lg transition-all ${
                         isDragging ? 'ring-2 ring-sky-400' : ''
                       }`}
                       style={{
@@ -1248,15 +1343,29 @@ export default function App() {
                         width: '286px',
                         transform: `scale(${(overlayScalePct / 78).toFixed(4)})`,
                         transformOrigin: 'top left',
-                        background: 'rgba(10, 14, 22, 0.26)',
-                        backdropFilter: 'blur(3px)',
-                        WebkitBackdropFilter: 'blur(3px)',
+                        background: `rgba(10, 14, 22, ${((100 - overlayTransparencyPct) / 100).toFixed(3)})`,
+                        borderColor: `rgba(255, 255, 255, ${Math.max(0.05, ((100 - overlayTransparencyPct) / 100) * 0.55).toFixed(3)})`,
+                        borderWidth: '1px',
+                        borderStyle: 'solid',
+                        backdropFilter: overlayTransparencyPct >= 96 ? 'none' : 'blur(3px)',
+                        WebkitBackdropFilter: overlayTransparencyPct >= 96 ? 'none' : 'blur(3px)',
                         textShadow: '0 1px 2px rgba(0, 0, 0, 0.98), 0 0 4px rgba(0, 0, 0, 0.95)'
                       }}
                     >
-                      {/* Header row (Full width, fast move telemetry Abbr Xt/Ye/Z%) */}
+                      {/* Header row (Upper-left sword icon minimizes to bubble & pauses OCR) */}
                       <div className="flex items-center justify-between pb-1 border-b border-white/15 gap-1">
                         <div className="font-extrabold text-[10.5px] text-amber-100 flex items-center gap-1 truncate min-w-0">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setIsOverlayMinimized(true);
+                            }}
+                            className="px-1 py-0.2 rounded bg-sky-500/20 hover:bg-sky-500/40 border border-sky-400/60 text-white text-[10px] leading-tight shrink-0 shadow-sm active:scale-90 transition"
+                            title="Minimize overlay to floating app-icon bubble & pause OCR"
+                          >
+                            ⚔️
+                          </button>
                           {isWaitingOpponent || scannedOpponents.length === 0 ? (
                             <>
                               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping inline-block shrink-0" />
@@ -1265,7 +1374,7 @@ export default function App() {
                             </>
                           ) : (
                             <>
-                              <span className="truncate">⚔️ VS {isOpponentShadow ? 'S-' : ''}{activeOpponent.name.toUpperCase()}</span>
+                              <span className="truncate">VS {isOpponentShadow ? 'S-' : ''}{activeOpponent.name.toUpperCase()}</span>
                               <span className="text-amber-300 font-bold text-[8.5px] font-mono shrink-0 bg-black/35 px-1 rounded border border-amber-400/30">
                                 {oppFastInfo.telemetry}
                               </span>
@@ -1280,7 +1389,12 @@ export default function App() {
                       </div>
 
                       {/* Action Toolbar: Reset Opp, Swap Opponent, Shadow Toggle, Form Cycler, and Active Lead Switch */}
-                      <div className="flex items-center justify-between gap-1 bg-black/20 p-1 rounded border border-white/10 my-1">
+                      <div
+                        className="flex items-center justify-between gap-1 p-1 rounded border border-white/10 my-1"
+                        style={{
+                          background: `rgba(0, 0, 0, ${(((100 - overlayTransparencyPct) / 100) * 0.65).toFixed(3)})`
+                        }}
+                      >
                         <div className="flex items-center gap-1">
                           <button
                             onClick={handleStartBattle}
@@ -1968,6 +2082,52 @@ export default function App() {
                       ▲ 78% Default
                     </button>
                     <span className="absolute right-0">100%</span>
+                  </div>
+                </div>
+
+                {/* App Setting: Overlay Background Transparency (0% - 100%, Default 72%) */}
+                <div className="mb-4 p-3 rounded-xl bg-slate-950/70 border border-slate-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold text-slate-200 block">
+                        Overlay Background Transparency
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        Adjusts background panel only — text &amp; move bars stay 100% readable
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => handleSetOverlayTransparencyPct(72)}
+                      className="text-xs font-mono font-bold text-sky-400 hover:text-sky-300 transition shrink-0"
+                      title="Click to reset to 72% Default"
+                    >
+                      {overlayTransparencyPct === 72 ? '72% (Default)' : `${overlayTransparencyPct}%`}
+                    </button>
+                  </div>
+
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={2}
+                    value={overlayTransparencyPct}
+                    onChange={(e) => handleSetOverlayTransparencyPct(Number(e.target.value))}
+                    className="w-full accent-sky-400 cursor-pointer h-1.5 bg-slate-800 rounded-lg"
+                  />
+
+                  {/* Transparency Bounds & 72% Default Tick Mark */}
+                  <div className="relative h-4 text-[10px] font-mono text-slate-400">
+                    <span className="absolute left-0">0% (Solid)</span>
+                    <button
+                      type="button"
+                      onClick={() => handleSetOverlayTransparencyPct(72)}
+                      style={{ left: '72%', transform: 'translateX(-50%)' }}
+                      className="absolute text-sky-400 hover:text-sky-300 font-bold transition"
+                      title="Reset to 72% Default"
+                    >
+                      ▲ 72% Default
+                    </button>
+                    <span className="absolute right-0">100% (Clear)</span>
                   </div>
                 </div>
 
@@ -2946,7 +3106,359 @@ export default function App() {
         )}
 
         {/* =========================================================================
-            TAB 3: FAST MOVE TURN ALIGNMENT & SNEAK MECHANICS
+            PAGE 2: DEDICATED OVERLAY & DATABASE SETTINGS PAGE
+           ========================================================================= */}
+        {activeTab === 'settings' && (
+          <div className="max-w-3xl mx-auto space-y-5">
+            {/* 3-Page Quick Switcher Banner */}
+            <div className="flex items-center justify-between bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl">
+              <div>
+                <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                  <Settings className="w-5 h-5 text-sky-400" />
+                  <span>Overlay &amp; Database Settings</span>
+                </h2>
+                <p className="text-xs text-slate-400">
+                  Dedicated settings page matching the 3-page Android main app layout (Teams • Settings • Battle Log).
+                </p>
+              </div>
+              <div className="flex items-center gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-bold">
+                <button
+                  onClick={() => setActiveTab('presets')}
+                  className="px-3 py-1.5 rounded-lg text-slate-400 hover:text-white transition"
+                >
+                  ⚔️ Teams
+                </button>
+                <button
+                  onClick={() => setActiveTab('settings')}
+                  className="px-3 py-1.5 rounded-lg bg-sky-500 text-white shadow-sm"
+                >
+                  ⚙️ Settings
+                </button>
+                <button
+                  onClick={() => setActiveTab('battle_log')}
+                  className="px-3 py-1.5 rounded-lg text-slate-400 hover:text-white transition"
+                >
+                  📜 Battle Log
+                </button>
+              </div>
+            </div>
+
+            {/* PvPoke Live Database & 4-League Sync Card */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <span className="text-sm font-bold text-white block">
+                    PvPoke Live Database &amp; 4-League Rankings
+                  </span>
+                  <span className="text-xs text-slate-400 font-mono">
+                    Last Updated: <strong className="text-emerald-400">{lastSyncedAt}</strong>
+                  </span>
+                </div>
+                <button
+                  onClick={handleManualPvPokeSync}
+                  disabled={isSyncingPvPoke}
+                  className="px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold flex items-center gap-1.5 transition shrink-0 shadow-lg shadow-sky-600/20"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isSyncingPvPoke ? 'animate-spin' : ''}`} />
+                  <span>{isSyncingPvPoke ? 'Syncing...' : 'Sync PvPoke'}</span>
+                </button>
+              </div>
+              <div className="grid grid-cols-5 gap-2 text-center text-xs font-mono">
+                <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
+                  <span className="text-slate-400 block text-[10px]">GameMaster</span>
+                  <strong className="text-white text-sm">{dbTelemetry.gmCount}</strong>
+                </div>
+                <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
+                  <span className="text-sky-400 block text-[10px]">GL (1500)</span>
+                  <strong className="text-white text-sm">{dbTelemetry.glCount}</strong>
+                </div>
+                <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
+                  <span className="text-amber-400 block text-[10px]">UL (2500)</span>
+                  <strong className="text-white text-sm">{dbTelemetry.ulCount}</strong>
+                </div>
+                <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
+                  <span className="text-purple-400 block text-[10px]">ML (10000)</span>
+                  <strong className="text-white text-sm">{dbTelemetry.mlCount}</strong>
+                </div>
+                <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
+                  <span className="text-emerald-400 block text-[10px]">Mega ML</span>
+                  <strong className="text-white text-sm">{dbTelemetry.megaCount}</strong>
+                </div>
+              </div>
+            </div>
+
+            {/* Opponent Move Count Basis & 4 Charged Moves Toggles */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-bold text-white">Opponent Move Count Basis</span>
+                  <span className="text-[10px] font-mono text-sky-400">Turn-Aligned</span>
+                </div>
+                <p className="text-xs text-slate-400">
+                  Choose whether opponent move bars count your fast attacks or the opponent&apos;s fast attacks.
+                </p>
+                <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-950 rounded-xl border border-slate-800">
+                  <button
+                    onClick={() => handleSetOppCountMode('my_fasts')}
+                    className={`py-2 px-2 rounded-lg text-xs font-bold transition ${
+                      oppCountMode === 'my_fasts'
+                        ? 'bg-sky-500/25 border border-sky-400/70 text-sky-200'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    My Fasts (Default)
+                  </button>
+                  <button
+                    onClick={() => handleSetOppCountMode('opp_fasts')}
+                    className={`py-2 px-2 rounded-lg text-xs font-bold transition ${
+                      oppCountMode === 'opp_fasts'
+                        ? 'bg-sky-500/25 border border-sky-400/70 text-sky-200'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    Their Fasts
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-bold text-white">Opponent Charged Moves</span>
+                  <span className="text-[10px] font-mono text-sky-400">
+                    {enable4ChargedMoves ? '4 Moves Shown' : '3 Moves (Default)'}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400">
+                  Show PvPoke&apos;s 2 official moves + top 1 usage move (3 Moves) or top 2 usage moves (4 Moves).
+                </p>
+                <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-950 rounded-xl border border-slate-800">
+                  <button
+                    onClick={() => handleSetEnable4ChargedMoves(false)}
+                    className={`py-2 px-2 rounded-lg text-xs font-bold transition ${
+                      !enable4ChargedMoves
+                        ? 'bg-sky-500/25 border border-sky-400/70 text-sky-200'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    3 Moves (Default)
+                  </button>
+                  <button
+                    onClick={() => handleSetEnable4ChargedMoves(true)}
+                    className={`py-2 px-2 rounded-lg text-xs font-bold transition ${
+                      enable4ChargedMoves
+                        ? 'bg-sky-500/25 border border-sky-400/70 text-sky-200'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    4 Moves
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Overlay Size Slider */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-sm font-bold text-white block">
+                    Overlay Size (% of Screen Width)
+                  </span>
+                  <span className="text-xs text-slate-400">
+                    Proportionally scales the floating overlay container, fonts, and move timing bars.
+                  </span>
+                </div>
+                <button
+                  onClick={() => handleSetOverlayScalePct(78)}
+                  className="text-xs font-mono font-bold text-sky-400 hover:text-sky-300 transition"
+                >
+                  {overlayScalePct === 78 ? '78% (Default)' : `${overlayScalePct}%`}
+                </button>
+              </div>
+              <input
+                type="range"
+                min={50}
+                max={100}
+                step={2}
+                value={overlayScalePct}
+                onChange={(e) => handleSetOverlayScalePct(Number(e.target.value))}
+                className="w-full accent-sky-400 cursor-pointer h-2 bg-slate-800 rounded-lg"
+              />
+              <div className="relative h-4 text-[10px] font-mono text-slate-400">
+                <span className="absolute left-0">50%</span>
+                <button
+                  type="button"
+                  onClick={() => handleSetOverlayScalePct(78)}
+                  style={{ left: '56%', transform: 'translateX(-50%)' }}
+                  className="absolute text-sky-400 hover:text-sky-300 font-bold transition"
+                >
+                  ▲ 78% Default
+                </button>
+                <span className="absolute right-0">100%</span>
+              </div>
+            </div>
+
+            {/* Overlay Background Transparency Slider */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-sm font-bold text-white block">
+                    Overlay Background Transparency
+                  </span>
+                  <span className="text-xs text-slate-400">
+                    Adjusts only the background panel opacity while keeping text and move bars 100% readable.
+                  </span>
+                </div>
+                <button
+                  onClick={() => handleSetOverlayTransparencyPct(72)}
+                  className="text-xs font-mono font-bold text-sky-400 hover:text-sky-300 transition"
+                >
+                  {overlayTransparencyPct === 72 ? '72% (Default)' : `${overlayTransparencyPct}%`}
+                </button>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={2}
+                value={overlayTransparencyPct}
+                onChange={(e) => handleSetOverlayTransparencyPct(Number(e.target.value))}
+                className="w-full accent-sky-400 cursor-pointer h-2 bg-slate-800 rounded-lg"
+              />
+              <div className="relative h-4 text-[10px] font-mono text-slate-400">
+                <span className="absolute left-0">0% (Solid)</span>
+                <button
+                  type="button"
+                  onClick={() => handleSetOverlayTransparencyPct(72)}
+                  style={{ left: '72%', transform: 'translateX(-50%)' }}
+                  className="absolute text-sky-400 hover:text-sky-300 font-bold transition"
+                >
+                  ▲ 72% Default
+                </button>
+                <span className="absolute right-0">100% (Clear)</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* =========================================================================
+            PAGE 3: PROVISIONED BATTLE LOG PAGE
+           ========================================================================= */}
+        {activeTab === 'battle_log' && (
+          <div className="max-w-3xl mx-auto space-y-5">
+            {/* 3-Page Quick Switcher Banner */}
+            <div className="flex items-center justify-between bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl">
+              <div>
+                <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                  <Target className="w-5 h-5 text-sky-400" />
+                  <span>📜 GBL Battle Log</span>
+                </h2>
+                <p className="text-xs text-slate-400">
+                  Provisioned 3rd page for recording and reviewing OCR-detected GBL battles &amp; team matchups.
+                </p>
+              </div>
+              <div className="flex items-center gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-bold">
+                <button
+                  onClick={() => setActiveTab('presets')}
+                  className="px-3 py-1.5 rounded-lg text-slate-400 hover:text-white transition"
+                >
+                  ⚔️ Teams
+                </button>
+                <button
+                  onClick={() => setActiveTab('settings')}
+                  className="px-3 py-1.5 rounded-lg text-slate-400 hover:text-white transition"
+                >
+                  ⚙️ Settings
+                </button>
+                <button
+                  onClick={() => setActiveTab('battle_log')}
+                  className="px-3 py-1.5 rounded-lg bg-sky-500 text-white shadow-sm"
+                >
+                  📜 Battle Log
+                </button>
+              </div>
+            </div>
+
+            {/* Summary Metrics Row */}
+            <div className="grid grid-cols-3 gap-4">
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 text-center shadow-xl">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                  Logged Battles
+                </span>
+                <strong className="text-lg font-extrabold text-white">{battleLogs.length} Matches</strong>
+              </div>
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 text-center shadow-xl">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                  Active League
+                </span>
+                <strong className="text-sm font-extrabold text-sky-400">{activePreset.league}</strong>
+              </div>
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 text-center shadow-xl">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                  Tracker Status
+                </span>
+                <strong className="text-sm font-extrabold text-emerald-400">
+                  {battleLogs.length === 0 ? 'Provisioned & Ready' : `${battleLogs.length} Saved`}
+                </strong>
+              </div>
+            </div>
+
+            {/* Battle Log List Container */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-bold text-white">Recent Battle History</span>
+                {battleLogs.length > 0 && (
+                  <button
+                    onClick={handleClearBattleLogs}
+                    className="px-3 py-1 rounded-lg bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white text-xs font-bold transition"
+                  >
+                    Clear Log
+                  </button>
+                )}
+              </div>
+
+              {battleLogs.length === 0 ? (
+                <div className="p-6 rounded-xl bg-slate-950/80 border border-slate-800 text-xs text-slate-300 space-y-2">
+                  <div className="text-sm font-bold text-white">
+                    📜 Battle Logging Provisioned &amp; Ready
+                  </div>
+                  <p className="text-slate-400 leading-relaxed">
+                    This 3rd page is provisioned in both the Android native app and Web Simulator to record your GBL battles, including:
+                  </p>
+                  <ul className="list-disc list-inside text-slate-300 space-y-1 pt-1">
+                    <li>Active Team Preset &amp; League (<strong>{activePreset.name}</strong>)</li>
+                    <li>Scanned Opponent Lead, Safe Swap &amp; Closer Pokémon</li>
+                    <li>Matchup Matrix &amp; Shield Telemetry History</li>
+                  </ul>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {battleLogs.map((entry, idx) => (
+                    <div
+                      key={entry.id}
+                      className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between text-xs"
+                    >
+                      <div>
+                        <div className="font-bold text-sky-400">
+                          #{battleLogs.length - idx} • {entry.league}
+                        </div>
+                        <div className="text-slate-200 mt-0.5">
+                          Team: <strong>{entry.userTeamName}</strong> vs{' '}
+                          <strong>{entry.opponents.join(' / ') || 'Unknown'}</strong>
+                        </div>
+                      </div>
+                      <span className="text-[11px] font-mono text-slate-400">
+                        {new Date(entry.timestampMs).toLocaleTimeString()}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* =========================================================================
+            TAB 4: FAST MOVE TURN ALIGNMENT & SNEAK MECHANICS
            ========================================================================= */}
         {activeTab === 'turn_matrix' && (
           <div className="space-y-6">

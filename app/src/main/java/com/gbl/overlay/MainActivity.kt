@@ -48,6 +48,15 @@ data class TeamPreset(
     val isSelected: Boolean = false
 )
 
+data class BattleLogEntry(
+    val id: String = UUID.randomUUID().toString(),
+    val timestampMs: Long = System.currentTimeMillis(),
+    val league: String = "GREAT LEAGUE",
+    val userTeamName: String = "",
+    val opponents: List<String> = emptyList(),
+    val result: String = "LOGGED"
+)
+
 /**
  * MainActivity handles:
  * 1. Permission checks (SYSTEM_ALERT_WINDOW, POST_NOTIFICATIONS & MediaProjection Screen Capture)
@@ -71,6 +80,12 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnDownloadDb: Button
     private lateinit var btnAddPreset: Button
     private lateinit var btnDonate: Button
+    private lateinit var btnNavTeams: Button
+    private lateinit var btnNavSettings: Button
+    private lateinit var btnNavBattleLog: Button
+    private lateinit var pageTeams: android.view.View
+    private lateinit var pageSettings: android.view.View
+    private lateinit var pageBattleLog: android.view.View
     private lateinit var btnToggleOppCountBasis: Button
     private lateinit var textOppCountBasisDesc: TextView
     private lateinit var btnToggleOppChargedMoves: Button
@@ -78,7 +93,15 @@ class MainActivity : AppCompatActivity() {
     private lateinit var seekbarOverlayScale: SeekBar
     private lateinit var textOverlayScaleValue: TextView
     private lateinit var textOverlayScaleDefaultTick: TextView
+    private lateinit var seekbarOverlayTransparency: SeekBar
+    private lateinit var textOverlayTransparencyValue: TextView
+    private lateinit var textOverlayTransparencyDefaultTick: TextView
     private lateinit var presetsContainer: LinearLayout
+    private lateinit var battleLogContainer: LinearLayout
+    private lateinit var textBattleLogTotal: TextView
+    private lateinit var textBattleLogLeague: TextView
+    private lateinit var textBattleLogWinrate: TextView
+    private lateinit var btnClearBattleLog: Button
 
     private val PREFS_KEY_PRESETS = OverlayService.PREFS_KEY_PERSISTENT_TEAMS
     private val PREFS_KEY_SELECTED_PRESET = "gbl_selected_preset_id"
@@ -87,6 +110,9 @@ class MainActivity : AppCompatActivity() {
     private val PREFS_KEY_LAST_SYNC_TIMESTAMP = OverlayService.PREFS_KEY_LAST_SYNC_TIMESTAMP
     private val PREFS_KEY_OVERLAY_SCALE_PCT = "overlay_scale_pct"
     private val DEFAULT_OVERLAY_SCALE_PCT = 78
+    private val PREFS_KEY_OVERLAY_TRANSPARENCY_PCT = OverlayService.PREFS_KEY_OVERLAY_TRANSPARENCY_PCT
+    private val DEFAULT_OVERLAY_TRANSPARENCY_PCT = 72
+    private val PREFS_KEY_BATTLE_LOGS = "gbl_battle_logs_v1"
     private val DONATION_URL = "https://buymeacoffee.com/sportsfan986"
     private val GAMEMASTER_URL = "https://raw.githubusercontent.com/pvpoke/pvpoke/master/src/data/gamemaster.json"
     private val RANKINGS_ENDPOINTS = listOf(
@@ -143,6 +169,7 @@ class MainActivity : AppCompatActivity() {
         initViews()
         ensureDefaultPresets()
         refreshPresetsUi()
+        renderBattleLogPage()
         checkGamemasterCache()
     }
 
@@ -155,6 +182,39 @@ class MainActivity : AppCompatActivity() {
         return (50 + progress.coerceIn(0, 25) * 2).coerceIn(50, 100)
     }
 
+    private fun transparencyPctToProgress(transparencyPct: Int): Int {
+        val clamped = transparencyPct.coerceIn(0, 100)
+        return (clamped / 2).coerceIn(0, 50)
+    }
+
+    private fun progressToTransparencyPct(progress: Int): Int {
+        return (progress.coerceIn(0, 50) * 2).coerceIn(0, 100)
+    }
+
+    private fun switchMainPage(page: String) {
+        pageTeams.visibility = if (page == "teams") android.view.View.VISIBLE else android.view.View.GONE
+        pageSettings.visibility = if (page == "settings") android.view.View.VISIBLE else android.view.View.GONE
+        pageBattleLog.visibility = if (page == "battle_log") android.view.View.VISIBLE else android.view.View.GONE
+
+        val activeBg = android.content.res.ColorStateList.valueOf(0xFF0284C7.toInt())
+        val inactiveBg = android.content.res.ColorStateList.valueOf(0xFF1E293B.toInt())
+        val activeText = 0xFFFFFFFF.toInt()
+        val inactiveText = 0xFF94A3B8.toInt()
+
+        btnNavTeams.backgroundTintList = if (page == "teams") activeBg else inactiveBg
+        btnNavTeams.setTextColor(if (page == "teams") activeText else inactiveText)
+
+        btnNavSettings.backgroundTintList = if (page == "settings") activeBg else inactiveBg
+        btnNavSettings.setTextColor(if (page == "settings") activeText else inactiveText)
+
+        btnNavBattleLog.backgroundTintList = if (page == "battle_log") activeBg else inactiveBg
+        btnNavBattleLog.setTextColor(if (page == "battle_log") activeText else inactiveText)
+
+        if (page == "battle_log") {
+            renderBattleLogPage()
+        }
+    }
+
     private fun initViews() {
         statusText = findViewById(R.id.text_status)
         dbStatusText = findViewById(R.id.text_db_status)
@@ -162,6 +222,12 @@ class MainActivity : AppCompatActivity() {
         btnDownloadDb = findViewById(R.id.btn_download_db)
         btnAddPreset = findViewById(R.id.btn_add_preset)
         btnDonate = findViewById(R.id.btn_donate)
+        btnNavTeams = findViewById(R.id.btn_nav_teams)
+        btnNavSettings = findViewById(R.id.btn_nav_settings)
+        btnNavBattleLog = findViewById(R.id.btn_nav_battle_log)
+        pageTeams = findViewById(R.id.page_teams)
+        pageSettings = findViewById(R.id.page_settings)
+        pageBattleLog = findViewById(R.id.page_battle_log)
         btnToggleOppCountBasis = findViewById(R.id.btn_toggle_opp_count_basis)
         textOppCountBasisDesc = findViewById(R.id.text_opp_count_basis_desc)
         btnToggleOppChargedMoves = findViewById(R.id.btn_toggle_opp_charged_moves)
@@ -169,7 +235,19 @@ class MainActivity : AppCompatActivity() {
         seekbarOverlayScale = findViewById(R.id.seekbar_overlay_scale)
         textOverlayScaleValue = findViewById(R.id.text_overlay_scale_value)
         textOverlayScaleDefaultTick = findViewById(R.id.text_overlay_scale_default_tick)
+        seekbarOverlayTransparency = findViewById(R.id.seekbar_overlay_transparency)
+        textOverlayTransparencyValue = findViewById(R.id.text_overlay_transparency_value)
+        textOverlayTransparencyDefaultTick = findViewById(R.id.text_overlay_transparency_default_tick)
         presetsContainer = findViewById(R.id.layout_presets_list)
+        battleLogContainer = findViewById(R.id.layout_battle_log_list)
+        textBattleLogTotal = findViewById(R.id.text_battle_log_total)
+        textBattleLogLeague = findViewById(R.id.text_battle_log_league)
+        textBattleLogWinrate = findViewById(R.id.text_battle_log_winrate)
+        btnClearBattleLog = findViewById(R.id.btn_clear_battle_log)
+
+        btnNavTeams.setOnClickListener { switchMainPage("teams") }
+        btnNavSettings.setOnClickListener { switchMainPage("settings") }
+        btnNavBattleLog.setOnClickListener { switchMainPage("battle_log") }
 
         updateOppCountBasisUi()
         updateOppChargedMovesUi()
@@ -177,6 +255,10 @@ class MainActivity : AppCompatActivity() {
         val savedScalePct = prefs.getInt(PREFS_KEY_OVERLAY_SCALE_PCT, DEFAULT_OVERLAY_SCALE_PCT).coerceIn(50, 100)
         seekbarOverlayScale.progress = scalePctToProgress(savedScalePct)
         updateOverlayScaleUi(progressToScalePct(seekbarOverlayScale.progress))
+
+        val savedTransparencyPct = prefs.getInt(PREFS_KEY_OVERLAY_TRANSPARENCY_PCT, DEFAULT_OVERLAY_TRANSPARENCY_PCT).coerceIn(0, 100)
+        seekbarOverlayTransparency.progress = transparencyPctToProgress(savedTransparencyPct)
+        updateOverlayTransparencyUi(progressToTransparencyPct(seekbarOverlayTransparency.progress))
 
         btnDonate.setOnClickListener {
             try {
@@ -201,6 +283,12 @@ class MainActivity : AppCompatActivity() {
 
         btnAddPreset.setOnClickListener {
             showPresetEditorDialog(null)
+        }
+
+        btnClearBattleLog.setOnClickListener {
+            prefs.edit().remove(PREFS_KEY_BATTLE_LOGS).apply()
+            renderBattleLogPage()
+            Toast.makeText(this, "Battle log cleared", Toast.LENGTH_SHORT).show()
         }
 
         btnToggleOppCountBasis.setOnClickListener {
@@ -257,6 +345,31 @@ class MainActivity : AppCompatActivity() {
         }
         textOverlayScaleDefaultTick.setOnClickListener { resetToDefaultScale() }
         textOverlayScaleValue.setOnClickListener { resetToDefaultScale() }
+
+        seekbarOverlayTransparency.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                val pct = progressToTransparencyPct(progress)
+                updateOverlayTransparencyUi(pct)
+                prefs.edit().putInt(PREFS_KEY_OVERLAY_TRANSPARENCY_PCT, pct).apply()
+                if (isOverlayRunning) {
+                    val updateIntent = Intent(this@MainActivity, OverlayService::class.java).apply {
+                        action = OverlayService.ACTION_UPDATE_SETTINGS
+                        putExtra(OverlayService.EXTRA_OVERLAY_TRANSPARENCY_PCT, pct)
+                    }
+                    startService(updateIntent)
+                }
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
+
+        // Clicking the default tick or value label snaps back to 72% (Default)
+        val resetToDefaultTransparency = {
+            seekbarOverlayTransparency.progress = transparencyPctToProgress(DEFAULT_OVERLAY_TRANSPARENCY_PCT)
+        }
+        textOverlayTransparencyDefaultTick.setOnClickListener { resetToDefaultTransparency() }
+        textOverlayTransparencyValue.setOnClickListener { resetToDefaultTransparency() }
     }
 
     private fun updateOverlayScaleUi(scalePct: Int) {
@@ -264,6 +377,94 @@ class MainActivity : AppCompatActivity() {
             "${scalePct}% (Default)"
         } else {
             "${scalePct}%"
+        }
+    }
+
+    private fun updateOverlayTransparencyUi(transparencyPct: Int) {
+        textOverlayTransparencyValue.text = if (transparencyPct == DEFAULT_OVERLAY_TRANSPARENCY_PCT) {
+            "${transparencyPct}% (Default)"
+        } else {
+            "${transparencyPct}%"
+        }
+    }
+
+    private fun loadBattleLogs(): List<BattleLogEntry> {
+        val raw = prefs.getString(PREFS_KEY_BATTLE_LOGS, null) ?: return emptyList()
+        return try {
+            val type = object : TypeToken<List<BattleLogEntry>>() {}.type
+            gson.fromJson<List<BattleLogEntry>>(raw, type) ?: emptyList()
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    private fun renderBattleLogPage() {
+        val logs = loadBattleLogs()
+        val selectedPreset = getSelectedPreset()
+        textBattleLogTotal.text = "${logs.size} Matches"
+        textBattleLogLeague.text = selectedPreset.league
+        textBattleLogWinrate.text = if (logs.isEmpty()) "Ready" else "${logs.size} Logged"
+
+        battleLogContainer.removeAllViews()
+        val density = resources.displayMetrics.density
+        if (logs.isEmpty()) {
+            val emptyCard = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setBackgroundColor(0xFF1E293B.toInt())
+                val pad = (14 * density).toInt()
+                setPadding(pad, pad, pad, pad)
+            }
+            val titleTv = TextView(this).apply {
+                text = "📜 Battle Logging Provisioned & Ready"
+                setTextColor(0xFFF8FAFC.toInt())
+                textSize = 14f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+            }
+            val descTv = TextView(this).apply {
+                text = "This page is provisioned to record your GBL battles, including:\n" +
+                    "• Active Team Preset & League (${selectedPreset.name})\n" +
+                    "• Scanned Opponent Lead, Safe Swap & Closer Pokémon\n" +
+                    "• Matchup Matrix & Shield Telemetry History\n\n" +
+                    "Battles logged from the overlay will automatically appear here in chronological order."
+                setTextColor(0xFF94A3B8.toInt())
+                textSize = 12f
+                setPadding(0, (6 * density).toInt(), 0, 0)
+            }
+            emptyCard.addView(titleTv)
+            emptyCard.addView(descTv)
+            battleLogContainer.addView(emptyCard)
+        } else {
+            val fmt = java.text.SimpleDateFormat("MMM d, h:mm a", java.util.Locale.US)
+            logs.forEachIndexed { idx, entry ->
+                val card = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setBackgroundColor(0xFF1E293B.toInt())
+                    val pad = (12 * density).toInt()
+                    setPadding(pad, pad, pad, pad)
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply {
+                        bottomMargin = (8 * density).toInt()
+                    }
+                }
+                val hdr = TextView(this).apply {
+                    text = "#${logs.size - idx} • ${entry.league} • ${fmt.format(java.util.Date(entry.timestampMs))}"
+                    setTextColor(0xFF38BDF8.toInt())
+                    textSize = 11f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                }
+                val body = TextView(this).apply {
+                    val oppText = if (entry.opponents.isEmpty()) "No opponents recorded" else entry.opponents.joinToString(" / ")
+                    text = "Team: ${entry.userTeamName}\nVs: $oppText"
+                    setTextColor(0xFFE2E8F0.toInt())
+                    textSize = 12f
+                    setPadding(0, (4 * density).toInt(), 0, 0)
+                }
+                card.addView(hdr)
+                card.addView(body)
+                battleLogContainer.addView(card)
+            }
         }
     }
 
@@ -408,6 +609,7 @@ class MainActivity : AppCompatActivity() {
             putExtra(OverlayService.EXTRA_OPP_COUNT_MODE, prefs.getString(PREFS_KEY_OPP_COUNT_MODE, "my_fasts") ?: "my_fasts")
             putExtra(OverlayService.EXTRA_ENABLE_4_CHARGED_MOVES, prefs.getBoolean(PREFS_KEY_ENABLE_4_CHARGED_MOVES, false))
             putExtra(OverlayService.EXTRA_OVERLAY_SCALE_PCT, prefs.getInt(PREFS_KEY_OVERLAY_SCALE_PCT, DEFAULT_OVERLAY_SCALE_PCT))
+            putExtra(OverlayService.EXTRA_OVERLAY_TRANSPARENCY_PCT, prefs.getInt(PREFS_KEY_OVERLAY_TRANSPARENCY_PCT, DEFAULT_OVERLAY_TRANSPARENCY_PCT))
         }
 
         try {

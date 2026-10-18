@@ -86,9 +86,11 @@ class OverlayService : LifecycleService() {
         const val EXTRA_PRESET_JSON = "extra_preset_json"
         const val EXTRA_OPP_COUNT_MODE = "extra_opp_count_mode"
         const val EXTRA_OVERLAY_SCALE_PCT = "extra_overlay_scale_pct"
+        const val EXTRA_OVERLAY_TRANSPARENCY_PCT = "extra_overlay_transparency_pct"
         const val EXTRA_ENABLE_4_CHARGED_MOVES = "extra_enable_4_charged_moves"
 
         const val PREFS_KEY_ENABLE_4_CHARGED_MOVES = "enable_4_charged_moves"
+        const val PREFS_KEY_OVERLAY_TRANSPARENCY_PCT = "overlay_transparency_pct"
         const val PREFS_KEY_LAST_SYNC_TIMESTAMP = "last_sync_timestamp"
 
         private const val NOTIFICATION_CHANNEL_ID = "gbl_battle_overlay_channel"
@@ -1880,6 +1882,8 @@ class OverlayService : LifecycleService() {
     private var oppCountMode = "my_fasts"
     private var enable4ChargedMoves = false
     private var overlayScalePct = 78
+    private var overlayTransparencyPct = 72
+    private var isOverlayMinimized = false
     private var cachedScreenBitmap: Bitmap? = null
     private val captureLock = Any()
 
@@ -1901,6 +1905,7 @@ class OverlayService : LifecycleService() {
         oppCountMode = prefs.getString("opp_count_mode", "my_fasts") ?: "my_fasts"
         enable4ChargedMoves = prefs.getBoolean(PREFS_KEY_ENABLE_4_CHARGED_MOVES, false)
         overlayScalePct = prefs.getInt("overlay_scale_pct", 78).coerceIn(50, 100)
+        overlayTransparencyPct = prefs.getInt(PREFS_KEY_OVERLAY_TRANSPARENCY_PCT, 72).coerceIn(0, 100)
 
         val metrics = resources.displayMetrics
         screenWidth = metrics.widthPixels
@@ -2094,6 +2099,7 @@ class OverlayService : LifecycleService() {
         var initialY = 0
         var initialTouchX = 0f
         var initialTouchY = 0f
+        var isDraggingTouch = false
 
         overlayView?.setOnTouchListener { _, event ->
             when (event.action) {
@@ -2102,19 +2108,30 @@ class OverlayService : LifecycleService() {
                     initialY = layoutParams.y
                     initialTouchX = event.rawX
                     initialTouchY = event.rawY
+                    isDraggingTouch = false
                     false
                 }
                 MotionEvent.ACTION_MOVE -> {
                     val deltaX = (event.rawX - initialTouchX).toInt()
                     val deltaY = (event.rawY - initialTouchY).toInt()
                     if (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10) {
+                        isDraggingTouch = true
+                        val maxYOffset = if (isOverlayMinimized) screenHeight - (56 * density).toInt() else screenHeight - 200
                         layoutParams.x = max(0, min(initialX + deltaX, max(0, screenWidth - layoutParams.width)))
-                        layoutParams.y = max(20, min(initialY + deltaY, screenHeight - 200))
+                        layoutParams.y = max(16, min(initialY + deltaY, max(16, maxYOffset)))
                         try {
                             windowManager.updateViewLayout(overlayView, layoutParams)
                         } catch (_: Exception) {}
                         true
                     } else false
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    if (isDraggingTouch) {
+                        isDraggingTouch = false
+                        true
+                    } else {
+                        false
+                    }
                 }
                 else -> false
             }
@@ -2130,17 +2147,83 @@ class OverlayService : LifecycleService() {
     private fun applyOverlayScale(scalePct: Int) {
         overlayScalePct = scalePct.coerceIn(50, 100)
         if (!::layoutParams.isInitialized) return
-        val targetWidth = (screenWidth * (overlayScalePct / 100f)).toInt()
-        layoutParams.width = targetWidth
-        layoutParams.x = max(0, min(layoutParams.x, max(0, screenWidth - targetWidth)))
+        if (!isOverlayMinimized) {
+            val targetWidth = (screenWidth * (overlayScalePct / 100f)).toInt()
+            layoutParams.width = targetWidth
+            layoutParams.x = max(0, min(layoutParams.x, max(0, screenWidth - targetWidth)))
+        }
         Handler(Looper.getMainLooper()).post {
             try {
                 if (overlayView != null) {
-                    windowManager.updateViewLayout(overlayView, layoutParams)
+                    if (!isOverlayMinimized) {
+                        windowManager.updateViewLayout(overlayView, layoutParams)
+                    }
                     overlayView?.evaluateJavascript("if (window.setOverlayScalePct) setOverlayScalePct($overlayScalePct);", null)
                 }
             } catch (_: Exception) {}
         }
+    }
+
+    private fun applyOverlayTransparency(transparencyPct: Int) {
+        overlayTransparencyPct = transparencyPct.coerceIn(0, 100)
+        Handler(Looper.getMainLooper()).post {
+            try {
+                overlayView?.evaluateJavascript(
+                    "if (window.setOverlayTransparencyPct) setOverlayTransparencyPct($overlayTransparencyPct);",
+                    null
+                )
+            } catch (_: Exception) {}
+        }
+    }
+
+    private fun stopBattleOcrLoop() {
+        battleLoopJob?.cancel()
+        battleLoopJob = null
+    }
+
+    private fun minimizeOverlayToBubble() {
+        if (isOverlayMinimized) return
+        isOverlayMinimized = true
+        stopBattleOcrLoop()
+        val density = resources.displayMetrics.density
+        val bubbleSize = (48 * density).toInt()
+        if (::layoutParams.isInitialized) {
+            layoutParams.width = bubbleSize
+            layoutParams.height = bubbleSize
+            layoutParams.x = max(0, min(layoutParams.x, max(0, screenWidth - bubbleSize)))
+            layoutParams.y = max(16, min(layoutParams.y, max(16, screenHeight - bubbleSize - 24)))
+            try {
+                if (overlayView != null) {
+                    windowManager.updateViewLayout(overlayView, layoutParams)
+                }
+            } catch (_: Exception) {}
+        }
+        overlayView?.evaluateJavascript("if (window.setOverlayMinimizedState) setOverlayMinimizedState(true);", null)
+        startForegroundNotification()
+        Toast.makeText(this, "Overlay minimized (OCR paused). Tap bubble to resume.", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun restoreOverlayFromBubble() {
+        if (!isOverlayMinimized) return
+        isOverlayMinimized = false
+        if (::layoutParams.isInitialized) {
+            val targetWidth = (screenWidth * (overlayScalePct.coerceIn(50, 100) / 100f)).toInt()
+            layoutParams.width = targetWidth
+            layoutParams.height = WindowManager.LayoutParams.WRAP_CONTENT
+            layoutParams.x = max(0, min(layoutParams.x, max(0, screenWidth - targetWidth)))
+            try {
+                if (overlayView != null) {
+                    windowManager.updateViewLayout(overlayView, layoutParams)
+                }
+            } catch (_: Exception) {}
+        }
+        overlayView?.evaluateJavascript("if (window.setOverlayMinimizedState) setOverlayMinimizedState(false);", null)
+        if (mediaProjection != null) {
+            startBattleOcrLoop()
+        }
+        recalculateAndPushBattleData()
+        startForegroundNotification()
+        Toast.makeText(this, "⚔️ Overlay restored & OCR resumed", Toast.LENGTH_SHORT).show()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -2149,6 +2232,7 @@ class OverlayService : LifecycleService() {
 
         when (action) {
             ACTION_START_OVERLAY -> {
+                isOverlayMinimized = false
                 startForegroundNotification()
                 intent?.getStringExtra(EXTRA_OPP_COUNT_MODE)?.let { mode ->
                     if (mode == "opp_fasts" || mode == "my_fasts") {
@@ -2162,6 +2246,12 @@ class OverlayService : LifecycleService() {
                     prefs.getInt("overlay_scale_pct", 78)
                 ) ?: prefs.getInt("overlay_scale_pct", 78)
                 applyOverlayScale(startScalePct)
+
+                val startTransparencyPct = intent?.getIntExtra(
+                    EXTRA_OVERLAY_TRANSPARENCY_PCT,
+                    prefs.getInt(PREFS_KEY_OVERLAY_TRANSPARENCY_PCT, 72)
+                ) ?: prefs.getInt(PREFS_KEY_OVERLAY_TRANSPARENCY_PCT, 72)
+                applyOverlayTransparency(startTransparencyPct)
 
                 enable4ChargedMoves = if (intent?.hasExtra(EXTRA_ENABLE_4_CHARGED_MOVES) == true) {
                     intent.getBooleanExtra(EXTRA_ENABLE_4_CHARGED_MOVES, false)
@@ -2229,6 +2319,13 @@ class OverlayService : LifecycleService() {
                     prefs.getInt("overlay_scale_pct", overlayScalePct)
                 ) ?: prefs.getInt("overlay_scale_pct", overlayScalePct)
                 applyOverlayScale(updatedScalePct)
+
+                val updatedTransparencyPct = intent?.getIntExtra(
+                    EXTRA_OVERLAY_TRANSPARENCY_PCT,
+                    prefs.getInt(PREFS_KEY_OVERLAY_TRANSPARENCY_PCT, overlayTransparencyPct)
+                ) ?: prefs.getInt(PREFS_KEY_OVERLAY_TRANSPARENCY_PCT, overlayTransparencyPct)
+                applyOverlayTransparency(updatedTransparencyPct)
+
                 recalculateAndPushBattleData()
             }
             ACTION_START_BATTLE -> startNewBattle()
@@ -2248,9 +2345,15 @@ class OverlayService : LifecycleService() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        val statusText = if (isOverlayMinimized) {
+            "Overlay minimized (OCR paused) — Tap bubble to resume"
+        } else {
+            "Live OCR monitoring opponent & player switches..."
+        }
+
         val notification: Notification = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
             .setContentTitle("GBL Battle Assistant Active")
-            .setContentText("Live OCR monitoring opponent & player switches...")
+            .setContentText(statusText)
             .setSmallIcon(android.R.drawable.ic_menu_compass)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop Overlay", pendingIntent)
@@ -4051,6 +4154,8 @@ class OverlayService : LifecycleService() {
             "userFastTelemetry" to userFastTelemetry,
             "oppCountMode" to oppCountMode,
             "enable4ChargedMoves" to enable4ChargedMoves,
+            "overlayTransparencyPct" to overlayTransparencyPct,
+            "isOverlayMinimized" to isOverlayMinimized,
             "maxHorizonTurns" to maxHorizonTurns,
             "isOpponentShadow" to isOpponentShadow,
             "currentFormLabel" to oppMeta.formLabel,
@@ -4277,8 +4382,22 @@ class OverlayService : LifecycleService() {
         }
 
         @JavascriptInterface
+        fun minimizeOverlay() {
+            Handler(Looper.getMainLooper()).post {
+                minimizeOverlayToBubble()
+            }
+        }
+
+        @JavascriptInterface
+        fun restoreOverlay() {
+            Handler(Looper.getMainLooper()).post {
+                restoreOverlayFromBubble()
+            }
+        }
+
+        @JavascriptInterface
         fun updateContentHeight(heightDp: Int) {
-            if (currentLayoutMode != "option1") return
+            if (isOverlayMinimized || currentLayoutMode != "option1") return
             val density = resources.displayMetrics.density
             val targetHeight = (heightDp * density).toInt()
             if (layoutParams.height < 0 || Math.abs(layoutParams.height - targetHeight) > 4) {
@@ -4294,6 +4413,7 @@ class OverlayService : LifecycleService() {
         @JavascriptInterface
         fun onOverlayReady() {
             Handler(Looper.getMainLooper()).post {
+                applyOverlayTransparency(overlayTransparencyPct)
                 loadInitialDataIntoOverlay()
             }
         }

@@ -7,7 +7,7 @@
     android:orientation="vertical"
     android:fitsSystemWindows="true"
     android:background="#0f172a"
-    android:padding="16dp">
+    android:padding="14dp">
 
     <!-- Top Header Row with App Icon, Title & Support/Donate Link -->
     <LinearLayout
@@ -15,11 +15,11 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:layout_marginBottom="12dp">
+        android:layout_marginBottom="10dp">
 
         <ImageView
-            android:layout_width="40dp"
-            android:layout_height="40dp"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
             android:src="@drawable/ic_gbl_logo"
             android:contentDescription="BattleMatrix GBL Icon"
             android:layout_marginEnd="10dp" />
@@ -34,14 +34,14 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="BattleMatrix GBL"
-                android:textSize="20sp"
+                android:textSize="19sp"
                 android:textStyle="bold"
                 android:textColor="#f8fafc" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Real-Time PvP Floating Overlay • v1.23"
+                android:text="Real-Time PvP Floating Overlay • v1.30"
                 android:textSize="11sp"
                 android:textColor="#94a3b8"
                 android:layout_marginTop="1dp" />
@@ -58,269 +58,626 @@
             android:textColor="#0f172a" />
     </LinearLayout>
 
-    <!-- Status & Settings Card -->
+    <!-- Persistent Overlay Launch & Status Bar -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:background="#1e293b"
-        android:padding="12dp"
-        android:layout_marginBottom="12dp">
-
-        <TextView
-            android:id="@+id/text_status"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Status: Idle (Ready to launch overlay)"
-            android:textColor="#38bdf8"
-            android:textSize="13sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/text_db_status"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="PvPoke Database: Cached (Checking...)"
-            android:textColor="#cbd5e1"
-            android:textSize="11sp"
-            android:lineSpacingExtra="2dp"
-            android:layout_marginTop="4dp" />
+        android:padding="10dp"
+        android:layout_marginBottom="10dp">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:layout_marginTop="8dp">
+            android:gravity="center_vertical">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:layout_marginEnd="8dp">
+
+                <TextView
+                    android:id="@+id/text_status"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Status: Idle (Ready to launch overlay)"
+                    android:textColor="#38bdf8"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Tip: Tap ⚔️ in overlay to minimize &amp; pause OCR"
+                    android:textColor="#94a3b8"
+                    android:textSize="10sp"
+                    android:layout_marginTop="2dp" />
+            </LinearLayout>
 
             <Button
                 android:id="@+id/btn_toggle_overlay"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
                 android:backgroundTint="#2563eb"
                 android:textColor="#ffffff"
+                android:textSize="12sp"
+                android:textStyle="bold"
                 android:text="Start Battle Overlay" />
-
-            <Button
-                android:id="@+id/btn_download_db"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:backgroundTint="#334155"
-                android:textColor="#ffffff"
-                android:text="Sync PvPoke" />
         </LinearLayout>
+    </LinearLayout>
 
-        <!-- Opponent Fast Move Count Basis Setting -->
+    <!-- 3-Page Navigation Switcher Bar (Teams | Settings | Battle Log) -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:background="#020617"
+        android:padding="4dp"
+        android:layout_marginBottom="10dp">
+
+        <Button
+            android:id="@+id/btn_nav_teams"
+            android:layout_width="0dp"
+            android:layout_height="38dp"
+            android:layout_weight="1"
+            android:text="⚔️ Teams"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:backgroundTint="#0284c7"
+            android:textColor="#ffffff"
+            android:layout_marginEnd="4dp" />
+
+        <Button
+            android:id="@+id/btn_nav_settings"
+            android:layout_width="0dp"
+            android:layout_height="38dp"
+            android:layout_weight="1"
+            android:text="⚙️ Settings"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:backgroundTint="#1e293b"
+            android:textColor="#94a3b8"
+            android:layout_marginEnd="4dp" />
+
+        <Button
+            android:id="@+id/btn_nav_battle_log"
+            android:layout_width="0dp"
+            android:layout_height="38dp"
+            android:layout_weight="1"
+            android:text="📜 Battle Log"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:backgroundTint="#1e293b"
+            android:textColor="#94a3b8" />
+    </LinearLayout>
+
+    <!-- ===================================================================
+         PAGE 1: GBL TEAM PRESETS (Default Active Page)
+         =================================================================== -->
+    <LinearLayout
+        android:id="@+id/page_teams"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:visibility="visible">
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:layout_marginTop="10dp"
-            android:paddingTop="8dp"
-            android:background="#0f172a"
-            android:paddingHorizontal="10dp"
-            android:paddingBottom="8dp">
+            android:layout_marginBottom="8dp">
 
-            <LinearLayout
+            <TextView
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:orientation="vertical">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Opponent Move Count Basis"
-                    android:textColor="#e2e8f0"
-                    android:textSize="12sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/text_opp_count_basis_desc"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Default: Counts shown in My Fast Moves"
-                    android:textColor="#94a3b8"
-                    android:textSize="10sp" />
-            </LinearLayout>
+                android:text="GBL Team Presets"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:textColor="#e2e8f0" />
 
             <Button
-                android:id="@+id/btn_toggle_opp_count_basis"
+                android:id="@+id/btn_add_preset"
                 android:layout_width="wrap_content"
                 android:layout_height="36dp"
-                android:text="My Fasts"
-                android:textSize="11sp"
-                android:backgroundTint="#0284c7"
+                android:text="+ New Team"
+                android:textSize="12sp"
+                android:backgroundTint="#059669"
                 android:textColor="#ffffff" />
         </LinearLayout>
 
-        <!-- Opponent Charged Moves Count in Overlay Setting (3 vs 4 Charged Moves) -->
-        <LinearLayout
+        <ScrollView
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:layout_marginTop="8dp"
-            android:paddingTop="8dp"
-            android:background="#0f172a"
-            android:paddingHorizontal="10dp"
-            android:paddingBottom="8dp">
+            android:layout_height="0dp"
+            android:layout_weight="1">
 
             <LinearLayout
-                android:layout_width="0dp"
+                android:id="@+id/layout_presets_list"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:orientation="vertical">
+                android:orientation="vertical" />
+        </ScrollView>
+    </LinearLayout>
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Opponent Charged Moves in Overlay"
-                    android:textColor="#e2e8f0"
-                    android:textSize="12sp"
-                    android:textStyle="bold" />
+    <!-- ===================================================================
+         PAGE 2: OVERLAY & PVPOKE DATABASE SETTINGS
+         =================================================================== -->
+    <ScrollView
+        android:id="@+id/page_settings"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:visibility="gone">
 
-                <TextView
-                    android:id="@+id/text_opp_charged_moves_desc"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Default: 3 Charged Moves (Official + Top Usage)"
-                    android:textColor="#94a3b8"
-                    android:textSize="10sp" />
-            </LinearLayout>
-
-            <Button
-                android:id="@+id/btn_toggle_opp_charged_moves"
-                android:layout_width="wrap_content"
-                android:layout_height="36dp"
-                android:text="3 Moves"
-                android:textSize="11sp"
-                android:backgroundTint="#0284c7"
-                android:textColor="#ffffff" />
-        </LinearLayout>
-
-        <!-- Overlay Screen Width Scale Slider (50% - 100%, Default 78%) -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:layout_marginTop="8dp"
-            android:background="#0f172a"
-            android:paddingHorizontal="10dp"
-            android:paddingVertical="8dp">
+            android:background="#1e293b"
+            android:padding="12dp">
 
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Overlay &amp; Database Configuration"
+                android:textColor="#f8fafc"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="8dp" />
+
+            <!-- PvPoke Database & 4-League Sync Card -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical">
+                android:orientation="vertical"
+                android:background="#0f172a"
+                android:padding="10dp">
 
-                <TextView
-                    android:layout_width="0dp"
+                <LinearLayout
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="Overlay Size (% of Screen Width)"
-                    android:textColor="#e2e8f0"
-                    android:textSize="12sp"
-                    android:textStyle="bold" />
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="PvPoke Live Database &amp; 4 Leagues"
+                        android:textColor="#38bdf8"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+
+                    <Button
+                        android:id="@+id/btn_download_db"
+                        android:layout_width="wrap_content"
+                        android:layout_height="36dp"
+                        android:backgroundTint="#334155"
+                        android:textColor="#ffffff"
+                        android:textSize="11sp"
+                        android:text="Sync PvPoke" />
+                </LinearLayout>
 
                 <TextView
-                    android:id="@+id/text_overlay_scale_value"
+                    android:id="@+id/text_db_status"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="78% (Default)"
-                    android:textColor="#38bdf8"
-                    android:textSize="12sp"
-                    android:textStyle="bold" />
+                    android:text="PvPoke Database: Cached (Checking...)"
+                    android:textColor="#cbd5e1"
+                    android:textSize="11sp"
+                    android:lineSpacingExtra="2dp"
+                    android:layout_marginTop="4dp" />
             </LinearLayout>
 
-            <SeekBar
-                android:id="@+id/seekbar_overlay_scale"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:max="25"
-                android:progress="14"
-                android:progressTint="#38bdf8"
-                android:thumbTint="#38bdf8" />
-
-            <!-- Scale Bounds & Default Tick Marker (78% is 14/25 = 56% along 50%-100% track) -->
+            <!-- Opponent Fast Move Count Basis Setting -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
-                android:paddingHorizontal="8dp">
+                android:layout_marginTop="8dp"
+                android:paddingTop="8dp"
+                android:background="#0f172a"
+                android:paddingHorizontal="10dp"
+                android:paddingBottom="8dp">
 
-                <TextView
+                <LinearLayout
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:layout_weight="14"
-                    android:text="50%"
-                    android:textColor="#64748b"
-                    android:textSize="10sp" />
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Opponent Move Count Basis"
+                        android:textColor="#e2e8f0"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/text_opp_count_basis_desc"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Default: Counts shown in My Fast Moves"
+                        android:textColor="#94a3b8"
+                        android:textSize="10sp" />
+                </LinearLayout>
+
+                <Button
+                    android:id="@+id/btn_toggle_opp_count_basis"
+                    android:layout_width="wrap_content"
+                    android:layout_height="36dp"
+                    android:text="My Fasts"
+                    android:textSize="11sp"
+                    android:backgroundTint="#0284c7"
+                    android:textColor="#ffffff" />
+            </LinearLayout>
+
+            <!-- Opponent Charged Moves Count Setting (3 vs 4 Charged Moves in Overlay) -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginTop="8dp"
+                android:paddingTop="8dp"
+                android:background="#0f172a"
+                android:paddingHorizontal="10dp"
+                android:paddingBottom="8dp">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Opponent Charged Moves in Overlay"
+                        android:textColor="#e2e8f0"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/text_opp_charged_moves_desc"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Default: 3 Charged Moves (Official + Top Usage)"
+                        android:textColor="#94a3b8"
+                        android:textSize="10sp" />
+                </LinearLayout>
+
+                <Button
+                    android:id="@+id/btn_toggle_opp_charged_moves"
+                    android:layout_width="wrap_content"
+                    android:layout_height="36dp"
+                    android:text="3 Moves"
+                    android:textSize="11sp"
+                    android:backgroundTint="#0284c7"
+                    android:textColor="#ffffff" />
+            </LinearLayout>
+
+            <!-- Overlay Screen Width Scale Slider (50% - 100%, Default 78%) -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginTop="8dp"
+                android:background="#0f172a"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="8dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Overlay Size (% of Screen Width)"
+                        android:textColor="#e2e8f0"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/text_overlay_scale_value"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="78% (Default)"
+                        android:textColor="#38bdf8"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <SeekBar
+                    android:id="@+id/seekbar_overlay_scale"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:max="25"
+                    android:progress="14"
+                    android:progressTint="#38bdf8"
+                    android:thumbTint="#38bdf8" />
+
+                <!-- Scale Bounds & Default Tick Marker (78% is 14/25 = 56% along 50%-100% track) -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:paddingHorizontal="8dp">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="14"
+                        android:text="50%"
+                        android:textColor="#64748b"
+                        android:textSize="10sp" />
+
+                    <TextView
+                        android:id="@+id/text_overlay_scale_default_tick"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="▲ 78% Default"
+                        android:textColor="#38bdf8"
+                        android:textSize="10sp"
+                        android:textStyle="bold"
+                        android:paddingHorizontal="4dp" />
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="11"
+                        android:gravity="end"
+                        android:text="100%"
+                        android:textColor="#64748b"
+                        android:textSize="10sp" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Overlay Background Transparency Slider (0% - 100%, Default 72%) -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginTop="8dp"
+                android:background="#0f172a"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="8dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Overlay Background Transparency"
+                        android:textColor="#e2e8f0"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/text_overlay_transparency_value"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="72% (Default)"
+                        android:textColor="#38bdf8"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
 
                 <TextView
-                    android:id="@+id/text_overlay_scale_default_tick"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="▲ 78% Default"
-                    android:textColor="#38bdf8"
+                    android:text="Adjusts background glass only — text &amp; move bars stay 100% crisp"
+                    android:textColor="#94a3b8"
                     android:textSize="10sp"
-                    android:textStyle="bold"
-                    android:paddingHorizontal="4dp" />
+                    android:layout_marginTop="1dp" />
 
-                <TextView
-                    android:layout_width="0dp"
+                <SeekBar
+                    android:id="@+id/seekbar_overlay_transparency"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_weight="11"
-                    android:gravity="end"
-                    android:text="100%"
-                    android:textColor="#64748b"
-                    android:textSize="10sp" />
+                    android:layout_marginTop="4dp"
+                    android:max="50"
+                    android:progress="36"
+                    android:progressTint="#38bdf8"
+                    android:thumbTint="#38bdf8" />
+
+                <!-- Transparency Bounds & Default Tick Marker (72% is 36/50 = 72% along 0%-100% track) -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:paddingHorizontal="8dp">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="36"
+                        android:text="0% (Solid)"
+                        android:textColor="#64748b"
+                        android:textSize="10sp" />
+
+                    <TextView
+                        android:id="@+id/text_overlay_transparency_default_tick"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="▲ 72% Default"
+                        android:textColor="#38bdf8"
+                        android:textSize="10sp"
+                        android:textStyle="bold"
+                        android:paddingHorizontal="4dp" />
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="14"
+                        android:gravity="end"
+                        android:text="100% (Clear)"
+                        android:textColor="#64748b"
+                        android:textSize="10sp" />
+                </LinearLayout>
             </LinearLayout>
         </LinearLayout>
-    </LinearLayout>
+    </ScrollView>
 
-    <!-- Team Presets Section -->
+    <!-- ===================================================================
+         PAGE 3: BATTLE LOG (Provisioned for Matchup & Telemetry Logging)
+         =================================================================== -->
     <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:layout_marginBottom="8dp">
-
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="GBL Team Presets"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            android:textColor="#e2e8f0" />
-
-        <Button
-            android:id="@+id/btn_add_preset"
-            android:layout_width="wrap_content"
-            android:layout_height="36dp"
-            android:text="+ New Team"
-            android:textSize="12sp"
-            android:backgroundTint="#059669"
-            android:textColor="#ffffff" />
-    </LinearLayout>
-
-    <ScrollView
+        android:id="@+id/page_battle_log"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1">
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:visibility="gone">
 
         <LinearLayout
-            android:id="@+id/layout_presets_list"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical" />
-    </ScrollView>
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="8dp">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="GBL Battle History &amp; Log"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:textColor="#e2e8f0" />
+
+            <Button
+                android:id="@+id/btn_clear_battle_log"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:text="Clear Log"
+                android:textSize="11sp"
+                android:backgroundTint="#334155"
+                android:textColor="#cbd5e1" />
+        </LinearLayout>
+
+        <!-- Summary Metrics Row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="8dp">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:background="#1e293b"
+                android:padding="10dp"
+                android:layout_marginEnd="6dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="LOGGED BATTLES"
+                    android:textColor="#94a3b8"
+                    android:textSize="9sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/text_battle_log_total"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="0 Matches"
+                    android:textColor="#38bdf8"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:layout_marginTop="2dp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:background="#1e293b"
+                android:padding="10dp"
+                android:layout_marginEnd="6dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="ACTIVE TEAM LEAGUE"
+                    android:textColor="#94a3b8"
+                    android:textSize="9sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/text_battle_log_league"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="GREAT LEAGUE"
+                    android:textColor="#34d399"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:layout_marginTop="2dp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:background="#1e293b"
+                android:padding="10dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="LOG STATUS"
+                    android:textColor="#94a3b8"
+                    android:textSize="9sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/text_battle_log_winrate"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Ready"
+                    android:textColor="#fbbf24"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:layout_marginTop="2dp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1">
+
+            <LinearLayout
+                android:id="@+id/layout_battle_log_list"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+        </ScrollView>
+    </LinearLayout>
 
 </LinearLayout>
