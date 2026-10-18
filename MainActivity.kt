@@ -1616,99 +1616,23 @@ class MainActivity : AppCompatActivity() {
 
             sb.append("\n=== $dayStr — Daily Record: ${dWins}W - ${dLosses}L ($dPct%) [Leads: $dFav Fav, $dNeu Neu, $dNeg Neg] • WAE: ${dWae.formatted} ===\n")
             for (entry in dayEntries) {
-                val tStr = timeFmt.format(java.util.Date(entry.timestampMs))
-                val resPad = if (entry.result.equals("WIN", ignoreCase = true)) "WIN " else "LOSS"
-                val leadDisplay = when (entry.leadMatchup.uppercase()) {
-                    "FAVORABLE" -> "Favorable"
-                    "NEGATIVE" -> "Negative"
-                    else -> "Neutral"
-                }
-                val oppOrdered = if (entry.opponents.isEmpty()) {
-                    "Unknown Opponents"
-                } else {
-                    entry.opponents.mapIndexed { idx, opp ->
-                        val ord = when (idx) { 0 -> "1st"; 1 -> "2nd"; else -> "3rd" }
-                        "$ord: $opp"
-                    }.joinToString(", ")
-                }
+                val wl = if (entry.result.equals("WIN", ignoreCase = true)) "W" else "L"
                 val q = resolveEntryQuality(entry, presets)
-                val qSuffix = if (q != null) {
-                    val dqSign = if (q.deltaQ >= 0.0) "+" else "-"
-                    val dqFormatted = String.format(java.util.Locale.US, "%s%.2f", dqSign, kotlin.math.abs(q.deltaQ))
-                    val confTag = if (q.unrevealedThird) " (⚡ 75% Conf)" else ""
-                    " | ${q.badgeLabel} • Exp Win: ${q.expWinPct}% • ΔQ: $dqFormatted$confTag"
-                } else ""
-                sb.append("[$tStr] $resPad | Lead: $leadDisplay | ${entry.userTeamName} vs. $oppOrdered$qSuffix\n")
+                val expTag = if (q != null) "(${q.expWinPct}%)" else "(—%)"
+                val oppList = entry.opponents.map { it.trim() }.filter { it.isNotEmpty() }
+                val oppStr = if (oppList.isEmpty()) "Unknown" else oppList.joinToString(",")
+                val teamName = entry.userTeamName.ifBlank { "My Team" }
+                sb.append("$wl$expTag $teamName vs. $oppStr\n")
             }
-        }
-        return sb.toString().trim()
-    }
-
-    private fun resolveUserTeamBracketHeader(entry: BattleLogEntry, presets: List<TeamPreset>): String {
-        val directMons = entry.userPokemon.map { it.trim() }.filter { it.isNotEmpty() }
-        if (directMons.isNotEmpty()) {
-            return "[${directMons.joinToString(", ")}]"
-        }
-        val matchedPreset = presets.find {
-            (entry.presetId.isNotBlank() && it.id == entry.presetId) ||
-                it.name.equals(entry.userTeamName, ignoreCase = true)
-        } ?: getSelectedPreset()
-        val presetMons = matchedPreset?.pokemon?.map { it.name.trim() }?.filter { it.isNotEmpty() }.orEmpty()
-        if (presetMons.isNotEmpty()) {
-            return "[${presetMons.joinToString(", ")}]"
-        }
-        return "[${entry.userTeamName.ifBlank { "My Team" }}]"
-    }
-
-    private fun buildGoBattleLogFriendlyExport(
-        logs: List<BattleLogEntry>,
-        leagueFilter: String,
-        teamFilter: String,
-        timeframeKey: String
-    ): String {
-        val filtered = filterBattleLogs(logs, leagueFilter, teamFilter, timeframeKey)
-        val presets = loadPresets()
-        if (filtered.isEmpty()) {
-            val activeTeam = getSelectedPreset()?.pokemon?.joinToString(", ") { it.name } ?: "My Team"
-            return "[$activeTeam]"
-        }
-
-        val sb = StringBuilder()
-        var lastHeader = ""
-        for (entry in filtered) {
-            val header = resolveUserTeamBracketHeader(entry, presets)
-            if (header != lastHeader) {
-                if (sb.isNotEmpty()) sb.append("\n")
-                sb.append(header).append("\n")
-                lastHeader = header
-            }
-            val oppLine = if (entry.opponents.isEmpty()) {
-                "Unknown Unknown Unknown"
-            } else {
-                entry.opponents.joinToString(" ") { it.trim() }
-            }
-            val wl = if (entry.result.equals("WIN", ignoreCase = true)) "W" else "L"
-            sb.append("$oppLine $wl\n")
         }
         return sb.toString().trim()
     }
 
     private fun showExportFormatAndTimeframeDialog(isShareIntent: Boolean) {
-        val formatOptions = arrayOf(
-            "📊 Go Battle Log Format ([Team] + opp1 opp2 opp3 W/L)",
-            "📋 Standard Detailed Summary (with Dates & Lead Stats)"
-        )
-        AlertDialog.Builder(this)
-            .setTitle(if (isShareIntent) "📤 Share Battle Log — Select Format" else "📋 Copy Battle Log — Select Format")
-            .setItems(formatOptions) { _, formatIdx ->
-                val isGoBattleLogFormat = (formatIdx == 0)
-                showExportTimeframeDialog(isShareIntent, isGoBattleLogFormat)
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
+        showExportTimeframeDialog(isShareIntent)
     }
 
-    private fun showExportTimeframeDialog(isShareIntent: Boolean, isGoBattleLogFormat: Boolean = false) {
+    private fun showExportTimeframeDialog(isShareIntent: Boolean) {
         val allLogs = loadBattleLogs()
         val (currSeason, prevSeason) = getCurrentAndPreviousSeason()
         val dateFmt = java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.US)
@@ -1721,26 +1645,16 @@ class MainActivity : AppCompatActivity() {
         )
         val keys = arrayOf("DAY", "WEEK", "CURRENT_SEASON", "PREVIOUS_SEASON", "ALL_TIME")
 
-        val formatLabel = if (isGoBattleLogFormat) "Go Battle Log Format" else "Detailed Summary"
         AlertDialog.Builder(this)
-            .setTitle(if (isShareIntent) "📤 Share ($formatLabel) — Range" else "📋 Copy ($formatLabel) — Range")
+            .setTitle(if (isShareIntent) "📤 Share Battle Log Summary — Range" else "📋 Copy Battle Log Summary — Range")
             .setItems(options) { _, which ->
                 val chosenKey = keys.getOrElse(which) { "ALL_TIME" }
-                val exportText = if (isGoBattleLogFormat) {
-                    buildGoBattleLogFriendlyExport(
-                        allLogs,
-                        selectedLogLeagueFilter,
-                        selectedLogTeamFilter,
-                        chosenKey
-                    )
-                } else {
-                    buildPlainTextExport(
-                        allLogs,
-                        selectedLogLeagueFilter,
-                        selectedLogTeamFilter,
-                        chosenKey
-                    )
-                }
+                val exportText = buildPlainTextExport(
+                    allLogs,
+                    selectedLogLeagueFilter,
+                    selectedLogTeamFilter,
+                    chosenKey
+                )
                 if (isShareIntent) {
                     val sendIntent = Intent(Intent.ACTION_SEND).apply {
                         type = "text/plain"
@@ -1751,7 +1665,7 @@ class MainActivity : AppCompatActivity() {
                 } else {
                     val cm = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
                     cm.setPrimaryClip(android.content.ClipData.newPlainText("SilphScope PvP Battle Log", exportText))
-                    Toast.makeText(this, "Copied $formatLabel (${options[which]}) to clipboard!", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "Copied Battle Log Summary (${options[which]}) to clipboard!", Toast.LENGTH_SHORT).show()
                 }
             }
             .setNegativeButton("Cancel", null)

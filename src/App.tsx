@@ -1352,7 +1352,7 @@ export default function App() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'SilphScope_PvP_v2.10_Android_Project.zip';
+      a.download = 'SilphScope_PvP_v2.11_Android_Project.zip';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -1379,7 +1379,7 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <h1 className="font-bold text-base md:text-lg tracking-tight text-white">SilphScope PvP</h1>
                 <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20">
-                  v2.10 • Android Native Overlay
+                  v2.11 • Android Native Overlay
                 </span>
               </div>
               <p className="text-xs text-slate-400 hidden sm:block">
@@ -3982,7 +3982,7 @@ export default function App() {
                           'Content-Type': 'application/json'
                         },
                         body: JSON.stringify({
-                          description: 'SilphScope PvP v2.10 Multi-Device Delta Sync Vault',
+                          description: 'SilphScope PvP v2.11 Multi-Device Delta Sync Vault',
                           public: false,
                           files: {
                             'gbl_delta_sync_v2.json': { content: bundleStr }
@@ -4144,67 +4144,55 @@ export default function App() {
                 ? 'All Teams'
                 : presets.find((p) => p.id === logFilterTeamId)?.name || 'Selected Team';
             const lines: string[] = [
-              `=== SilphScope PvP Battle Log (${rangeTitle}) ===`,
-              `League: ${logFilterLeague}`,
+              `SilphScope PvP Battle Log — ${logFilterLeague}`,
               `Team: ${teamName}`,
-              `Overall Record: ${w}-${l} (${pct}% Win Rate) • WAE: ${waeInfo.formatted}`,
-              `Lead Matchup: ${fv} Fav / ${nu} Neu / ${ng} Neg`,
-              ''
+              `Range: ${rangeTitle}`,
+              `Overall Record: ${w}W - ${l}L (${pct}%) • Leads: ${fv} Fav / ${nu} Neu / ${ng} Neg • Quality (WAE): ${waeInfo.formatted}`
             ];
-            list.forEach((b, idx) => {
-              const dt = new Date(b.timestampMs).toLocaleString();
-              const leadTag = b.leadMatchup === 'FAVORABLE' ? 'Fav' : b.leadMatchup === 'NEGATIVE' ? 'Neg' : 'Neu';
-              const opps = b.opponents.length > 0 ? b.opponents.join(', ') : 'Unknown';
-              const q = resolveLogEntryQuality(b, presets);
-              const qSuffix = q
-                ? ` [${q.badgeLabel} • Exp Win: ${Math.round(q.pWin * 100)}% • ΔQ: ${q.deltaQ >= 0 ? '+' : ''}${q.deltaQ.toFixed(2)}${q.isUnrevealedThird ? ' (⚡ 75% Conf)' : ''}]`
-                : '';
-              lines.push(`${idx + 1}. [${b.result}] [Lead: ${leadTag}] (${dt}) vs ${opps}${qSuffix}`);
-            });
-            return lines.join('\n');
-          };
-
-          const resolveTeamBracketHeader = (entry: WebBattleLogEntry): string => {
-            const directMons = (entry.userPokemon || []).map((m) => m.trim()).filter(Boolean);
-            if (directMons.length > 0) {
-              return `[${directMons.join(', ')}]`;
-            }
-            const matchedPreset =
-              presets.find(
-                (p) =>
-                  (entry.presetId && p.id === entry.presetId) ||
-                  p.name.toLowerCase() === (entry.userTeamName || '').toLowerCase()
-              ) || activePreset;
-            const presetMons = (matchedPreset?.pokemon || []).map((p) => p.name.trim()).filter(Boolean);
-            if (presetMons.length > 0) {
-              return `[${presetMons.join(', ')}]`;
-            }
-            return `[${entry.userTeamName || 'My Team'}]`;
-          };
-
-          const buildGoBattleLogExport = (
-            rangeCode: 'DAY' | 'WEEK' | 'CURRENT_SEASON' | 'PREVIOUS_SEASON' | 'ALL'
-          ) => {
-            const list = filterByRange(battleLogs, rangeCode);
             if (list.length === 0) {
-              const fallbackTeam = (activePreset?.pokemon || []).map((p) => p.name).join(', ') || 'My Team';
-              return `[${fallbackTeam}]`;
+              lines.push('', 'No battles logged in this timeframe.');
+              return lines.join('\n');
             }
-            const lines: string[] = [];
-            let lastHeader = '';
+            const dayGroups: Array<{ dayStr: string; items: WebBattleLogEntry[] }> = [];
+            const dMap = new Map<string, WebBattleLogEntry[]>();
             list.forEach((b) => {
-              const header = resolveTeamBracketHeader(b);
-              if (header !== lastHeader) {
-                if (lines.length > 0) lines.push('');
-                lines.push(header);
-                lastHeader = header;
+              const dStr = new Date(b.timestampMs).toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric'
+              });
+              const existing = dMap.get(dStr);
+              if (existing) {
+                existing.push(b);
+              } else {
+                const arr = [b];
+                dMap.set(dStr, arr);
+                dayGroups.push({ dayStr: dStr, items: arr });
               }
-              const oppStr =
-                b.opponents && b.opponents.length > 0
-                  ? b.opponents.map((o) => o.trim()).join(' ')
-                  : 'Unknown Unknown Unknown';
-              const wl = b.result === 'WIN' ? 'W' : 'L';
-              lines.push(`${oppStr} ${wl}`);
+            });
+
+            dayGroups.forEach(({ dayStr, items }) => {
+              const dw = items.filter((e) => e.result === 'WIN').length;
+              const dl = items.filter((e) => e.result === 'LOSS').length;
+              const dtot = dw + dl;
+              const dpct = dtot > 0 ? Math.round((dw * 100) / dtot) : 0;
+              const dfv = items.filter((e) => e.leadMatchup === 'FAVORABLE').length;
+              const dnu = items.filter((e) => e.leadMatchup === 'NEUTRAL').length;
+              const dng = items.filter((e) => e.leadMatchup === 'NEGATIVE').length;
+              const dwae = calculateAggregateWAE(items, presets);
+              lines.push(
+                '',
+                `=== ${dayStr} — Daily Record: ${dw}W - ${dl}L (${dpct}%) [Leads: ${dfv} Fav, ${dnu} Neu, ${dng} Neg] • WAE: ${dwae.formatted} ===`
+              );
+              items.forEach((b) => {
+                const wl = b.result === 'WIN' ? 'W' : 'L';
+                const q = resolveLogEntryQuality(b, presets);
+                const expTag = q ? `(${Math.round(q.pWin * 100)}%)` : '(—%)';
+                const oppList = (b.opponents || []).map((o) => o.trim()).filter(Boolean);
+                const oppStr = oppList.length > 0 ? oppList.join(',') : 'Unknown';
+                const myTeam = b.userTeamName || 'My Team';
+                lines.push(`${wl}${expTag} ${myTeam} vs. ${oppStr}`);
+              });
             });
             return lines.join('\n');
           };
@@ -4301,22 +4289,22 @@ export default function App() {
                     <button
                       type="button"
                       onClick={() => {
-                        setExportFormatMode('GO_BATTLE_LOG');
+                        setExportFormatMode('STANDARD');
                         setExportPromptAction('COPY');
                       }}
                       className="px-3 py-1.5 rounded-xl bg-sky-600/25 hover:bg-sky-600/40 border border-sky-400/50 text-sky-200 text-xs font-bold transition"
                     >
-                      📋 Copy Log (Go Battle Log / Summary)
+                      📋 Copy Log Summary
                     </button>
                     <button
                       type="button"
                       onClick={() => {
-                        setExportFormatMode('GO_BATTLE_LOG');
+                        setExportFormatMode('STANDARD');
                         setExportPromptAction('SHARE');
                       }}
                       className="px-3 py-1.5 rounded-xl bg-emerald-600/25 hover:bg-emerald-600/40 border border-emerald-400/50 text-emerald-200 text-xs font-bold transition"
                     >
-                      📤 Share Log
+                      📤 Share Log Summary
                     </button>
                     <button
                       type="button"
@@ -4638,13 +4626,13 @@ export default function App() {
                 )}
               </div>
 
-              {/* Timeframe & Format Export Prompt Modal (Go Battle Log Friendly Format + Standard Summary) */}
+              {/* Timeframe Summary Export Prompt Modal */}
               {exportPromptAction && (
                 <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
                   <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-5 shadow-2xl space-y-3">
                     <div className="flex items-center justify-between border-b border-slate-800 pb-2">
                       <h3 className="font-bold text-sm text-white">
-                        {exportPromptAction === 'COPY' ? '📋 Copy Battle Log' : '📤 Share Battle Log'}
+                        {exportPromptAction === 'COPY' ? '📋 Copy Battle Log Summary' : '📤 Share Battle Log Summary'}
                       </h3>
                       <button
                         onClick={() => setExportPromptAction(null)}
@@ -4654,40 +4642,8 @@ export default function App() {
                       </button>
                     </div>
 
-                    {/* Export Format Toggle */}
-                    <div className="space-y-1.5">
-                      <label className="block text-[10px] font-bold uppercase text-slate-400">
-                        Export Format
-                      </label>
-                      <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-950 rounded-xl border border-slate-800">
-                        <button
-                          type="button"
-                          onClick={() => setExportFormatMode('GO_BATTLE_LOG')}
-                          className={`py-2 px-2 rounded-lg text-[11px] font-bold transition ${
-                            exportFormatMode === 'GO_BATTLE_LOG'
-                              ? 'bg-sky-500/25 border border-sky-400/70 text-sky-200'
-                              : 'text-slate-400 hover:text-slate-200'
-                          }`}
-                        >
-                          📊 Go Battle Log Format
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setExportFormatMode('STANDARD')}
-                          className={`py-2 px-2 rounded-lg text-[11px] font-bold transition ${
-                            exportFormatMode === 'STANDARD'
-                              ? 'bg-sky-500/25 border border-sky-400/70 text-sky-200'
-                              : 'text-slate-400 hover:text-slate-200'
-                          }`}
-                        >
-                          📋 Detailed Summary
-                        </button>
-                      </div>
-                      {exportFormatMode === 'GO_BATTLE_LOG' && (
-                        <div className="p-2 rounded-lg bg-slate-950 border border-slate-800 font-mono text-[10.5px] text-emerald-300 whitespace-pre-wrap max-h-28 overflow-y-auto">
-                          {buildGoBattleLogExport(logFilterTimeframe)}
-                        </div>
-                      )}
+                    <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800 font-mono text-[10.5px] text-slate-300 whitespace-pre-wrap max-h-36 overflow-y-auto">
+                      {buildPlainTextSummary(logFilterTimeframe)}
                     </div>
 
                     <p className="text-xs text-slate-300">
@@ -4707,10 +4663,7 @@ export default function App() {
                           key={opt.code}
                           type="button"
                           onClick={async () => {
-                            const text =
-                              exportFormatMode === 'GO_BATTLE_LOG'
-                                ? buildGoBattleLogExport(opt.code)
-                                : buildPlainTextSummary(opt.code);
+                            const text = buildPlainTextSummary(opt.code);
                             navigator.clipboard.writeText(text);
                             if (exportPromptAction === 'SHARE' && navigator.share) {
                               try {
@@ -5559,7 +5512,7 @@ export default function App() {
 
       {/* Footer */}
       <footer className="border-t border-slate-800/80 py-4 px-6 text-center text-xs text-slate-500">
-        SilphScope PvP v2.10 Overlay • Built with Kotlin, WindowManager TYPE_APPLICATION_OVERLAY, MediaProjection in-memory frame capture, and ML Kit Text Recognition.
+        SilphScope PvP v2.11 Overlay • Built with Kotlin, WindowManager TYPE_APPLICATION_OVERLAY, MediaProjection in-memory frame capture, and ML Kit Text Recognition.
       </footer>
     </div>
   );
