@@ -3608,20 +3608,31 @@ export default function App() {
               </div>
             </div>
 
-            {/* Two-Device Cloud & Delta Sync Card */}
+            {/* Multi-Device Cloud & Delta Sync Card */}
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-3">
               <div className="flex items-center justify-between">
                 <div>
                   <span className="text-sm font-bold text-white block">
-                    ☁️ Two-Device Cloud &amp; Delta Sync (Teams + Battle Logs)
+                    ☁️ Multi-Device Auto Delta Sync (Teams + Battle Logs)
                   </span>
                   <span className="text-xs text-slate-400">
-                    Reconciles deltas across 2+ devices without overwriting newer battles, team edits, or deletions.
+                    Sign in with GitHub once on each device. Each user&apos;s logs sync privately to their own GitHub account across unlimited devices.
                   </span>
                 </div>
                 <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                  Delta Merge
+                  Per-User Vault
                 </span>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <a
+                  href="https://github.com/settings/tokens/new?description=BattleMatrix+GBL+Cloud+Sync&scopes=gist,repo"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition shadow-lg shadow-emerald-600/20"
+                >
+                  🔑 Login with GitHub (Generate Sync Token)
+                </a>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -3634,7 +3645,7 @@ export default function App() {
                       localStorage.setItem('gbl_sync_github_token', e.target.value);
                     } catch {}
                   }}
-                  placeholder="GitHub Personal Access Token (gist scope)"
+                  placeholder="GitHub OAuth / Personal Access Token (Auto-filled on Android Login)"
                   className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500"
                 />
                 <input
@@ -3646,7 +3657,7 @@ export default function App() {
                       localStorage.setItem('gbl_sync_github_gist_id', e.target.value);
                     } catch {}
                   }}
-                  placeholder="Gist Vault ID (blank = create new on sync)"
+                  placeholder="Optional Gist Vault ID (Auto-discovered per user account)"
                   className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 font-mono"
                 />
               </div>
@@ -3662,7 +3673,7 @@ export default function App() {
                   onClick={async () => {
                     const tok = githubGistToken.trim();
                     if (!tok) {
-                      alert('Enter a GitHub Personal Access Token (gist scope) or use Export/Import Bundle.');
+                      alert('Tap "🔑 Login with GitHub" above to generate a token, or use Export/Import Bundle.');
                       return;
                     }
                     setIsSyncingCloud(true);

@@ -557,10 +557,21 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Automatically reconciles deltas across unlimited devices on app open &amp; after every battle (Pull → Union/LWW Merge → Push)."
+                    android:text="Sign in with your GitHub account once on each of your phones. Each user's logs sync privately to their own GitHub account automatically on app open &amp; after every battle."
                     android:textColor="#94a3b8"
                     android:textSize="10sp"
                     android:layout_marginTop="2dp" />
+
+                <Button
+                    android:id="@+id/btn_github_login_settings"
+                    android:layout_width="match_parent"
+                    android:layout_height="38dp"
+                    android:layout_marginTop="6dp"
+                    android:text="🔑 Login with GitHub (Generate Sync Token)"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:backgroundTint="#10b981"
+                    android:textColor="#ffffff" />
 
                 <EditText
                     android:id="@+id/edit_sync_github_token"
@@ -569,7 +580,7 @@
                     android:layout_marginTop="6dp"
                     android:background="#1e293b"
                     android:paddingHorizontal="8dp"
-                    android:hint="Optional Custom GitHub Token Override (Built-in Auto-Sync Active)"
+                    android:hint="GitHub OAuth / Personal Access Token (Auto-filled on Login)"
                     android:textColor="#f8fafc"
                     android:textColorHint="#64748b"
                     android:textSize="11sp"
@@ -583,7 +594,7 @@
                     android:layout_marginTop="4dp"
                     android:background="#1e293b"
                     android:paddingHorizontal="8dp"
-                    android:hint="Optional Gist ID Override (Defaults to repo sync-vault branch)"
+                    android:hint="Optional Gist ID Override (Auto-discovered per user account)"
                     android:textColor="#f8fafc"
                     android:textColorHint="#64748b"
                     android:textSize="11sp"
@@ -620,7 +631,7 @@
                     android:id="@+id/text_sync_status"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Sync Status: Local storage active"
+                    android:text="Sync Status: Not signed in (Local storage active)"
                     android:textColor="#94a3b8"
                     android:textSize="10sp"
                     android:layout_marginTop="4dp" />

@@ -274,39 +274,142 @@ class OverlayService : LifecycleService() {
             editor.apply()
         }
 
-        private val DEFAULT_SYNC_VAULT_KEY_BYTES = intArrayOf(
-            61, 9, 24, 48, 25, 51, 236, 179, 170, 243, 233, 201, 227, 130, 202, 170, 188, 233, 148, 168,
-            132, 167, 131, 141, 68, 126, 81, 85, 68, 105, 65, 92, 82, 32, 124, 125, 17, 30, 48, 46
+        const val PREFS_KEY_SYNC_GITHUB_USERNAME = "gbl_sync_github_username"
+        const val GITHUB_OAUTH_CLIENT_ID = "178c6fc778ccc68e1d6a"
+
+        data class GitHubDeviceCodeResponse(
+            val deviceCode: String,
+            val userCode: String,
+            val verificationUri: String,
+            val expiresIn: Int,
+            val interval: Int
         )
 
         fun getEffectiveSyncToken(prefs: SharedPreferences): String {
-            val custom = prefs.getString(PREFS_KEY_SYNC_GITHUB_TOKEN, "")?.trim().orEmpty()
-            if (custom.isNotEmpty()) return custom
-            val sb = StringBuilder(DEFAULT_SYNC_VAULT_KEY_BYTES.size)
-            for (i in DEFAULT_SYNC_VAULT_KEY_BYTES.indices) {
-                val ch = (DEFAULT_SYNC_VAULT_KEY_BYTES[i] xor ((0x5A + i * 7) and 0xFF)).toChar()
-                sb.append(ch)
+            return prefs.getString(PREFS_KEY_SYNC_GITHUB_TOKEN, "")?.trim().orEmpty()
+        }
+
+        fun fetchGitHubUsernameBlocking(token: String): String {
+            if (token.isBlank()) return ""
+            return try {
+                val client = OkHttpClient()
+                val req = Request.Builder()
+                    .url("https://api.github.com/user")
+                    .header("Authorization", "Bearer $token")
+                    .header("Accept", "application/vnd.github+json")
+                    .build()
+                client.newCall(req).execute().use { resp ->
+                    if (!resp.isSuccessful) return ""
+                    val body = resp.body?.string().orEmpty()
+                    val json = JsonParser.parseString(body).asJsonObject
+                    json.get("login")?.takeIf { !it.isJsonNull }?.asString.orEmpty()
+                }
+            } catch (_: Exception) {
+                ""
             }
-            return sb.toString()
+        }
+
+        fun requestGitHubDeviceCodeBlocking(): Result<GitHubDeviceCodeResponse> {
+            return try {
+                val client = OkHttpClient()
+                val formBody = "client_id=$GITHUB_OAUTH_CLIENT_ID&scope=gist%20repo"
+                    .toRequestBody("application/x-www-form-urlencoded".toMediaTypeOrNull())
+                val req = Request.Builder()
+                    .url("https://github.com/login/device/code")
+                    .post(formBody)
+                    .header("Accept", "application/json")
+                    .build()
+                client.newCall(req).execute().use { resp ->
+                    val bodyStr = resp.body?.string().orEmpty()
+                    if (!resp.isSuccessful) {
+                        return Result.failure(Exception("GitHub HTTP ${resp.code}"))
+                    }
+                    val root = JsonParser.parseString(bodyStr).asJsonObject
+                    val deviceCode = root.get("device_code")?.asString.orEmpty()
+                    val userCode = root.get("user_code")?.asString.orEmpty()
+                    val verificationUri = root.get("verification_uri")?.asString ?: "https://github.com/login/device"
+                    val expiresIn = root.get("expires_in")?.asInt ?: 900
+                    val interval = root.get("interval")?.asInt ?: 5
+                    if (deviceCode.isEmpty() || userCode.isEmpty()) {
+                        return Result.failure(Exception("Invalid device code response from GitHub"))
+                    }
+                    Result.success(
+                        GitHubDeviceCodeResponse(
+                            deviceCode = deviceCode,
+                            userCode = userCode,
+                            verificationUri = verificationUri,
+                            expiresIn = expiresIn,
+                            interval = interval
+                        )
+                    )
+                }
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+
+        fun pollGitHubDeviceTokenOnceBlocking(deviceCode: String): Triple<String, String, String> {
+            return try {
+                val client = OkHttpClient()
+                val formBody = (
+                    "client_id=$GITHUB_OAUTH_CLIENT_ID" +
+                        "&device_code=$deviceCode" +
+                        "&grant_type=urn:ietf:params:oauth:grant-type:device_code"
+                    ).toRequestBody("application/x-www-form-urlencoded".toMediaTypeOrNull())
+                val req = Request.Builder()
+                    .url("https://github.com/login/oauth/access_token")
+                    .post(formBody)
+                    .header("Accept", "application/json")
+                    .build()
+                client.newCall(req).execute().use { resp ->
+                    val bodyStr = resp.body?.string().orEmpty()
+                    val root = JsonParser.parseString(bodyStr).asJsonObject
+                    val accessToken = root.get("access_token")?.takeIf { !it.isJsonNull }?.asString.orEmpty()
+                    if (accessToken.isNotEmpty()) {
+                        val username = fetchGitHubUsernameBlocking(accessToken)
+                        return Triple("SUCCESS", accessToken, username)
+                    }
+                    val error = root.get("error")?.takeIf { !it.isJsonNull }?.asString.orEmpty()
+                    val errorDesc = root.get("error_description")?.takeIf { !it.isJsonNull }?.asString ?: error
+                    when (error) {
+                        "authorization_pending" -> Triple("PENDING", "", "")
+                        "slow_down" -> Triple("SLOW_DOWN", "", "")
+                        else -> Triple("ERROR", errorDesc.ifEmpty { "Authorization failed" }, "")
+                    }
+                }
+            } catch (e: Exception) {
+                Triple("PENDING", e.localizedMessage ?: "", "")
+            }
         }
 
         fun syncWithGitHubGistBlocking(prefs: SharedPreferences, gson: Gson): Pair<Boolean, String> {
             val token = getEffectiveSyncToken(prefs)
             val customGistId = prefs.getString(PREFS_KEY_SYNC_GIST_ID, "")?.trim().orEmpty()
             if (token.isEmpty()) {
-                return false to "Add a GitHub Personal Access Token in Settings to enable 2-device cloud sync."
+                return false to "Tap '🔑 Login with GitHub' in Settings to enable automatic multi-device sync."
             }
             val httpClient = OkHttpClient()
             val fileName = "battlematrix_gbl_sync_vault.json"
-            val repoVaultUrl = "https://api.github.com/repos/sportsfan986/battlematrix-gbl/contents/$fileName"
 
             try {
+                var username = prefs.getString(PREFS_KEY_SYNC_GITHUB_USERNAME, "")?.trim().orEmpty()
+                if (username.isEmpty()) {
+                    username = fetchGitHubUsernameBlocking(token)
+                    if (username.isNotEmpty()) {
+                        prefs.edit().putString(PREFS_KEY_SYNC_GITHUB_USERNAME, username).apply()
+                    }
+                }
+
                 val localPayload = buildLocalSyncVaultPayload(prefs, gson)
                 var remotePayload = SyncVaultPayload()
                 var remoteFileSha = ""
 
-                // Primary Automatic Multi-Device Vault: sportsfan986/battlematrix-gbl on dedicated 'sync-vault' branch
-                if (customGistId.isEmpty() || customGistId.equals("sync-vault", ignoreCase = true)) {
+                // If signed-in user is sportsfan986 (repo owner) and no custom Gist override is set, use dedicated 'sync-vault' branch
+                val useRepoSyncVault = (customGistId.isEmpty() || customGistId.equals("sync-vault", ignoreCase = true)) &&
+                    username.equals("sportsfan986", ignoreCase = true)
+
+                if (useRepoSyncVault) {
+                    val repoVaultUrl = "https://api.github.com/repos/sportsfan986/battlematrix-gbl/contents/$fileName"
                     var totalNewLogs = 0
                     var totalNewTeams = 0
                     var finalMergedPayload = localPayload
@@ -388,27 +491,53 @@ class OverlayService : LifecycleService() {
                         }
                     }
 
-                    return true to "Synced! (${finalMergedPayload.battleLogs.size} battles, +$totalNewLogs from other devices · ${finalMergedPayload.teamPresets.size} teams, +$totalNewTeams updated)"
+                    val userTag = if (username.isNotEmpty()) "@$username" else "Cloud Vault"
+                    return true to "Synced ($userTag)! (${finalMergedPayload.battleLogs.size} battles, +$totalNewLogs from other devices · ${finalMergedPayload.teamPresets.size} teams, +$totalNewTeams updated)"
                 }
 
-                // Fallback: Custom Gist ID if explicitly specified by user
-                var gistId = customGistId
-                val getReq = Request.Builder()
-                    .url("https://api.github.com/gists/$gistId")
-                    .header("Authorization", "Bearer $token")
-                    .header("Accept", "application/vnd.github+json")
-                    .build()
-                httpClient.newCall(getReq).execute().use { resp ->
-                    if (resp.isSuccessful) {
-                        val bodyStr = resp.body?.string().orEmpty()
-                        val root = JsonParser.parseString(bodyStr).asJsonObject
-                        val filesObj = root.getAsJsonObject("files")
-                        val vaultFile = filesObj?.getAsJsonObject(fileName)
-                        val contentStr = vaultFile?.get("content")?.asString
-                        if (!contentStr.isNullOrBlank()) {
-                            remotePayload = try {
-                                gson.fromJson(contentStr, SyncVaultPayload::class.java) ?: SyncVaultPayload()
-                            } catch (_: Exception) { SyncVaultPayload() }
+                // Standard Per-User Isolated Vault: Auto-discover or create a private Gist in the signed-in user's own GitHub account
+                var gistId = if (customGistId.equals("sync-vault", ignoreCase = true)) "" else customGistId
+                if (gistId.isEmpty()) {
+                    val listReq = Request.Builder()
+                        .url("https://api.github.com/gists?per_page=100")
+                        .header("Authorization", "Bearer $token")
+                        .header("Accept", "application/vnd.github+json")
+                        .build()
+                    httpClient.newCall(listReq).execute().use { resp ->
+                        if (resp.isSuccessful) {
+                            val arr = JsonParser.parseString(resp.body?.string().orEmpty()).asJsonArray
+                            for (el in arr) {
+                                val obj = el.asJsonObject
+                                val filesObj = obj.getAsJsonObject("files")
+                                if (filesObj != null && filesObj.has(fileName)) {
+                                    gistId = obj.get("id")?.asString.orEmpty()
+                                    break
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (gistId.isNotEmpty()) {
+                    val getReq = Request.Builder()
+                        .url("https://api.github.com/gists/$gistId")
+                        .header("Authorization", "Bearer $token")
+                        .header("Accept", "application/vnd.github+json")
+                        .build()
+                    httpClient.newCall(getReq).execute().use { resp ->
+                        if (resp.isSuccessful) {
+                            val bodyStr = resp.body?.string().orEmpty()
+                            val root = JsonParser.parseString(bodyStr).asJsonObject
+                            val filesObj = root.getAsJsonObject("files")
+                            val vaultFile = filesObj?.getAsJsonObject(fileName)
+                            val contentStr = vaultFile?.get("content")?.asString
+                            if (!contentStr.isNullOrBlank()) {
+                                remotePayload = try {
+                                    gson.fromJson(contentStr, SyncVaultPayload::class.java) ?: SyncVaultPayload()
+                                } catch (_: Exception) { SyncVaultPayload() }
+                            }
+                        } else if (resp.code == 404) {
+                            gistId = ""
                         }
                     }
                 }
@@ -426,20 +555,37 @@ class OverlayService : LifecycleService() {
                 )
                 val reqBody = gson.toJson(bodyMap)
                     .toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
-                val pushReq = Request.Builder()
-                    .url("https://api.github.com/gists/$gistId")
-                    .patch(reqBody)
-                    .header("Authorization", "Bearer $token")
-                    .header("Accept", "application/vnd.github+json")
-                    .build()
+                val pushReq = if (gistId.isEmpty()) {
+                    Request.Builder()
+                        .url("https://api.github.com/gists")
+                        .post(reqBody)
+                        .header("Authorization", "Bearer $token")
+                        .header("Accept", "application/vnd.github+json")
+                        .build()
+                } else {
+                    Request.Builder()
+                        .url("https://api.github.com/gists/$gistId")
+                        .patch(reqBody)
+                        .header("Authorization", "Bearer $token")
+                        .header("Accept", "application/vnd.github+json")
+                        .build()
+                }
 
                 httpClient.newCall(pushReq).execute().use { pushResp ->
                     if (!pushResp.isSuccessful) {
                         return false to "Sync error (HTTP ${pushResp.code})"
                     }
+                    if (gistId.isEmpty()) {
+                        val respObj = JsonParser.parseString(pushResp.body?.string().orEmpty()).asJsonObject
+                        val createdId = respObj.get("id")?.asString.orEmpty()
+                        if (createdId.isNotEmpty()) {
+                            prefs.edit().putString(PREFS_KEY_SYNC_GIST_ID, createdId).apply()
+                        }
+                    }
                 }
 
-                return true to "Synced! (${mergedPayload.battleLogs.size} battles, +$newLogsCount from other device · ${mergedPayload.teamPresets.size} teams, +$newTeamsCount updated)"
+                val userTag = if (username.isNotEmpty()) "@$username" else "Private Gist"
+                return true to "Synced ($userTag)! (${mergedPayload.battleLogs.size} battles, +$newLogsCount from other devices · ${mergedPayload.teamPresets.size} teams, +$newTeamsCount updated)"
             } catch (e: Exception) {
                 return false to "Sync failed: ${e.localizedMessage ?: "Network error"}"
             }
