@@ -155,7 +155,7 @@ class MainActivity : AppCompatActivity() {
     private val PREFS_KEY_BATTLE_LOGS = OverlayService.PREFS_KEY_BATTLE_LOGS
     private val PREFS_KEY_DELETED_LOG_IDS = OverlayService.PREFS_KEY_DELETED_LOG_IDS
     private val PREFS_KEY_DELETED_TEAM_IDS = OverlayService.PREFS_KEY_DELETED_TEAM_IDS
-    private val PREFS_KEY_DELETED_BATTLES_TRASH = OverlayService.PREFS_KEY_DELETED_BATTLES_TRASH
+    private val PREFS_KEY_DELETED_BATTLES_TRASH = OverlayService.PREFS_KEY_DELETED_LOGS_TRASH
     private val PREFS_KEY_DELETED_TEAMS_TRASH = OverlayService.PREFS_KEY_DELETED_TEAMS_TRASH
     private val PREFS_KEY_GBL_SEASONS_JSON = OverlayService.PREFS_KEY_GBL_SEASONS_JSON
     private val PREFS_KEY_SYNC_GITHUB_TOKEN = OverlayService.PREFS_KEY_SYNC_GITHUB_TOKEN
@@ -323,10 +323,10 @@ class MainActivity : AppCompatActivity() {
         btnCopyBattleLog = findViewById(R.id.btn_copy_battle_log)
         btnShareBattleLog = findViewById(R.id.btn_share_battle_log)
         layoutUndoBanner = findViewById(R.id.layout_undo_banner)
-        textUndoBannerMsg = findViewById(R.id.text_undo_banner_msg)
-        btnUndoBannerAction = findViewById(R.id.btn_undo_banner_action)
-        btnUndoBannerDismiss = findViewById(R.id.btn_undo_banner_dismiss)
-        btnTrashTeams = findViewById(R.id.btn_trash_teams)
+        textUndoBannerMsg = findViewById(R.id.text_undo_message)
+        btnUndoBannerAction = findViewById(R.id.btn_undo_action)
+        btnUndoBannerDismiss = findViewById(R.id.btn_undo_dismiss)
+        btnTrashTeams = findViewById(R.id.btn_trash_presets)
         btnTrashBattleLog = findViewById(R.id.btn_trash_battle_log)
 
         btnUndoBannerAction.setOnClickListener {
