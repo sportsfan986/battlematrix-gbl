@@ -549,7 +549,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="☁️ Two-Device Delta Sync (Teams &amp; Battle Logs)"
+                    android:text="☁️ Multi-Device Auto Delta Sync (Teams &amp; Battle Logs)"
                     android:textColor="#38bdf8"
                     android:textSize="12sp"
                     android:textStyle="bold" />
@@ -557,7 +557,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Automatically reconciles deltas on app open &amp; after every battle (Pull → Union/LWW Merge → Push) via your Cloud Vault."
+                    android:text="Automatically reconciles deltas across unlimited devices on app open &amp; after every battle (Pull → Union/LWW Merge → Push)."
                     android:textColor="#94a3b8"
                     android:textSize="10sp"
                     android:layout_marginTop="2dp" />

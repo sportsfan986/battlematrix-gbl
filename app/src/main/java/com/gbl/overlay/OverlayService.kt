@@ -305,73 +305,90 @@ class OverlayService : LifecycleService() {
                 var remotePayload = SyncVaultPayload()
                 var remoteFileSha = ""
 
-                // Primary Automatic Vault: sportsfan986/battlematrix-gbl on dedicated 'sync-vault' branch (works with repo scope)
+                // Primary Automatic Multi-Device Vault: sportsfan986/battlematrix-gbl on dedicated 'sync-vault' branch
                 if (customGistId.isEmpty() || customGistId.equals("sync-vault", ignoreCase = true)) {
-                    val getReq = Request.Builder()
-                        .url("$repoVaultUrl?ref=sync-vault")
-                        .header("Authorization", "Bearer $token")
-                        .header("Accept", "application/vnd.github+json")
-                        .build()
-                    httpClient.newCall(getReq).execute().use { resp ->
-                        if (resp.isSuccessful) {
-                            val bodyStr = resp.body?.string().orEmpty()
-                            val root = JsonParser.parseString(bodyStr).asJsonObject
-                            remoteFileSha = root.get("sha")?.takeIf { !it.isJsonNull }?.asString.orEmpty()
-                            val contentB64 = root.get("content")?.takeIf { !it.isJsonNull }?.asString.orEmpty()
-                            if (contentB64.isNotBlank()) {
-                                val decodedBytes = android.util.Base64.decode(contentB64.replace("\n", "").replace("\r", ""), android.util.Base64.DEFAULT)
-                                val decodedStr = String(decodedBytes, Charsets.UTF_8)
-                                remotePayload = try {
-                                    gson.fromJson(decodedStr, SyncVaultPayload::class.java) ?: SyncVaultPayload()
-                                } catch (_: Exception) { SyncVaultPayload() }
-                            }
-                        }
-                    }
-
-                    // Reconcile deltas (Pull -> Union/LWW Reconcile -> Save Local)
-                    val (mergedPayload, newLogsCount, newTeamsCount) = reconcileSyncVaultPayloads(localPayload, remotePayload)
-                    saveReconciledSyncVaultLocally(prefs, gson, mergedPayload)
-
-                    // Determine if local device has changes that need to be pushed back to the remote vault
-                    val remoteLogIds = remotePayload.battleLogs.associateBy { it.id }
-                    val hasLogDiff = mergedPayload.battleLogs.size != remotePayload.battleLogs.size ||
-                        mergedPayload.battleLogs.any { m -> remoteLogIds[m.id]?.updatedAt != m.updatedAt }
-                    val remoteTeamMap = remotePayload.teamPresets.associateBy { it.id }
-                    val hasTeamDiff = mergedPayload.teamPresets.size != remotePayload.teamPresets.size ||
-                        mergedPayload.teamPresets.any { t -> remoteTeamMap[t.id]?.updatedAt != t.updatedAt }
-                    val hasTombstoneDiff = mergedPayload.deletedLogIds.toSet() != remotePayload.deletedLogIds.toSet() ||
-                        mergedPayload.deletedTeamIds.toSet() != remotePayload.deletedTeamIds.toSet()
-
-                    if (remoteFileSha.isEmpty() || hasLogDiff || hasTeamDiff || hasTombstoneDiff) {
-                        val mergedJsonStr = gson.toJson(mergedPayload)
-                        val encodedB64 = android.util.Base64.encodeToString(
-                            mergedJsonStr.toByteArray(Charsets.UTF_8),
-                            android.util.Base64.NO_WRAP
-                        )
-                        val putBodyMap = mutableMapOf<String, Any>(
-                            "message" to "Auto-sync 2-device delta vault",
-                            "content" to encodedB64,
-                            "branch" to "sync-vault"
-                        )
-                        if (remoteFileSha.isNotEmpty()) {
-                            putBodyMap["sha"] = remoteFileSha
-                        }
-                        val reqBody = gson.toJson(putBodyMap)
-                            .toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
-                        val putReq = Request.Builder()
-                            .url(repoVaultUrl)
-                            .put(reqBody)
+                    var totalNewLogs = 0
+                    var totalNewTeams = 0
+                    var finalMergedPayload = localPayload
+                    for (attempt in 1..3) {
+                        val currentLocal = if (attempt == 1) localPayload else buildLocalSyncVaultPayload(prefs, gson)
+                        remotePayload = SyncVaultPayload()
+                        remoteFileSha = ""
+                        val getReq = Request.Builder()
+                            .url("$repoVaultUrl?ref=sync-vault")
                             .header("Authorization", "Bearer $token")
                             .header("Accept", "application/vnd.github+json")
                             .build()
-                        httpClient.newCall(putReq).execute().use { putResp ->
-                            if (!putResp.isSuccessful && putResp.code != 409) {
-                                return false to "Sync error (HTTP ${putResp.code})"
+                        httpClient.newCall(getReq).execute().use { resp ->
+                            if (resp.isSuccessful) {
+                                val bodyStr = resp.body?.string().orEmpty()
+                                val root = JsonParser.parseString(bodyStr).asJsonObject
+                                remoteFileSha = root.get("sha")?.takeIf { !it.isJsonNull }?.asString.orEmpty()
+                                val contentB64 = root.get("content")?.takeIf { !it.isJsonNull }?.asString.orEmpty()
+                                if (contentB64.isNotBlank()) {
+                                    val decodedBytes = android.util.Base64.decode(contentB64.replace("\n", "").replace("\r", ""), android.util.Base64.DEFAULT)
+                                    val decodedStr = String(decodedBytes, Charsets.UTF_8)
+                                    remotePayload = try {
+                                        gson.fromJson(decodedStr, SyncVaultPayload::class.java) ?: SyncVaultPayload()
+                                    } catch (_: Exception) { SyncVaultPayload() }
+                                }
                             }
+                        }
+
+                        // Reconcile deltas across N devices (Pull -> Union/LWW/Tombstone Reconcile -> Save Local)
+                        val (mergedPayload, newLogsCount, newTeamsCount) = reconcileSyncVaultPayloads(currentLocal, remotePayload)
+                        saveReconciledSyncVaultLocally(prefs, gson, mergedPayload)
+                        finalMergedPayload = mergedPayload
+                        totalNewLogs += newLogsCount
+                        totalNewTeams += newTeamsCount
+
+                        // Determine if local state has deltas that need to be pushed back to the shared multi-device vault
+                        val remoteLogIds = remotePayload.battleLogs.associateBy { it.id }
+                        val hasLogDiff = mergedPayload.battleLogs.size != remotePayload.battleLogs.size ||
+                            mergedPayload.battleLogs.any { m -> remoteLogIds[m.id]?.updatedAt != m.updatedAt }
+                        val remoteTeamMap = remotePayload.teamPresets.associateBy { it.id }
+                        val hasTeamDiff = mergedPayload.teamPresets.size != remotePayload.teamPresets.size ||
+                            mergedPayload.teamPresets.any { t -> remoteTeamMap[t.id]?.updatedAt != t.updatedAt }
+                        val hasTombstoneDiff = mergedPayload.deletedLogIds.toSet() != remotePayload.deletedLogIds.toSet() ||
+                            mergedPayload.deletedTeamIds.toSet() != remotePayload.deletedTeamIds.toSet()
+
+                        if (remoteFileSha.isEmpty() || hasLogDiff || hasTeamDiff || hasTombstoneDiff) {
+                            val mergedJsonStr = gson.toJson(mergedPayload)
+                            val encodedB64 = android.util.Base64.encodeToString(
+                                mergedJsonStr.toByteArray(Charsets.UTF_8),
+                                android.util.Base64.NO_WRAP
+                            )
+                            val putBodyMap = mutableMapOf<String, Any>(
+                                "message" to "Auto-sync multi-device delta vault",
+                                "content" to encodedB64,
+                                "branch" to "sync-vault"
+                            )
+                            if (remoteFileSha.isNotEmpty()) {
+                                putBodyMap["sha"] = remoteFileSha
+                            }
+                            val reqBody = gson.toJson(putBodyMap)
+                                .toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
+                            val putReq = Request.Builder()
+                                .url(repoVaultUrl)
+                                .put(reqBody)
+                                .header("Authorization", "Bearer $token")
+                                .header("Accept", "application/vnd.github+json")
+                                .build()
+                            var retryConflict = false
+                            httpClient.newCall(putReq).execute().use { putResp ->
+                                if (putResp.code == 409 || putResp.code == 422) {
+                                    retryConflict = true
+                                } else if (!putResp.isSuccessful) {
+                                    return false to "Sync error (HTTP ${putResp.code})"
+                                }
+                            }
+                            if (!retryConflict) break
+                        } else {
+                            break
                         }
                     }
 
-                    return true to "Synced! (${mergedPayload.battleLogs.size} battles, +$newLogsCount from other device · ${mergedPayload.teamPresets.size} teams, +$newTeamsCount updated)"
+                    return true to "Synced! (${finalMergedPayload.battleLogs.size} battles, +$totalNewLogs from other devices · ${finalMergedPayload.teamPresets.size} teams, +$totalNewTeams updated)"
                 }
 
                 // Fallback: Custom Gist ID if explicitly specified by user
