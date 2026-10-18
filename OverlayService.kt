@@ -118,28 +118,6 @@ class OverlayService : LifecycleService() {
             "gbl_team_presets"
         )
 
-        data class BattleQualityMetadata(
-            val pWin: Double,
-            val expWinPct: Int,
-            val deltaQ: Double,
-            val weight: Double,
-            val weightedResidual: Double,
-            val badgeLabel: String,
-            val badgeColorHex: String,
-            val unrevealedThird: Boolean,
-            val sLead: Double,
-            val sBack: Double,
-            val compositeScore: Double
-        )
-
-        data class AggregateWAEResult(
-            val waePct: Double,
-            val formatted: String,
-            val isPositive: Boolean,
-            val rankedCount: Int,
-            val totalWeight: Double
-        )
-
         data class SyncBattleLogRecord(
             val id: String = java.util.UUID.randomUUID().toString(),
             val timestampMs: Long = System.currentTimeMillis(),
@@ -2464,33 +2442,24 @@ class OverlayService : LifecycleService() {
             val uC1 = myCharged1?.takeIf { it.isNotBlank() } ?: myMeta.chargedMove1
             val uC2 = myCharged2?.takeIf { it.isNotBlank() } ?: myMeta.chargedMove2
 
-            val userBestCharged = max(
-                calculateChargedMoveDamagePctStatic(myMeta, oppMeta, uC1, myShadow, oppShadow),
-                calculateChargedMoveDamagePctStatic(myMeta, oppMeta, uC2, myShadow, oppShadow)
-            )
-            val oppBestCharged = max(
-                calculateChargedMoveDamagePctStatic(oppMeta, myMeta, oppMeta.chargedMove1, oppShadow, myShadow),
-                calculateChargedMoveDamagePctStatic(oppMeta, myMeta, oppMeta.chargedMove2, oppShadow, myShadow)
-            )
+            val userC1Pct = calculateChargedMoveDamagePctStatic(myMeta, oppMeta, uC1, myShadow, oppShadow)
+            val userC2Pct = calculateChargedMoveDamagePctStatic(myMeta, oppMeta, uC2, myShadow, oppShadow)
+            val bestUserCharged = max(userC1Pct, userC2Pct)
+            val minUserCharged = min(userC1Pct, userC2Pct)
+
+            val oppC1Pct = calculateChargedMoveDamagePctStatic(oppMeta, myMeta, oppMeta.chargedMove1, oppShadow, myShadow)
+            val oppC2Pct = calculateChargedMoveDamagePctStatic(oppMeta, myMeta, oppMeta.chargedMove2, oppShadow, myShadow)
+            val bestOppCharged = max(oppC1Pct, oppC2Pct)
+            val minOppCharged = min(oppC1Pct, oppC2Pct)
 
             val userFastType = fastMoveTypeMapStatic[uFast.lowercase()] ?: myMeta.types.firstOrNull() ?: "normal"
             val oppFastType = fastMoveTypeMapStatic[oppMeta.defaultFastMove.lowercase()] ?: oppMeta.types.firstOrNull() ?: "normal"
             val userFastEff = getTypeEffectivenessStatic(userFastType, oppMeta.types)
             val oppFastEff = getTypeEffectivenessStatic(oppFastType, myMeta.types)
 
-            val userMinCost = min(
-                chargedMoveTurnCostMap[uC1] ?: myMeta.turnsToFirstMove1,
-                chargedMoveTurnCostMap[uC2] ?: myMeta.turnsToFirstMove2
-            ).coerceAtLeast(3)
-            val oppMinCost = min(oppMeta.turnsToFirstMove1, oppMeta.turnsToFirstMove2).coerceAtLeast(3)
-
-            val paceAdv = (oppMinCost - userMinCost) * 14
-            val fastAdv = ((userFastEff - oppFastEff) * 95.0).roundToInt()
-            val chargedAdv = ((userBestCharged - oppBestCharged) * 2.1).roundToInt()
             val shadowBulkDelta = (if (myShadow) -12 else 0) + (if (oppShadow) 12 else 0)
-
-            val rating1s = (500 + (chargedAdv * 0.55).roundToInt() + (fastAdv * 0.85).roundToInt() + paceAdv + shadowBulkDelta).coerceIn(150, 850)
-            val rating2s = (500 + (chargedAdv * 0.25).roundToInt() + (fastAdv * 1.25).roundToInt() + (paceAdv * 1.15).roundToInt() + shadowBulkDelta * 2).coerceIn(150, 850)
+            val rating1s = (500.0 + ((bestUserCharged + minUserCharged) * 0.5 - (bestOppCharged + minOppCharged) * 0.5) * 2.8 + (userFastEff - oppFastEff) * 120.0 + shadowBulkDelta).roundToInt().coerceIn(150, 850)
+            val rating2s = (500.0 + (minUserCharged - minOppCharged) * 2.0 + (userFastEff - oppFastEff) * 155.0 + shadowBulkDelta * 2).roundToInt().coerceIn(150, 850)
             return rating1s to rating2s
         }
 
@@ -2731,6 +2700,28 @@ class OverlayService : LifecycleService() {
     private var isOverlayMinimized = false
     private var cachedScreenBitmap: Bitmap? = null
     private val captureLock = Any()
+
+    data class BattleQualityMetadata(
+        val pWin: Double,
+        val expWinPct: Int,
+        val deltaQ: Double,
+        val weight: Double,
+        val weightedResidual: Double,
+        val badgeLabel: String,
+        val badgeColorHex: String,
+        val unrevealedThird: Boolean,
+        val sLead: Double,
+        val sBack: Double,
+        val compositeScore: Double
+    )
+
+    data class AggregateWAEResult(
+        val waePct: Double,
+        val formatted: String,
+        val isPositive: Boolean,
+        val rankedCount: Int,
+        val totalWeight: Double
+    )
 
     data class TeamMember(
         val name: String,
