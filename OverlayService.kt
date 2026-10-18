@@ -431,7 +431,7 @@ class OverlayService : LifecycleService() {
                     username.equals("sportsfan986", ignoreCase = true)
 
                 if (useRepoSyncVault) {
-                    val repoVaultUrl = "https://api.github.com/repos/sportsfan986/battlematrix-gbl/contents/$fileName"
+                    val repoVaultUrl = "https://api.github.com/repos/sportsfan986/silphscope-pvp/contents/$fileName"
                     var totalNewLogs = 0
                     var totalNewTeams = 0
                     var finalMergedPayload = localPayload
@@ -569,7 +569,7 @@ class OverlayService : LifecycleService() {
 
                 val mergedJsonStr = gson.toJson(mergedPayload)
                 val bodyMap = mapOf(
-                    "description" to "BattleMatrix GBL Multi-Device Sync Vault (Teams & Battle Logs)",
+                    "description" to "SilphScope PvP Multi-Device Sync Vault (Teams & Battle Logs)",
                     "public" to false,
                     "files" to mapOf(
                         fileName to mapOf("content" to mergedJsonStr)

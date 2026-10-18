@@ -13,5 +13,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "GBLBattleMatrix"
+rootProject.name = "SilphScopePvP"
 include(":app")

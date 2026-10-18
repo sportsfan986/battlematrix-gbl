@@ -1310,7 +1310,7 @@ export default function App() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'SilphScope_PvP_v2.03_Android_Project.zip';
+      a.download = 'SilphScope_PvP_v2.04_Android_Project.zip';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -1329,7 +1329,7 @@ export default function App() {
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <img
-              src="/favicon.svg"
+              src={`${import.meta.env.BASE_URL}favicon.svg`}
               alt="SilphScope PvP Icon"
               className="w-10 h-10 rounded-xl shadow-lg shadow-sky-500/20 border border-sky-500/30"
             />
@@ -1337,7 +1337,7 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <h1 className="font-bold text-base md:text-lg tracking-tight text-white">SilphScope PvP</h1>
                 <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20">
-                  v2.03 • Android Native Overlay
+                  v2.04 • Android Native Overlay
                 </span>
               </div>
               <p className="text-xs text-slate-400 hidden sm:block">
@@ -1694,8 +1694,8 @@ export default function App() {
                       }`}
                     >
                       <img
-                        src="/favicon.svg"
-                        alt="BattleMatrix Minimized Bubble"
+                        src={`${import.meta.env.BASE_URL}favicon.svg`}
+                        alt="SilphScope PvP Minimized Bubble"
                         className="w-9 h-9 rounded-full pointer-events-none select-none"
                       />
                       <span className="absolute -bottom-2 px-1 py-0.2 rounded bg-amber-500 text-slate-950 font-black text-[7px] uppercase tracking-tighter shadow">
@@ -3927,7 +3927,7 @@ export default function App() {
                           'Content-Type': 'application/json'
                         },
                         body: JSON.stringify({
-                          description: 'SilphScope PvP v2.03 Multi-Device Delta Sync Vault',
+                          description: 'SilphScope PvP v2.04 Multi-Device Delta Sync Vault',
                           public: false,
                           files: {
                             'gbl_delta_sync_v2.json': { content: bundleStr }
@@ -5349,7 +5349,7 @@ export default function App() {
 
       {/* Footer */}
       <footer className="border-t border-slate-800/80 py-4 px-6 text-center text-xs text-slate-500">
-        SilphScope PvP v2.03 Overlay • Built with Kotlin, WindowManager TYPE_APPLICATION_OVERLAY, MediaProjection in-memory frame capture, and ML Kit Text Recognition.
+        SilphScope PvP v2.04 Overlay • Built with Kotlin, WindowManager TYPE_APPLICATION_OVERLAY, MediaProjection in-memory frame capture, and ML Kit Text Recognition.
       </footer>
     </div>
   );

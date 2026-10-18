@@ -74,7 +74,7 @@ jobs:
               -validity 10000 \
               -storepass gblrelease123 \
               -keypass gblrelease123 \
-              -dname "CN=BattleMatrix GBL, OU=Android, O=GBL, C=US"
+              -dname "CN=SilphScope PvP, OU=Android, O=SilphScope, C=US"
           else
             echo "Release keystore is present at app/release.keystore"
           fi
@@ -86,7 +86,7 @@ jobs:
       - name: Prepare Named Release APK for Public Download
         if: github.event.inputs.build_target == 'release' || github.event.inputs.build_target == 'both' || github.event.inputs.build_target == '' || github.event_name == 'push'
         run: |
-          cp app/build/outputs/apk/release/app-release.apk "app/build/outputs/apk/release/battlematrix-gbl-${{ steps.version.outputs.tag }}.apk"
+          mv app/build/outputs/apk/release/app-release.apk "app/build/outputs/apk/release/silphscope-pvp-${{ steps.version.outputs.tag }}.apk"
 
       - name: Build Debug APK
         if: github.event.inputs.build_target == 'debug' || github.event.inputs.build_target == 'both'
@@ -96,8 +96,8 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: battlematrix-gbl-release-apk
-          path: app/build/outputs/apk/release/*.apk
+          name: silphscope-pvp-release-apk
+          path: app/build/outputs/apk/release/silphscope-pvp-*.apk
           if-no-files-found: ignore
           retention-days: 14
 
@@ -105,7 +105,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: battlematrix-gbl-debug-apk
+          name: silphscope-pvp-debug-apk
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: ignore
           retention-days: 14
@@ -115,15 +115,14 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
-          name: "BattleMatrix GBL ${{ steps.version.outputs.tag }}"
+          name: "SilphScope PvP ${{ steps.version.outputs.tag }}"
           body: |
-            ## BattleMatrix GBL ${{ steps.version.outputs.tag }} — Public Android Release
+            ## SilphScope PvP ${{ steps.version.outputs.tag }} — Public Android Release
             
             ### Download & Install
-            Download **`battlematrix-gbl-${{ steps.version.outputs.tag }}.apk`** (or `app-release.apk`) from the **Assets** section below and install on your Android device.
+            Download **`silphscope-pvp-${{ steps.version.outputs.tag }}.apk`** from the **Assets** section below and install on your Android device.
           files: |
-            app/build/outputs/apk/release/battlematrix-gbl-${{ steps.version.outputs.tag }}.apk
-            app/build/outputs/apk/release/app-release.apk
+            app/build/outputs/apk/release/silphscope-pvp-${{ steps.version.outputs.tag }}.apk
           draft: false
           prerelease: false
           make_latest: "true"

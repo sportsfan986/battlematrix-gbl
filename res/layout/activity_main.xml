@@ -41,7 +41,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Real-Time PvP Floating Overlay • v2.03"
+                android:text="Real-Time PvP Floating Overlay • v2.04"
                 android:textSize="11sp"
                 android:textColor="#94a3b8"
                 android:layout_marginTop="1dp" />
@@ -220,6 +220,8 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:singleLine="true"
+                android:ellipsize="end"
                 android:text="GBL Team Presets"
                 android:textSize="15sp"
                 android:textStyle="bold"
@@ -229,6 +231,9 @@
                 android:id="@+id/btn_trash_presets"
                 android:layout_width="wrap_content"
                 android:layout_height="36dp"
+                android:minWidth="0dp"
+                android:paddingHorizontal="10dp"
+                android:singleLine="true"
                 android:text="🗑️ Trash"
                 android:textSize="11sp"
                 android:backgroundTint="#334155"
@@ -239,6 +244,9 @@
                 android:id="@+id/btn_add_preset"
                 android:layout_width="wrap_content"
                 android:layout_height="36dp"
+                android:minWidth="0dp"
+                android:paddingHorizontal="10dp"
+                android:singleLine="true"
                 android:text="+ New Team"
                 android:textSize="12sp"
                 android:backgroundTint="#059669"
@@ -703,6 +711,17 @@
         android:orientation="vertical"
         android:visibility="gone">
 
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:singleLine="true"
+            android:ellipsize="end"
+            android:text="GBL Battle Log &amp; Replay"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:textColor="#e2e8f0"
+            android:layout_marginBottom="6dp" />
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -710,51 +729,74 @@
             android:gravity="center_vertical"
             android:layout_marginBottom="6dp">
 
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="GBL Battle Log &amp; Replay"
-                android:textSize="14sp"
-                android:textStyle="bold"
-                android:textColor="#e2e8f0" />
-
             <Button
                 android:id="@+id/btn_log_manual_battle"
-                android:layout_width="wrap_content"
-                android:layout_height="34dp"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:paddingHorizontal="4dp"
+                android:singleLine="true"
                 android:text="+ Log"
                 android:textSize="10.5sp"
+                android:textStyle="bold"
                 android:backgroundTint="#0284c7"
                 android:textColor="#ffffff"
                 android:layout_marginEnd="4dp" />
 
             <Button
                 android:id="@+id/btn_sync_battle_log"
-                android:layout_width="wrap_content"
-                android:layout_height="34dp"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:paddingHorizontal="4dp"
+                android:singleLine="true"
                 android:text="☁️ Sync"
                 android:textSize="10.5sp"
+                android:textStyle="bold"
                 android:backgroundTint="#0369a1"
                 android:textColor="#ffffff"
                 android:layout_marginEnd="4dp" />
 
             <Button
                 android:id="@+id/btn_trash_battle_log"
-                android:layout_width="wrap_content"
-                android:layout_height="34dp"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1.15"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:paddingHorizontal="4dp"
+                android:singleLine="true"
                 android:text="🗑️ Trash"
                 android:textSize="10.5sp"
+                android:textStyle="bold"
                 android:backgroundTint="#334155"
                 android:textColor="#fcd34d"
                 android:layout_marginEnd="4dp" />
 
             <Button
                 android:id="@+id/btn_clear_battle_log"
-                android:layout_width="wrap_content"
-                android:layout_height="34dp"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="0.85"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:paddingHorizontal="4dp"
+                android:singleLine="true"
                 android:text="Clear"
                 android:textSize="10.5sp"
+                android:textStyle="bold"
                 android:backgroundTint="#334155"
                 android:textColor="#cbd5e1" />
         </LinearLayout>
@@ -805,6 +847,9 @@
                 android:id="@+id/btn_copy_battle_log"
                 android:layout_width="wrap_content"
                 android:layout_height="36dp"
+                android:minWidth="0dp"
+                android:paddingHorizontal="10dp"
+                android:singleLine="true"
                 android:text="📋 Copy Text"
                 android:textSize="10.5sp"
                 android:backgroundTint="#1e293b"
@@ -815,6 +860,9 @@
                 android:id="@+id/btn_share_battle_log"
                 android:layout_width="wrap_content"
                 android:layout_height="36dp"
+                android:minWidth="0dp"
+                android:paddingHorizontal="10dp"
+                android:singleLine="true"
                 android:text="📤 Share"
                 android:textSize="10.5sp"
                 android:backgroundTint="#0284c7"
