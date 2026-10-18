@@ -51,8 +51,10 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.coroutines.resume
@@ -347,10 +349,8 @@ class OverlayService : LifecycleService() {
                         fileName to mapOf("content" to mergedJsonStr)
                     )
                 )
-                val reqBody = okhttp3.RequestBody.create(
-                    okhttp3.MediaType.parse("application/json; charset=utf-8"),
-                    gson.toJson(bodyMap)
-                )
+                val reqBody = gson.toJson(bodyMap)
+                    .toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
                 val pushReq = if (gistId.isNotEmpty()) {
                     Request.Builder()
                         .url("https://api.github.com/gists/$gistId")
