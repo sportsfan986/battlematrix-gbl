@@ -4276,6 +4276,16 @@ class OverlayService : LifecycleService() {
         }
     }
 
+    fun selectActiveUserPokemon(pokemonName: String) {
+        activeUserPokemonName = pokemonName
+        recalculateAndPushBattleData()
+        if (::prefs.isInitialized) {
+            Handler(Looper.getMainLooper()).post {
+                Toast.makeText(this, "Active Lead: $pokemonName", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     fun configureReplayState(
         preset: TeamPreset,
         opponentsList: List<String>,
@@ -5725,10 +5735,8 @@ class OverlayService : LifecycleService() {
 
         @JavascriptInterface
         fun selectActiveUserPokemon(pokemonName: String) {
-            activeUserPokemonName = pokemonName
             Handler(Looper.getMainLooper()).post {
-                recalculateAndPushBattleData()
-                Toast.makeText(this@OverlayService, "Active Lead: $pokemonName", Toast.LENGTH_SHORT).show()
+                this@OverlayService.selectActiveUserPokemon(pokemonName)
             }
         }
 
