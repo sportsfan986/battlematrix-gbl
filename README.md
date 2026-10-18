@@ -1,4 +1,4 @@
-# SilphScope PvP — Real-Time 3x3 Matchup Matrix, Damage Calculations, Turn Pacing HUD & Battle Log Overlay for Pokémon GO PvP (v2.12)
+# SilphScope PvP — Real-Time 3x3 Matchup Matrix, Damage Calculations, Turn Pacing HUD & Battle Log Overlay for Pokémon GO PvP (v2.13)
 
 [![Live Web Simulator](https://img.shields.io/badge/🌐%20Live%20Web%20Simulator-Try%20in%20Browser-0284c7?style=for-the-badge&logo=googlechrome&logoColor=white)](https://sportsfan986.github.io/silphscope-pvp/)
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Support%20the%20Project-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/sportsfan986)
@@ -93,10 +93,10 @@ If **SilphScope PvP** helps you count fast moves, win CMP ties, and climb Elo in
 
 ---
 
-## 📥 Download & Install Native Android APK (v2.12)
+## 📥 Download & Install Native Android APK (v2.13)
 
 1. Visit the **[Official GitHub Releases Page](https://github.com/sportsfan986/silphscope-pvp/releases)**.
-2. Download **`silphscope-pvp-v2.12.apk`** directly to your Android device.
+2. Download **`silphscope-pvp-v2.13.apk`** directly to your Android device.
 3. Tap the downloaded APK file to install (grant *"Install unknown apps"* permission if prompted).
 4. Launch **SilphScope PvP**:
    - Select, reorder, or customize your **GBL Team Presets**, set **Opponent Move Count Basis** (`My Fasts` vs. `Their Fasts`), and adjust **Overlay Size** (`50%–100%` screen width slider) and **Background Transparency**.
@@ -105,8 +105,10 @@ If **SilphScope PvP** helps you count fast moves, win CMP ties, and climb Elo in
 
 ---
 
-## ✨ Key Features in v2.12
+## ✨ Key Features in v2.13
 
+- **Accurate Dual-Type Effectiveness & League CP Stat Scaling Engine**:
+  - Synchronizes official dual-types and raw base stats from `gamemaster.json` across all species, computes reference CP directly from stored stat vectors to prevent HP/Defense inflation in Great and Ultra Leagues, prioritizes live PvPoke move powers/energies, and persists Shadow (+20% ATK / -16.7% DEF) modifiers across OCR ticks.
 - **Start Battle / Stop Battle Toggle with Post-Stop Logging**:
   - Pressing `⚔️ Start Battle` immediately clears the opponent list and empties the 3x3 matrix for a fresh match while switching the button to `🛑 Stop Battle`. When the match concludes, pressing `🛑 Stop Battle` pauses OCR scanning, switches the button back to `⚔️ Start Battle`, and opens the `🏆 Win` / `💀 Loss` / `✕ Skip` logging bar.
 - **Battle Quality & Wins Above Expected (WAE) System**:
@@ -128,8 +130,8 @@ Every push to `main` triggers `.github/workflows/android.yml` (builds signed rel
 
 To increment the version for future releases:
 ```bash
-./scripts/bump_version.sh        # increments sub-version by +0.01 (e.g. v2.11 -> v2.12)
-./scripts/bump_version.sh v2.12  # sets an explicit version
+./scripts/bump_version.sh        # increments sub-version by +0.01 (e.g. v2.12 -> v2.13)
+./scripts/bump_version.sh v2.13  # sets an explicit version
 ```
 
 ---

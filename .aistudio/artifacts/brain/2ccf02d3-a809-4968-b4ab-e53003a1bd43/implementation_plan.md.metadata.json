@@ -1,6 +1,6 @@
 {
-  "summary": "Updated implementation plan adding an Interactive Post-Game Overlay Replay Inspector when clicking any logged battle in the Battle Log, alongside ScrapedDuck API Season export, in-app log Edit/Delete, Lead Matchup tracking, fixed opponent order, and two-device delta sync.",
-  "updatedAt": "2026-10-18T02:19:46.084435792Z",
+  "summary": "Implementation plan for SilphScope PvP v2.03: app rebranding, Battle Menu OCR filtering (blocking 'party' and 'battle' and pausing OCR on the Battle Menu), Trash Bin modal + Undo toast for restoring deleted battles and teams, and Go Battle Log friendly export format ([Team] header + opp1 opp2 opp3 W/L lines without dates).",
+  "updatedAt": "2026-10-18T11:47:28.931951277Z",
   "requestFeedback": true,
   "userFacing": true
 }

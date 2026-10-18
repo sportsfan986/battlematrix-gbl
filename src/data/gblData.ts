@@ -21,6 +21,7 @@ export interface PokemonStats {
   formLabel?: string;
   types: string[];
   baseStats: { atk: number; def: number; hp: number };
+  isRawBaseStats?: boolean;
   defaultFastMove: FastMove;
   chargedMoves: ChargedMove[];
   color: string;
@@ -86,19 +87,23 @@ export const TYPE_EFFECTIVENESS: Record<string, Record<string, number>> = {
   dark: { psychic: 1.6, ghost: 1.6, fighting: 0.625, dark: 0.625, fairy: 0.625 },
   ghost: { psychic: 1.6, ghost: 1.6, dark: 0.625, normal: 0.390625 },
   psychic: { fighting: 1.6, poison: 1.6, psychic: 0.625, steel: 0.625, dark: 0.390625 },
+  bug: { grass: 1.6, psychic: 1.6, dark: 1.6, fire: 0.625, fighting: 0.625, poison: 0.625, flying: 0.625, ghost: 0.625, steel: 0.625, fairy: 0.625 },
   rock: { fire: 1.6, ice: 1.6, flying: 1.6, bug: 1.6, fighting: 0.625, ground: 0.625, steel: 0.625 },
   ground: { fire: 1.6, electric: 1.6, poison: 1.6, rock: 1.6, steel: 1.6, grass: 0.625, bug: 0.625, flying: 0.390625 },
   poison: { grass: 1.6, fairy: 1.6, poison: 0.625, ground: 0.625, rock: 0.625, ghost: 0.625, steel: 0.390625 },
   fairy: { dragon: 1.6, fighting: 1.6, dark: 1.6, fire: 0.625, poison: 0.625, steel: 0.625 },
-  fighting: { normal: 1.6, ice: 1.6, rock: 1.6, dark: 1.6, steel: 1.6, flying: 0.625, psychic: 0.625, fairy: 0.625, ghost: 0.390625 }
+  fighting: { normal: 1.6, ice: 1.6, rock: 1.6, dark: 1.6, steel: 1.6, poison: 0.625, flying: 0.625, psychic: 0.625, bug: 0.625, fairy: 0.625, ghost: 0.390625 }
 };
 
 export function getTypeMultiplier(attackType: string, defTypes: string[]): number {
   let mult = 1.0;
-  const table = TYPE_EFFECTIVENESS[attackType.toLowerCase()];
+  const table = TYPE_EFFECTIVENESS[(attackType || "").toLowerCase().trim()];
   if (!table) return 1.0;
-  for (const defType of defTypes) {
-    const val = table[defType.toLowerCase()];
+  const uniqueDefTypes = Array.from(
+    new Set((defTypes || []).map((t) => (t || "").toLowerCase().trim()).filter((t) => t && t !== "none"))
+  );
+  for (const defType of uniqueDefTypes) {
+    const val = table[defType];
     if (val !== undefined) mult *= val;
   }
   return mult;
@@ -276,7 +281,7 @@ export const POKEMON_DATABASE: Record<string, PokemonStats> = {
     baseSpecies: "zygarde",
     formLabel: "Complete",
     types: ["dragon", "ground"],
-    baseStats: { atk: 169, def: 186, hp: 338 },
+    baseStats: { atk: 126, def: 148, hp: 266 },
     defaultFastMove: { name: "Dragon Tail", type: "dragon", turns: 3, power: 13, energyGain: 9 },
     chargedMoves: [
       { name: "Crunch", code: "Cr", type: "dark", power: 70, energyCost: 45 },
@@ -1626,7 +1631,34 @@ export function computeEffectiveStatsForLeague(
   const upper = league.toUpperCase();
   const isGreat = upper.includes("GREAT");
   const isUltra = upper.includes("ULTRA");
-  const leagueCap = isGreat ? 1500 : isUltra ? 2500 : 5500;
+  const leagueCap = isGreat ? 1500 : isUltra ? 2500 : 6000;
+  const actualIvs = parseIvTriplet(customIvs, league);
+  const withLeagueMoves = applyRankingMovesToPokemonStats(pokemon, league, isShadow);
+
+  if (pokemon.isRawBaseStats) {
+    const uAtk = Math.max(20, pokemon.baseStats.atk + actualIvs[0]);
+    const uDef = Math.max(20, pokemon.baseStats.def + actualIvs[1]);
+    const uHp = Math.max(20, pokemon.baseStats.hp + actualIvs[2]);
+    const maxCp50 = Math.max(10, Math.floor((uAtk * Math.sqrt(uDef * uHp) * 0.8403 * 0.8403) / 10));
+    const targetCp =
+      customCp && customCp >= 100 && customCp <= leagueCap + 100
+        ? customCp
+        : Math.min(maxCp50, leagueCap);
+    const cpm = Math.max(
+      0.094,
+      Math.min(0.8453, Math.sqrt((targetCp * 10) / (uAtk * Math.sqrt(uDef * uHp))))
+    );
+    return {
+      ...withLeagueMoves,
+      isRawBaseStats: false,
+      resolvedCp: targetCp,
+      baseStats: {
+        atk: Number((uAtk * cpm).toFixed(2)),
+        def: Number((uDef * cpm).toFixed(2)),
+        hp: Math.max(10, Math.floor(uHp * cpm))
+      }
+    };
+  }
 
   const refStatCp = Math.max(
     100,
@@ -1639,7 +1671,6 @@ export function computeEffectiveStatsForLeague(
   );
   const refCpm = refStatCp > 2500 ? 0.8403 : refStatCp > 1550 ? 0.7903 : 0.7317;
   const refIvs: [number, number, number] = refStatCp > 2500 ? [15, 15, 15] : [1, 15, 15];
-  const actualIvs = parseIvTriplet(customIvs, league);
 
   const adjAtkAtRef = Math.max(20, pokemon.baseStats.atk + (actualIvs[0] - refIvs[0]) * refCpm);
   const adjDefAtRef = Math.max(20, pokemon.baseStats.def + (actualIvs[1] - refIvs[1]) * refCpm);
@@ -1672,8 +1703,6 @@ export function computeEffectiveStatsForLeague(
 
   const effectiveRefCp = Math.max(100, refStatCp * ivCpRatio);
   const cpmScale = Math.max(0.35, Math.min(1.45, Math.sqrt(targetCp / effectiveRefCp)));
-
-  const withLeagueMoves = applyRankingMovesToPokemonStats(pokemon, league, isShadow);
 
   return {
     ...withLeagueMoves,
@@ -1771,7 +1800,80 @@ const CHARGED_MOVE_FALLBACK_STATS: Record<string, { type: string; power: number;
   "icy wind": { type: "ice", power: 60, energyCost: 45, code: "IW" },
   "rock tomb": { type: "rock", power: 70, energyCost: 60, code: "RT" },
   "sand tomb": { type: "ground", power: 25, energyCost: 40, code: "ST" },
-  "mirror shot": { type: "steel", power: 35, energyCost: 35, code: "MS" }
+  "mirror shot": { type: "steel", power: 35, energyCost: 35, code: "MS" },
+  "ice punch": { type: "ice", power: 55, energyCost: 40, code: "IP" },
+  "thunder punch": { type: "electric", power: 55, energyCost: 40, code: "TP" },
+  "fire punch": { type: "fire", power: 55, energyCost: 40, code: "FP" },
+  "rage fist": { type: "ghost", power: 50, energyCost: 35, code: "RF" },
+  "dynamic punch": { type: "fighting", power: 90, energyCost: 50, code: "DP" },
+  "cross chop": { type: "fighting", power: 50, energyCost: 35, code: "CC" },
+  "focus blast": { type: "fighting", power: 150, energyCost: 75, code: "FB" },
+  "sacred sword": { type: "fighting", power: 60, energyCost: 35, code: "SS" },
+  "secret sword": { type: "fighting", power: 70, energyCost: 35, code: "ScS" },
+  "power-up punch": { type: "fighting", power: 20, energyCost: 35, code: "PuP" },
+  "drill run": { type: "ground", power: 80, energyCost: 45, code: "DR" },
+  "earth power": { type: "ground", power: 90, energyCost: 55, code: "EP" },
+  "scorching sands": { type: "ground", power: 80, energyCost: 50, code: "SS" },
+  "high horsepower": { type: "ground", power: 100, energyCost: 60, code: "HH" },
+  "mud bomb": { type: "ground", power: 60, energyCost: 40, code: "MB" },
+  "bone club": { type: "ground", power: 40, energyCost: 35, code: "BC" },
+  "bulldoze": { type: "ground", power: 80, energyCost: 55, code: "BD" },
+  "sky attack": { type: "flying", power: 75, energyCost: 50, code: "SA" },
+  "brave bird": { type: "flying", power: 130, energyCost: 55, code: "BB" },
+  "fly": { type: "flying", power: 80, energyCost: 45, code: "Fly" },
+  "drill peck": { type: "flying", power: 65, energyCost: 40, code: "DP" },
+  "hurricane": { type: "flying", power: 110, energyCost: 65, code: "Hur" },
+  "acrobatics": { type: "flying", power: 110, energyCost: 55, code: "Acr" },
+  "air cutter": { type: "flying", power: 60, energyCost: 45, code: "AC" },
+  "feather dance": { type: "flying", power: 35, energyCost: 50, code: "FD" },
+  "avalanche": { type: "ice", power: 90, energyCost: 45, code: "Av" },
+  "blizzard": { type: "ice", power: 140, energyCost: 75, code: "Blz" },
+  "icicle spear": { type: "ice", power: 60, energyCost: 40, code: "IS" },
+  "triple axel": { type: "ice", power: 60, energyCost: 45, code: "TA" },
+  "frenzy plant": { type: "grass", power: 100, energyCost: 45, code: "FP" },
+  "leaf blade": { type: "grass", power: 70, energyCost: 35, code: "LB" },
+  "grass knot": { type: "grass", power: 90, energyCost: 50, code: "GK" },
+  "power whip": { type: "grass", power: 90, energyCost: 50, code: "PW" },
+  "seed bomb": { type: "grass", power: 65, energyCost: 45, code: "SB" },
+  "trailblaze": { type: "grass", power: 65, energyCost: 45, code: "TB" },
+  "solar beam": { type: "grass", power: 150, energyCost: 80, code: "SBm" },
+  "sludge bomb": { type: "poison", power: 80, energyCost: 50, code: "SlB" },
+  "sludge wave": { type: "poison", power: 110, energyCost: 65, code: "SWv" },
+  "acid spray": { type: "poison", power: 20, energyCost: 45, code: "AS" },
+  "poison fang": { type: "poison", power: 40, energyCost: 40, code: "PF" },
+  "gunk shot": { type: "poison", power: 130, energyCost: 75, code: "GS" },
+  "wild charge": { type: "electric", power: 100, energyCost: 45, code: "WC" },
+  "thunderbolt": { type: "electric", power: 90, energyCost: 55, code: "TB" },
+  "thunder": { type: "electric", power: 100, energyCost: 60, code: "Th" },
+  "zap cannon": { type: "electric", power: 150, energyCost: 80, code: "ZC" },
+  "discharge": { type: "electric", power: 65, energyCost: 45, code: "Dis" },
+  "aura wheel": { type: "electric", power: 100, energyCost: 45, code: "AW" },
+  "psychic": { type: "psychic", power: 75, energyCost: 55, code: "Psy" },
+  "psychic fangs": { type: "psychic", power: 40, energyCost: 35, code: "PF" },
+  "future sight": { type: "psychic", power: 120, energyCost: 65, code: "FS" },
+  "psycho boost": { type: "psychic", power: 70, energyCost: 35, code: "PB" },
+  "psystrike": { type: "psychic", power: 90, energyCost: 45, code: "PS" },
+  "shadow bone": { type: "ghost", power: 75, energyCost: 45, code: "SBn" },
+  "shadow punch": { type: "ghost", power: 55, energyCost: 35, code: "SP" },
+  "shadow sneak": { type: "ghost", power: 50, energyCost: 45, code: "SS" },
+  "ominous wind": { type: "ghost", power: 45, energyCost: 40, code: "OW" },
+  "megahorn": { type: "bug", power: 110, energyCost: 55, code: "MH" },
+  "lunge": { type: "bug", power: 55, energyCost: 45, code: "Lng" },
+  "x-scissor": { type: "bug", power: 65, energyCost: 40, code: "XS" },
+  "bug buzz": { type: "bug", power: 100, energyCost: 60, code: "BBz" },
+  "power gem": { type: "rock", power: 85, energyCost: 50, code: "PG" },
+  "ancient power": { type: "rock", power: 60, energyCost: 45, code: "AP" },
+  "rock wrecker": { type: "rock", power: 110, energyCost: 50, code: "RW" },
+  "meteor mash": { type: "steel", power: 100, energyCost: 50, code: "MM" },
+  "iron head": { type: "steel", power: 70, energyCost: 50, code: "IH" },
+  "flash cannon": { type: "steel", power: 110, energyCost: 70, code: "FC" },
+  "heavy slam": { type: "steel", power: 70, energyCost: 50, code: "HS" },
+  "dragon claw": { type: "dragon", power: 50, energyCost: 35, code: "DC" },
+  "breaking swipe": { type: "dragon", power: 50, energyCost: 35, code: "BS" },
+  "draco meteor": { type: "dragon", power: 150, energyCost: 65, code: "DM" },
+  "aqua tail": { type: "water", power: 55, energyCost: 35, code: "AT" },
+  "hydro pump": { type: "water", power: 130, energyCost: 75, code: "HP" },
+  "liquidation": { type: "water", power: 70, energyCost: 45, code: "Liq" }
 };
 
 const DYNAMIC_CHARGED_MOVE_MAP: Record<string, ChargedMove> = {};
@@ -1789,7 +1891,7 @@ function formatMoveIdToDisplayName(moveId: string): string {
     .join(" ");
 }
 
-function buildChargedMoveFromName(moveName: string, fallbackType: string, existingMoves: ChargedMove[]): ChargedMove {
+export function buildChargedMoveFromName(moveName: string, fallbackType: string, existingMoves: ChargedMove[]): ChargedMove {
   const lower = moveName.toLowerCase().trim();
   const existing = existingMoves.find((m) => m.name.toLowerCase() === lower);
   if (existing) return existing;
@@ -2055,8 +2157,6 @@ export async function syncPvPokeDataAndRankings(): Promise<{
       if (displayName.endsWith(" (Shadow)")) {
         displayName = "Shadow " + displayName.replace(" (Shadow)", "").trim();
       }
-      if (POKEMON_DATABASE[displayName]) continue;
-
       const rawTypes = Array.isArray(p.types)
         ? p.types.filter((t: unknown): t is string => typeof t === "string" && t.toLowerCase() !== "none").map((t: string) => t.toLowerCase())
         : ["normal"];
@@ -2065,6 +2165,16 @@ export async function syncPvPokeDataAndRankings(): Promise<{
       const atk = typeof statsObj.atk === "number" ? statsObj.atk : 180;
       const def = typeof statsObj.def === "number" ? statsObj.def : 180;
       const hp = typeof statsObj.hp === "number" ? statsObj.hp : 180;
+
+      if (POKEMON_DATABASE[displayName]) {
+        POKEMON_DATABASE[displayName] = {
+          ...POKEMON_DATABASE[displayName],
+          types,
+          baseStats: { atk, def, hp },
+          isRawBaseStats: true
+        };
+        continue;
+      }
 
       const rankEntry =
         LIVE_RANKINGS_MAP["GREAT LEAGUE"]?.get(speciesId.toLowerCase()) ||
@@ -2133,6 +2243,7 @@ export async function syncPvPokeDataAndRankings(): Promise<{
         formLabel,
         types,
         baseStats: { atk, def, hp },
+        isRawBaseStats: true,
         defaultFastMove: {
           name: fastInfo.name,
           type: fastInfo.type,
@@ -3100,16 +3211,8 @@ export function calculateMyMoveTimingRows(
 
   const oppSlots = scannedOpponentNames.length > 0 ? scannedOpponentNames : [oppStats.name];
 
-  return customMoves.map((mName, idx) => {
-    const existing =
-      userStats.chargedMoves.find((m) => m.name.toLowerCase() === mName.toLowerCase()) ||
-      userStats.chargedMoves[idx] || {
-        name: mName,
-        code: mName.slice(0, 2),
-        type: userStats.types[0],
-        power: 80,
-        energyCost: 50
-      };
+  return customMoves.map((mName) => {
+    const existing = buildChargedMoveFromName(mName, userStats.types[0], userStats.chargedMoves);
 
     const mEnergy = existing.energyCost || 50;
     const myTapsNeeded = Math.max(1, Math.ceil(mEnergy / userFastEnergy));

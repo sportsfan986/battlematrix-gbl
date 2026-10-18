@@ -902,7 +902,7 @@ class OverlayService : LifecycleService() {
             "Dewgong" to "Blizzard",
             "Lapras" to "Blizzard",
             "Sandslash (Alolan)" to "Blizzard",
-            "Marowak (Alolan)" to "FirePunch",
+            "Marowak (Alolan)" to "Fire Punch",
             "Trevenant" to "Foul Play",
             "Jellicent" to "Ice Beam",
             "Drifblim" to "Mystical Fire",
@@ -1111,8 +1111,34 @@ class OverlayService : LifecycleService() {
             "Bulldoze" to MoveStats("Bulldoze", "ground", 80, 55),
             "Air Cutter" to MoveStats("Air Cutter", "flying", 60, 55),
             "Rock Tomb" to MoveStats("Rock Tomb", "rock", 70, 60),
-            "Sand Tomb" to MoveStats("Sand Tomb", "ground", 25, 40)
+            "Sand Tomb" to MoveStats("Sand Tomb", "ground", 25, 40),
+            "Thunder Punch" to MoveStats("Thunder Punch", "electric", 55, 40),
+            "Flamethrower" to MoveStats("Flamethrower", "fire", 90, 55),
+            "Fire Blast" to MoveStats("Fire Blast", "fire", 140, 80),
+            "Last Resort" to MoveStats("Last Resort", "normal", 90, 55),
+            "Brine" to MoveStats("Brine", "water", 60, 50),
+            "Dig" to MoveStats("Dig", "ground", 80, 50),
+            "Shadow Punch" to MoveStats("Shadow Punch", "ghost", 55, 35),
+            "Spirit Shackle" to MoveStats("Spirit Shackle", "ghost", 70, 40),
+            "Darkest Lariat" to MoveStats("Darkest Lariat", "dark", 120, 60),
+            "Power-Up Punch" to MoveStats("Power-Up Punch", "fighting", 20, 35),
+            "Bubble Beam" to MoveStats("Bubble Beam", "water", 25, 40),
+            "Bug Buzz" to MoveStats("Bug Buzz", "bug", 100, 60),
+            "Leaf Tornado" to MoveStats("Leaf Tornado", "grass", 45, 40),
+            "Stomp" to MoveStats("Stomp", "normal", 55, 40),
+            "Petal Blizzard" to MoveStats("Petal Blizzard", "grass", 110, 65),
+            "Mystical Fire" to MoveStats("Mystical Fire", "fire", 60, 45),
+            "Gyro Ball" to MoveStats("Gyro Ball", "steel", 80, 60)
         )
+
+        fun resolveChargedMoveStatsStatic(moveName: String, fallbackType: String = "normal"): MoveStats {
+            val trimmed = moveName.trim()
+            DYNAMIC_MOVE_DATABASE[trimmed]?.let { return it }
+            DYNAMIC_MOVE_DATABASE.entries.firstOrNull { it.key.equals(trimmed, ignoreCase = true) }?.value?.let { return it }
+            MOVE_DATABASE[trimmed]?.let { return it }
+            MOVE_DATABASE.entries.firstOrNull { it.key.equals(trimmed, ignoreCase = true) }?.value?.let { return it }
+            return MoveStats(trimmed, fallbackType.lowercase().ifBlank { "normal" }, 80, 50)
+        }
 
         val FAST_MOVE_TURNS: Map<String, Int> = mapOf(
             "ember" to 2,
@@ -1220,7 +1246,7 @@ class OverlayService : LifecycleService() {
             PokemonMeta("Fearow", "fearow", "fearow", "Base", listOf("normal", "flying"), 1500, "Peck", 2, "Drill Run", "Drill Peck", 42, 34, atk = 131.0, def = 96.0, hp = 120, glRank = 85, ulRank = 250, mlRank = 420),
             PokemonMeta("Shadow Pidgeot", "pidgeot_shadow", "pidgeot", "Shadow", listOf("normal", "flying"), 1490, "Gust", 4, "Twister", "Brave Bird", 28, 62, atk = 117.0, def = 112.0, hp = 142, glRank = 28, ulRank = 18, mlRank = 310),
             PokemonMeta("Pidgeot", "pidgeot", "pidgeot", "Base", listOf("normal", "flying"), 1490, "Gust", 4, "Twister", "Brave Bird", 24, 52, atk = 117.0, def = 112.0, hp = 142, glRank = 32, ulRank = 15, mlRank = 300),
-            PokemonMeta("Zygarde", "zygarde_complete", "zygarde", "Complete", listOf("dragon", "ground"), 2472, "Dragon Tail", 3, "Crunch", "Earthquake", 32, 52, atk = 169.0, def = 186.0, hp = 338, glRank = 80, ulRank = 1, mlRank = 5),
+            PokemonMeta("Zygarde", "zygarde_complete", "zygarde", "Complete", listOf("dragon", "ground"), 2472, "Dragon Tail", 3, "Crunch", "Earthquake", 32, 52, atk = 126.0, def = 148.0, hp = 266, glRank = 80, ulRank = 1, mlRank = 5),
             PokemonMeta("Corviknight", "corviknight", "corviknight", "Base", listOf("flying", "steel"), 2499, "Sand Attack", 1, "Air Cutter", "Iron Head", 32, 34, atk = 148.0, def = 178.0, hp = 202, glRank = 14, ulRank = 7, mlRank = 120, chargedMove3 = "Sky Attack"),
             PokemonMeta("Mimikyu", "mimikyu", "mimikyu", "Disguised", listOf("ghost", "fairy"), 2497, "Shadow Claw", 2, "Play Rough", "Shadow Sneak", 44, 28, atk = 162.0, def = 184.0, hp = 138, glRank = 40, ulRank = 25, mlRank = 210),
 
@@ -1350,6 +1376,8 @@ class OverlayService : LifecycleService() {
         val DYNAMIC_MOVE_DATABASE = java.util.concurrent.ConcurrentHashMap<String, MoveStats>()
         val DYNAMIC_FAST_TURNS = java.util.concurrent.ConcurrentHashMap<String, Int>()
         val DYNAMIC_FAST_ENERGY = java.util.concurrent.ConcurrentHashMap<String, Int>()
+        val DYNAMIC_FAST_POWER = java.util.concurrent.ConcurrentHashMap<String, Int>()
+        val DYNAMIC_FAST_TYPE = java.util.concurrent.ConcurrentHashMap<String, String>()
 
         val FAST_MOVE_ENERGY: Map<String, Int> = mapOf(
             "dragon breath" to 3,
@@ -1561,14 +1589,32 @@ class OverlayService : LifecycleService() {
             "Torch Song" to 45,
             "Super Power" to 40,
             "Rock Tomb" to 60,
-            "Sand Tomb" to 40
+            "Sand Tomb" to 40,
+            "Thunder Punch" to 40,
+            "Flamethrower" to 55,
+            "Fire Blast" to 80,
+            "Last Resort" to 55,
+            "Brine" to 50,
+            "Dig" to 50,
+            "Shadow Punch" to 35,
+            "Spirit Shackle" to 40,
+            "Darkest Lariat" to 60,
+            "Power-Up Punch" to 35,
+            "Bubble Beam" to 40,
+            "Bug Buzz" to 60,
+            "Leaf Tornado" to 40,
+            "Stomp" to 40,
+            "Petal Blizzard" to 65,
+            "Mystical Fire" to 45,
+            "Gyro Ball" to 60
         )
 
         fun getAllPokemonMeta(): List<PokemonMeta> {
             return if (DYNAMIC_POKEMON_DATABASE.isEmpty()) {
                 POKEMON_META_DATABASE
             } else {
-                POKEMON_META_DATABASE + DYNAMIC_POKEMON_DATABASE
+                val dynIds = DYNAMIC_POKEMON_DATABASE.map { it.speciesId.lowercase() }.toSet()
+                DYNAMIC_POKEMON_DATABASE + POKEMON_META_DATABASE.filter { !dynIds.contains(it.speciesId.lowercase()) }
             }
         }
 
@@ -2123,14 +2169,15 @@ class OverlayService : LifecycleService() {
                 )
             }
 
-            // Static POKEMON_META_DATABASE entries have effective stats at meta.defaultCp
+            // Static POKEMON_META_DATABASE entries: derive true reference CP from actual (atk, def, hp) stat product
+            val statRefCp = floor(meta.atk * kotlin.math.sqrt(meta.def * meta.hp.toDouble()) / 10.0).coerceAtLeast(100.0)
             val refCpm = when {
-                meta.defaultCp > 2500 -> 0.8403
-                meta.defaultCp > 1500 -> 0.7903
+                statRefCp > 2500.0 -> 0.8403
+                statRefCp > 1550.0 -> 0.7903
                 else -> 0.7317
             }
             val refIvs = when {
-                meta.defaultCp > 2500 -> Triple(15, 15, 15)
+                statRefCp > 2500.0 -> Triple(15, 15, 15)
                 else -> Triple(1, 15, 15)
             }
 
@@ -2147,9 +2194,9 @@ class OverlayService : LifecycleService() {
                 isUltra -> when {
                     meta.defaultCp in 1501..2500 -> meta.defaultCp
                     meta.defaultCp > 2500 -> 2496
-                    else -> min(2500, (meta.defaultCp * 1.65).roundToInt())
+                    else -> min(2500, (statRefCp * 1.65).roundToInt())
                 }
-                else -> if (meta.defaultCp > 2500) meta.defaultCp else (meta.defaultCp * 1.45).roundToInt().coerceAtMost(4720)
+                else -> if (meta.defaultCp > 2500) meta.defaultCp else (statRefCp * 1.45).roundToInt().coerceAtMost(4720)
             }
 
             val targetCp = if (customCp != null && customCp in 100..(leagueCap + 100)) {
@@ -2160,7 +2207,7 @@ class OverlayService : LifecycleService() {
                 defaultLeagueCp
             }
 
-            val effectiveRefCp = (meta.defaultCp.toDouble() * ivCpRatio).coerceAtLeast(100.0)
+            val effectiveRefCp = (statRefCp * ivCpRatio).coerceAtLeast(100.0)
             val cpmScale = kotlin.math.sqrt(targetCp.toDouble() / effectiveRefCp).coerceIn(0.35, 1.45)
 
             return meta.copy(
@@ -2196,6 +2243,10 @@ class OverlayService : LifecycleService() {
                                 DYNAMIC_FAST_TURNS[moveId.lowercase()] = turns
                                 DYNAMIC_FAST_ENERGY[name.lowercase()] = energyGain
                                 DYNAMIC_FAST_ENERGY[moveId.lowercase()] = energyGain
+                                DYNAMIC_FAST_POWER[name.lowercase()] = power
+                                DYNAMIC_FAST_POWER[moveId.lowercase()] = power
+                                DYNAMIC_FAST_TYPE[name.lowercase()] = type
+                                DYNAMIC_FAST_TYPE[moveId.lowercase()] = type
                             } else {
                                 DYNAMIC_MOVE_DATABASE[name] = MoveStats(name, type, power, energyCost)
                             }
@@ -2205,14 +2256,14 @@ class OverlayService : LifecycleService() {
 
                 val pokemonArr: JsonArray? = root.optJsonArray("pokemon")
                 if (pokemonArr != null) {
-                    val existingIds = POKEMON_META_DATABASE.map { it.speciesId.lowercase() }.toSet()
+                    val existingById = POKEMON_META_DATABASE.associateBy { it.speciesId.lowercase() }
                     val parsedList = mutableListOf<PokemonMeta>()
                     for (el in pokemonArr) {
                         try {
                             if (!el.isJsonObject) continue
                             val obj = el.asJsonObject
                             val speciesId = obj.optString("speciesId")?.takeIf { it.isNotBlank() } ?: continue
-                            if (existingIds.contains(speciesId.lowercase())) continue
+                            val existingStatic = existingById[speciesId.lowercase()]
 
                             val rawSpeciesName = obj.optString("speciesName")?.takeIf { it.isNotBlank() } ?: continue
                             val speciesName = if (rawSpeciesName.endsWith(" (Shadow)")) {
@@ -2325,12 +2376,12 @@ class OverlayService : LifecycleService() {
                             val c4Name = if (c4Id.isNotBlank()) formatMoveIdDisplay(c4Id) else ""
 
                             val baseMeta = PokemonMeta(
-                                name = speciesName,
+                                name = existingStatic?.name ?: speciesName,
                                 speciesId = speciesId,
-                                baseSpecies = baseSpecies,
-                                formLabel = formLabel,
+                                baseSpecies = existingStatic?.baseSpecies ?: baseSpecies,
+                                formLabel = existingStatic?.formLabel ?: formLabel,
                                 types = types,
-                                defaultCp = 2500,
+                                defaultCp = existingStatic?.defaultCp ?: 2500,
                                 defaultFastMove = fastMoveName,
                                 fastTurns = fastTurns,
                                 chargedMove1 = c1Name,
@@ -2338,6 +2389,9 @@ class OverlayService : LifecycleService() {
                                 atk = atk,
                                 def = def,
                                 hp = hp,
+                                glRank = existingStatic?.glRank ?: 500,
+                                ulRank = existingStatic?.ulRank ?: 500,
+                                mlRank = existingStatic?.mlRank ?: 500,
                                 chargedMove3 = c3Name,
                                 chargedMove4 = c4Name,
                                 isRawBaseStats = true,
@@ -2355,8 +2409,8 @@ class OverlayService : LifecycleService() {
 
         private fun getTypeEffectivenessStatic(moveType: String, defenderTypes: List<String>): Double {
             var multiplier = 1.0
-            val atk = moveType.lowercase()
-            for (def in defenderTypes.map { it.lowercase() }) {
+            val atk = moveType.lowercase().trim()
+            for (def in defenderTypes.map { it.lowercase().trim() }.filter { it.isNotEmpty() && it != "none" }.distinct()) {
                 val eff = when (atk) {
                     "normal" -> when (def) { "rock", "steel" -> 0.625; "ghost" -> 0.390625; else -> 1.0 }
                     "fire" -> when (def) { "grass", "ice", "bug", "steel" -> 1.6; "fire", "water", "rock", "dragon" -> 0.625; else -> 1.0 }
@@ -2411,9 +2465,7 @@ class OverlayService : LifecycleService() {
             isAttackerShadow: Boolean,
             isDefenderShadow: Boolean
         ): Int {
-            val moveStats = MOVE_DATABASE[moveName]
-                ?: DYNAMIC_MOVE_DATABASE[moveName]
-                ?: MoveStats(moveName, attacker.types.firstOrNull() ?: "normal", 80)
+            val moveStats = resolveChargedMoveStatsStatic(moveName, attacker.types.firstOrNull() ?: "normal")
             val stab = if (attacker.types.any { it.equals(moveStats.type, ignoreCase = true) }) 1.2 else 1.0
             val typeEff = getTypeEffectivenessStatic(moveStats.type, defender.types)
             val effectiveAtk = attacker.atk * (if (isAttackerShadow) 1.2 else 1.0)
@@ -2452,8 +2504,8 @@ class OverlayService : LifecycleService() {
             val bestOppCharged = max(oppC1Pct, oppC2Pct)
             val minOppCharged = min(oppC1Pct, oppC2Pct)
 
-            val userFastType = fastMoveTypeMapStatic[uFast.lowercase()] ?: myMeta.types.firstOrNull() ?: "normal"
-            val oppFastType = fastMoveTypeMapStatic[oppMeta.defaultFastMove.lowercase()] ?: oppMeta.types.firstOrNull() ?: "normal"
+            val userFastType = DYNAMIC_FAST_TYPE[uFast.lowercase()] ?: fastMoveTypeMapStatic[uFast.lowercase()] ?: myMeta.types.firstOrNull() ?: "normal"
+            val oppFastType = DYNAMIC_FAST_TYPE[oppMeta.defaultFastMove.lowercase()] ?: fastMoveTypeMapStatic[oppMeta.defaultFastMove.lowercase()] ?: oppMeta.types.firstOrNull() ?: "normal"
             val userFastEff = getTypeEffectivenessStatic(userFastType, oppMeta.types)
             val oppFastEff = getTypeEffectivenessStatic(oppFastType, myMeta.types)
 
@@ -4115,6 +4167,9 @@ class OverlayService : LifecycleService() {
         availableOpponentForms = FormResolver.getVariantsForSpecies(newBaseSpecies, activeLeague)
         currentFormIndex = availableOpponentForms.indexOfFirst { it.name == matched.name }.coerceAtLeast(0)
         activeOpponentName = matched.name
+        if (pokemonName.contains("Shadow", ignoreCase = true)) {
+            manualShadowOverrides[newBaseSpecies] = true
+        }
         isOpponentShadow = manualShadowOverrides[newBaseSpecies] ?: pokemonName.contains("Shadow", ignoreCase = true)
         upsertDetectedOpponentBySpecies(matched.name, newBaseSpecies)
         recalculateAndPushBattleData()
@@ -4368,8 +4423,8 @@ class OverlayService : LifecycleService() {
      */
     private fun getTypeEffectiveness(moveType: String, defenderTypes: List<String>): Double {
         var multiplier = 1.0
-        val atk = moveType.lowercase()
-        for (def in defenderTypes.map { it.lowercase() }) {
+        val atk = moveType.lowercase().trim()
+        for (def in defenderTypes.map { it.lowercase().trim() }.filter { it.isNotEmpty() && it != "none" }.distinct()) {
             val eff = when (atk) {
                 "normal" -> when (def) { "rock", "steel" -> 0.625; "ghost" -> 0.390625; else -> 1.0 }
                 "fire" -> when (def) { "grass", "ice", "bug", "steel" -> 1.6; "fire", "water", "rock", "dragon" -> 0.625; else -> 1.0 }
@@ -4749,8 +4804,8 @@ class OverlayService : LifecycleService() {
         isDefenderShadow: Boolean
     ): Int {
         val key = fastMoveName.lowercase().trim()
-        val power = fastMovePowerMap[key] ?: (fastTurns * 3).coerceAtLeast(3)
-        val moveType = fastMoveTypeMap[key] ?: attacker.types.firstOrNull() ?: "normal"
+        val power = DYNAMIC_FAST_POWER[key] ?: fastMovePowerMap[key] ?: (fastTurns * 3).coerceAtLeast(3)
+        val moveType = DYNAMIC_FAST_TYPE[key] ?: fastMoveTypeMap[key] ?: attacker.types.firstOrNull() ?: "normal"
         val stab = if (attacker.types.any { it.equals(moveType, ignoreCase = true) }) 1.2 else 1.0
         val typeEff = getTypeEffectiveness(moveType, defender.types)
 
@@ -4774,9 +4829,7 @@ class OverlayService : LifecycleService() {
         isAttackerShadow: Boolean,
         isDefenderShadow: Boolean
     ): Int {
-        val moveStats = MOVE_DATABASE[moveName]
-            ?: DYNAMIC_MOVE_DATABASE[moveName]
-            ?: MoveStats(moveName, attacker.types.firstOrNull() ?: "normal", 80)
+        val moveStats = resolveChargedMoveStatsStatic(moveName, attacker.types.firstOrNull() ?: "normal")
         val stab = if (attacker.types.any { it.equals(moveStats.type, ignoreCase = true) }) 1.2 else 1.0
         val typeEff = getTypeEffectiveness(moveStats.type, defender.types)
 
@@ -4849,7 +4902,10 @@ class OverlayService : LifecycleService() {
 
         val activeLeague = currentPreset?.league ?: "MASTER LEAGUE"
         val isUserShadow = activePlayerName.contains("Shadow", ignoreCase = true)
-        val oppMeta = computeEffectiveCombatStats(getPokemonMeta(activeOpponentName, activeLeague, isOpponentShadow), activeLeague)
+        val activeBaseKey = FormResolver.extractBaseSpecies(activeOpponentName).lowercase()
+        val isActiveOppShadow = manualShadowOverrides[activeBaseKey] ?: (isOpponentShadow || activeOpponentName.contains("Shadow", ignoreCase = true))
+        isOpponentShadow = isActiveOppShadow
+        val oppMeta = computeEffectiveCombatStats(getPokemonMeta(activeOpponentName, activeLeague, isActiveOppShadow), activeLeague)
         val userMeta = computeEffectiveCombatStats(
             getPokemonMeta(activePlayerName, activeLeague, isUserShadow),
             activeLeague,
@@ -5058,17 +5114,13 @@ class OverlayService : LifecycleService() {
 
         // Compute shared 1st-throw maximum turn horizon across all 5 moves (Opponent's 3 + Player's 2)
         val oppFirstTurns = oppChargedMoveNames.map { moveName ->
-            val mStats = MOVE_DATABASE[moveName]
-                ?: DYNAMIC_MOVE_DATABASE[moveName]
-                ?: MoveStats(moveName, oppMeta.types.firstOrNull() ?: "normal", 80, 50)
+            val mStats = resolveChargedMoveStatsStatic(moveName, oppMeta.types.firstOrNull() ?: "normal")
             val mEnergy = MOVE_ENERGY_COST[moveName] ?: mStats.energyCost
             val fasts = kotlin.math.ceil(mEnergy.toDouble() / oppFastEnergy.toDouble()).toInt().coerceAtLeast(1)
             fasts * oppFastTurns
         }
         val myFirstTurns = myChargedMoveNames.map { mName ->
-            val mStats = MOVE_DATABASE[mName]
-                ?: DYNAMIC_MOVE_DATABASE[mName]
-                ?: MoveStats(mName, userMeta.types.firstOrNull() ?: "normal", 80, 50)
+            val mStats = resolveChargedMoveStatsStatic(mName, userMeta.types.firstOrNull() ?: "normal")
             val mEnergy = MOVE_ENERGY_COST[mName] ?: mStats.energyCost
             val fasts = kotlin.math.ceil(mEnergy.toDouble() / userFastEnergy.toDouble()).toInt().coerceAtLeast(1)
             fasts * userFastTurns
@@ -5078,9 +5130,7 @@ class OverlayService : LifecycleService() {
         // Precompute opponent ready turns across up to 3 cycles for CMP tie evaluation
         val oppReadyTurnsSet = mutableSetOf<Int>()
         for (moveName in oppChargedMoveNames) {
-            val mStats = MOVE_DATABASE[moveName]
-                ?: DYNAMIC_MOVE_DATABASE[moveName]
-                ?: MoveStats(moveName, oppMeta.types.firstOrNull() ?: "normal", 80, 50)
+            val mStats = resolveChargedMoveStatsStatic(moveName, oppMeta.types.firstOrNull() ?: "normal")
             val mEnergy = MOVE_ENERGY_COST[moveName] ?: mStats.energyCost
             var leftE = 0
             var cumF = 0
@@ -5095,9 +5145,7 @@ class OverlayService : LifecycleService() {
 
         // Build per-move timing, catch/CMP, multi-cycle turn-aligned segments & 3-column team threat rows
         val oppMoveTimingRows = oppChargedMoveNames.map { moveName ->
-            val mStats = MOVE_DATABASE[moveName]
-                ?: DYNAMIC_MOVE_DATABASE[moveName]
-                ?: MoveStats(moveName, oppMeta.types.firstOrNull() ?: "normal", 80, 50)
+            val mStats = resolveChargedMoveStatsStatic(moveName, oppMeta.types.firstOrNull() ?: "normal")
             val mEnergy = MOVE_ENERGY_COST[moveName] ?: mStats.energyCost
             val oppFasts = kotlin.math.ceil(mEnergy.toDouble() / oppFastEnergy.toDouble()).toInt().coerceAtLeast(1)
             val oppReadyTurn = oppFasts * oppFastTurns
@@ -5174,8 +5222,9 @@ class OverlayService : LifecycleService() {
             val teamSlots = listOf(p1, p2, p3)
             val teamDamages = teamNames.mapIndexed { tIdx, tName ->
                 val tSlot = teamSlots.getOrNull(tIdx)
+                val isTeamShad = tName.contains("Shadow", ignoreCase = true)
                 val tMeta = computeEffectiveCombatStats(
-                    getPokemonMeta(tName),
+                    getPokemonMeta(tName, activeLeague, isTeamShad),
                     activeLeague,
                     tSlot?.cp,
                     tSlot?.ivs
@@ -5231,9 +5280,7 @@ class OverlayService : LifecycleService() {
         val oppFirstReadyTaps = oppMoveTimingRows.mapNotNull { it["myTapAtReady"] as? Int }.toSet()
 
         val myMoveTimingRows = myChargedMoveNames.map { mName ->
-            val mStats = MOVE_DATABASE[mName]
-                ?: DYNAMIC_MOVE_DATABASE[mName]
-                ?: MoveStats(mName, userMeta.types.firstOrNull() ?: "normal", 80, 50)
+            val mStats = resolveChargedMoveStatsStatic(mName, userMeta.types.firstOrNull() ?: "normal")
             val mEnergy = MOVE_ENERGY_COST[mName] ?: mStats.energyCost
             val myTapsNeeded = kotlin.math.ceil(mEnergy.toDouble() / userFastEnergy.toDouble()).toInt().coerceAtLeast(1)
             val myReadyTurn = myTapsNeeded * userFastTurns
@@ -5440,13 +5487,13 @@ class OverlayService : LifecycleService() {
         fun evaluateSlot(slot: TeamMember?, fallbackName: String): String {
             val activeLeague = currentPreset?.league ?: "MASTER LEAGUE"
             val userName = slot?.name ?: fallbackName
+            val isUserShad = userName.contains("Shadow", ignoreCase = true)
             val userMeta = computeEffectiveCombatStats(
-                getPokemonMeta(userName),
+                getPokemonMeta(userName, activeLeague, isUserShad),
                 activeLeague,
                 slot?.cp,
                 slot?.ivs
             )
-            val isUserShad = userName.contains("Shadow", ignoreCase = true)
 
             val uMove1 = slot?.chargedMove1?.takeIf { it.isNotBlank() } ?: userMeta.chargedMove1
             val uMove2 = slot?.chargedMove2?.takeIf { it.isNotBlank() } ?: userMeta.chargedMove2
@@ -5462,8 +5509,10 @@ class OverlayService : LifecycleService() {
             val minOppCharged = min(oppC1Pct, oppC2Pct)
 
             // Fast move type effectiveness ratio
-            val userFastType = userMeta.types.firstOrNull() ?: "normal"
-            val oppFastType = oppMeta.types.firstOrNull() ?: "normal"
+            val uFastKey = (slot?.fastMove?.takeIf { it.isNotBlank() } ?: userMeta.defaultFastMove).lowercase().trim()
+            val oFastKey = oppMeta.defaultFastMove.lowercase().trim()
+            val userFastType = DYNAMIC_FAST_TYPE[uFastKey] ?: fastMoveTypeMap[uFastKey] ?: userMeta.types.firstOrNull() ?: "normal"
+            val oppFastType = DYNAMIC_FAST_TYPE[oFastKey] ?: fastMoveTypeMap[oFastKey] ?: oppMeta.types.firstOrNull() ?: "normal"
             val userFastEff = getTypeEffectiveness(userFastType, oppMeta.types)
             val oppFastEff = getTypeEffectiveness(oppFastType, userMeta.types)
 
