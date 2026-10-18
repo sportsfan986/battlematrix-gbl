@@ -1244,13 +1244,57 @@
         }
 
         let startBattleMenuOpen = false;
+        let startBattleAutoCloseTimer = null;
+
+        function clearOverlayMatrixImmediate(preservedLead) {
+            battleData.activeOpponent = "Waiting...";
+            battleData.activeOpponentFastMove = "1 Hz OCR Active";
+            battleData.activeOpponentTurns = 0;
+            battleData.oppFastTelemetry = "1 Hz OCR Active";
+            battleData.isOpponentShadow = false;
+            battleData.currentFormLabel = "Base";
+            battleData.availableForms = [];
+            battleData.scannedOpponents = [];
+            battleData.oppMoveTimingRows = [];
+            battleData.myMoveTimingRows = [];
+            battleData.activeOpponentSlotIndex = 0;
+            battleData.leadMatchup = preservedLead || "NEUTRAL";
+            battleData.throwAlignmentText = "—";
+            battleData.throwHorizonText = "—";
+            render();
+        }
 
         function toggleStartBattleMenu() {
+            const preservedLead = battleData.leadMatchup || "NEUTRAL";
+
+            // Immediately reset opponent list and empty the matrix on the first press of Start Battle
+            clearOverlayMatrixImmediate(preservedLead);
+            if (window.AndroidOverlay && window.AndroidOverlay.startNewBattle) {
+                window.AndroidOverlay.startNewBattle();
+            }
+
+            const btn = document.getElementById("btn-start-battle");
+            if (btn) {
+                btn.textContent = "↺ New Battle!";
+                setTimeout(() => {
+                    btn.textContent = "⚔️ Start Battle";
+                }, 900);
+            }
+
             startBattleMenuOpen = !startBattleMenuOpen;
             const menuEl = document.getElementById("start-battle-menu");
             if (menuEl) {
                 if (startBattleMenuOpen) menuEl.classList.remove("hidden");
                 else menuEl.classList.add("hidden");
+            }
+            if (startBattleAutoCloseTimer) {
+                clearTimeout(startBattleAutoCloseTimer);
+                startBattleAutoCloseTimer = null;
+            }
+            if (startBattleMenuOpen) {
+                startBattleAutoCloseTimer = setTimeout(() => {
+                    if (startBattleMenuOpen) closeStartBattleMenu();
+                }, 4500);
             }
             updateLeadMatchupButtonUi();
             setTimeout(notifyHeight, 25);
@@ -1258,6 +1302,10 @@
 
         function closeStartBattleMenu() {
             startBattleMenuOpen = false;
+            if (startBattleAutoCloseTimer) {
+                clearTimeout(startBattleAutoCloseTimer);
+                startBattleAutoCloseTimer = null;
+            }
             const menuEl = document.getElementById("start-battle-menu");
             if (menuEl) menuEl.classList.add("hidden");
             setTimeout(notifyHeight, 25);
@@ -1284,6 +1332,12 @@
             const next = cur === "FAVORABLE" ? "NEUTRAL" : (cur === "NEUTRAL" ? "NEGATIVE" : "FAVORABLE");
             battleData.leadMatchup = next;
             updateLeadMatchupButtonUi();
+            if (startBattleAutoCloseTimer) {
+                clearTimeout(startBattleAutoCloseTimer);
+                startBattleAutoCloseTimer = setTimeout(() => {
+                    if (startBattleMenuOpen) closeStartBattleMenu();
+                }, 4500);
+            }
             if (window.AndroidOverlay && window.AndroidOverlay.setLeadMatchupOverride) {
                 window.AndroidOverlay.setLeadMatchupOverride(next);
             }
@@ -1292,6 +1346,7 @@
         function logBattleFromOverlay(resultStr) {
             const lead = (battleData.leadMatchup || "NEUTRAL").toUpperCase();
             closeStartBattleMenu();
+            clearOverlayMatrixImmediate("NEUTRAL");
             const btn = document.getElementById("btn-start-battle");
             if (btn) {
                 btn.textContent = resultStr === "WIN" ? "✓ WIN Logged" : "✓ LOSS Logged";
@@ -1324,21 +1379,7 @@
                 }, 900);
             }
 
-            battleData.activeOpponent = "Waiting...";
-            battleData.activeOpponentFastMove = "1 Hz OCR Active";
-            battleData.activeOpponentTurns = 0;
-            battleData.oppFastTelemetry = "1 Hz OCR Active";
-            battleData.isOpponentShadow = false;
-            battleData.currentFormLabel = "Base";
-            battleData.availableForms = [];
-            battleData.scannedOpponents = [];
-            battleData.oppMoveTimingRows = [];
-            battleData.myMoveTimingRows = [];
-            battleData.activeOpponentSlotIndex = 0;
-            battleData.leadMatchup = "NEUTRAL";
-            battleData.throwAlignmentText = "—";
-            battleData.throwHorizonText = "—";
-            render();
+            clearOverlayMatrixImmediate("NEUTRAL");
 
             if (window.AndroidOverlay && window.AndroidOverlay.startNewBattle) {
                 window.AndroidOverlay.startNewBattle();
@@ -1516,6 +1557,9 @@
                     `;
                 }
             } else {
+                if (startBattleMenuOpen) {
+                    closeStartBattleMenu();
+                }
                 const shadPrefix = battleData.isOpponentShadow ? "SHADOW " : "";
                 if (oppNameEl) oppNameEl.textContent = "VS " + shadPrefix + (battleData.activeOpponent || "").toUpperCase();
 

@@ -584,6 +584,8 @@ export default function App() {
 
   // Scanned Opponents (Fixed Discovery Order: Slot 0 = 1st Seen, Slot 1 = 2nd Seen, Slot 2 = 3rd Seen)
   const [scannedOpponents, setScannedOpponents] = useState<string[]>(['Zacian (Crowned)', 'Yveltal', 'Entei']);
+  const [lastClearedOpponents, setLastClearedOpponents] = useState<string[]>([]);
+  const [lastClearedLeadMatchup, setLastClearedLeadMatchup] = useState<'FAVORABLE' | 'NEUTRAL' | 'NEGATIVE'>('NEUTRAL');
   const [activeOpponentSlotIndex, setActiveOpponentSlotIndex] = useState<number>(0);
   const [isWaitingOpponent, setIsWaitingOpponent] = useState<boolean>(false);
   const [showOpponentPicker, setShowOpponentPicker] = useState<boolean>(false);
@@ -756,6 +758,9 @@ export default function App() {
 
   // Actions for Overlay: Restart without logging (clears opponents while keeping 1 Hz OCR active)
   const handleStartBattle = () => {
+    if (!isWaitingOpponent && scannedOpponents.length > 0) {
+      setLastClearedOpponents([...scannedOpponents]);
+    }
     setScannedOpponents([]);
     setActiveOpponentSlotIndex(0);
     setIsWaitingOpponent(true);
@@ -774,6 +779,8 @@ export default function App() {
     setActiveOpponentKey(name);
     setIsWaitingOpponent(false);
     setShowOpponentPicker(false);
+    setShowStartBattleMenu(false);
+    setLastClearedOpponents([]);
     setOppTurnsElapsed(0);
     setOppEnergy(0);
     const targetBase = getBaseSpeciesKey(name);
@@ -830,7 +837,7 @@ export default function App() {
   // Auto-calculated Lead Matchup (Slot 0 1st-seen opponent vs Your Lead p1)
   const currentLeadMatchup: 'FAVORABLE' | 'NEUTRAL' | 'NEGATIVE' = useMemo(() => {
     if (manualLeadMatchupOverride) return manualLeadMatchupOverride;
-    if (isWaitingOpponent || scannedOpponents.length === 0) return 'NEUTRAL';
+    if (isWaitingOpponent || scannedOpponents.length === 0) return lastClearedLeadMatchup || 'NEUTRAL';
     const firstSeenOpp = scannedOpponents[0];
     const m = calculateShieldMatrix(firstSeenOpp, activePreset.pokemon.map((p) => p.name), safeActiveOppSlot === 0 && isOpponentShadow);
     const tokens = (m.p1 || 'W,N,L').split(',');
@@ -838,7 +845,7 @@ export default function App() {
     if (oneShield === 'SW' || oneShield === 'W') return 'FAVORABLE';
     if (oneShield === 'SL' || oneShield === 'L') return 'NEGATIVE';
     return 'NEUTRAL';
-  }, [manualLeadMatchupOverride, isWaitingOpponent, scannedOpponents, activePreset, safeActiveOppSlot, isOpponentShadow]);
+  }, [manualLeadMatchupOverride, isWaitingOpponent, scannedOpponents, activePreset, safeActiveOppSlot, isOpponentShadow, lastClearedLeadMatchup]);
 
   const handleCycleLeadMatchup = () => {
     const next =
@@ -852,6 +859,9 @@ export default function App() {
 
   const handleLogBattleFromOverlay = (result: 'WIN' | 'LOSS') => {
     const now = Date.now();
+    const oppsToLog = (!isWaitingOpponent && scannedOpponents.length > 0)
+      ? [...scannedOpponents]
+      : [...lastClearedOpponents];
     const newEntry: WebBattleLogEntry = {
       id: `log-${now}-${Math.random().toString(36).slice(2, 7)}`,
       timestampMs: now,
@@ -859,13 +869,15 @@ export default function App() {
       presetId: activePreset.id,
       userTeamName: activePreset.name,
       userPokemon: activePreset.pokemon.map((p) => p.name),
-      opponents: isWaitingOpponent ? [] : [...scannedOpponents],
+      opponents: oppsToLog,
       result,
       leadMatchup: currentLeadMatchup,
       deviceId,
       updatedAt: now
     };
     saveBattleLogsToStorage([newEntry, ...battleLogs]);
+    setLastClearedOpponents([]);
+    setLastClearedLeadMatchup('NEUTRAL');
     setStartBattleToast(result === 'WIN' ? '🏆 Win Logged!' : '💀 Loss Logged!');
     setTimeout(() => setStartBattleToast(null), 1100);
     handleStartBattle();
@@ -1310,7 +1322,7 @@ export default function App() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'SilphScope_PvP_v2.04_Android_Project.zip';
+      a.download = 'SilphScope_PvP_v2.05_Android_Project.zip';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -1337,7 +1349,7 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <h1 className="font-bold text-base md:text-lg tracking-tight text-white">SilphScope PvP</h1>
                 <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20">
-                  v2.04 • Android Native Overlay
+                  v2.05 • Android Native Overlay
                 </span>
               </div>
               <p className="text-xs text-slate-400 hidden sm:block">
@@ -1771,6 +1783,19 @@ export default function App() {
                           <button
                             onClick={() => {
                               setShowOpponentPicker(false);
+                              if (!isWaitingOpponent && scannedOpponents.length > 0) {
+                                setLastClearedOpponents([...scannedOpponents]);
+                                setLastClearedLeadMatchup(currentLeadMatchup);
+                              }
+                              setScannedOpponents([]);
+                              setActiveOpponentSlotIndex(0);
+                              setIsWaitingOpponent(true);
+                              setActiveOpponentKey('Waiting...');
+                              setIsOpponentShadow(false);
+                              setUserTurnsElapsed(0);
+                              setOppTurnsElapsed(0);
+                              setUserEnergy(0);
+                              setOppEnergy(0);
                               setShowStartBattleMenu(!showStartBattleMenu);
                             }}
                             className={`font-bold text-[8px] px-1.5 py-0.5 rounded border transition active:scale-95 ${
@@ -1778,7 +1803,7 @@ export default function App() {
                                 ? 'bg-red-500/65 text-white border-red-300 shadow-[0_0_5px_rgba(239,68,68,0.5)]'
                                 : 'bg-red-500/35 hover:bg-red-500/50 text-red-100 border-red-400/60'
                             }`}
-                            title="Log Win/Loss + Lead Matchup or Restart without logging"
+                            title="Immediately reset opponent list & empty matrix (or log Win/Loss)"
                           >
                             {startBattleToast || '⚔️ Start Battle'}
                           </button>
@@ -3927,7 +3952,7 @@ export default function App() {
                           'Content-Type': 'application/json'
                         },
                         body: JSON.stringify({
-                          description: 'SilphScope PvP v2.04 Multi-Device Delta Sync Vault',
+                          description: 'SilphScope PvP v2.05 Multi-Device Delta Sync Vault',
                           public: false,
                           files: {
                             'gbl_delta_sync_v2.json': { content: bundleStr }
@@ -5349,7 +5374,7 @@ export default function App() {
 
       {/* Footer */}
       <footer className="border-t border-slate-800/80 py-4 px-6 text-center text-xs text-slate-500">
-        SilphScope PvP v2.04 Overlay • Built with Kotlin, WindowManager TYPE_APPLICATION_OVERLAY, MediaProjection in-memory frame capture, and ML Kit Text Recognition.
+        SilphScope PvP v2.05 Overlay • Built with Kotlin, WindowManager TYPE_APPLICATION_OVERLAY, MediaProjection in-memory frame capture, and ML Kit Text Recognition.
       </footer>
     </div>
   );

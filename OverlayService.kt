@@ -2386,6 +2386,10 @@ class OverlayService : LifecycleService() {
     private var isWaitingForOpponent = true
     private var manualLeadMatchupOverride: String? = null
     private var currentLeadMatchup: String = "NEUTRAL"
+    private var lastClearedOpponentsSnapshot: List<String> = emptyList()
+    private var lastClearedLeadMatchupSnapshot: String = "NEUTRAL"
+    @Volatile private var battleResetEpoch: Long = 0L
+    @Volatile private var lastBattleResetTimeMs: Long = 0L
 
     private var currentLayoutMode = "option1"
     private var oppCountMode = "my_fasts"
@@ -3037,28 +3041,40 @@ class OverlayService : LifecycleService() {
     }
 
     private suspend fun captureAndProcessBattleRegions() {
+        val frameEpoch = battleResetEpoch
+        if (System.currentTimeMillis() - lastBattleResetTimeMs < 600L) return
+
         val screen = captureCleanScreenBitmap() ?: return
         if (screen.isRecycled) return
+        if (frameEpoch != battleResetEpoch) {
+            screen.recycle()
+            return
+        }
 
         val w = screen.width
         val h = screen.height
 
         // CRITICAL FIX: Mask out our own floating overlay window on the captured frame
-        // so ML Kit can NEVER read our own overlay header ("VS ZACIAN (CROWNED)") or matrix rows!
+        // (including status bar / cutout offset via getLocationOnScreen) so ML Kit can NEVER read our own HUD!
         try {
             val view = overlayView
             if (view != null) {
-                val ox = layoutParams.x.coerceIn(0, w - 1)
-                val oy = layoutParams.y.coerceIn(0, h - 1)
+                val loc = IntArray(2)
+                try {
+                    view.getLocationOnScreen(loc)
+                } catch (_: Exception) {}
+                val ox = min(layoutParams.x, if (loc[0] > 0) loc[0] else layoutParams.x).coerceIn(0, w - 1)
+                val oyMin = min(layoutParams.y, if (loc[1] > 0) loc[1] else layoutParams.y).coerceIn(0, h - 1)
+                val oyMax = max(layoutParams.y, loc[1]).coerceIn(0, h - 1)
                 val ow = (if (view.width > 0) view.width else layoutParams.width).coerceAtLeast(1)
-                val oh = (if (view.height > 0) view.height else (180 * resources.displayMetrics.density).toInt()).coerceAtLeast(1)
+                val oh = (if (view.height > 0) view.height else (220 * resources.displayMetrics.density).toInt()).coerceAtLeast(1)
                 val screenCanvas = Canvas(screen)
                 val maskPaint = Paint().apply { color = Color.BLACK; style = Paint.Style.FILL }
                 screenCanvas.drawRect(
-                    ox.toFloat(),
-                    oy.toFloat(),
-                    (ox + ow).coerceAtMost(w).toFloat(),
-                    (oy + oh).coerceAtMost(h).toFloat(),
+                    (ox - 8).coerceAtLeast(0).toFloat(),
+                    (oyMin - 8).coerceAtLeast(0).toFloat(),
+                    (ox + ow + 16).coerceAtMost(w).toFloat(),
+                    (oyMax + oh + 28).coerceAtMost(h).toFloat(),
                     maskPaint
                 )
             }
@@ -3141,7 +3157,7 @@ class OverlayService : LifecycleService() {
         }
         composite.recycle()
 
-        if (visionText == null) return
+        if (visionText == null || frameEpoch != battleResetEpoch || System.currentTimeMillis() - lastBattleResetTimeMs < 600L) return
 
         val yDivider1 = oppZoneH + gap / 2
         val yDivider2 = oppZoneH + gap + dstPlayerH + gap / 2
@@ -3286,6 +3302,14 @@ class OverlayService : LifecycleService() {
                 lower.contains("shadow:") ||
                 lower.contains("form:") ||
                 lower.contains("reset opp") ||
+                lower.contains("start battle") ||
+                lower.contains("new battle") ||
+                lower.contains("opponent attacks") ||
+                lower.contains("my attacks") ||
+                lower.contains("cmp:") ||
+                lower.contains("cmp win") ||
+                lower.contains("cmp loss") ||
+                lower.contains("lead:") ||
                 lower.contains("dmg") ||
                 lower.contains("throw on") ||
                 lower.contains("1 hz") ||
@@ -3294,6 +3318,10 @@ class OverlayService : LifecycleService() {
                 lower.contains("opt 2") ||
                 lower.contains("⚔") ||
                 lower.contains("→") ||
+                Regex("^vs\\s+").containsMatchIn(lower.trim()) ||
+                Regex("\\b(?:1st|2nd|3rd)\\b").containsMatchIn(lower) ||
+                Regex("\\d+t/\\d+e/").containsMatchIn(lower) ||
+                Regex("\\d+e/\\d+f\\b").containsMatchIn(lower) ||
                 Regex("\\(\\d+t\\b").containsMatchIn(lower)
     }
 
@@ -3392,8 +3420,10 @@ class OverlayService : LifecycleService() {
             val newBaseSpecies = matched.baseSpecies.lowercase()
 
             // Trigger immediately when opponent spawns or switches/faints into a different species
+            if (System.currentTimeMillis() - lastBattleResetTimeMs < 600L) return
             if (isWaitingForOpponent || !newBaseSpecies.equals(activeOpponentSpecies, ignoreCase = true)) {
                 isWaitingForOpponent = false
+                lastClearedOpponentsSnapshot = emptyList()
                 activeOpponentSpecies = newBaseSpecies
                 availableOpponentForms = FormResolver.getVariantsForSpecies(newBaseSpecies, activeLeague)
                 currentFormIndex = availableOpponentForms.indexOfFirst { it.name == matched.name }.coerceAtLeast(0)
@@ -3539,6 +3569,36 @@ class OverlayService : LifecycleService() {
      * Clears opponent team & manual form/shadow overrides while keeping 1 Hz OCR continuously active
      */
     fun startNewBattle() {
+        // Snapshot opponents and lead matchup before clearing, so if the user taps
+        // "Start Battle" (which immediately empties the matrix) and then taps "Win" or "Loss",
+        // the battle log still records the opponents from the battle that just ended.
+        if (detectedOpponents.isNotEmpty()) {
+            lastClearedOpponentsSnapshot = detectedOpponents.take(3).map { oppName ->
+                val baseKey = FormResolver.extractBaseSpecies(oppName).lowercase()
+                val isShad = manualShadowOverrides[baseKey] ?: oppName.contains("Shadow", ignoreCase = true)
+                if (isShad && !oppName.startsWith("Shadow ", ignoreCase = true)) {
+                    "Shadow $oppName"
+                } else {
+                    oppName
+                }
+            }
+            lastClearedLeadMatchupSnapshot = currentLeadMatchup
+        }
+
+        battleResetEpoch++
+        lastBattleResetTimeMs = System.currentTimeMillis()
+        synchronized(captureLock) {
+            try {
+                var img = imageReader?.acquireLatestImage()
+                while (img != null) {
+                    img.close()
+                    img = imageReader?.acquireLatestImage()
+                }
+            } catch (_: Exception) {}
+            cachedScreenBitmap?.recycle()
+            cachedScreenBitmap = null
+        }
+
         detectedOpponents.clear()
         manualFormOverrides.clear()
         manualShadowOverrides.clear()
@@ -3550,6 +3610,7 @@ class OverlayService : LifecycleService() {
         isOpponentShadow = false
         availableOpponentForms = emptyList()
         currentFormIndex = 0
+        stopBattleOcrLoop()
         startBattleOcrLoop()
         recalculateAndPushBattleData()
         Handler(Looper.getMainLooper()).post {
@@ -3559,7 +3620,8 @@ class OverlayService : LifecycleService() {
 
     fun logBattleResultFromOverlay(result: String, leadOverride: String?) {
         val normalizedResult = if (result.equals("LOSS", ignoreCase = true)) "LOSS" else "WIN"
-        val resolvedLead = (leadOverride?.takeIf { it.isNotBlank() } ?: currentLeadMatchup).uppercase()
+        val fallbackLead = if (detectedOpponents.isNotEmpty()) currentLeadMatchup else lastClearedLeadMatchupSnapshot
+        val resolvedLead = (leadOverride?.takeIf { it.isNotBlank() } ?: fallbackLead).uppercase()
         currentLeadMatchup = resolvedLead
 
         val preset = currentPreset
@@ -3568,14 +3630,18 @@ class OverlayService : LifecycleService() {
         val presetId = preset?.id ?: ""
         val userMons = preset?.pokemon?.map { it.name } ?: emptyList()
 
-        val formattedOpponents = detectedOpponents.take(3).map { oppName ->
-            val baseKey = FormResolver.extractBaseSpecies(oppName).lowercase()
-            val isShad = manualShadowOverrides[baseKey] ?: oppName.contains("Shadow", ignoreCase = true)
-            if (isShad && !oppName.startsWith("Shadow ", ignoreCase = true)) {
-                "Shadow $oppName"
-            } else {
-                oppName
+        val formattedOpponents = if (detectedOpponents.isNotEmpty()) {
+            detectedOpponents.take(3).map { oppName ->
+                val baseKey = FormResolver.extractBaseSpecies(oppName).lowercase()
+                val isShad = manualShadowOverrides[baseKey] ?: oppName.contains("Shadow", ignoreCase = true)
+                if (isShad && !oppName.startsWith("Shadow ", ignoreCase = true)) {
+                    "Shadow $oppName"
+                } else {
+                    oppName
+                }
             }
+        } else {
+            lastClearedOpponentsSnapshot
         }
 
         val nowMs = System.currentTimeMillis()
@@ -3603,7 +3669,22 @@ class OverlayService : LifecycleService() {
         existingLogs.add(0, newEntry)
         prefs.edit().putString(PREFS_KEY_BATTLE_LOGS, gson.toJson(existingLogs)).apply()
 
-        // Keep current opponents on screen (do not clear!) and refresh overlay state
+        // Ensure opponent list is cleared for the next battle after logging
+        lastClearedOpponentsSnapshot = emptyList()
+        lastClearedLeadMatchupSnapshot = "NEUTRAL"
+        battleResetEpoch++
+        lastBattleResetTimeMs = System.currentTimeMillis()
+        detectedOpponents.clear()
+        manualFormOverrides.clear()
+        manualShadowOverrides.clear()
+        manualLeadMatchupOverride = null
+        currentLeadMatchup = "NEUTRAL"
+        isWaitingForOpponent = true
+        activeOpponentName = "Waiting..."
+        activeOpponentSpecies = ""
+        isOpponentShadow = false
+        availableOpponentForms = emptyList()
+        currentFormIndex = 0
         recalculateAndPushBattleData()
         Handler(Looper.getMainLooper()).post {
             overlayView?.evaluateJavascript(
@@ -4386,14 +4467,16 @@ class OverlayService : LifecycleService() {
                 "userActivePokemon" to activePlayerName,
                 "activeUserSlotIndex" to activeUserSlotIndex,
                 "activeOpponentSlotIndex" to 0,
-                "leadMatchup" to currentLeadMatchup,
+                "leadMatchup" to (manualLeadMatchupOverride ?: lastClearedLeadMatchupSnapshot.ifBlank { currentLeadMatchup }),
                 "isReplayMode" to isReplayMode,
                 "myMove1Summary" to "—",
                 "myMove2Summary" to "—",
                 "throwAlignmentText" to "Waiting for Opponent spawn",
                 "throwHorizonText" to "—",
                 "team" to teamData,
-                "scannedOpponents" to emptyList<Map<String, Any>>()
+                "scannedOpponents" to emptyList<Map<String, Any>>(),
+                "oppMoveTimingRows" to emptyList<Map<String, Any>>(),
+                "myMoveTimingRows" to emptyList<Map<String, Any>>()
             )
             return gson.toJson(waitingPayload)
         }

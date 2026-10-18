@@ -1,4 +1,4 @@
-# SilphScope PvP — Real-Time 3x3 Matchup Matrix, Damage Calculations, Turn Pacing HUD & Battle Log Overlay for Pokémon GO PvP (v2.04)
+# SilphScope PvP — Real-Time 3x3 Matchup Matrix, Damage Calculations, Turn Pacing HUD & Battle Log Overlay for Pokémon GO PvP (v2.05)
 
 [![Live Web Simulator](https://img.shields.io/badge/🌐%20Live%20Web%20Simulator-Try%20in%20Browser-0284c7?style=for-the-badge&logo=googlechrome&logoColor=white)](https://sportsfan986.github.io/silphscope-pvp/)
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Support%20the%20Project-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/sportsfan986)
@@ -51,10 +51,10 @@ If **SilphScope PvP** helps you count fast moves, win CMP ties, and climb Elo in
 
 ---
 
-## 📥 Download & Install Native Android APK (v2.04)
+## 📥 Download & Install Native Android APK (v2.05)
 
 1. Visit the **[Official GitHub Releases Page](https://github.com/sportsfan986/silphscope-pvp/releases)**.
-2. Download **`silphscope-pvp-v2.04.apk`** directly to your Android device.
+2. Download **`silphscope-pvp-v2.05.apk`** directly to your Android device.
 3. Tap the downloaded APK file to install (grant *"Install unknown apps"* permission if prompted).
 4. Launch **SilphScope PvP**:
    - Select, reorder, or customize your **GBL Team Presets**, set **Opponent Move Count Basis** (`My Fasts` vs. `Their Fasts`), and adjust **Overlay Size** (`50%–100%` screen width slider) and **Background Transparency**.
@@ -63,8 +63,10 @@ If **SilphScope PvP** helps you count fast moves, win CMP ties, and climb Elo in
 
 ---
 
-## ✨ Key Features in v2.04
+## ✨ Key Features in v2.05
 
+- **Instant Opponent Reset on `⚔️ Start Battle`**:
+  - Pressing `⚔️ Start Battle` immediately resets the opponent list and empties the 3x3 matrix for a new match in a single tap, while preserving a snapshot of the previous opponents so you can still log a Win/Loss from the quick pop-up menu and preventing stale/in-flight OCR frames from re-populating cleared opponents.
 - **Battle Menu OCR Guard (`BATTLE` & `PARTY` Filter)**:
   - Blocks menu header tokens (`battle`, `party`, `battles`, `parties`) from fuzzy-matching Pokémon names (such as `Paras`) and automatically pauses OCR scanning when on the Pokémon GO Battle Menu screen.
 - **Trash Bin Modal + Quick Undo Toast for Deleted Battles & Teams**:
@@ -86,8 +88,8 @@ Every push to `main` triggers `.github/workflows/android.yml` (builds signed rel
 
 To increment the version for future releases:
 ```bash
-./scripts/bump_version.sh        # increments sub-version by +0.01 (e.g. v2.04 -> v2.05)
-./scripts/bump_version.sh v2.04  # sets an explicit version
+./scripts/bump_version.sh        # increments sub-version by +0.01 (e.g. v2.05 -> v2.06)
+./scripts/bump_version.sh v2.05  # sets an explicit version
 ```
 
 ---
