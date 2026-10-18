@@ -608,6 +608,7 @@ export default function App() {
   const [lastClearedLeadMatchup, setLastClearedLeadMatchup] = useState<'FAVORABLE' | 'NEUTRAL' | 'NEGATIVE'>('NEUTRAL');
   const [activeOpponentSlotIndex, setActiveOpponentSlotIndex] = useState<number>(0);
   const [isWaitingOpponent, setIsWaitingOpponent] = useState<boolean>(false);
+  const [isBattleActive, setIsBattleActive] = useState<boolean>(true);
   const [showOpponentPicker, setShowOpponentPicker] = useState<boolean>(false);
   const [showStartBattleMenu, setShowStartBattleMenu] = useState<boolean>(false);
   const [manualLeadMatchupOverride, setManualLeadMatchupOverride] = useState<'FAVORABLE' | 'NEUTRAL' | 'NEGATIVE' | null>(null);
@@ -776,18 +777,46 @@ export default function App() {
       .toLowerCase();
   };
 
-  // Actions for Overlay: Restart without logging (clears opponents while keeping 1 Hz OCR active)
+  // Actions for Overlay: Start Battle (clears opponents & matrix immediately, activates 1 Hz OCR, switches button to Stop Battle)
   const handleStartBattle = () => {
+    setLastClearedOpponents([]);
+    setScannedOpponents([]);
+    setActiveOpponentSlotIndex(0);
+    setIsWaitingOpponent(true);
+    setIsBattleActive(true);
+    setActiveOpponentKey('Waiting...');
+    setIsOpponentShadow(false);
+    setManualLeadMatchupOverride(null);
+    setShowStartBattleMenu(false);
+    setShowOpponentPicker(false);
+    setUserTurnsElapsed(0);
+    setOppTurnsElapsed(0);
+    setUserEnergy(0);
+    setOppEnergy(0);
+  };
+
+  // Stop Battle: pauses battle & opens the Win/Loss log option bar
+  const handleStopBattle = () => {
+    setShowOpponentPicker(false);
     if (!isWaitingOpponent && scannedOpponents.length > 0) {
       setLastClearedOpponents([...scannedOpponents]);
+      setLastClearedLeadMatchup(currentLeadMatchup);
     }
+    setIsBattleActive(false);
+    setShowStartBattleMenu(true);
+  };
+
+  // Dismiss post-stop log bar without logging
+  const handleSkipLoggingStoppedBattle = () => {
+    setShowStartBattleMenu(false);
+    setIsBattleActive(false);
+    setLastClearedOpponents([]);
     setScannedOpponents([]);
     setActiveOpponentSlotIndex(0);
     setIsWaitingOpponent(true);
     setActiveOpponentKey('Waiting...');
     setIsOpponentShadow(false);
     setManualLeadMatchupOverride(null);
-    setShowStartBattleMenu(false);
     setUserTurnsElapsed(0);
     setOppTurnsElapsed(0);
     setUserEnergy(0);
@@ -798,6 +827,7 @@ export default function App() {
   const handleSwapActiveOpponent = (name: string) => {
     setActiveOpponentKey(name);
     setIsWaitingOpponent(false);
+    setIsBattleActive(true);
     setShowOpponentPicker(false);
     setShowStartBattleMenu(false);
     setLastClearedOpponents([]);
@@ -910,7 +940,7 @@ export default function App() {
     setLastClearedLeadMatchup('NEUTRAL');
     setStartBattleToast(result === 'WIN' ? '🏆 Win Logged!' : '💀 Loss Logged!');
     setTimeout(() => setStartBattleToast(null), 1100);
-    handleStartBattle();
+    handleSkipLoggingStoppedBattle();
   };
 
   const activeUserSlot = activePreset?.pokemon[activeUserSlotIndex] || activePreset?.pokemon[0];
@@ -1352,7 +1382,7 @@ export default function App() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'SilphScope_PvP_v2.11_Android_Project.zip';
+      a.download = 'SilphScope_PvP_v2.12_Android_Project.zip';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -1379,7 +1409,7 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <h1 className="font-bold text-base md:text-lg tracking-tight text-white">SilphScope PvP</h1>
                 <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20">
-                  v2.11 • Android Native Overlay
+                  v2.12 • Android Native Overlay
                 </span>
               </div>
               <p className="text-xs text-slate-400 hidden sm:block">
@@ -1812,30 +1842,24 @@ export default function App() {
                         <div className="flex items-center gap-1">
                           <button
                             onClick={() => {
-                              setShowOpponentPicker(false);
-                              if (!isWaitingOpponent && scannedOpponents.length > 0) {
-                                setLastClearedOpponents([...scannedOpponents]);
-                                setLastClearedLeadMatchup(currentLeadMatchup);
+                              if (isBattleActive) {
+                                handleStopBattle();
+                              } else {
+                                handleStartBattle();
                               }
-                              setScannedOpponents([]);
-                              setActiveOpponentSlotIndex(0);
-                              setIsWaitingOpponent(true);
-                              setActiveOpponentKey('Waiting...');
-                              setIsOpponentShadow(false);
-                              setUserTurnsElapsed(0);
-                              setOppTurnsElapsed(0);
-                              setUserEnergy(0);
-                              setOppEnergy(0);
-                              setShowStartBattleMenu(!showStartBattleMenu);
                             }}
                             className={`font-bold text-[8px] px-1.5 py-0.5 rounded border transition active:scale-95 ${
-                              showStartBattleMenu
-                                ? 'bg-red-500/65 text-white border-red-300 shadow-[0_0_5px_rgba(239,68,68,0.5)]'
-                                : 'bg-red-500/35 hover:bg-red-500/50 text-red-100 border-red-400/60'
+                              isBattleActive
+                                ? 'bg-red-600/60 hover:bg-red-600/75 text-white border-red-300 shadow-[0_0_5px_rgba(239,68,68,0.5)]'
+                                : 'bg-emerald-500/35 hover:bg-emerald-500/50 text-emerald-100 border-emerald-400/75'
                             }`}
-                            title="Immediately reset opponent list & empty matrix (or log Win/Loss)"
+                            title={
+                              isBattleActive
+                                ? 'Stop current battle and open option to log Win/Loss'
+                                : 'Immediately reset opponent list & empty matrix to start a new battle'
+                            }
                           >
-                            {startBattleToast || '⚔️ Start Battle'}
+                            {startBattleToast || (isBattleActive ? '🛑 Stop Battle' : '⚔️ Start Battle')}
                           </button>
                           <button
                             onClick={() => {
@@ -1892,7 +1916,7 @@ export default function App() {
                         </div>
                       </div>
 
-                      {/* In-Overlay Start Battle Action Menu (Lead Matchup + Win/Loss/Restart) */}
+                      {/* In-Overlay Post-Stop Log Result Action Menu (Lead Matchup + Win/Loss/Skip) */}
                       {showStartBattleMenu && (
                         <div className="flex items-center justify-between gap-1 bg-slate-950/95 border border-sky-400/75 rounded p-1 my-1 shadow-xl text-[7.5px]">
                           <button
@@ -1926,18 +1950,11 @@ export default function App() {
                             </button>
                             <button
                               type="button"
-                              onClick={handleStartBattle}
-                              className="px-1.5 py-0.5 rounded font-extrabold bg-slate-800 hover:bg-slate-700 border border-slate-500 text-slate-200"
-                              title="Clear opponents without logging"
+                              onClick={handleSkipLoggingStoppedBattle}
+                              className="px-1.5 py-0.5 rounded font-bold bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 hover:text-white"
+                              title="Dismiss without logging"
                             >
-                              🔄 Restart
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setShowStartBattleMenu(false)}
-                              className="px-1 py-0.5 rounded font-bold bg-slate-900 text-slate-400 hover:text-white"
-                            >
-                              ✕
+                              ✕ Skip
                             </button>
                           </div>
                         </div>
@@ -3982,7 +3999,7 @@ export default function App() {
                           'Content-Type': 'application/json'
                         },
                         body: JSON.stringify({
-                          description: 'SilphScope PvP v2.11 Multi-Device Delta Sync Vault',
+                          description: 'SilphScope PvP v2.12 Multi-Device Delta Sync Vault',
                           public: false,
                           files: {
                             'gbl_delta_sync_v2.json': { content: bundleStr }
@@ -4395,7 +4412,7 @@ export default function App() {
                       📜 No Battles Logged in Selected Filter
                     </div>
                     <p className="text-slate-400 leading-relaxed">
-                      In the floating overlay, tap <strong>⚔️ Start Battle</strong> to record a <strong>🏆 Win</strong> or <strong>💀 Loss</strong> with auto-detected <strong>Lead Matchup (Fav / Neu / Neg)</strong>, <strong>Quality of Win/Loss (WAE)</strong>, and fixed <strong>[1st seen, 2nd seen, 3rd seen]</strong> opponent order!
+                      In the floating overlay, tap <strong>⚔️ Start Battle</strong> when a match begins and <strong>🛑 Stop Battle</strong> when it ends to record a <strong>🏆 Win</strong> or <strong>💀 Loss</strong> with auto-detected <strong>Lead Matchup (Fav / Neu / Neg)</strong>, <strong>Quality of Win/Loss (WAE)</strong>, and fixed <strong>[1st seen, 2nd seen, 3rd seen]</strong> opponent order!
                     </p>
                   </div>
                 ) : (
@@ -5512,7 +5529,7 @@ export default function App() {
 
       {/* Footer */}
       <footer className="border-t border-slate-800/80 py-4 px-6 text-center text-xs text-slate-500">
-        SilphScope PvP v2.11 Overlay • Built with Kotlin, WindowManager TYPE_APPLICATION_OVERLAY, MediaProjection in-memory frame capture, and ML Kit Text Recognition.
+        SilphScope PvP v2.12 Overlay • Built with Kotlin, WindowManager TYPE_APPLICATION_OVERLAY, MediaProjection in-memory frame capture, and ML Kit Text Recognition.
       </footer>
     </div>
   );

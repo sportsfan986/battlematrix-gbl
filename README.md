@@ -1,4 +1,4 @@
-# SilphScope PvP — Real-Time 3x3 Matchup Matrix, Damage Calculations, Turn Pacing HUD & Battle Log Overlay for Pokémon GO PvP (v2.11)
+# SilphScope PvP — Real-Time 3x3 Matchup Matrix, Damage Calculations, Turn Pacing HUD & Battle Log Overlay for Pokémon GO PvP (v2.12)
 
 [![Live Web Simulator](https://img.shields.io/badge/🌐%20Live%20Web%20Simulator-Try%20in%20Browser-0284c7?style=for-the-badge&logo=googlechrome&logoColor=white)](https://sportsfan986.github.io/silphscope-pvp/)
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Support%20the%20Project-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/sportsfan986)
@@ -93,10 +93,10 @@ If **SilphScope PvP** helps you count fast moves, win CMP ties, and climb Elo in
 
 ---
 
-## 📥 Download & Install Native Android APK (v2.11)
+## 📥 Download & Install Native Android APK (v2.12)
 
 1. Visit the **[Official GitHub Releases Page](https://github.com/sportsfan986/silphscope-pvp/releases)**.
-2. Download **`silphscope-pvp-v2.11.apk`** directly to your Android device.
+2. Download **`silphscope-pvp-v2.12.apk`** directly to your Android device.
 3. Tap the downloaded APK file to install (grant *"Install unknown apps"* permission if prompted).
 4. Launch **SilphScope PvP**:
    - Select, reorder, or customize your **GBL Team Presets**, set **Opponent Move Count Basis** (`My Fasts` vs. `Their Fasts`), and adjust **Overlay Size** (`50%–100%` screen width slider) and **Background Transparency**.
@@ -105,18 +105,18 @@ If **SilphScope PvP** helps you count fast moves, win CMP ties, and climb Elo in
 
 ---
 
-## ✨ Key Features in v2.11
+## ✨ Key Features in v2.12
 
+- **Start Battle / Stop Battle Toggle with Post-Stop Logging**:
+  - Pressing `⚔️ Start Battle` immediately clears the opponent list and empties the 3x3 matrix for a fresh match while switching the button to `🛑 Stop Battle`. When the match concludes, pressing `🛑 Stop Battle` pauses OCR scanning, switches the button back to `⚔️ Start Battle`, and opens the `🏆 Win` / `💀 Loss` / `✕ Skip` logging bar.
 - **Battle Quality & Wins Above Expected (WAE) System**:
   - Computes Expected Win Probability ($P_{\text{win}}$), Residual Quality Delta ($\Delta Q$), and 6 performance badges (`Clutch Win`, `Skill Win`, `Expected Win`, `Blunder Loss`, `Tough Loss`, `Expected Loss`) with automatic retroactive migration (`migrateExistingBattleLogs()`) and filter-linked `QUALITY (WAE)` summary cards and daily group headers.
-- **Instant Opponent Reset on `⚔️ Start Battle`**:
-  - Pressing `⚔️ Start Battle` immediately resets the opponent list and empties the 3x3 matrix for a new match in a single tap, while preserving a snapshot of the previous opponents so you can still log a Win/Loss from the quick pop-up menu and preventing stale/in-flight OCR frames from re-populating cleared opponents.
 - **Battle Menu OCR Guard (`BATTLE` & `PARTY` Filter)**:
   - Blocks menu header tokens (`battle`, `party`, `battles`, `parties`) from fuzzy-matching Pokémon names (such as `Paras`) and automatically pauses OCR scanning when on the Pokémon GO Battle Menu screen.
 - **Trash Bin Modal + Quick Undo Toast for Deleted Battles & Teams**:
   - Soft-deletes battle logs and team presets into a persistent Trash Bin with an instant `↩ UNDO` banner and one-tap individual or bulk restoration.
-- **Go Battle Log Friendly Export (`[Team]` + `opp1 opp2 opp3 W/L`)**:
-  - Copy or share filtered battle logs in Go Battle Log format with bracketed user team headers (`[Pokemon1, Pokemon2, Pokemon3]`) and clean `opp1 opp2 opp3 W/L` rows without date clutter.
+- **Streamlined Summary & Go Battle Log Sharing**:
+  - Share or copy overall/daily summaries with `W/L(ExpectedWin%) MyTeamName vs. Opponent1,Opponent2,Opponent3` match rows, or export in Go Battle Log format.
 - **Multi-Device GitHub Cloud Delta Sync (OAuth Device Flow)**:
   - Sign in directly on Android or Web via GitHub's native Device Flow (`github.com/login/device`) to automatically synchronize team presets and battle logs across multiple phones using conflict-free union + Last-Write-Wins (LWW) + tombstone delta reconciliation.
 
@@ -128,8 +128,8 @@ Every push to `main` triggers `.github/workflows/android.yml` (builds signed rel
 
 To increment the version for future releases:
 ```bash
-./scripts/bump_version.sh        # increments sub-version by +0.01 (e.g. v2.11 -> v2.11)
-./scripts/bump_version.sh v2.11  # sets an explicit version
+./scripts/bump_version.sh        # increments sub-version by +0.01 (e.g. v2.11 -> v2.12)
+./scripts/bump_version.sh v2.12  # sets an explicit version
 ```
 
 ---

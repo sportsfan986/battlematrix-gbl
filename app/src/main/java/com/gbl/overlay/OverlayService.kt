@@ -2685,6 +2685,7 @@ class OverlayService : LifecycleService() {
     private val manualFormOverrides = mutableMapOf<String, String>()
     private val manualShadowOverrides = mutableMapOf<String, Boolean>()
     private var isWaitingForOpponent = true
+    private var isBattleActive = false
     private var manualLeadMatchupOverride: String? = null
     private var currentLeadMatchup: String = "NEUTRAL"
     private var lastClearedOpponentsSnapshot: List<String> = emptyList()
@@ -3626,6 +3627,8 @@ class OverlayService : LifecycleService() {
                 lower.contains("form:") ||
                 lower.contains("reset opp") ||
                 lower.contains("start battle") ||
+                lower.contains("stop battle") ||
+                lower.contains("🛑") ||
                 lower.contains("new battle") ||
                 lower.contains("opponent attacks") ||
                 lower.contains("my attacks") ||
@@ -3746,6 +3749,7 @@ class OverlayService : LifecycleService() {
             if (System.currentTimeMillis() - lastBattleResetTimeMs < 600L) return
             if (isWaitingForOpponent || !newBaseSpecies.equals(activeOpponentSpecies, ignoreCase = true)) {
                 isWaitingForOpponent = false
+                isBattleActive = true
                 lastClearedOpponentsSnapshot = emptyList()
                 activeOpponentSpecies = newBaseSpecies
                 availableOpponentForms = FormResolver.getVariantsForSpecies(newBaseSpecies, activeLeague)
@@ -3928,6 +3932,7 @@ class OverlayService : LifecycleService() {
         manualLeadMatchupOverride = null
         currentLeadMatchup = "NEUTRAL"
         isWaitingForOpponent = true
+        isBattleActive = true
         activeOpponentName = "Waiting..."
         activeOpponentSpecies = ""
         isOpponentShadow = false
@@ -3937,7 +3942,33 @@ class OverlayService : LifecycleService() {
         startBattleOcrLoop()
         recalculateAndPushBattleData()
         Handler(Looper.getMainLooper()).post {
-            Toast.makeText(this, "⚔️ New Battle Started — Opponents Cleared", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "⚔️ Battle Started — Scanning Opponents", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * ACTION: STOP CURRENT BATTLE
+     * Pauses 1 Hz OCR scanning and snapshots the current battle's opponents & lead matchup
+     * so the user can log Win/Loss (or skip) before starting the next battle.
+     */
+    fun stopCurrentBattle() {
+        if (detectedOpponents.isNotEmpty()) {
+            lastClearedOpponentsSnapshot = detectedOpponents.take(3).map { oppName ->
+                val baseKey = FormResolver.extractBaseSpecies(oppName).lowercase()
+                val isShad = manualShadowOverrides[baseKey] ?: oppName.contains("Shadow", ignoreCase = true)
+                if (isShad && !oppName.startsWith("Shadow ", ignoreCase = true)) {
+                    "Shadow $oppName"
+                } else {
+                    oppName
+                }
+            }
+            lastClearedLeadMatchupSnapshot = currentLeadMatchup
+        }
+        isBattleActive = false
+        stopBattleOcrLoop()
+        recalculateAndPushBattleData()
+        Handler(Looper.getMainLooper()).post {
+            Toast.makeText(this, "🛑 Battle Stopped — Log Win/Loss or Start Next", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -4013,11 +4044,13 @@ class OverlayService : LifecycleService() {
         manualLeadMatchupOverride = null
         currentLeadMatchup = "NEUTRAL"
         isWaitingForOpponent = true
+        isBattleActive = false
         activeOpponentName = "Waiting..."
         activeOpponentSpecies = ""
         isOpponentShadow = false
         availableOpponentForms = emptyList()
         currentFormIndex = 0
+        stopBattleOcrLoop()
         recalculateAndPushBattleData()
         Handler(Looper.getMainLooper()).post {
             overlayView?.evaluateJavascript(
@@ -5359,6 +5392,7 @@ class OverlayService : LifecycleService() {
             "activeUserSlotIndex" to activeUserSlotIndex,
             "activeOpponentSlotIndex" to activeOpponentSlotIndex,
             "leadMatchup" to currentLeadMatchup,
+            "isBattleActive" to isBattleActive,
             "isReplayMode" to isReplayMode,
             "userFastMoveName" to userFastMoveName,
             "userFastMoveTurns" to userFastTurns,
@@ -5552,6 +5586,13 @@ class OverlayService : LifecycleService() {
         fun startNewBattle() {
             Handler(Looper.getMainLooper()).post {
                 this@OverlayService.startNewBattle()
+            }
+        }
+
+        @JavascriptInterface
+        fun stopBattle() {
+            Handler(Looper.getMainLooper()).post {
+                this@OverlayService.stopCurrentBattle()
             }
         }
 
