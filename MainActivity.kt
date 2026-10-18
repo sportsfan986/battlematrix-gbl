@@ -221,6 +221,7 @@ class MainActivity : AppCompatActivity() {
             setupBattleLogFilters()
             renderBattleLogPage()
             updateSyncStatusUi()
+            checkPendingGitHubDeviceLoginOnResume()
             // Automatically pull & reconcile deltas from the other device on every app open / resume
             triggerTwoDeviceCloudSync(silent = true)
         }
@@ -605,28 +606,69 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun checkPendingGitHubDeviceLoginOnResume() {
+        if (OverlayService.getEffectiveSyncToken(prefs).isNotEmpty()) return
+        val pendingCode = prefs.getString("pending_github_device_code", "")?.trim().orEmpty()
+        val expiresAt = prefs.getLong("pending_github_device_expires_at", 0L)
+        if (pendingCode.isEmpty() || System.currentTimeMillis() > expiresAt) return
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            val (status, tokenOrErr, username) = OverlayService.pollGitHubDeviceTokenOnceBlocking(pendingCode)
+            if (status == "SUCCESS" && tokenOrErr.isNotEmpty()) {
+                prefs.edit()
+                    .remove("pending_github_device_code")
+                    .remove("pending_github_device_expires_at")
+                    .putString(PREFS_KEY_SYNC_GITHUB_TOKEN, tokenOrErr)
+                    .putString(PREFS_KEY_SYNC_GITHUB_USERNAME, username)
+                    .apply()
+                withContext(Dispatchers.Main) {
+                    editSyncGithubToken.setText(tokenOrErr)
+                    updateSyncStatusUi()
+                    val userTag = if (username.isNotEmpty()) "@$username" else "GitHub"
+                    Toast.makeText(
+                        this@MainActivity,
+                        "✅ Signed in as $userTag! Syncing devices...",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    triggerTwoDeviceCloudSync(silent = false)
+                }
+            }
+        }
+    }
+
     private fun showGitHubDeviceVerificationDialog(deviceResp: OverlayService.Companion.GitHubDeviceCodeResponse) {
         val cm = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
         cm.setPrimaryClip(android.content.ClipData.newPlainText("GitHub Device Code", deviceResp.userCode))
-        Toast.makeText(this, "Code ${deviceResp.userCode} copied! Paste it on GitHub.", Toast.LENGTH_LONG).show()
+        Toast.makeText(this, "Code ${deviceResp.userCode} copied to clipboard!", Toast.LENGTH_LONG).show()
+
+        val deadlineMs = System.currentTimeMillis() + (deviceResp.expiresIn * 1000L)
+        prefs.edit()
+            .putString("pending_github_device_code", deviceResp.deviceCode)
+            .putLong("pending_github_device_expires_at", deadlineMs)
+            .apply()
 
         var isPollingActive = true
         val statusLabel = TextView(this).apply {
-            text = "1. Code \"${deviceResp.userCode}\" is copied to your clipboard.\n\n" +
-                "2. In the GitHub page that opens, sign in, paste ${deviceResp.userCode}, and tap Authorize.\n\n" +
+            text = "Your 8-character GitHub Login Code:\n\n" +
+                "   👉  ${deviceResp.userCode}  👈\n" +
+                "   (Already copied to your clipboard!)\n\n" +
+                "1. Tap \"🌐 Open GitHub Login\" below.\n" +
+                "2. Paste ${deviceResp.userCode} on GitHub and tap Authorize.\n" +
+                "3. Switch back to BattleMatrix — your token is saved automatically!\n\n" +
                 "⏳ Waiting for GitHub authorization..."
             setTextColor(0xFFF8FAFC.toInt())
+            setBackgroundColor(0xFF0F172A.toInt())
             textSize = 13f
             val pad = (16 * resources.displayMetrics.density).toInt()
             setPadding(pad, pad, pad, pad)
         }
 
         val dialog = AlertDialog.Builder(this)
-            .setTitle("🔑 Code: ${deviceResp.userCode} (Copied!)")
+            .setTitle("🔑 Code: ${deviceResp.userCode}")
             .setView(statusLabel)
             .setPositiveButton("🌐 Open GitHub Login", null)
             .setNeutralButton("📋 Copy Code", null)
-            .setNegativeButton("Cancel") { _, _ ->
+            .setNegativeButton("Close") { _, _ ->
                 isPollingActive = false
             }
             .setOnDismissListener {
@@ -637,6 +679,8 @@ class MainActivity : AppCompatActivity() {
         dialog.show()
 
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+            cm.setPrimaryClip(android.content.ClipData.newPlainText("GitHub Device Code", deviceResp.userCode))
+            Toast.makeText(this, "Code ${deviceResp.userCode} copied! Paste it on GitHub.", Toast.LENGTH_LONG).show()
             try {
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(deviceResp.verificationUri)))
             } catch (_: Exception) {
@@ -649,15 +693,9 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "Copied ${deviceResp.userCode}!", Toast.LENGTH_SHORT).show()
         }
 
-        // Automatically open the GitHub verification page in browser so user can immediately paste & authorize
-        try {
-            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(deviceResp.verificationUri)))
-        } catch (_: Exception) {}
-
         // Poll GitHub OAuth endpoint in background until user authorizes
         lifecycleScope.launch(Dispatchers.IO) {
             var pollIntervalMs = (deviceResp.interval.coerceAtLeast(5)) * 1000L
-            val deadlineMs = System.currentTimeMillis() + (deviceResp.expiresIn * 1000L)
             while (isPollingActive && System.currentTimeMillis() < deadlineMs) {
                 kotlinx.coroutines.delay(pollIntervalMs)
                 if (!isPollingActive) break
@@ -666,6 +704,8 @@ class MainActivity : AppCompatActivity() {
                     "SUCCESS" -> {
                         isPollingActive = false
                         prefs.edit()
+                            .remove("pending_github_device_code")
+                            .remove("pending_github_device_expires_at")
                             .putString(PREFS_KEY_SYNC_GITHUB_TOKEN, tokenOrErr)
                             .putString(PREFS_KEY_SYNC_GITHUB_USERNAME, username)
                             .apply()

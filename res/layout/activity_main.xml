@@ -41,7 +41,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Real-Time PvP Floating Overlay • v1.30"
+                android:text="Real-Time PvP Floating Overlay • v2.00"
                 android:textSize="11sp"
                 android:textColor="#94a3b8"
                 android:layout_marginTop="1dp" />
@@ -536,11 +536,111 @@
                         android:textSize="10sp" />
                 </LinearLayout>
             </LinearLayout>
+
+            <!-- Two-Device Cloud & Delta Reconciliation Sync Card -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginTop="8dp"
+                android:background="#0f172a"
+                android:padding="10dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="☁️ Multi-Device Auto Delta Sync (Teams &amp; Battle Logs)"
+                    android:textColor="#38bdf8"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Sign in with your GitHub account once on each of your phones. Each user's logs sync privately to their own GitHub account automatically on app open &amp; after every battle."
+                    android:textColor="#94a3b8"
+                    android:textSize="10sp"
+                    android:layout_marginTop="2dp" />
+
+                <Button
+                    android:id="@+id/btn_github_login_settings"
+                    android:layout_width="match_parent"
+                    android:layout_height="38dp"
+                    android:layout_marginTop="6dp"
+                    android:text="🔑 Login with GitHub (Generate Sync Token)"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:backgroundTint="#10b981"
+                    android:textColor="#ffffff" />
+
+                <EditText
+                    android:id="@+id/edit_sync_github_token"
+                    android:layout_width="match_parent"
+                    android:layout_height="38dp"
+                    android:layout_marginTop="6dp"
+                    android:background="#1e293b"
+                    android:paddingHorizontal="8dp"
+                    android:hint="GitHub OAuth / Personal Access Token (Auto-filled on Login)"
+                    android:textColor="#f8fafc"
+                    android:textColorHint="#64748b"
+                    android:textSize="11sp"
+                    android:inputType="textPassword"
+                    android:singleLine="true" />
+
+                <EditText
+                    android:id="@+id/edit_sync_gist_id"
+                    android:layout_width="match_parent"
+                    android:layout_height="36dp"
+                    android:layout_marginTop="4dp"
+                    android:background="#1e293b"
+                    android:paddingHorizontal="8dp"
+                    android:hint="Optional Gist ID Override (Auto-discovered per user account)"
+                    android:textColor="#f8fafc"
+                    android:textColorHint="#64748b"
+                    android:textSize="11sp"
+                    android:singleLine="true" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="6dp">
+
+                    <Button
+                        android:id="@+id/btn_sync_devices_settings"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:text="☁️ Sync Devices Now"
+                        android:textSize="11sp"
+                        android:backgroundTint="#0284c7"
+                        android:textColor="#ffffff"
+                        android:layout_marginEnd="6dp" />
+
+                    <Button
+                        android:id="@+id/btn_sync_bundle_settings"
+                        android:layout_width="wrap_content"
+                        android:layout_height="36dp"
+                        android:text="📦 Sync Bundle"
+                        android:textSize="11sp"
+                        android:backgroundTint="#334155"
+                        android:textColor="#e2e8f0" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/text_sync_status"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Sync Status: Not signed in (Local storage active)"
+                    android:textColor="#94a3b8"
+                    android:textSize="10sp"
+                    android:layout_marginTop="4dp" />
+            </LinearLayout>
         </LinearLayout>
     </ScrollView>
 
     <!-- ===================================================================
-         PAGE 3: BATTLE LOG (Provisioned for Matchup & Telemetry Logging)
+         PAGE 3: BATTLE LOG (Per-League/Team Logging, Season Export & Replay)
          =================================================================== -->
     <LinearLayout
         android:id="@+id/page_battle_log"
@@ -555,25 +655,107 @@
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:layout_marginBottom="8dp">
+            android:layout_marginBottom="6dp">
 
             <TextView
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="GBL Battle History &amp; Log"
-                android:textSize="15sp"
+                android:text="GBL Battle Log &amp; Replay"
+                android:textSize="14sp"
                 android:textStyle="bold"
                 android:textColor="#e2e8f0" />
 
             <Button
+                android:id="@+id/btn_log_manual_battle"
+                android:layout_width="wrap_content"
+                android:layout_height="34dp"
+                android:text="+ Log"
+                android:textSize="10.5sp"
+                android:backgroundTint="#0284c7"
+                android:textColor="#ffffff"
+                android:layout_marginEnd="4dp" />
+
+            <Button
+                android:id="@+id/btn_sync_battle_log"
+                android:layout_width="wrap_content"
+                android:layout_height="34dp"
+                android:text="☁️ Sync"
+                android:textSize="10.5sp"
+                android:backgroundTint="#0369a1"
+                android:textColor="#ffffff"
+                android:layout_marginEnd="4dp" />
+
+            <Button
                 android:id="@+id/btn_clear_battle_log"
                 android:layout_width="wrap_content"
-                android:layout_height="36dp"
-                android:text="Clear Log"
-                android:textSize="11sp"
+                android:layout_height="34dp"
+                android:text="Clear"
+                android:textSize="10.5sp"
                 android:backgroundTint="#334155"
                 android:textColor="#cbd5e1" />
+        </LinearLayout>
+
+        <!-- Filter Row 1: League & Team Preset Filters -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="6dp">
+
+            <Spinner
+                android:id="@+id/spinner_log_filter_league"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1"
+                android:background="#1e293b"
+                android:paddingHorizontal="6dp"
+                android:layout_marginEnd="6dp" />
+
+            <Spinner
+                android:id="@+id/spinner_log_filter_team"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1.2"
+                android:background="#1e293b"
+                android:paddingHorizontal="6dp" />
+        </LinearLayout>
+
+        <!-- Filter Row 2: Timeframe Filter (Day/Week/Current Season/Prev Season/All) + Copy & Share -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="6dp">
+
+            <Spinner
+                android:id="@+id/spinner_log_filter_timeframe"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1"
+                android:background="#1e293b"
+                android:paddingHorizontal="6dp"
+                android:layout_marginEnd="6dp" />
+
+            <Button
+                android:id="@+id/btn_copy_battle_log"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:text="📋 Copy Text"
+                android:textSize="10.5sp"
+                android:backgroundTint="#1e293b"
+                android:textColor="#38bdf8"
+                android:layout_marginEnd="4dp" />
+
+            <Button
+                android:id="@+id/btn_share_battle_log"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:text="📤 Share"
+                android:textSize="10.5sp"
+                android:backgroundTint="#0284c7"
+                android:textColor="#ffffff" />
         </LinearLayout>
 
         <!-- Summary Metrics Row -->
@@ -589,13 +771,13 @@
                 android:layout_weight="1"
                 android:orientation="vertical"
                 android:background="#1e293b"
-                android:padding="10dp"
-                android:layout_marginEnd="6dp">
+                android:padding="8dp"
+                android:layout_marginEnd="5dp">
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="LOGGED BATTLES"
+                    android:text="RECORD (W - L)"
                     android:textColor="#94a3b8"
                     android:textSize="9sp"
                     android:textStyle="bold" />
@@ -604,9 +786,9 @@
                     android:id="@+id/text_battle_log_total"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="0 Matches"
+                    android:text="0W - 0L"
                     android:textColor="#38bdf8"
-                    android:textSize="14sp"
+                    android:textSize="13sp"
                     android:textStyle="bold"
                     android:layout_marginTop="2dp" />
             </LinearLayout>
@@ -614,16 +796,16 @@
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
+                android:layout_weight="1.25"
                 android:orientation="vertical"
                 android:background="#1e293b"
-                android:padding="10dp"
-                android:layout_marginEnd="6dp">
+                android:padding="8dp"
+                android:layout_marginEnd="5dp">
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="ACTIVE TEAM LEAGUE"
+                    android:text="LEAD MATCHUPS"
                     android:textColor="#94a3b8"
                     android:textSize="9sp"
                     android:textStyle="bold" />
@@ -632,9 +814,9 @@
                     android:id="@+id/text_battle_log_league"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="GREAT LEAGUE"
+                    android:text="0 Fav · 0 Neu · 0 Neg"
                     android:textColor="#34d399"
-                    android:textSize="12sp"
+                    android:textSize="11sp"
                     android:textStyle="bold"
                     android:layout_marginTop="2dp" />
             </LinearLayout>
@@ -642,15 +824,15 @@
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
+                android:layout_weight="0.85"
                 android:orientation="vertical"
                 android:background="#1e293b"
-                android:padding="10dp">
+                android:padding="8dp">
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="LOG STATUS"
+                    android:text="WIN RATE"
                     android:textColor="#94a3b8"
                     android:textSize="9sp"
                     android:textStyle="bold" />
@@ -659,7 +841,7 @@
                     android:id="@+id/text_battle_log_winrate"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Ready"
+                    android:text="—%"
                     android:textColor="#fbbf24"
                     android:textSize="13sp"
                     android:textStyle="bold"

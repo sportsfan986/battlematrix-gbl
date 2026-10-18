@@ -109,6 +109,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var seekbarOverlayTransparency: SeekBar
     private lateinit var textOverlayTransparencyValue: TextView
     private lateinit var textOverlayTransparencyDefaultTick: TextView
+    private lateinit var btnGithubLoginSettings: Button
     private lateinit var editSyncGithubToken: EditText
     private lateinit var editSyncGistId: EditText
     private lateinit var btnSyncDevicesSettings: Button
@@ -147,6 +148,7 @@ class MainActivity : AppCompatActivity() {
     private val PREFS_KEY_DELETED_TEAM_IDS = OverlayService.PREFS_KEY_DELETED_TEAM_IDS
     private val PREFS_KEY_GBL_SEASONS_JSON = OverlayService.PREFS_KEY_GBL_SEASONS_JSON
     private val PREFS_KEY_SYNC_GITHUB_TOKEN = OverlayService.PREFS_KEY_SYNC_GITHUB_TOKEN
+    private val PREFS_KEY_SYNC_GITHUB_USERNAME = OverlayService.PREFS_KEY_SYNC_GITHUB_USERNAME
     private val PREFS_KEY_SYNC_GIST_ID = OverlayService.PREFS_KEY_SYNC_GIST_ID
     private val PREFS_KEY_SYNC_LAST_AT = OverlayService.PREFS_KEY_SYNC_LAST_AT
     private val SCRAPEDDUCK_EVENTS_URL = "https://raw.githubusercontent.com/bigfoott/ScrapedDuck/data/events.min.json"
@@ -219,6 +221,7 @@ class MainActivity : AppCompatActivity() {
             setupBattleLogFilters()
             renderBattleLogPage()
             updateSyncStatusUi()
+            checkPendingGitHubDeviceLoginOnResume()
             // Automatically pull & reconcile deltas from the other device on every app open / resume
             triggerTwoDeviceCloudSync(silent = true)
         }
@@ -289,6 +292,7 @@ class MainActivity : AppCompatActivity() {
         seekbarOverlayTransparency = findViewById(R.id.seekbar_overlay_transparency)
         textOverlayTransparencyValue = findViewById(R.id.text_overlay_transparency_value)
         textOverlayTransparencyDefaultTick = findViewById(R.id.text_overlay_transparency_default_tick)
+        btnGithubLoginSettings = findViewById(R.id.btn_github_login_settings)
         editSyncGithubToken = findViewById(R.id.edit_sync_github_token)
         editSyncGistId = findViewById(R.id.edit_sync_gist_id)
         btnSyncDevicesSettings = findViewById(R.id.btn_sync_devices_settings)
@@ -319,9 +323,17 @@ class MainActivity : AppCompatActivity() {
         editSyncGistId.setText(prefs.getString(PREFS_KEY_SYNC_GIST_ID, "") ?: "")
         updateSyncStatusUi()
 
+        btnGithubLoginSettings.setOnClickListener {
+            handleGitHubLoginButtonTap()
+        }
+
         btnSyncDevicesSettings.setOnClickListener {
             saveSyncCredentialsFromInputs()
-            triggerTwoDeviceCloudSync(silent = false)
+            if (OverlayService.getEffectiveSyncToken(prefs).isEmpty()) {
+                startGitHubOAuthDeviceFlow()
+            } else {
+                triggerTwoDeviceCloudSync(silent = false)
+            }
         }
 
         btnSyncBundleSettings.setOnClickListener {
@@ -367,8 +379,18 @@ class MainActivity : AppCompatActivity() {
 
         btnSyncBattleLog.setOnClickListener {
             saveSyncCredentialsFromInputs()
-            if (prefs.getString(PREFS_KEY_SYNC_GITHUB_TOKEN, "").isNullOrBlank()) {
-                showSyncBundleDialog()
+            if (OverlayService.getEffectiveSyncToken(prefs).isEmpty()) {
+                AlertDialog.Builder(this)
+                    .setTitle("☁️ Multi-Device Cloud Sync")
+                    .setMessage("Sign in with your GitHub account once on each phone to automatically sync your Battle Logs and Team Presets across all your devices.")
+                    .setPositiveButton("🔑 Login with GitHub") { _, _ ->
+                        startGitHubOAuthDeviceFlow()
+                    }
+                    .setNeutralButton("📦 Manual Sync Bundle") { _, _ ->
+                        showSyncBundleDialog()
+                    }
+                    .setNegativeButton("Cancel", null)
+                    .show()
             } else {
                 triggerTwoDeviceCloudSync(silent = false)
             }
@@ -500,32 +522,232 @@ class MainActivity : AppCompatActivity() {
     private fun saveSyncCredentialsFromInputs() {
         val tok = editSyncGithubToken.text.toString().trim()
         val gist = editSyncGistId.text.toString().trim()
-        prefs.edit()
+        val oldTok = prefs.getString(PREFS_KEY_SYNC_GITHUB_TOKEN, "")?.trim().orEmpty()
+        val editor = prefs.edit()
             .putString(PREFS_KEY_SYNC_GITHUB_TOKEN, tok)
             .putString(PREFS_KEY_SYNC_GIST_ID, gist)
-            .apply()
+        if (tok != oldTok) {
+            editor.putString(PREFS_KEY_SYNC_GITHUB_USERNAME, "")
+        }
+        editor.apply()
         updateSyncStatusUi()
     }
 
     private fun updateSyncStatusUi() {
+        val token = OverlayService.getEffectiveSyncToken(prefs)
+        val username = prefs.getString(PREFS_KEY_SYNC_GITHUB_USERNAME, "")?.trim().orEmpty()
         val lastAt = prefs.getLong(PREFS_KEY_SYNC_LAST_AT, 0L)
         val gistId = prefs.getString(PREFS_KEY_SYNC_GIST_ID, "")?.trim().orEmpty()
         val timeFmt = java.text.SimpleDateFormat("MMM d, h:mm a", java.util.Locale.US)
-        val lastStr = if (lastAt > 0L) timeFmt.format(java.util.Date(lastAt)) else "Syncing..."
-        val vaultShort = if (gistId.isNotEmpty()) "Gist: ${gistId.take(8)}…" else "Cloud Vault (Auto)"
-        textSyncStatus.text = "Auto-Sync on Open: ON • Last: $lastStr • $vaultShort • Logs: ${loadBattleLogs().size} • Teams: ${loadPresets().size}"
+        val lastStr = if (lastAt > 0L) timeFmt.format(java.util.Date(lastAt)) else "Never"
+
+        if (token.isNotEmpty()) {
+            val userLabel = if (username.isNotEmpty()) "@$username" else "GitHub Account"
+            btnGithubLoginSettings.text = "✅ Connected: $userLabel (Tap to Manage / Sign Out)"
+            btnGithubLoginSettings.backgroundTintList = android.content.res.ColorStateList.valueOf(0xFF059669.toInt())
+            val vaultShort = if (gistId.isNotEmpty()) "Gist: ${gistId.take(8)}…" else "Account Vault ($userLabel)"
+            textSyncStatus.text = "🟢 Auto-Sync Active ($userLabel) • Last: $lastStr • $vaultShort • Logs: ${loadBattleLogs().size} • Teams: ${loadPresets().size}"
+        } else {
+            btnGithubLoginSettings.text = "🔑 Login with GitHub (Generate Sync Token)"
+            btnGithubLoginSettings.backgroundTintList = android.content.res.ColorStateList.valueOf(0xFF10B981.toInt())
+            textSyncStatus.text = "⚪ Not signed in (Local-only) • Tap 'Login with GitHub' to enable multi-device auto-sync"
+        }
+    }
+
+    private fun handleGitHubLoginButtonTap() {
+        val token = OverlayService.getEffectiveSyncToken(prefs)
+        val username = prefs.getString(PREFS_KEY_SYNC_GITHUB_USERNAME, "")?.trim().orEmpty()
+        if (token.isNotEmpty()) {
+            val userDisplay = if (username.isNotEmpty()) "@$username" else "your GitHub account"
+            AlertDialog.Builder(this)
+                .setTitle("☁️ GitHub Cloud Sync ($userDisplay)")
+                .setMessage("Your device is signed in to $userDisplay and automatically syncs Battle Logs & Teams on app open and after every battle.")
+                .setPositiveButton("☁️ Sync Now") { _, _ ->
+                    triggerTwoDeviceCloudSync(silent = false)
+                }
+                .setNeutralButton("🔑 Switch Account / Re-Login") { _, _ ->
+                    startGitHubOAuthDeviceFlow()
+                }
+                .setNegativeButton("🔓 Sign Out") { _, _ ->
+                    prefs.edit()
+                        .remove(PREFS_KEY_SYNC_GITHUB_TOKEN)
+                        .remove(PREFS_KEY_SYNC_GITHUB_USERNAME)
+                        .remove(PREFS_KEY_SYNC_GIST_ID)
+                        .apply()
+                    editSyncGithubToken.setText("")
+                    editSyncGistId.setText("")
+                    updateSyncStatusUi()
+                    Toast.makeText(this, "Signed out of GitHub Cloud Sync", Toast.LENGTH_SHORT).show()
+                }
+                .show()
+        } else {
+            startGitHubOAuthDeviceFlow()
+        }
+    }
+
+    private fun startGitHubOAuthDeviceFlow() {
+        btnGithubLoginSettings.isEnabled = false
+        btnGithubLoginSettings.text = "⏳ Requesting GitHub Login Code..."
+        lifecycleScope.launch(Dispatchers.IO) {
+            val codeResult = OverlayService.requestGitHubDeviceCodeBlocking()
+            withContext(Dispatchers.Main) {
+                btnGithubLoginSettings.isEnabled = true
+                updateSyncStatusUi()
+                codeResult.onFailure { err ->
+                    Toast.makeText(
+                        this@MainActivity,
+                        "Could not start GitHub Login: ${err.localizedMessage ?: "Network error"}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }.onSuccess { deviceResp ->
+                    showGitHubDeviceVerificationDialog(deviceResp)
+                }
+            }
+        }
+    }
+
+    private fun checkPendingGitHubDeviceLoginOnResume() {
+        if (OverlayService.getEffectiveSyncToken(prefs).isNotEmpty()) return
+        val pendingCode = prefs.getString("pending_github_device_code", "")?.trim().orEmpty()
+        val expiresAt = prefs.getLong("pending_github_device_expires_at", 0L)
+        if (pendingCode.isEmpty() || System.currentTimeMillis() > expiresAt) return
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            val (status, tokenOrErr, username) = OverlayService.pollGitHubDeviceTokenOnceBlocking(pendingCode)
+            if (status == "SUCCESS" && tokenOrErr.isNotEmpty()) {
+                prefs.edit()
+                    .remove("pending_github_device_code")
+                    .remove("pending_github_device_expires_at")
+                    .putString(PREFS_KEY_SYNC_GITHUB_TOKEN, tokenOrErr)
+                    .putString(PREFS_KEY_SYNC_GITHUB_USERNAME, username)
+                    .apply()
+                withContext(Dispatchers.Main) {
+                    editSyncGithubToken.setText(tokenOrErr)
+                    updateSyncStatusUi()
+                    val userTag = if (username.isNotEmpty()) "@$username" else "GitHub"
+                    Toast.makeText(
+                        this@MainActivity,
+                        "✅ Signed in as $userTag! Syncing devices...",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    triggerTwoDeviceCloudSync(silent = false)
+                }
+            }
+        }
+    }
+
+    private fun showGitHubDeviceVerificationDialog(deviceResp: OverlayService.Companion.GitHubDeviceCodeResponse) {
+        val cm = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        cm.setPrimaryClip(android.content.ClipData.newPlainText("GitHub Device Code", deviceResp.userCode))
+        Toast.makeText(this, "Code ${deviceResp.userCode} copied to clipboard!", Toast.LENGTH_LONG).show()
+
+        val deadlineMs = System.currentTimeMillis() + (deviceResp.expiresIn * 1000L)
+        prefs.edit()
+            .putString("pending_github_device_code", deviceResp.deviceCode)
+            .putLong("pending_github_device_expires_at", deadlineMs)
+            .apply()
+
+        var isPollingActive = true
+        val statusLabel = TextView(this).apply {
+            text = "Your 8-character GitHub Login Code:\n\n" +
+                "   👉  ${deviceResp.userCode}  👈\n" +
+                "   (Already copied to your clipboard!)\n\n" +
+                "1. Tap \"🌐 Open GitHub Login\" below.\n" +
+                "2. Paste ${deviceResp.userCode} on GitHub and tap Authorize.\n" +
+                "3. Switch back to BattleMatrix — your token is saved automatically!\n\n" +
+                "⏳ Waiting for GitHub authorization..."
+            setTextColor(0xFFF8FAFC.toInt())
+            setBackgroundColor(0xFF0F172A.toInt())
+            textSize = 13f
+            val pad = (16 * resources.displayMetrics.density).toInt()
+            setPadding(pad, pad, pad, pad)
+        }
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("🔑 Code: ${deviceResp.userCode}")
+            .setView(statusLabel)
+            .setPositiveButton("🌐 Open GitHub Login", null)
+            .setNeutralButton("📋 Copy Code", null)
+            .setNegativeButton("Close") { _, _ ->
+                isPollingActive = false
+            }
+            .setOnDismissListener {
+                isPollingActive = false
+            }
+            .create()
+
+        dialog.show()
+
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+            cm.setPrimaryClip(android.content.ClipData.newPlainText("GitHub Device Code", deviceResp.userCode))
+            Toast.makeText(this, "Code ${deviceResp.userCode} copied! Paste it on GitHub.", Toast.LENGTH_LONG).show()
+            try {
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(deviceResp.verificationUri)))
+            } catch (_: Exception) {
+                Toast.makeText(this, "Open ${deviceResp.verificationUri} in your browser", Toast.LENGTH_LONG).show()
+            }
+        }
+
+        dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
+            cm.setPrimaryClip(android.content.ClipData.newPlainText("GitHub Device Code", deviceResp.userCode))
+            Toast.makeText(this, "Copied ${deviceResp.userCode}!", Toast.LENGTH_SHORT).show()
+        }
+
+        // Poll GitHub OAuth endpoint in background until user authorizes
+        lifecycleScope.launch(Dispatchers.IO) {
+            var pollIntervalMs = (deviceResp.interval.coerceAtLeast(5)) * 1000L
+            while (isPollingActive && System.currentTimeMillis() < deadlineMs) {
+                kotlinx.coroutines.delay(pollIntervalMs)
+                if (!isPollingActive) break
+                val (status, tokenOrErr, username) = OverlayService.pollGitHubDeviceTokenOnceBlocking(deviceResp.deviceCode)
+                when (status) {
+                    "SUCCESS" -> {
+                        isPollingActive = false
+                        prefs.edit()
+                            .remove("pending_github_device_code")
+                            .remove("pending_github_device_expires_at")
+                            .putString(PREFS_KEY_SYNC_GITHUB_TOKEN, tokenOrErr)
+                            .putString(PREFS_KEY_SYNC_GITHUB_USERNAME, username)
+                            .apply()
+                        withContext(Dispatchers.Main) {
+                            editSyncGithubToken.setText(tokenOrErr)
+                            updateSyncStatusUi()
+                            if (dialog.isShowing) dialog.dismiss()
+                            val userTag = if (username.isNotEmpty()) "@$username" else "GitHub"
+                            Toast.makeText(
+                                this@MainActivity,
+                                "✅ Signed in as $userTag! Syncing devices...",
+                                Toast.LENGTH_LONG
+                            ).show()
+                            triggerTwoDeviceCloudSync(silent = false)
+                        }
+                        break
+                    }
+                    "SLOW_DOWN" -> {
+                        pollIntervalMs += 5000L
+                    }
+                    "ERROR" -> {
+                        isPollingActive = false
+                        withContext(Dispatchers.Main) {
+                            statusLabel.text = "❌ GitHub Login failed: $tokenOrErr"
+                        }
+                        break
+                    }
+                }
+            }
+        }
     }
 
     private fun triggerTwoDeviceCloudSync(silent: Boolean) {
         val tok = OverlayService.getEffectiveSyncToken(prefs)
         if (tok.isEmpty()) {
             if (!silent) {
-                Toast.makeText(this, "Enter a GitHub Token in Settings or use Sync Bundle", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "Tap '🔑 Login with GitHub' in Settings to enable auto-sync", Toast.LENGTH_LONG).show()
             }
             return
         }
         if (!silent) {
-            textSyncStatus.text = "☁️ Reconciling deltas with cloud vault..."
+            textSyncStatus.text = "☁️ Reconciling deltas with your GitHub cloud vault..."
             btnSyncDevicesSettings.isEnabled = false
             btnSyncBattleLog.isEnabled = false
         }
@@ -541,7 +763,7 @@ class MainActivity : AppCompatActivity() {
                 renderBattleLogPage()
                 if (!silent) {
                     Toast.makeText(this@MainActivity, msg, Toast.LENGTH_LONG).show()
-                } else if (ok && (!msg.contains("+0 from other device") || !msg.contains("+0 updated"))) {
+                } else if (ok && (!msg.contains("+0 from other devices") || !msg.contains("+0 updated"))) {
                     Toast.makeText(this@MainActivity, "☁️ Auto-synced on open: $msg", Toast.LENGTH_SHORT).show()
                 }
             }

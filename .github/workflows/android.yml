@@ -57,7 +57,10 @@ jobs:
           distribution: 'temurin'
 
       - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
+        run: |
+          chmod +x gradlew
+          if [ -f MainActivity.kt ]; then cp MainActivity.kt app/src/main/java/com/gbl/overlay/MainActivity.kt; fi
+          if [ -f OverlayService.kt ]; then cp OverlayService.kt app/src/main/java/com/gbl/overlay/OverlayService.kt; fi
 
       - name: Verify or Generate Release Keystore
         run: |
