@@ -97,6 +97,8 @@ class OverlayService : LifecycleService() {
         const val PREFS_KEY_BATTLE_LOGS = "gbl_battle_logs_v1"
         const val PREFS_KEY_DELETED_LOG_IDS = "gbl_deleted_log_ids_v1"
         const val PREFS_KEY_DELETED_TEAM_IDS = "gbl_deleted_team_ids_v1"
+        const val PREFS_KEY_DELETED_LOGS_TRASH = "gbl_deleted_battles_trash_v1"
+        const val PREFS_KEY_DELETED_TEAMS_TRASH = "gbl_deleted_teams_trash_v1"
         const val PREFS_KEY_GBL_SEASONS_JSON = "gbl_seasons_json_v1"
         const val PREFS_KEY_SYNC_GITHUB_TOKEN = "gbl_sync_github_token"
         const val PREFS_KEY_SYNC_GIST_ID = "gbl_sync_gist_id"
@@ -161,11 +163,33 @@ class OverlayService : LifecycleService() {
             local: SyncVaultPayload,
             remote: SyncVaultPayload
         ): Triple<SyncVaultPayload, Int, Int> {
-            val allDeletedLogs = (local.deletedLogIds + remote.deletedLogIds).toSet()
-            val allDeletedTeams = (local.deletedTeamIds + remote.deletedTeamIds).toSet()
-
             val localLogMap = local.battleLogs.associateBy { it.id }
             val remoteLogMap = remote.battleLogs.associateBy { it.id }
+            val localDeletedLogSet = local.deletedLogIds.toSet()
+            val remoteDeletedLogSet = remote.deletedLogIds.toSet()
+
+            // Allow restored items (present in active list, absent from that device's deletedIds, with newer updatedAt) to clear tombstones
+            val allDeletedLogs = (localDeletedLogSet + remoteDeletedLogSet).filter { id ->
+                val l = localLogMap[id]
+                val r = remoteLogMap[id]
+                val restoredLocally = l != null && id !in localDeletedLogSet && (l.updatedAt > remote.updatedAt || id !in remoteLogMap)
+                val restoredRemotely = r != null && id !in remoteDeletedLogSet && (r.updatedAt > local.updatedAt && id !in localDeletedLogSet)
+                !(restoredLocally || restoredRemotely)
+            }.toSet()
+
+            val localTeamMap = local.teamPresets.associateBy { it.id }
+            val remoteTeamMap = remote.teamPresets.associateBy { it.id }
+            val localDeletedTeamSet = local.deletedTeamIds.toSet()
+            val remoteDeletedTeamSet = remote.deletedTeamIds.toSet()
+
+            val allDeletedTeams = (localDeletedTeamSet + remoteDeletedTeamSet).filter { id ->
+                val l = localTeamMap[id]
+                val r = remoteTeamMap[id]
+                val restoredLocally = l != null && id !in localDeletedTeamSet && (l.updatedAt > remote.updatedAt || id !in remoteTeamMap)
+                val restoredRemotely = r != null && id !in remoteDeletedTeamSet && (r.updatedAt > local.updatedAt && id !in localDeletedTeamSet)
+                !(restoredLocally || restoredRemotely)
+            }.toSet()
+
             val allLogIds = (localLogMap.keys + remoteLogMap.keys) - allDeletedLogs
             var newOrUpdatedLogsFromRemote = 0
 
@@ -189,8 +213,6 @@ class OverlayService : LifecycleService() {
                 }
             }.sortedByDescending { it.timestampMs }
 
-            val localTeamMap = local.teamPresets.associateBy { it.id }
-            val remoteTeamMap = remote.teamPresets.associateBy { it.id }
             val orderedIds = mutableListOf<String>()
             for (t in local.teamPresets) {
                 if (t.id !in allDeletedTeams && !orderedIds.contains(t.id)) orderedIds.add(t.id)
@@ -2857,7 +2879,7 @@ class OverlayService : LifecycleService() {
         }
 
         val notification: Notification = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
-            .setContentTitle("GBL Battle Assistant Active")
+            .setContentTitle("SilphScope PvP Overlay Active")
             .setContentText(statusText)
             .setSmallIcon(android.R.drawable.ic_menu_compass)
             .setPriority(NotificationCompat.PRIORITY_LOW)
@@ -2875,7 +2897,7 @@ class OverlayService : LifecycleService() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 NOTIFICATION_CHANNEL_ID,
-                "GBL Overlay Service",
+                "SilphScope PvP Overlay Service",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
                 description = "Shows live GBL turn alignment & opponent counter HUD"
@@ -3139,6 +3161,12 @@ class OverlayService : LifecycleService() {
             }
         }
 
+        // Guard: If the screen is on the GBL Battle Menu ("BATTLE" in upper-left & "PARTY" in upper-right),
+        // pause OCR matching for this frame so menu headers never overwrite opponent or player slots.
+        if (isBattleMenuScreen(oppLines, playerTopLines, playerMoveLines)) {
+            return
+        }
+
         handleOpponentLines(oppLines)
         handlePlayerSwitchLines(playerTopLines, playerMoveLines)
     }
@@ -3168,6 +3196,86 @@ class OverlayService : LifecycleService() {
         } catch (_: Exception) {
             null
         }
+    }
+
+    private val OCR_MENU_IGNORED_WORDS = setOf(
+        "party", "parties", "battle", "battles", "league", "schedule",
+        "rank", "rating", "rewards", "reward", "train", "training",
+        "season", "current", "great", "ultra", "master", "premier",
+        "switch", "shield", "shields", "super", "effective", "not", "very",
+        "attack", "defense", "charged", "fast", "weather", "boost"
+    )
+
+    /**
+     * Returns true if a token or word is a GBL menu label ("party", "battle", etc.) or a 1-character
+     * OCR confusable of "party" (which otherwise has edit distance 2 to "paras") or "battle".
+     */
+    private fun isIgnoredMenuToken(rawToken: String): Boolean {
+        val cleanLower = rawToken.lowercase().replace(Regex("[^a-z]"), "")
+        if (cleanLower.isEmpty()) return true
+        if (cleanLower in OCR_MENU_IGNORED_WORDS) return true
+        val normVariants = listOf(
+            normalizeOcrToken(rawToken, oneAsL = false, rnAsM = false, vAsY = false),
+            normalizeOcrToken(rawToken, oneAsL = true, rnAsM = false, vAsY = false),
+            normalizeOcrToken(rawToken, oneAsL = false, rnAsM = true, vAsY = true)
+        ).filter { it.isNotEmpty() }.distinct()
+        for (norm in normVariants) {
+            if (norm in OCR_MENU_IGNORED_WORDS) return true
+            // Block "party" and any 1-char OCR typo of "party" (e.g. "partv", "parly") so it can NEVER match Paras (dist 2 from party)
+            if (norm.length in 4..6 && levenshteinDistance(norm, "party") <= 1) return true
+            // Block "battle" and any 1-char OCR typo of "battle" (e.g. "batt1e", "battie") so it can NEVER match user team Pokémon
+            if (norm.length in 5..7 && levenshteinDistance(norm, "battle") <= 1) return true
+        }
+        return false
+    }
+
+    /**
+     * Detects when the user is on the Pokémon GO Battle Menu screen (upper-left "BATTLE" + upper-right "PARTY",
+     * or GBL lobby headers without any active combat CP indicators) and pauses OCR matching on that frame.
+     */
+    private fun isBattleMenuScreen(
+        oppLines: List<Text.Line>,
+        playerTopLines: List<Text.Line>,
+        playerMoveLines: List<Text.Line>
+    ): Boolean {
+        val oppTextLower = oppLines.joinToString(" ") { it.text.lowercase() }
+        val playerTopLower = playerTopLines.joinToString(" ") { it.text.lowercase() }
+        val bottomLower = playerMoveLines.joinToString(" ") { it.text.lowercase() }
+        val combinedTopLower = "$playerTopLower $oppTextLower"
+
+        val hasCpInTop = Regex("(?i)\\bcp\\s*\\d{2,4}\\b").containsMatchIn(combinedTopLower)
+
+        val hasPartyInOpp = oppLines.any { line ->
+            line.text.trim().split(Regex("\\s+")).any { tok ->
+                val n = normalizeOcrToken(tok, vAsY = true)
+                n == "party" || n == "parties" || (n.length in 4..6 && levenshteinDistance(n, "party") <= 1)
+            }
+        }
+        val hasBattleInPlayerTop = playerTopLines.any { line ->
+            line.text.trim().split(Regex("\\s+")).any { tok ->
+                val n = normalizeOcrToken(tok, oneAsL = true)
+                n == "battle" || n == "battles" || (n.length in 5..7 && levenshteinDistance(n, "battle") <= 1)
+            }
+        }
+
+        // Classic GBL Battle Menu header: "BATTLE" in upper-left and "PARTY" in upper-right
+        if (hasPartyInOpp && hasBattleInPlayerTop) return true
+
+        // Even if one side of the header was occluded by the floating HUD, if "PARTY" is in upper-right without any CP in top bars
+        if (hasPartyInOpp && !hasCpInTop) return true
+        if (hasBattleInPlayerTop && !hasCpInTop) return true
+
+        // GBL Lobby / Menu text indicators
+        if (!hasCpInTop && (
+                combinedTopLower.contains("go battle league") ||
+                combinedTopLower.contains("current season") ||
+                bottomLower.contains("battle till you win") ||
+                bottomLower.contains("view schedule")
+            )
+        ) {
+            return true
+        }
+        return false
     }
 
     private fun isOverlayHudSelfText(lower: String): Boolean {
@@ -3262,11 +3370,14 @@ class OverlayService : LifecycleService() {
                     .replace(Regex("[^a-zA-Z\\s-]"), "")
                     .trim()
                 if (cleanWord.length in 4..14 &&
+                    !isIgnoredMenuToken(cleanWord) &&
                     !cleanWord.contains("super", ignoreCase = true) &&
                     !cleanWord.contains("effective", ignoreCase = true) &&
                     !cleanWord.contains("attack", ignoreCase = true) &&
                     !cleanWord.contains("defense", ignoreCase = true) &&
-                    !cleanWord.contains("shield", ignoreCase = true)
+                    !cleanWord.contains("shield", ignoreCase = true) &&
+                    !cleanWord.contains("party", ignoreCase = true) &&
+                    !cleanWord.contains("battle", ignoreCase = true)
                 ) {
                     val dynamicName = cleanWord.lowercase().replaceFirstChar { it.uppercase() }
                     val dynMeta = getPokemonMeta(dynamicName)
@@ -3325,8 +3436,10 @@ class OverlayService : LifecycleService() {
             if (lineText.length < 3) continue
             val lowerLine = lineText.lowercase()
             if (isOverlayHudSelfText(lowerLine)) continue
+            if (isIgnoredMenuToken(lineText)) continue
 
             val normalizedLine = normalizeOcrToken(lineText)
+            if (normalizedLine == "battle" || normalizedLine == "party") continue
 
             val matchCountInLine = preset.pokemon.count { slot ->
                 val base = FormResolver.extractBaseSpecies(slot.name)
@@ -3345,12 +3458,14 @@ class OverlayService : LifecycleService() {
                     isMatched = true
                 } else {
                     val tokens = lineText.replace(Regex("(?i)\\bcp\\s*\\d+\\b"), " ")
+                        .replace(Regex("(?i)\\b(?:battle|battles|party|parties|schedule|rank|rating|rewards|train)\\b"), " ")
                         .replace(Regex("\\b\\d+\\b"), " ")
                         .replace(Regex("[^a-zA-Z0-9\\s]"), " ")
                         .split("\\s+".toRegex())
-                        .filter { it.length >= 4 }
+                        .filter { it.length >= 4 && !isIgnoredMenuToken(it) }
                     for (token in tokens) {
                         val normTok = normalizeOcrToken(token)
+                        if (isIgnoredMenuToken(normTok)) continue
                         if (levenshteinDistance(normTok, speciesBase) <= 2) {
                             isMatched = true
                             break
@@ -3621,28 +3736,33 @@ class OverlayService : LifecycleService() {
     }
 
     private fun findPokemonInText(rawText: String): PokemonMeta? {
-        // Strip CP labels and 2+ digit numbers EVEN when concatenated without a space (e.g. "KyuremCP4605" or "Kyurem4605"),
+        // Strip CP labels, menu labels ("party", "battle", etc.) and 2+ digit numbers EVEN when concatenated without a space (e.g. "KyuremCP4605" or "Kyurem4605"),
         // while preserving single digits inside words (e.g. "Cl0dsire", "D1alga") for normalizeOcrToken!
         val cleaned = rawText
             .replace(Regex("(?i)cp\\s*\\d+"), " ")
-            .replace(Regex("(?i)\\b(?:shadow|purified|forme|form|cp|iv|lv|level|vs)\\b"), " ")
+            .replace(Regex("(?i)\\b(?:shadow|purified|forme|form|cp|iv|lv|level|vs|party|parties|battle|battles|league|schedule|rank|rating|rewards|reward|train|training|season|current)\\b"), " ")
             .replace(Regex("\\d{2,}"), " ")
             .replace(Regex("\\b\\d+\\b"), " ")
             .replace(Regex("[^a-zA-Z0-9\\s-]"), " ")
             .trim()
 
         if (cleaned.length < 3) return null
+        if (isIgnoredMenuToken(cleaned)) return null
+
+        val tokens = cleaned.split("\\s+".toRegex()).filter { it.length >= 3 && !isIgnoredMenuToken(it) }
+        if (tokens.isEmpty()) return null
+        val filteredCleaned = tokens.joinToString(" ")
 
         val allMeta = getAllPokemonMeta()
         val sortedByLenDesc = allMeta.sortedByDescending { it.baseSpecies.length }
-        val lowerCleaned = cleaned.lowercase()
+        val lowerCleaned = filteredCleaned.lowercase()
         val normCleanedVariants = listOf(
-            normalizeOcrToken(cleaned, oneAsL = false, rnAsM = false, vAsY = false),
-            normalizeOcrToken(cleaned, oneAsL = true, rnAsM = false, vAsY = false),
-            normalizeOcrToken(cleaned, oneAsL = false, rnAsM = true, vAsY = false),
-            normalizeOcrToken(cleaned, oneAsL = false, rnAsM = true, vAsY = true),
-            normalizeOcrToken(cleaned, oneAsL = false, rnAsM = false, vAsY = true)
-        ).distinct()
+            normalizeOcrToken(filteredCleaned, oneAsL = false, rnAsM = false, vAsY = false),
+            normalizeOcrToken(filteredCleaned, oneAsL = true, rnAsM = false, vAsY = false),
+            normalizeOcrToken(filteredCleaned, oneAsL = false, rnAsM = true, vAsY = false),
+            normalizeOcrToken(filteredCleaned, oneAsL = false, rnAsM = true, vAsY = true),
+            normalizeOcrToken(filteredCleaned, oneAsL = false, rnAsM = false, vAsY = true)
+        ).filter { !isIgnoredMenuToken(it) }.distinct()
 
         // 1. Direct or normalized substring match against species base names (longest species name first)
         for (meta in sortedByLenDesc) {
@@ -3653,15 +3773,15 @@ class OverlayService : LifecycleService() {
         }
 
         // 2. Token-level exact & normalized OCR confusable match (including rn->m and v->y for "Kyurern"/"Kvurem")
-        val tokens = cleaned.split("\\s+".toRegex()).filter { it.length >= 3 }
         for (token in tokens) {
+            if (isIgnoredMenuToken(token)) continue
             val tokenNorms = listOf(
                 normalizeOcrToken(token, oneAsL = false, rnAsM = false, vAsY = false),
                 normalizeOcrToken(token, oneAsL = true, rnAsM = false, vAsY = false),
                 normalizeOcrToken(token, oneAsL = false, rnAsM = true, vAsY = false),
                 normalizeOcrToken(token, oneAsL = false, rnAsM = true, vAsY = true),
                 normalizeOcrToken(token, oneAsL = false, rnAsM = false, vAsY = true)
-            ).filter { it.length >= 3 }.distinct()
+            ).filter { it.length >= 3 && !isIgnoredMenuToken(it) }.distinct()
             if (tokenNorms.isEmpty()) continue
 
             val exactOrNorm = sortedByLenDesc.find { meta ->
@@ -3673,10 +3793,11 @@ class OverlayService : LifecycleService() {
 
         // 3. Prefix match for partially clipped names (e.g. "Kyure", "Feraliga", "Giratin", "Zacia")
         for (token in tokens) {
+            if (isIgnoredMenuToken(token)) continue
             val tokenNorms = listOf(
                 normalizeOcrToken(token, oneAsL = false, rnAsM = true, vAsY = false),
                 normalizeOcrToken(token, oneAsL = false, rnAsM = true, vAsY = true)
-            ).filter { it.length >= 5 }.distinct()
+            ).filter { it.length >= 5 && !isIgnoredMenuToken(it) }.distinct()
             for (normToken in tokenNorms) {
                 val prefixMatch = sortedByLenDesc.find {
                     val target = normalizeOcrToken(it.baseSpecies)
@@ -3691,13 +3812,14 @@ class OverlayService : LifecycleService() {
         var bestDistance = Int.MAX_VALUE
 
         for (token in tokens) {
+            if (isIgnoredMenuToken(token)) continue
             val tokenNorms = listOf(
                 normalizeOcrToken(token, oneAsL = false, rnAsM = false, vAsY = false),
                 normalizeOcrToken(token, oneAsL = true, rnAsM = false, vAsY = false),
                 normalizeOcrToken(token, oneAsL = false, rnAsM = true, vAsY = false),
                 normalizeOcrToken(token, oneAsL = false, rnAsM = true, vAsY = true),
                 normalizeOcrToken(token, oneAsL = false, rnAsM = false, vAsY = true)
-            ).filter { it.length >= 4 }.distinct()
+            ).filter { it.length >= 4 && !isIgnoredMenuToken(it) }.distinct()
             if (tokenNorms.isEmpty()) continue
 
             for (normTok in tokenNorms) {
@@ -3713,10 +3835,12 @@ class OverlayService : LifecycleService() {
                     } else if (normTok.length > target.length && target.length >= 5 && normTok.length <= target.length + 4) {
                         // Sliding window check if trailing type icon / CP letter got glued to the token
                         val sub = normTok.substring(0, target.length)
-                        val dist = levenshteinDistance(sub, target)
-                        if (dist <= 1 && dist < bestDistance) {
-                            bestDistance = dist
-                            bestMatch = meta
+                        if (!isIgnoredMenuToken(sub)) {
+                            val dist = levenshteinDistance(sub, target)
+                            if (dist <= 1 && dist < bestDistance) {
+                                bestDistance = dist
+                                bestMatch = meta
+                            }
                         }
                     }
                 }

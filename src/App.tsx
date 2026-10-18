@@ -295,6 +295,72 @@ export default function App() {
     return [];
   });
 
+  const [deletedTeamIds, setDeletedTeamIds] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem('gbl_deleted_team_ids_v1');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    return [];
+  });
+
+  const [deletedBattlesTrash, setDeletedBattlesTrash] = useState<WebBattleLogEntry[]>(() => {
+    try {
+      const raw = localStorage.getItem('gbl_deleted_battles_trash_v1');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    return [];
+  });
+
+  const [deletedTeamsTrash, setDeletedTeamsTrash] = useState<TeamPreset[]>(() => {
+    try {
+      const raw = localStorage.getItem('gbl_deleted_teams_trash_v1');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    return [];
+  });
+
+  const [showBattlesTrashModal, setShowBattlesTrashModal] = useState<boolean>(false);
+  const [showTeamsTrashModal, setShowTeamsTrashModal] = useState<boolean>(false);
+  const [undoBanner, setUndoBanner] = useState<{ message: string; onUndo: () => void } | null>(null);
+  const [exportFormatMode, setExportFormatMode] = useState<'GO_BATTLE_LOG' | 'STANDARD'>('GO_BATTLE_LOG');
+
+  const triggerUndoBanner = (message: string, onUndo: () => void) => {
+    setUndoBanner({ message, onUndo });
+  };
+
+  useEffect(() => {
+    if (!undoBanner) return;
+    const timer = setTimeout(() => {
+      setUndoBanner(null);
+    }, 9000);
+    return () => clearTimeout(timer);
+  }, [undoBanner]);
+
+  const saveDeletedBattlesTrashToStorage = (list: WebBattleLogEntry[]) => {
+    const unique = Array.from(new Map(list.map((item) => [item.id, item])).values()).slice(0, 200);
+    setDeletedBattlesTrash(unique);
+    try {
+      localStorage.setItem('gbl_deleted_battles_trash_v1', JSON.stringify(unique));
+    } catch {}
+  };
+
+  const saveDeletedTeamsTrashToStorage = (list: TeamPreset[]) => {
+    const unique = Array.from(new Map(list.map((item) => [item.id, item])).values()).slice(0, 50);
+    setDeletedTeamsTrash(unique);
+    try {
+      localStorage.setItem('gbl_deleted_teams_trash_v1', JSON.stringify(unique));
+    } catch {}
+  };
+
   const [seasonsList, setSeasonsList] = useState<GblSeasonInfo[]>(() => {
     try {
       const raw = localStorage.getItem('gbl_scraped_seasons_v1');
@@ -343,9 +409,67 @@ export default function App() {
     });
   };
 
+  const restoreBattleLogsFromTrash = (entriesToRestore: WebBattleLogEntry[]) => {
+    if (entriesToRestore.length === 0) return;
+    const now = Date.now();
+    const restoreIds = new Set(entriesToRestore.map((e) => e.id));
+    setDeletedLogIds((prev) => {
+      const next = prev.filter((id) => !restoreIds.has(id));
+      try {
+        localStorage.setItem('gbl_deleted_log_ids_v1', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+    saveDeletedBattlesTrashToStorage(deletedBattlesTrash.filter((e) => !restoreIds.has(e.id)));
+    setBattleLogs((prev) => {
+      const filteredPrev = prev.filter((e) => !restoreIds.has(e.id));
+      const updated = [
+        ...entriesToRestore.map((e) => ({ ...e, updatedAt: now })),
+        ...filteredPrev
+      ].sort((a, b) => b.timestampMs - a.timestampMs);
+      try {
+        localStorage.setItem('gbl_battle_logs_v1', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+  };
+
+  const restoreTeamPresetsFromTrash = (teamsToRestore: TeamPreset[]) => {
+    if (teamsToRestore.length === 0) return;
+    const restoreIds = new Set(teamsToRestore.map((t) => t.id));
+    setDeletedTeamIds((prev) => {
+      const next = prev.filter((id) => !restoreIds.has(id));
+      try {
+        localStorage.setItem('gbl_deleted_team_ids_v1', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+    saveDeletedTeamsTrashToStorage(deletedTeamsTrash.filter((t) => !restoreIds.has(t.id)));
+    setPresets((prev) => {
+      const filteredPrev = prev.filter((p) => !restoreIds.has(p.id));
+      return [...filteredPrev, ...teamsToRestore];
+    });
+  };
+
+  const handleDeleteSingleBattleLog = (entry: WebBattleLogEntry) => {
+    saveDeletedBattlesTrashToStorage([entry, ...deletedBattlesTrash.filter((b) => b.id !== entry.id)]);
+    addDeletedTombstone(entry.id);
+    saveBattleLogsToStorage(battleLogs.filter((b) => b.id !== entry.id));
+    const oppFirst = entry.opponents[0] || 'Opponent';
+    triggerUndoBanner(`🗑️ Battle (${entry.result} vs ${oppFirst}) moved to Trash`, () => {
+      restoreBattleLogsFromTrash([entry]);
+    });
+  };
+
   const handleClearBattleLogs = () => {
-    battleLogs.forEach((b) => addDeletedTombstone(b.id));
+    if (battleLogs.length === 0) return;
+    const clearedCopy = [...battleLogs];
+    saveDeletedBattlesTrashToStorage([...clearedCopy, ...deletedBattlesTrash]);
+    clearedCopy.forEach((b) => addDeletedTombstone(b.id));
     saveBattleLogsToStorage([]);
+    triggerUndoBanner(`🗑️ ${clearedCopy.length} battle(s) moved to Trash`, () => {
+      restoreBattleLogsFromTrash(clearedCopy);
+    });
   };
 
   // Overlay Custom Position (Positioned below top header: y=118px, x=8px so it never obscures top opponent HP bar)
@@ -1146,13 +1270,28 @@ export default function App() {
 
   const handleDeletePreset = (id: string) => {
     if (presets.length <= 1) {
-      alert('You must keep at least one team preset.');
       return;
+    }
+    const target = presets.find((p) => p.id === id);
+    if (target) {
+      saveDeletedTeamsTrashToStorage([target, ...deletedTeamsTrash.filter((t) => t.id !== id)]);
+      setDeletedTeamIds((prev) => {
+        const next = Array.from(new Set([...prev, id]));
+        try {
+          localStorage.setItem('gbl_deleted_team_ids_v1', JSON.stringify(next));
+        } catch {}
+        return next;
+      });
     }
     const updated = presets.filter(p => p.id !== id);
     setPresets(updated);
     if (selectedPresetId === id) {
       setSelectedPresetId(updated[0].id);
+    }
+    if (target) {
+      triggerUndoBanner(`🗑️ Team '${target.name}' moved to Trash`, () => {
+        restoreTeamPresetsFromTrash([target]);
+      });
     }
   };
 
@@ -1171,14 +1310,13 @@ export default function App() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'GBL_Battle_Matrix_Android_Project.zip';
+      a.download = 'SilphScope_PvP_v2.03_Android_Project.zip';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (e) {
       console.error(e);
-      alert('Failed to generate project zip');
     } finally {
       setIsDownloadingZip(false);
     }
@@ -1192,18 +1330,18 @@ export default function App() {
           <div className="flex items-center gap-3">
             <img
               src="/favicon.svg"
-              alt="BattleMatrix GBL Icon"
+              alt="SilphScope PvP Icon"
               className="w-10 h-10 rounded-xl shadow-lg shadow-sky-500/20 border border-sky-500/30"
             />
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="font-bold text-base md:text-lg tracking-tight text-white">BattleMatrix GBL</h1>
+                <h1 className="font-bold text-base md:text-lg tracking-tight text-white">SilphScope PvP</h1>
                 <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20">
-                  v2.00 • Android Native Overlay
+                  v2.03 • Android Native Overlay
                 </span>
               </div>
               <p className="text-xs text-slate-400 hidden sm:block">
-                Real-Time 3x3 Matchup Matrix, Lead Tracking, Interactive Replay &amp; 2-Device Delta Sync for Pokémon GO PvP
+                Real-Time 3x3 Matchup Matrix, Lead Tracking, Interactive Replay &amp; Multi-Device Delta Sync for Pokémon GO PvP
               </p>
             </div>
           </div>
@@ -1276,7 +1414,7 @@ export default function App() {
               target="_blank"
               rel="noopener noreferrer"
               className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs flex items-center gap-1.5 shadow-lg shadow-amber-500/20 transition"
-              title="Support BattleMatrix GBL on Buy Me a Coffee"
+              title="Support SilphScope PvP on Buy Me a Coffee"
             >
               <span>☕ Buy Me a Coffee</span>
             </a>
@@ -1286,6 +1424,32 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6">
+        {/* Interactive Quick Undo Toast Banner */}
+        {undoBanner && (
+          <div className="mb-4 px-4 py-2.5 rounded-xl bg-amber-950/90 border border-amber-400/60 shadow-lg flex items-center justify-between gap-3">
+            <span className="text-xs font-bold text-amber-200">{undoBanner.message}</span>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  const fn = undoBanner.onUndo;
+                  setUndoBanner(null);
+                  fn();
+                }}
+                className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs transition"
+              >
+                ♻️ UNDO
+              </button>
+              <button
+                type="button"
+                onClick={() => setUndoBanner(null)}
+                className="px-2 py-1 text-slate-400 hover:text-white text-xs font-bold"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* =========================================================================
             TAB 1: INTERACTIVE BATTLE ARENA & FLOATING OVERLAY SIMULATOR
@@ -2622,6 +2786,14 @@ export default function App() {
               </div>
               <div className="flex items-center gap-2 shrink-0 flex-wrap">
                 <button
+                  onClick={() => setShowTeamsTrashModal(true)}
+                  className="py-2.5 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 font-bold text-xs flex items-center gap-1.5 transition"
+                  title="Restore accidentally deleted team presets"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Trash ({deletedTeamsTrash.length})</span>
+                </button>
+                <button
                   onClick={handleManualPvPokeSync}
                   disabled={isSyncingPvPoke}
                   className="py-2.5 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-sky-300 font-bold text-xs flex items-center gap-1.5 transition"
@@ -3626,7 +3798,7 @@ export default function App() {
 
               <div className="flex flex-wrap gap-2">
                 <a
-                  href="https://github.com/settings/tokens/new?description=BattleMatrix+GBL+Cloud+Sync&scopes=gist,repo"
+                  href="https://github.com/settings/tokens/new?description=SilphScope+PvP+Cloud+Sync&scopes=gist,repo"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition shadow-lg shadow-emerald-600/20"
@@ -3755,7 +3927,7 @@ export default function App() {
                           'Content-Type': 'application/json'
                         },
                         body: JSON.stringify({
-                          description: 'BattleMatrix GBL v2.00 Two-Device Delta Sync Vault',
+                          description: 'SilphScope PvP v2.03 Multi-Device Delta Sync Vault',
                           public: false,
                           files: {
                             'gbl_delta_sync_v2.json': { content: bundleStr }
@@ -3896,7 +4068,7 @@ export default function App() {
                 ? 'All Teams'
                 : presets.find((p) => p.id === logFilterTeamId)?.name || 'Selected Team';
             const lines: string[] = [
-              `=== BattleMatrix GBL Log (${rangeTitle}) ===`,
+              `=== SilphScope PvP Battle Log (${rangeTitle}) ===`,
               `League: ${logFilterLeague}`,
               `Team: ${teamName}`,
               `Overall Record: ${w}-${l} (${pct}% Win Rate)`,
@@ -3908,6 +4080,51 @@ export default function App() {
               const leadTag = b.leadMatchup === 'FAVORABLE' ? 'Fav' : b.leadMatchup === 'NEGATIVE' ? 'Neg' : 'Neu';
               const opps = b.opponents.length > 0 ? b.opponents.join(', ') : 'Unknown';
               lines.push(`${idx + 1}. [${b.result}] [Lead: ${leadTag}] (${dt}) vs ${opps}`);
+            });
+            return lines.join('\n');
+          };
+
+          const resolveTeamBracketHeader = (entry: WebBattleLogEntry): string => {
+            const directMons = (entry.userPokemon || []).map((m) => m.trim()).filter(Boolean);
+            if (directMons.length > 0) {
+              return `[${directMons.join(', ')}]`;
+            }
+            const matchedPreset =
+              presets.find(
+                (p) =>
+                  (entry.presetId && p.id === entry.presetId) ||
+                  p.name.toLowerCase() === (entry.userTeamName || '').toLowerCase()
+              ) || activePreset;
+            const presetMons = (matchedPreset?.pokemon || []).map((p) => p.name.trim()).filter(Boolean);
+            if (presetMons.length > 0) {
+              return `[${presetMons.join(', ')}]`;
+            }
+            return `[${entry.userTeamName || 'My Team'}]`;
+          };
+
+          const buildGoBattleLogExport = (
+            rangeCode: 'DAY' | 'WEEK' | 'CURRENT_SEASON' | 'PREVIOUS_SEASON' | 'ALL'
+          ) => {
+            const list = filterByRange(battleLogs, rangeCode);
+            if (list.length === 0) {
+              const fallbackTeam = (activePreset?.pokemon || []).map((p) => p.name).join(', ') || 'My Team';
+              return `[${fallbackTeam}]`;
+            }
+            const lines: string[] = [];
+            let lastHeader = '';
+            list.forEach((b) => {
+              const header = resolveTeamBracketHeader(b);
+              if (header !== lastHeader) {
+                if (lines.length > 0) lines.push('');
+                lines.push(header);
+                lastHeader = header;
+              }
+              const oppStr =
+                b.opponents && b.opponents.length > 0
+                  ? b.opponents.map((o) => o.trim()).join(' ')
+                  : 'Unknown Unknown Unknown';
+              const wl = b.result === 'WIN' ? 'W' : 'L';
+              lines.push(`${oppStr} ${wl}`);
             });
             return lines.join('\n');
           };
@@ -4003,36 +4220,51 @@ export default function App() {
                   <div className="flex flex-wrap items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => setExportPromptAction('COPY')}
+                      onClick={() => {
+                        setExportFormatMode('GO_BATTLE_LOG');
+                        setExportPromptAction('COPY');
+                      }}
                       className="px-3 py-1.5 rounded-xl bg-sky-600/25 hover:bg-sky-600/40 border border-sky-400/50 text-sky-200 text-xs font-bold transition"
                     >
-                      📋 Copy Summary (Day / Week / Season / All)
+                      📋 Copy Log (Go Battle Log / Summary)
                     </button>
                     <button
                       type="button"
-                      onClick={() => setExportPromptAction('SHARE')}
+                      onClick={() => {
+                        setExportFormatMode('GO_BATTLE_LOG');
+                        setExportPromptAction('SHARE');
+                      }}
                       className="px-3 py-1.5 rounded-xl bg-emerald-600/25 hover:bg-emerald-600/40 border border-emerald-400/50 text-emerald-200 text-xs font-bold transition"
                     >
-                      📤 Share Summary
+                      📤 Share Log
                     </button>
                     <button
                       type="button"
                       onClick={() => setActiveTab('settings')}
                       className="px-3 py-1.5 rounded-xl bg-purple-600/25 hover:bg-purple-600/40 border border-purple-400/50 text-purple-200 text-xs font-bold transition"
                     >
-                      ☁️ 2-Device Delta Sync
+                      ☁️ Multi-Device Cloud Sync
                     </button>
                   </div>
 
-                  {battleLogs.length > 0 && (
+                  <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={handleClearBattleLogs}
-                      className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white text-xs font-bold transition"
+                      onClick={() => setShowBattlesTrashModal(true)}
+                      className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 text-xs font-bold transition"
                     >
-                      Clear All
+                      🗑️ Trash ({deletedBattlesTrash.length})
                     </button>
-                  )}
+                    {battleLogs.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleClearBattleLogs}
+                        className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white text-xs font-bold transition"
+                      >
+                        Clear All
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -4188,11 +4420,9 @@ export default function App() {
                             </button>
                             <button
                               type="button"
-                              onClick={() => {
-                                addDeletedTombstone(entry.id);
-                                saveBattleLogsToStorage(battleLogs.filter((b) => b.id !== entry.id));
-                              }}
+                              onClick={() => handleDeleteSingleBattleLog(entry)}
                               className="px-2.5 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/35 border border-rose-400/50 text-rose-200 font-bold text-[11px] transition"
+                              title="Move battle to Trash"
                             >
                               🗑️
                             </button>
@@ -4204,13 +4434,13 @@ export default function App() {
                 )}
               </div>
 
-              {/* Timeframe Export Prompt Modal (Day, Week, Current Season, Previous Season, All Time) */}
+              {/* Timeframe & Format Export Prompt Modal (Go Battle Log Friendly Format + Standard Summary) */}
               {exportPromptAction && (
                 <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
                   <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-5 shadow-2xl space-y-3">
                     <div className="flex items-center justify-between border-b border-slate-800 pb-2">
                       <h3 className="font-bold text-sm text-white">
-                        {exportPromptAction === 'COPY' ? '📋 Copy Battle Log Summary' : '📤 Share Battle Log Summary'}
+                        {exportPromptAction === 'COPY' ? '📋 Copy Battle Log' : '📤 Share Battle Log'}
                       </h3>
                       <button
                         onClick={() => setExportPromptAction(null)}
@@ -4219,8 +4449,45 @@ export default function App() {
                         ✕
                       </button>
                     </div>
+
+                    {/* Export Format Toggle */}
+                    <div className="space-y-1.5">
+                      <label className="block text-[10px] font-bold uppercase text-slate-400">
+                        Export Format
+                      </label>
+                      <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-950 rounded-xl border border-slate-800">
+                        <button
+                          type="button"
+                          onClick={() => setExportFormatMode('GO_BATTLE_LOG')}
+                          className={`py-2 px-2 rounded-lg text-[11px] font-bold transition ${
+                            exportFormatMode === 'GO_BATTLE_LOG'
+                              ? 'bg-sky-500/25 border border-sky-400/70 text-sky-200'
+                              : 'text-slate-400 hover:text-slate-200'
+                          }`}
+                        >
+                          📊 Go Battle Log Format
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setExportFormatMode('STANDARD')}
+                          className={`py-2 px-2 rounded-lg text-[11px] font-bold transition ${
+                            exportFormatMode === 'STANDARD'
+                              ? 'bg-sky-500/25 border border-sky-400/70 text-sky-200'
+                              : 'text-slate-400 hover:text-slate-200'
+                          }`}
+                        >
+                          📋 Detailed Summary
+                        </button>
+                      </div>
+                      {exportFormatMode === 'GO_BATTLE_LOG' && (
+                        <div className="p-2 rounded-lg bg-slate-950 border border-slate-800 font-mono text-[10.5px] text-emerald-300 whitespace-pre-wrap max-h-28 overflow-y-auto">
+                          {buildGoBattleLogExport(logFilterTimeframe)}
+                        </div>
+                      )}
+                    </div>
+
                     <p className="text-xs text-slate-300">
-                      Select which timeframe to export for your selected Team &amp; League:
+                      Select timeframe to {exportPromptAction === 'COPY' ? 'copy' : 'share'}:
                     </p>
                     <div className="space-y-2">
                       {(
@@ -4236,11 +4503,14 @@ export default function App() {
                           key={opt.code}
                           type="button"
                           onClick={async () => {
-                            const text = buildPlainTextSummary(opt.code);
+                            const text =
+                              exportFormatMode === 'GO_BATTLE_LOG'
+                                ? buildGoBattleLogExport(opt.code)
+                                : buildPlainTextSummary(opt.code);
                             navigator.clipboard.writeText(text);
                             if (exportPromptAction === 'SHARE' && navigator.share) {
                               try {
-                                await navigator.share({ title: 'BattleMatrix GBL Log', text });
+                                await navigator.share({ title: 'SilphScope PvP Battle Log', text });
                               } catch {}
                             }
                             setExportPromptAction(null);
@@ -4887,11 +5157,199 @@ export default function App() {
           </div>
         )}
 
+        {/* Deleted Teams Trash Bin Modal */}
+        {showTeamsTrashModal && (
+          <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-5 shadow-2xl space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                <h3 className="font-bold text-sm text-white">
+                  🗑️ Deleted Teams Trash Bin ({deletedTeamsTrash.length})
+                </h3>
+                <button
+                  onClick={() => setShowTeamsTrashModal(false)}
+                  className="text-slate-400 hover:text-white font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+              {deletedTeamsTrash.length === 0 ? (
+                <p className="text-xs text-slate-400 py-4 text-center">
+                  No deleted teams in Trash. Any team you delete can be restored from here anytime.
+                </p>
+              ) : (
+                <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                  {deletedTeamsTrash.map((t) => (
+                    <div
+                      key={t.id}
+                      className="p-3 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between gap-2 text-xs"
+                    >
+                      <div>
+                        <div className="font-bold text-white">
+                          {t.name}{' '}
+                          <span className="text-[10px] text-sky-400 font-mono">({t.league})</span>
+                        </div>
+                        <div className="text-[11px] text-slate-400">
+                          {t.pokemon.map((p) => p.name).join(' / ')}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => restoreTeamPresetsFromTrash([t])}
+                          className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px]"
+                        >
+                          ♻️ Restore
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            saveDeletedTeamsTrashToStorage(deletedTeamsTrash.filter((x) => x.id !== t.id))
+                          }
+                          className="px-2 py-1 rounded-lg bg-rose-950 hover:bg-rose-900 text-rose-300 font-bold text-[11px]"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex justify-between items-center pt-2 border-t border-slate-800">
+                {deletedTeamsTrash.length > 0 ? (
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        restoreTeamPresetsFromTrash(deletedTeamsTrash);
+                        setShowTeamsTrashModal(false);
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold"
+                    >
+                      ♻️ Restore All ({deletedTeamsTrash.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => saveDeletedTeamsTrashToStorage([])}
+                      className="px-3 py-1.5 rounded-xl bg-rose-950 hover:bg-rose-900 text-rose-300 text-xs font-bold"
+                    >
+                      🗑️ Empty Trash
+                    </button>
+                  </div>
+                ) : (
+                  <span />
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowTeamsTrashModal(false)}
+                  className="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Deleted Battles Trash Bin Modal */}
+        {showBattlesTrashModal && (
+          <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-5 shadow-2xl space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                <h3 className="font-bold text-sm text-white">
+                  🗑️ Deleted Battles Trash Bin ({deletedBattlesTrash.length})
+                </h3>
+                <button
+                  onClick={() => setShowBattlesTrashModal(false)}
+                  className="text-slate-400 hover:text-white font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+              {deletedBattlesTrash.length === 0 ? (
+                <p className="text-xs text-slate-400 py-4 text-center">
+                  No deleted battles in Trash. Any battle you delete or clear can be restored from here anytime.
+                </p>
+              ) : (
+                <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                  {deletedBattlesTrash.map((b) => (
+                    <div
+                      key={b.id}
+                      className="p-3 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between gap-2 text-xs"
+                    >
+                      <div>
+                        <div className="font-bold text-white flex items-center gap-1.5">
+                          <span className={b.result === 'WIN' ? 'text-emerald-400' : 'text-rose-400'}>
+                            {b.result === 'WIN' ? '🏆 WIN' : '💀 LOSS'}
+                          </span>
+                          <span>• {b.userTeamName}</span>
+                        </div>
+                        <div className="text-[11px] text-slate-400">
+                          Vs: {b.opponents.length > 0 ? b.opponents.join(', ') : 'Unknown'}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => restoreBattleLogsFromTrash([b])}
+                          className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px]"
+                        >
+                          ♻️ Restore
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            saveDeletedBattlesTrashToStorage(deletedBattlesTrash.filter((x) => x.id !== b.id))
+                          }
+                          className="px-2 py-1 rounded-lg bg-rose-950 hover:bg-rose-900 text-rose-300 font-bold text-[11px]"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex justify-between items-center pt-2 border-t border-slate-800">
+                {deletedBattlesTrash.length > 0 ? (
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        restoreBattleLogsFromTrash(deletedBattlesTrash);
+                        setShowBattlesTrashModal(false);
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold"
+                    >
+                      ♻️ Restore All ({deletedBattlesTrash.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => saveDeletedBattlesTrashToStorage([])}
+                      className="px-3 py-1.5 rounded-xl bg-rose-950 hover:bg-rose-900 text-rose-300 text-xs font-bold"
+                    >
+                      🗑️ Empty Trash
+                    </button>
+                  </div>
+                ) : (
+                  <span />
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowBattlesTrashModal(false)}
+                  className="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
       </main>
 
       {/* Footer */}
       <footer className="border-t border-slate-800/80 py-4 px-6 text-center text-xs text-slate-500">
-        BattleMatrix GBL Overlay • Built with Kotlin, WindowManager TYPE_APPLICATION_OVERLAY, MediaProjection in-memory frame capture, and ML Kit Text Recognition.
+        SilphScope PvP v2.03 Overlay • Built with Kotlin, WindowManager TYPE_APPLICATION_OVERLAY, MediaProjection in-memory frame capture, and ML Kit Text Recognition.
       </footer>
     </div>
   );

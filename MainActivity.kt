@@ -128,6 +128,15 @@ class MainActivity : AppCompatActivity() {
     private lateinit var spinnerLogFilterTimeframe: Spinner
     private lateinit var btnCopyBattleLog: Button
     private lateinit var btnShareBattleLog: Button
+    private lateinit var layoutUndoBanner: LinearLayout
+    private lateinit var textUndoBannerMsg: TextView
+    private lateinit var btnUndoBannerAction: Button
+    private lateinit var btnUndoBannerDismiss: TextView
+    private lateinit var btnTrashTeams: Button
+    private lateinit var btnTrashBattleLog: Button
+
+    private var pendingUndoAction: (() -> Unit)? = null
+    private var undoHideJob: kotlinx.coroutines.Job? = null
 
     private var selectedLogLeagueFilter: String = "ALL"
     private var selectedLogTeamFilter: String = "ALL"
@@ -146,6 +155,8 @@ class MainActivity : AppCompatActivity() {
     private val PREFS_KEY_BATTLE_LOGS = OverlayService.PREFS_KEY_BATTLE_LOGS
     private val PREFS_KEY_DELETED_LOG_IDS = OverlayService.PREFS_KEY_DELETED_LOG_IDS
     private val PREFS_KEY_DELETED_TEAM_IDS = OverlayService.PREFS_KEY_DELETED_TEAM_IDS
+    private val PREFS_KEY_DELETED_BATTLES_TRASH = OverlayService.PREFS_KEY_DELETED_BATTLES_TRASH
+    private val PREFS_KEY_DELETED_TEAMS_TRASH = OverlayService.PREFS_KEY_DELETED_TEAMS_TRASH
     private val PREFS_KEY_GBL_SEASONS_JSON = OverlayService.PREFS_KEY_GBL_SEASONS_JSON
     private val PREFS_KEY_SYNC_GITHUB_TOKEN = OverlayService.PREFS_KEY_SYNC_GITHUB_TOKEN
     private val PREFS_KEY_SYNC_GITHUB_USERNAME = OverlayService.PREFS_KEY_SYNC_GITHUB_USERNAME
@@ -311,6 +322,27 @@ class MainActivity : AppCompatActivity() {
         spinnerLogFilterTimeframe = findViewById(R.id.spinner_log_filter_timeframe)
         btnCopyBattleLog = findViewById(R.id.btn_copy_battle_log)
         btnShareBattleLog = findViewById(R.id.btn_share_battle_log)
+        layoutUndoBanner = findViewById(R.id.layout_undo_banner)
+        textUndoBannerMsg = findViewById(R.id.text_undo_banner_msg)
+        btnUndoBannerAction = findViewById(R.id.btn_undo_banner_action)
+        btnUndoBannerDismiss = findViewById(R.id.btn_undo_banner_dismiss)
+        btnTrashTeams = findViewById(R.id.btn_trash_teams)
+        btnTrashBattleLog = findViewById(R.id.btn_trash_battle_log)
+
+        btnUndoBannerAction.setOnClickListener {
+            val action = pendingUndoAction
+            hideUndoBanner()
+            action?.invoke()
+        }
+        btnUndoBannerDismiss.setOnClickListener {
+            hideUndoBanner()
+        }
+        btnTrashTeams.setOnClickListener {
+            showTeamsTrashBinDialog()
+        }
+        btnTrashBattleLog.setOnClickListener {
+            showBattleLogsTrashBinDialog()
+        }
 
         btnNavTeams.setOnClickListener { switchMainPage("teams") }
         btnNavSettings.setOnClickListener { switchMainPage("settings") }
@@ -397,26 +429,41 @@ class MainActivity : AppCompatActivity() {
         }
 
         btnCopyBattleLog.setOnClickListener {
-            showExportTimeframeDialog(isShareIntent = false)
+            showExportFormatAndTimeframeDialog(isShareIntent = false)
         }
 
         btnShareBattleLog.setOnClickListener {
-            showExportTimeframeDialog(isShareIntent = true)
+            showExportFormatAndTimeframeDialog(isShareIntent = true)
         }
 
         btnClearBattleLog.setOnClickListener {
+            val existing = loadBattleLogs()
+            if (existing.isEmpty()) {
+                Toast.makeText(this, "Battle log is already empty", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
             AlertDialog.Builder(this)
-                .setTitle("Clear Filtered or All Battle Logs?")
-                .setMessage("Deleted battle IDs will be recorded as tombstones so syncing reconciles across devices.")
-                .setPositiveButton("Clear All Logs") { _, _ ->
-                    val existing = loadBattleLogs()
+                .setTitle("Move All ${existing.size} Battle Logs to Trash?")
+                .setMessage("Cleared battles are moved to the Trash Bin so you can restore them anytime, and tombstones are synced across your devices.")
+                .setPositiveButton("Move to Trash") { _, _ ->
+                    val trash = loadDeletedBattlesTrash().toMutableList()
+                    existing.forEach { item ->
+                        trash.removeAll { it.id == item.id }
+                        trash.add(0, item)
+                    }
+                    saveDeletedBattlesTrash(trash)
+
                     val delIds = loadDeletedLogIds().toMutableSet()
                     existing.forEach { delIds.add(it.id) }
                     saveDeletedLogIds(delIds.toList())
                     prefs.edit().putString(PREFS_KEY_BATTLE_LOGS, "[]").apply()
                     renderBattleLogPage()
+                    updateSyncStatusUi()
                     triggerTwoDeviceCloudSync(silent = true)
-                    Toast.makeText(this, "Battle log cleared", Toast.LENGTH_SHORT).show()
+                    showUndoBanner("🗑️ ${existing.size} battle(s) moved to Trash") {
+                        restoreBattleLogsFromTrash(existing)
+                        Toast.makeText(this, "Restored ${existing.size} battle(s)!", Toast.LENGTH_SHORT).show()
+                    }
                 }
                 .setNegativeButton("Cancel", null)
                 .show()
@@ -654,7 +701,7 @@ class MainActivity : AppCompatActivity() {
                 "   (Already copied to your clipboard!)\n\n" +
                 "1. Tap \"🌐 Open GitHub Login\" below.\n" +
                 "2. Paste ${deviceResp.userCode} on GitHub and tap Authorize.\n" +
-                "3. Switch back to BattleMatrix — your token is saved automatically!\n\n" +
+                "3. Switch back to SilphScope PvP — your token is saved automatically!\n\n" +
                 "⏳ Waiting for GitHub authorization..."
             setTextColor(0xFFF8FAFC.toInt())
             setBackgroundColor(0xFF0F172A.toInt())
@@ -814,7 +861,7 @@ class MainActivity : AppCompatActivity() {
             }
             .setNeutralButton("📋 Copy My Bundle") { _, _ ->
                 val cm = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                cm.setPrimaryClip(android.content.ClipData.newPlainText("BattleMatrix Sync Bundle", bundleJson))
+                cm.setPrimaryClip(android.content.ClipData.newPlainText("SilphScope PvP Sync Bundle", bundleJson))
                 Toast.makeText(this, "Sync Bundle copied to clipboard!", Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton("Cancel", null)
@@ -1016,6 +1063,309 @@ class MainActivity : AppCompatActivity() {
         prefs.edit().putString(PREFS_KEY_DELETED_TEAM_IDS, gson.toJson(ids.distinct())).apply()
     }
 
+    private fun loadDeletedBattlesTrash(): List<BattleLogEntry> {
+        val raw = prefs.getString(PREFS_KEY_DELETED_BATTLES_TRASH, null) ?: return emptyList()
+        return try {
+            val type = object : TypeToken<List<BattleLogEntry>>() {}.type
+            (gson.fromJson<List<BattleLogEntry>>(raw, type) ?: emptyList()).distinctBy { it.id }
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    private fun saveDeletedBattlesTrash(logs: List<BattleLogEntry>) {
+        val trimmed = logs.distinctBy { it.id }.take(200)
+        prefs.edit().putString(PREFS_KEY_DELETED_BATTLES_TRASH, gson.toJson(trimmed)).apply()
+        updateTrashButtonsUi()
+    }
+
+    private fun loadDeletedTeamsTrash(): List<TeamPreset> {
+        val raw = prefs.getString(PREFS_KEY_DELETED_TEAMS_TRASH, null) ?: return emptyList()
+        return try {
+            val type = object : TypeToken<List<TeamPreset>>() {}.type
+            (gson.fromJson<List<TeamPreset>>(raw, type) ?: emptyList()).distinctBy { it.id }
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    private fun saveDeletedTeamsTrash(teams: List<TeamPreset>) {
+        val trimmed = teams.distinctBy { it.id }.take(50)
+        prefs.edit().putString(PREFS_KEY_DELETED_TEAMS_TRASH, gson.toJson(trimmed)).apply()
+        updateTrashButtonsUi()
+    }
+
+    private fun updateTrashButtonsUi() {
+        if (::btnTrashTeams.isInitialized) {
+            val count = loadDeletedTeamsTrash().size
+            btnTrashTeams.text = if (count > 0) "🗑️ Trash ($count)" else "🗑️ Trash"
+        }
+        if (::btnTrashBattleLog.isInitialized) {
+            val count = loadDeletedBattlesTrash().size
+            btnTrashBattleLog.text = if (count > 0) "🗑️ Trash ($count)" else "🗑️ Trash"
+        }
+    }
+
+    private fun showUndoBanner(message: String, onUndo: () -> Unit) {
+        if (!::layoutUndoBanner.isInitialized) return
+        undoHideJob?.cancel()
+        pendingUndoAction = onUndo
+        textUndoBannerMsg.text = message
+        layoutUndoBanner.visibility = android.view.View.VISIBLE
+        undoHideJob = lifecycleScope.launch {
+            kotlinx.coroutines.delay(9000L)
+            hideUndoBanner()
+        }
+    }
+
+    private fun hideUndoBanner() {
+        undoHideJob?.cancel()
+        undoHideJob = null
+        pendingUndoAction = null
+        if (::layoutUndoBanner.isInitialized) {
+            layoutUndoBanner.visibility = android.view.View.GONE
+        }
+    }
+
+    private fun restoreBattleLogsFromTrash(entriesToRestore: List<BattleLogEntry>) {
+        if (entriesToRestore.isEmpty()) return
+        val nowMs = System.currentTimeMillis()
+        val restoreIds = entriesToRestore.map { it.id }.toSet()
+
+        val remainingDelIds = loadDeletedLogIds().filter { it !in restoreIds }
+        saveDeletedLogIds(remainingDelIds)
+
+        val remainingTrash = loadDeletedBattlesTrash().filter { it.id !in restoreIds }
+        saveDeletedBattlesTrash(remainingTrash)
+
+        val currentLogs = loadBattleLogs().toMutableList()
+        for (entry in entriesToRestore) {
+            currentLogs.removeAll { it.id == entry.id }
+            currentLogs.add(entry.copy(updatedAt = nowMs))
+        }
+        saveBattleLogs(currentLogs)
+        setupBattleLogFilters()
+        renderBattleLogPage()
+        updateSyncStatusUi()
+        triggerTwoDeviceCloudSync(silent = true)
+    }
+
+    private fun restoreTeamPresetFromTrash(preset: TeamPreset) {
+        val nowMs = System.currentTimeMillis()
+        val remainingDelIds = loadDeletedTeamIds().filter { it != preset.id }
+        saveDeletedTeamIds(remainingDelIds)
+
+        val remainingTrash = loadDeletedTeamsTrash().filter { it.id != preset.id }
+        saveDeletedTeamsTrash(remainingTrash)
+
+        val currentPresets = loadPresets().toMutableList()
+        currentPresets.removeAll { it.id == preset.id }
+        currentPresets.add(preset.copy(updatedAt = nowMs))
+        savePresets(currentPresets)
+        refreshPresetsUi()
+        setupBattleLogFilters()
+        updateSyncStatusUi()
+        triggerTwoDeviceCloudSync(silent = true)
+    }
+
+    private fun showTeamsTrashBinDialog() {
+        val trashList = loadDeletedTeamsTrash()
+        if (trashList.isEmpty()) {
+            AlertDialog.Builder(this)
+                .setTitle("🗑️ Deleted Teams Trash Bin")
+                .setMessage("No deleted teams in Trash. Any team you delete will appear here so you can restore it anytime.")
+                .setPositiveButton("OK", null)
+                .show()
+            return
+        }
+
+        val density = resources.displayMetrics.density
+        val scroll = ScrollView(this)
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(0xFF0F172A.toInt())
+            val pad = (12 * density).toInt()
+            setPadding(pad, pad, pad, pad)
+        }
+        scroll.addView(container)
+
+        var dialogRef: AlertDialog? = null
+
+        for (team in trashList) {
+            val card = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setBackgroundColor(0xFF1E293B.toInt())
+                val pad = (10 * density).toInt()
+                setPadding(pad, pad, pad, pad)
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    bottomMargin = (8 * density).toInt()
+                }
+            }
+            val titleTv = TextView(this).apply {
+                text = "${team.name} (${team.league})"
+                setTextColor(0xFFF8FAFC.toInt())
+                textSize = 13f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+            }
+            val monsTv = TextView(this).apply {
+                text = team.pokemon.joinToString(" / ") { it.name }
+                setTextColor(0xFF94A3B8.toInt())
+                textSize = 11.5f
+                setPadding(0, (3 * density).toInt(), 0, (6 * density).toInt())
+            }
+            val btnRow = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.END
+            }
+            val restoreBtn = Button(this).apply {
+                text = "♻️ Restore Team"
+                textSize = 11f
+                setTextColor(0xFFFFFFFF.toInt())
+                backgroundTintList = android.content.res.ColorStateList.valueOf(0xFF059669.toInt())
+                setOnClickListener {
+                    restoreTeamPresetFromTrash(team)
+                    Toast.makeText(this@MainActivity, "Restored '${team.name}'!", Toast.LENGTH_SHORT).show()
+                    dialogRef?.dismiss()
+                }
+            }
+            val deleteForeverBtn = Button(this).apply {
+                text = "✕ Delete Forever"
+                textSize = 11f
+                setTextColor(0xFFFCA5A5.toInt())
+                backgroundTintList = android.content.res.ColorStateList.valueOf(0xFF450A0A.toInt())
+                setOnClickListener {
+                    saveDeletedTeamsTrash(loadDeletedTeamsTrash().filter { it.id != team.id })
+                    dialogRef?.dismiss()
+                    showTeamsTrashBinDialog()
+                }
+            }
+            btnRow.addView(restoreBtn)
+            btnRow.addView(deleteForeverBtn)
+            card.addView(titleTv)
+            card.addView(monsTv)
+            card.addView(btnRow)
+            container.addView(card)
+        }
+
+        dialogRef = AlertDialog.Builder(this)
+            .setTitle("🗑️ Deleted Teams (${trashList.size})")
+            .setView(scroll)
+            .setPositiveButton("♻️ Restore All") { _, _ ->
+                trashList.forEach { restoreTeamPresetFromTrash(it) }
+                Toast.makeText(this, "Restored ${trashList.size} team(s)!", Toast.LENGTH_SHORT).show()
+            }
+            .setNeutralButton("🗑️ Empty Trash") { _, _ ->
+                saveDeletedTeamsTrash(emptyList())
+                Toast.makeText(this, "Team trash emptied", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Close", null)
+            .create()
+        dialogRef.show()
+    }
+
+    private fun showBattleLogsTrashBinDialog() {
+        val trashList = loadDeletedBattlesTrash()
+        if (trashList.isEmpty()) {
+            AlertDialog.Builder(this)
+                .setTitle("🗑️ Deleted Battles Trash Bin")
+                .setMessage("No deleted battles in Trash. Any battle you delete or clear will appear here so you can restore it anytime.")
+                .setPositiveButton("OK", null)
+                .show()
+            return
+        }
+
+        val density = resources.displayMetrics.density
+        val scroll = ScrollView(this)
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(0xFF0F172A.toInt())
+            val pad = (12 * density).toInt()
+            setPadding(pad, pad, pad, pad)
+        }
+        scroll.addView(container)
+
+        val dateFmt = java.text.SimpleDateFormat("MMM d, h:mm a", java.util.Locale.US)
+        var dialogRef: AlertDialog? = null
+
+        for (entry in trashList) {
+            val card = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setBackgroundColor(0xFF1E293B.toInt())
+                val pad = (10 * density).toInt()
+                setPadding(pad, pad, pad, pad)
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    bottomMargin = (8 * density).toInt()
+                }
+            }
+            val isWin = entry.result.equals("WIN", ignoreCase = true)
+            val titleTv = TextView(this).apply {
+                text = "${if (isWin) "🏆 WIN" else "💀 LOSS"} • ${entry.userTeamName} (${ dateFmt.format(java.util.Date(entry.timestampMs)) })"
+                setTextColor(if (isWin) 0xFF4ADE80.toInt() else 0xFFF87171.toInt())
+                textSize = 12.5f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+            }
+            val oppsTv = TextView(this).apply {
+                text = "Vs: ${if (entry.opponents.isEmpty()) "Unknown" else entry.opponents.joinToString(", ")}"
+                setTextColor(0xFFE2E8F0.toInt())
+                textSize = 11.5f
+                setPadding(0, (3 * density).toInt(), 0, (6 * density).toInt())
+            }
+            val btnRow = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.END
+            }
+            val restoreBtn = Button(this).apply {
+                text = "♻️ Restore"
+                textSize = 11f
+                setTextColor(0xFFFFFFFF.toInt())
+                backgroundTintList = android.content.res.ColorStateList.valueOf(0xFF059669.toInt())
+                setOnClickListener {
+                    restoreBattleLogsFromTrash(listOf(entry))
+                    Toast.makeText(this@MainActivity, "Battle restored!", Toast.LENGTH_SHORT).show()
+                    dialogRef?.dismiss()
+                }
+            }
+            val deleteForeverBtn = Button(this).apply {
+                text = "✕ Delete Forever"
+                textSize = 11f
+                setTextColor(0xFFFCA5A5.toInt())
+                backgroundTintList = android.content.res.ColorStateList.valueOf(0xFF450A0A.toInt())
+                setOnClickListener {
+                    saveDeletedBattlesTrash(loadDeletedBattlesTrash().filter { it.id != entry.id })
+                    dialogRef?.dismiss()
+                    showBattleLogsTrashBinDialog()
+                }
+            }
+            btnRow.addView(restoreBtn)
+            btnRow.addView(deleteForeverBtn)
+            card.addView(titleTv)
+            card.addView(oppsTv)
+            card.addView(btnRow)
+            container.addView(card)
+        }
+
+        dialogRef = AlertDialog.Builder(this)
+            .setTitle("🗑️ Deleted Battles (${trashList.size})")
+            .setView(scroll)
+            .setPositiveButton("♻️ Restore All (${trashList.size})") { _, _ ->
+                restoreBattleLogsFromTrash(trashList)
+                Toast.makeText(this, "Restored ${trashList.size} battle(s)!", Toast.LENGTH_SHORT).show()
+            }
+            .setNeutralButton("🗑️ Empty Trash") { _, _ ->
+                saveDeletedBattlesTrash(emptyList())
+                Toast.makeText(this, "Battle trash emptied", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Close", null)
+            .create()
+        dialogRef.show()
+    }
+
     private fun setupBattleLogFilters() {
         if (!::spinnerLogFilterLeague.isInitialized) return
         isUpdatingLogFilterSpinners = true
@@ -1171,7 +1521,7 @@ class MainActivity : AppCompatActivity() {
         val sb = StringBuilder()
         val leagueTitle = if (leagueFilter == "ALL") "All Leagues" else leagueFilter
         val teamTitle = if (teamFilter == "ALL") "All Teams" else teamFilter
-        sb.append("BattleMatrix GBL Log — $leagueTitle\n")
+        sb.append("SilphScope PvP Battle Log — $leagueTitle\n")
         sb.append("Team: $teamTitle\n")
         sb.append("Range: $rangeLabel\n")
         sb.append("Overall Record: ${wins}W - ${losses}L ($winPct%) • Leads: $favCount Fav / $neuCount Neu / $negCount Neg\n")
@@ -1214,7 +1564,71 @@ class MainActivity : AppCompatActivity() {
         return sb.toString().trim()
     }
 
-    private fun showExportTimeframeDialog(isShareIntent: Boolean) {
+    private fun resolveUserTeamBracketHeader(entry: BattleLogEntry, presets: List<TeamPreset>): String {
+        val directMons = entry.userPokemon.map { it.trim() }.filter { it.isNotEmpty() }
+        if (directMons.isNotEmpty()) {
+            return "[${directMons.joinToString(", ")}]"
+        }
+        val matchedPreset = presets.find {
+            (entry.presetId.isNotBlank() && it.id == entry.presetId) ||
+                it.name.equals(entry.userTeamName, ignoreCase = true)
+        } ?: getSelectedPreset()
+        val presetMons = matchedPreset?.pokemon?.map { it.name.trim() }?.filter { it.isNotEmpty() }.orEmpty()
+        if (presetMons.isNotEmpty()) {
+            return "[${presetMons.joinToString(", ")}]"
+        }
+        return "[${entry.userTeamName.ifBlank { "My Team" }}]"
+    }
+
+    private fun buildGoBattleLogFriendlyExport(
+        logs: List<BattleLogEntry>,
+        leagueFilter: String,
+        teamFilter: String,
+        timeframeKey: String
+    ): String {
+        val filtered = filterBattleLogs(logs, leagueFilter, teamFilter, timeframeKey)
+        val presets = loadPresets()
+        if (filtered.isEmpty()) {
+            val activeTeam = getSelectedPreset()?.pokemon?.joinToString(", ") { it.name } ?: "My Team"
+            return "[$activeTeam]"
+        }
+
+        val sb = StringBuilder()
+        var lastHeader = ""
+        for (entry in filtered) {
+            val header = resolveUserTeamBracketHeader(entry, presets)
+            if (header != lastHeader) {
+                if (sb.isNotEmpty()) sb.append("\n")
+                sb.append(header).append("\n")
+                lastHeader = header
+            }
+            val oppLine = if (entry.opponents.isEmpty()) {
+                "Unknown Unknown Unknown"
+            } else {
+                entry.opponents.joinToString(" ") { it.trim() }
+            }
+            val wl = if (entry.result.equals("WIN", ignoreCase = true)) "W" else "L"
+            sb.append("$oppLine $wl\n")
+        }
+        return sb.toString().trim()
+    }
+
+    private fun showExportFormatAndTimeframeDialog(isShareIntent: Boolean) {
+        val formatOptions = arrayOf(
+            "📊 Go Battle Log Format ([Team] + opp1 opp2 opp3 W/L)",
+            "📋 Standard Detailed Summary (with Dates & Lead Stats)"
+        )
+        AlertDialog.Builder(this)
+            .setTitle(if (isShareIntent) "📤 Share Battle Log — Select Format" else "📋 Copy Battle Log — Select Format")
+            .setItems(formatOptions) { _, formatIdx ->
+                val isGoBattleLogFormat = (formatIdx == 0)
+                showExportTimeframeDialog(isShareIntent, isGoBattleLogFormat)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showExportTimeframeDialog(isShareIntent: Boolean, isGoBattleLogFormat: Boolean = false) {
         val allLogs = loadBattleLogs()
         val (currSeason, prevSeason) = getCurrentAndPreviousSeason()
         val dateFmt = java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.US)
@@ -1227,27 +1641,37 @@ class MainActivity : AppCompatActivity() {
         )
         val keys = arrayOf("DAY", "WEEK", "CURRENT_SEASON", "PREVIOUS_SEASON", "ALL_TIME")
 
+        val formatLabel = if (isGoBattleLogFormat) "Go Battle Log Format" else "Detailed Summary"
         AlertDialog.Builder(this)
-            .setTitle(if (isShareIntent) "📤 Share Battle Log — Select Range" else "📋 Copy Battle Log — Select Range")
+            .setTitle(if (isShareIntent) "📤 Share ($formatLabel) — Range" else "📋 Copy ($formatLabel) — Range")
             .setItems(options) { _, which ->
                 val chosenKey = keys.getOrElse(which) { "ALL_TIME" }
-                val exportText = buildPlainTextExport(
-                    allLogs,
-                    selectedLogLeagueFilter,
-                    selectedLogTeamFilter,
-                    chosenKey
-                )
+                val exportText = if (isGoBattleLogFormat) {
+                    buildGoBattleLogFriendlyExport(
+                        allLogs,
+                        selectedLogLeagueFilter,
+                        selectedLogTeamFilter,
+                        chosenKey
+                    )
+                } else {
+                    buildPlainTextExport(
+                        allLogs,
+                        selectedLogLeagueFilter,
+                        selectedLogTeamFilter,
+                        chosenKey
+                    )
+                }
                 if (isShareIntent) {
                     val sendIntent = Intent(Intent.ACTION_SEND).apply {
                         type = "text/plain"
-                        putExtra(Intent.EXTRA_SUBJECT, "BattleMatrix GBL Battle Log")
+                        putExtra(Intent.EXTRA_SUBJECT, "SilphScope PvP Battle Log")
                         putExtra(Intent.EXTRA_TEXT, exportText)
                     }
-                    startActivity(Intent.createChooser(sendIntent, "Share GBL Battle Log"))
+                    startActivity(Intent.createChooser(sendIntent, "Share SilphScope PvP Battle Log"))
                 } else {
                     val cm = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                    cm.setPrimaryClip(android.content.ClipData.newPlainText("GBL Battle Log", exportText))
-                    Toast.makeText(this, "Copied ${options[which]} log to clipboard!", Toast.LENGTH_SHORT).show()
+                    cm.setPrimaryClip(android.content.ClipData.newPlainText("SilphScope PvP Battle Log", exportText))
+                    Toast.makeText(this, "Copied $formatLabel (${options[which]}) to clipboard!", Toast.LENGTH_SHORT).show()
                 }
             }
             .setNegativeButton("Cancel", null)
@@ -1255,6 +1679,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun renderBattleLogPage() {
+        updateTrashButtonsUi()
         val allLogs = loadBattleLogs()
         val filtered = filterBattleLogs(
             allLogs,
@@ -1469,6 +1894,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun deleteBattleLogEntry(entry: BattleLogEntry) {
+        val trash = loadDeletedBattlesTrash().toMutableList()
+        trash.removeAll { it.id == entry.id }
+        trash.add(0, entry)
+        saveDeletedBattlesTrash(trash)
+
         val current = loadBattleLogs().filter { it.id != entry.id }
         saveBattleLogs(current)
         val delIds = loadDeletedLogIds().toMutableList()
@@ -1477,7 +1907,11 @@ class MainActivity : AppCompatActivity() {
         renderBattleLogPage()
         updateSyncStatusUi()
         triggerTwoDeviceCloudSync(silent = true)
-        Toast.makeText(this, "Battle deleted", Toast.LENGTH_SHORT).show()
+        val oppSummary = entry.opponents.firstOrNull() ?: "Opponent"
+        showUndoBanner("🗑️ Battle (${entry.result} vs $oppSummary) moved to Trash") {
+            restoreBattleLogsFromTrash(listOf(entry))
+            Toast.makeText(this, "Battle restored!", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun showEditOrCreateBattleLogDialog(existing: BattleLogEntry?) {
@@ -2058,6 +2492,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun refreshPresetsUi() {
+        updateTrashButtonsUi()
         presetsContainer.removeAllViews()
         val presets = loadPresets()
         val selectedId = prefs.getString(PREFS_KEY_SELECTED_PRESET, null) ?: presets.firstOrNull()?.id
@@ -2162,6 +2597,11 @@ class MainActivity : AppCompatActivity() {
                 if (presets.size <= 1) {
                     Toast.makeText(this, "Must keep at least 1 team preset", Toast.LENGTH_SHORT).show()
                 } else {
+                    val trash = loadDeletedTeamsTrash().toMutableList()
+                    trash.removeAll { it.id == preset.id }
+                    trash.add(0, preset)
+                    saveDeletedTeamsTrash(trash)
+
                     val delTeamIds = loadDeletedTeamIds().toMutableList()
                     delTeamIds.add(preset.id)
                     saveDeletedTeamIds(delTeamIds)
@@ -2174,7 +2614,12 @@ class MainActivity : AppCompatActivity() {
                         refreshPresetsUi()
                     }
                     setupBattleLogFilters()
+                    updateSyncStatusUi()
                     triggerTwoDeviceCloudSync(silent = true)
+                    showUndoBanner("🗑️ Team '${preset.name}' moved to Trash") {
+                        restoreTeamPresetFromTrash(preset)
+                        Toast.makeText(this, "Team '${preset.name}' restored!", Toast.LENGTH_SHORT).show()
+                    }
                 }
             }
 

@@ -88,7 +88,7 @@ export async function downloadAndroidProjectZip(): Promise<Blob> {
 
   zip.file("AndroidManifest.xml", manifestContent);
   zip.file("build.gradle.kts", rootGradleContent);
-  zip.file("settings.gradle.kts", `rootProject.name = "GBLBattleMatrix"\ninclude(":app")\n`);
+  zip.file("settings.gradle.kts", `rootProject.name = "SilphScopePvP"\ninclude(":app")\n`);
 
   const app = zip.folder("app");
   if (app) {

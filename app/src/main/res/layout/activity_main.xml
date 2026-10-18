@@ -21,7 +21,7 @@
             android:layout_width="38dp"
             android:layout_height="38dp"
             android:src="@drawable/ic_gbl_logo"
-            android:contentDescription="BattleMatrix GBL Icon"
+            android:contentDescription="SilphScope PvP Icon"
             android:layout_marginEnd="10dp" />
 
         <LinearLayout
@@ -33,7 +33,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="BattleMatrix GBL"
+                android:text="SilphScope PvP"
                 android:textSize="19sp"
                 android:textStyle="bold"
                 android:textColor="#f8fafc" />
@@ -41,7 +41,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Real-Time PvP Floating Overlay • v2.00"
+                android:text="Real-Time PvP Floating Overlay • v2.03"
                 android:textSize="11sp"
                 android:textColor="#94a3b8"
                 android:layout_marginTop="1dp" />
@@ -155,6 +155,49 @@
             android:textColor="#94a3b8" />
     </LinearLayout>
 
+    <!-- Quick Undo Banner for Accidentally Deleted Battles or Teams -->
+    <LinearLayout
+        android:id="@+id/layout_undo_banner"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="#064e3b"
+        android:padding="8dp"
+        android:layout_marginBottom="8dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/text_undo_message"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Item moved to Trash"
+            android:textColor="#ecfdf5"
+            android:textSize="11.5sp"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/btn_undo_action"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:text="↩ UNDO"
+            android:textSize="10.5sp"
+            android:textStyle="bold"
+            android:backgroundTint="#10b981"
+            android:textColor="#022c22"
+            android:layout_marginEnd="4dp" />
+
+        <Button
+            android:id="@+id/btn_undo_dismiss"
+            android:layout_width="36dp"
+            android:layout_height="32dp"
+            android:text="✕"
+            android:textSize="10.5sp"
+            android:backgroundTint="#047857"
+            android:textColor="#ffffff" />
+    </LinearLayout>
+
     <!-- ===================================================================
          PAGE 1: GBL TEAM PRESETS (Default Active Page)
          =================================================================== -->
@@ -181,6 +224,16 @@
                 android:textSize="15sp"
                 android:textStyle="bold"
                 android:textColor="#e2e8f0" />
+
+            <Button
+                android:id="@+id/btn_trash_presets"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:text="🗑️ Trash"
+                android:textSize="11sp"
+                android:backgroundTint="#334155"
+                android:textColor="#cbd5e1"
+                android:layout_marginEnd="6dp" />
 
             <Button
                 android:id="@+id/btn_add_preset"
@@ -684,6 +737,16 @@
                 android:textSize="10.5sp"
                 android:backgroundTint="#0369a1"
                 android:textColor="#ffffff"
+                android:layout_marginEnd="4dp" />
+
+            <Button
+                android:id="@+id/btn_trash_battle_log"
+                android:layout_width="wrap_content"
+                android:layout_height="34dp"
+                android:text="🗑️ Trash"
+                android:textSize="10.5sp"
+                android:backgroundTint="#334155"
+                android:textColor="#fcd34d"
                 android:layout_marginEnd="4dp" />
 
             <Button
