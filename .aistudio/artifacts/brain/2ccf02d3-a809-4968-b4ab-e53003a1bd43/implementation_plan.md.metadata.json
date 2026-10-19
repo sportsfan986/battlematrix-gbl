@@ -1,6 +1,6 @@
 {
-  "summary": "Implementation plan for SilphScope PvP v2.03: app rebranding, Battle Menu OCR filtering (blocking 'party' and 'battle' and pausing OCR on the Battle Menu), Trash Bin modal + Undo toast for restoring deleted battles and teams, and Go Battle Log friendly export format ([Team] header + opp1 opp2 opp3 W/L lines without dates).",
-  "updatedAt": "2026-10-18T11:47:28.931951277Z",
+  "summary": "Updated implementation plan adding Settings toggles to enable/disable HP bar tracking & KO highlighting and to enable/disable toast messages during battles, alongside floating HP bar detection, 2-reading swap debounce protection, 2-row HP column headers, and bright/muted gold KO cell highlighting.",
+  "updatedAt": "2026-10-19T11:40:36.560245188Z",
   "requestFeedback": true,
   "userFacing": true
 }

@@ -228,6 +228,44 @@ export default function App() {
     } catch {}
   };
 
+  // App Setting: Enable Floating HP Bar Tracking & Gold KO Highlights (Default: true)
+  const [enableHpBarTracking, setEnableHpBarTracking] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('gbl_enable_hp_bar_tracking');
+      return saved === null ? true : saved === 'true';
+    } catch {
+      return true;
+    }
+  });
+
+  const handleSetEnableHpBarTracking = (enabled: boolean) => {
+    setEnableHpBarTracking(enabled);
+    try {
+      localStorage.setItem('gbl_enable_hp_bar_tracking', String(enabled));
+    } catch {}
+  };
+
+  // App Setting: Enable Battle Toast Messages (Default: true)
+  const [enableBattleToasts, setEnableBattleToasts] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('gbl_enable_battle_toasts');
+      return saved === null ? true : saved === 'true';
+    } catch {
+      return true;
+    }
+  });
+
+  const handleSetEnableBattleToasts = (enabled: boolean) => {
+    setEnableBattleToasts(enabled);
+    try {
+      localStorage.setItem('gbl_enable_battle_toasts', String(enabled));
+    } catch {}
+  };
+
+  // Per-Pokémon Live & Remembered HP% State (0..2 slots for User Team & Scanned Opponents)
+  const [userTeamHpPct, setUserTeamHpPct] = useState<[number, number, number]>([58, 72, 100]);
+  const [oppTeamHpPct, setOppTeamHpPct] = useState<[number, number, number]>([52, 64, 100]);
+
   // App-Level Setting: Overlay Screen Width Scale (50% - 100%, Default 78%, step 2%)
   const [overlayScalePct, setOverlayScalePct] = useState<number>(() => {
     try {
@@ -826,6 +864,8 @@ export default function App() {
     setOppTurnsElapsed(0);
     setUserEnergy(0);
     setOppEnergy(0);
+    setUserTeamHpPct([100, 100, 100]);
+    setOppTeamHpPct([100, 100, 100]);
   };
 
   // Stop Battle: pauses battle & opens the Win/Loss log option bar
@@ -976,8 +1016,10 @@ export default function App() {
     saveBattleLogsToStorage([newEntry, ...battleLogs]);
     setLastClearedOpponents([]);
     setLastClearedLeadMatchup('NEUTRAL');
-    setStartBattleToast(result === 'WIN' ? '🏆 Win Logged!' : '💀 Loss Logged!');
-    setTimeout(() => setStartBattleToast(null), 1100);
+    if (enableBattleToasts) {
+      setStartBattleToast(result === 'WIN' ? '🏆 Win Logged!' : '💀 Loss Logged!');
+      setTimeout(() => setStartBattleToast(null), 1100);
+    }
     handleSkipLoggingStoppedBattle();
   };
 
@@ -1447,11 +1489,11 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <h1 className="font-bold text-base md:text-lg tracking-tight text-white">SilphScope PvP</h1>
                 <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20">
-                  v2.15 • Android Native Overlay
+                  v2.20 • Android Native Overlay
                 </span>
               </div>
               <p className="text-xs text-slate-400 hidden sm:block">
-                Real-Time 3x3 Matchup Matrix, Lead Tracking, Interactive Replay &amp; Multi-Device Delta Sync for Pokémon GO PvP
+                Floating HP Bar Tracking, Gold KO Highlights, 3x3 Matchup Matrix &amp; Multi-Device Delta Sync for Pokémon GO PvP
               </p>
             </div>
           </div>
@@ -2113,16 +2155,30 @@ export default function App() {
                                   ? abbrPoke3(memberName, false).toUpperCase().slice(0, 3)
                                   : '---';
                                 const isActv = slotIdx === activeUserSlotIndex;
+                                const slotHp = userTeamHpPct[slotIdx] ?? 100;
+                                const hpColor =
+                                  slotHp > 50
+                                    ? 'text-emerald-300'
+                                    : slotHp > 20
+                                    ? 'text-yellow-300'
+                                    : 'text-red-300';
                                 return (
                                   <span
                                     key={slotIdx}
-                                    className={`py-0.5 leading-none transition ${
+                                    onClick={() => setActiveUserSlotIndex(slotIdx)}
+                                    title={`${memberName || code}: ${slotHp}% HP`}
+                                    className={`py-0.5 leading-none transition flex flex-col items-center justify-center cursor-pointer ${
                                       isActv
                                         ? 'bg-sky-500/25 text-sky-200 border-t border-x border-sky-400/80 rounded-t shadow-[0_0_6px_rgba(56,189,248,0.25)]'
                                         : 'text-slate-400'
                                     }`}
                                   >
-                                    {code}
+                                    <span className="text-[7.5px] font-black leading-tight">{code}</span>
+                                    {enableHpBarTracking && (
+                                      <span className={`text-[6.5px] font-extrabold tabular-nums leading-none mt-[0.5px] ${hpColor}`}>
+                                        {slotHp}%
+                                      </span>
+                                    )}
                                   </span>
                                 );
                               })}
@@ -2198,27 +2254,38 @@ export default function App() {
                                     </div>
                                   </div>
 
-                                  {/* Right: 3-Pokemon Team Damage % Columns with Vertical Active Highlight */}
+                                  {/* Right: 3-Pokemon Team Damage % Columns with Vertical Active Highlight & Gold KO Highlight */}
                                   <div className="grid grid-cols-3 w-[84px] items-center text-center font-mono shrink-0">
                                     {row.teamDamages.map((cell, cIdx) => {
                                       const isActv = cIdx === activeUserSlotIndex;
-                                      const textCls =
-                                        cell.tier === 'resist'
-                                          ? 'text-emerald-300'
-                                          : cell.tier === 'weak'
-                                          ? 'text-red-300'
-                                          : 'text-amber-200';
+                                      const slotHp = userTeamHpPct[cIdx] ?? 100;
+                                      const isKoActive = enableHpBarTracking && !cell.isEmpty && isActv && cell.dmgPct >= slotHp;
+                                      const isKoMuted = enableHpBarTracking && !cell.isEmpty && !isActv && cell.dmgPct >= slotHp;
+                                      const textCls = isKoActive
+                                        ? 'text-yellow-100 font-black'
+                                        : isKoMuted
+                                        ? 'text-amber-300 font-extrabold'
+                                        : cell.tier === 'resist'
+                                        ? 'text-emerald-300'
+                                        : cell.tier === 'weak'
+                                        ? 'text-red-300'
+                                        : 'text-amber-200';
+                                      const bgAndBorderCls = isKoActive
+                                        ? 'bg-yellow-500/45 border-[1.5px] border-yellow-300 shadow-[inset_0_0_6px_rgba(250,204,21,0.55),0_0_6px_rgba(250,204,21,0.65)] rounded-[2px]'
+                                        : isKoMuted
+                                        ? 'bg-amber-700/30 border border-dashed border-amber-400/65 rounded-[2px]'
+                                        : isActv
+                                        ? `bg-sky-500/25 border-x border-sky-400/80 shadow-[inset_0_0_6px_rgba(56,189,248,0.25)] ${
+                                            isLastRow ? 'border-b rounded-b' : ''
+                                          }`
+                                        : 'bg-slate-900/40';
                                       return (
                                         <div
                                           key={cIdx}
-                                          className={`py-0.5 text-[7.5px] font-extrabold leading-tight ${textCls} ${
-                                            isActv
-                                              ? `bg-sky-500/25 border-x border-sky-400/80 shadow-[inset_0_0_6px_rgba(56,189,248,0.25)] ${
-                                                  isLastRow ? 'border-b rounded-b' : ''
-                                                }`
-                                              : 'bg-slate-900/40'
+                                          className={`py-0.5 text-[7.5px] font-extrabold leading-tight ${textCls} ${bgAndBorderCls}`}
+                                          title={`${cell.name}: ${cell.dmgPct}% dmg vs ${slotHp}% HP${
+                                            isKoActive ? ' (ACTIVE KO!)' : isKoMuted ? ' (BENCH KO!)' : ''
                                           }`}
-                                          title={`${cell.name}: ${cell.dmgPct}%`}
                                         >
                                           {cell.isEmpty ? '—' : `${cell.dmgPct}%`}
                                         </div>
@@ -2245,17 +2312,34 @@ export default function App() {
                                   ? abbrPoke3(oppName, false).toUpperCase().slice(0, 3)
                                   : '---';
                                 const isActv = oppIdx === safeActiveOppSlot;
+                                const slotHp = oppName ? (oppTeamHpPct[oppIdx] ?? 100) : null;
+                                const hpColor =
+                                  slotHp === null
+                                    ? 'text-slate-500'
+                                    : slotHp > 50
+                                    ? 'text-emerald-300'
+                                    : slotHp > 20
+                                    ? 'text-yellow-300'
+                                    : 'text-red-300';
                                 return (
                                   <span
                                     key={oppIdx}
                                     onClick={() => oppName && handleSwapActiveOpponent(oppName)}
-                                    className={`py-0.5 leading-none transition ${oppName ? 'cursor-pointer' : ''} ${
+                                    title={oppName ? `${oppName}: ${slotHp}% HP` : 'Unscanned opponent'}
+                                    className={`py-0.5 leading-none transition flex flex-col items-center justify-center ${
+                                      oppName ? 'cursor-pointer' : ''
+                                    } ${
                                       isActv
                                         ? 'bg-sky-500/25 text-sky-200 border-t border-x border-sky-400/80 rounded-t shadow-[0_0_6px_rgba(56,189,248,0.25)]'
                                         : 'text-slate-400'
                                     }`}
                                   >
-                                    {code}
+                                    <span className="text-[7.5px] font-black leading-tight">{code}</span>
+                                    {enableHpBarTracking && (
+                                      <span className={`text-[6.5px] font-extrabold tabular-nums leading-none mt-[0.5px] ${hpColor}`}>
+                                        {slotHp !== null ? `${slotHp}%` : '—'}
+                                      </span>
+                                    )}
                                   </span>
                                 );
                               })}
@@ -2346,28 +2430,44 @@ export default function App() {
                                     </div>
                                   </div>
 
-                                  {/* Right: 3-Opponent Outgoing Damage % Columns with Vertical Active Highlight */}
+                                  {/* Right: 3-Opponent Outgoing Damage % Columns with Vertical Active Highlight & Gold KO Highlight */}
                                   <div className="grid grid-cols-3 w-[84px] items-center text-center font-mono shrink-0">
                                     {row.oppDamages.map((cell, cIdx) => {
                                       const isActv = cIdx === safeActiveOppSlot;
+                                      const slotHp = oppTeamHpPct[cIdx] ?? 100;
+                                      const isKoActive = enableHpBarTracking && !cell.isEmpty && isActv && cell.dmgPct >= slotHp;
+                                      const isKoMuted = enableHpBarTracking && !cell.isEmpty && !isActv && cell.dmgPct >= slotHp;
                                       const textCls = cell.isEmpty
                                         ? 'text-slate-500'
+                                        : isKoActive
+                                        ? 'text-yellow-100 font-black'
+                                        : isKoMuted
+                                        ? 'text-amber-300 font-extrabold'
                                         : cell.tier === 'resist'
                                         ? 'text-emerald-300'
                                         : cell.tier === 'weak'
                                         ? 'text-red-300'
                                         : 'text-amber-200';
+                                      const bgAndBorderCls = isKoActive
+                                        ? 'bg-yellow-500/45 border-[1.5px] border-yellow-300 shadow-[inset_0_0_6px_rgba(250,204,21,0.55),0_0_6px_rgba(250,204,21,0.65)] rounded-[2px]'
+                                        : isKoMuted
+                                        ? 'bg-amber-700/30 border border-dashed border-amber-400/65 rounded-[2px]'
+                                        : isActv
+                                        ? `bg-sky-500/25 border-x border-sky-400/80 shadow-[inset_0_0_6px_rgba(56,189,248,0.25)] ${
+                                            isLastRow ? 'border-b rounded-b' : ''
+                                          }`
+                                        : 'bg-slate-900/40';
                                       return (
                                         <div
                                           key={cIdx}
-                                          className={`py-0.5 text-[7.5px] font-extrabold leading-tight ${textCls} ${
-                                            isActv
-                                              ? `bg-sky-500/25 border-x border-sky-400/80 shadow-[inset_0_0_6px_rgba(56,189,248,0.25)] ${
-                                                  isLastRow ? 'border-b rounded-b' : ''
+                                          className={`py-0.5 text-[7.5px] font-extrabold leading-tight ${textCls} ${bgAndBorderCls}`}
+                                          title={
+                                            cell.isEmpty
+                                              ? 'Unscanned opponent slot'
+                                              : `${cell.name}: ${cell.dmgPct}% dmg vs ${slotHp}% HP${
+                                                  isKoActive ? ' (ACTIVE KO!)' : isKoMuted ? ' (BENCH KO!)' : ''
                                                 }`
-                                              : 'bg-slate-900/40'
-                                          }`}
-                                          title={cell.isEmpty ? 'Unscanned opponent slot' : `${cell.name}: ${cell.dmgPct}%`}
+                                          }
                                         >
                                           {cell.isEmpty ? '—' : cell.dmgPct >= 100 ? 'KO!' : `${cell.dmgPct}%`}
                                         </div>
@@ -2474,6 +2574,77 @@ export default function App() {
                     <Shield className="w-3.5 h-3.5 text-red-400" />
                     <span>Opp Shields: {oppShields}</span>
                   </button>
+                </div>
+
+                {/* Live Floating HP Bar & Gold KO Highlight Simulator Controls */}
+                <div className="mb-3 p-3 rounded-xl bg-slate-950/70 border border-yellow-500/30 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-yellow-300">
+                      Floating HP Bar &amp; Gold KO Range Simulator
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleSetEnableHpBarTracking(!enableHpBarTracking)}
+                      className={`px-2 py-0.5 rounded text-[10px] font-extrabold border transition ${
+                        enableHpBarTracking
+                          ? 'bg-yellow-500/25 border-yellow-400 text-yellow-200'
+                          : 'bg-slate-800 border-slate-700 text-slate-400'
+                      }`}
+                    >
+                      {enableHpBarTracking ? 'HP Tracking: ON' : 'HP Tracking: OFF'}
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 text-[11px]">
+                    <div>
+                      <div className="flex justify-between font-mono mb-1">
+                        <span className="text-slate-300 truncate">
+                          My ({abbrPoke3(userLeadName, false)}):
+                        </span>
+                        <strong className="text-emerald-300">{userTeamHpPct[activeUserSlotIndex] ?? 100}%</strong>
+                      </div>
+                      <input
+                        type="range"
+                        min={1}
+                        max={100}
+                        value={userTeamHpPct[activeUserSlotIndex] ?? 100}
+                        onChange={(e) => {
+                          const v = Number(e.target.value);
+                          setUserTeamHpPct((prev) => {
+                            const next: [number, number, number] = [...prev] as [number, number, number];
+                            next[activeUserSlotIndex] = v;
+                            return next;
+                          });
+                        }}
+                        className="w-full accent-yellow-400 cursor-pointer h-1.5 bg-slate-800 rounded-lg"
+                      />
+                    </div>
+                    <div>
+                      <div className="flex justify-between font-mono mb-1">
+                        <span className="text-slate-300 truncate">
+                          Opp ({abbrPoke3(activeOpponent.name, false)}):
+                        </span>
+                        <strong className="text-amber-300">{oppTeamHpPct[safeActiveOppSlot] ?? 100}%</strong>
+                      </div>
+                      <input
+                        type="range"
+                        min={1}
+                        max={100}
+                        value={oppTeamHpPct[safeActiveOppSlot] ?? 100}
+                        onChange={(e) => {
+                          const v = Number(e.target.value);
+                          setOppTeamHpPct((prev) => {
+                            const next: [number, number, number] = [...prev] as [number, number, number];
+                            next[safeActiveOppSlot] = v;
+                            return next;
+                          });
+                        }}
+                        className="w-full accent-yellow-400 cursor-pointer h-1.5 bg-slate-800 rounded-lg"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-slate-400 leading-snug">
+                    Bright Gold = lethal vs active Pokémon. Swap Pokémon to see Muted Gold remembered KO highlights on benched columns.
+                  </p>
                 </div>
 
                 {/* App Setting (Not on Overlay): Opponent Fast Move Count Basis */}
@@ -3758,6 +3929,81 @@ export default function App() {
                   <RefreshCw className="w-3.5 h-3.5" />
                   <span>🔄 Reparse All</span>
                 </button>
+              </div>
+            </div>
+
+            {/* HP Bar Tracking & Battle Toast Notifications Toggles */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-bold text-yellow-300">HP Bar Tracking &amp; KO Highlights</span>
+                  <span className="text-[10px] font-mono text-yellow-400">
+                    {enableHpBarTracking ? 'Active (2-Read Debounce)' : 'Disabled'}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400">
+                  Scans floating HP bars above Pokémon, shows live/remembered HP% in column headers, and highlights KO moves in Bright/Muted Gold.
+                </p>
+                <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-950 rounded-xl border border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => handleSetEnableHpBarTracking(true)}
+                    className={`py-2 px-2 rounded-lg text-xs font-bold transition ${
+                      enableHpBarTracking
+                        ? 'bg-yellow-500/25 border border-yellow-400/70 text-yellow-200'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    HP: ON (Default)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSetEnableHpBarTracking(false)}
+                    className={`py-2 px-2 rounded-lg text-xs font-bold transition ${
+                      !enableHpBarTracking
+                        ? 'bg-slate-800 border border-slate-600 text-slate-200'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    HP: OFF
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-bold text-white">Battle Toast Messages</span>
+                  <span className="text-[10px] font-mono text-sky-400">
+                    {enableBattleToasts ? 'Toasts Enabled' : 'Muted in Battles'}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400">
+                  Enable or mute pop-up Android Toast banners during battles (opponent detections, switches, and start/stop alerts).
+                </p>
+                <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-950 rounded-xl border border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => handleSetEnableBattleToasts(true)}
+                    className={`py-2 px-2 rounded-lg text-xs font-bold transition ${
+                      enableBattleToasts
+                        ? 'bg-sky-500/25 border border-sky-400/70 text-sky-200'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    Toasts: ON (Default)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSetEnableBattleToasts(false)}
+                    className={`py-2 px-2 rounded-lg text-xs font-bold transition ${
+                      !enableBattleToasts
+                        ? 'bg-slate-800 border border-slate-600 text-slate-200'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    Toasts: OFF
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -5589,7 +5835,7 @@ export default function App() {
 
       {/* Footer */}
       <footer className="border-t border-slate-800/80 py-4 px-6 text-center text-xs text-slate-500">
-        SilphScope PvP v2.15 Overlay • Built with Kotlin, WindowManager TYPE_APPLICATION_OVERLAY, MediaProjection in-memory frame capture, and ML Kit Text Recognition.
+        SilphScope PvP v2.20 Overlay • Built with Kotlin, WindowManager TYPE_APPLICATION_OVERLAY, MediaProjection in-memory frame capture, and ML Kit Text Recognition.
       </footer>
     </div>
   );

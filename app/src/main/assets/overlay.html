@@ -396,8 +396,32 @@
             border-left: 1px solid transparent;
             border-right: 1px solid transparent;
             border-top: 1px solid transparent;
-            line-height: 1.15;
+            line-height: 1.05;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
         }
+
+        .dmg-col-hdr .hdr-code {
+            font-size: 7.5px;
+            font-weight: 900;
+            line-height: 1.1;
+        }
+
+        .dmg-col-hdr .hdr-hp {
+            font-size: 6.5px;
+            font-weight: 800;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-variant-numeric: tabular-nums;
+            line-height: 1.05;
+            margin-top: 0.5px;
+        }
+
+        .dmg-col-hdr .hdr-hp.hp-green { color: #6ee7b7; }
+        .dmg-col-hdr .hdr-hp.hp-amber { color: #fde047; }
+        .dmg-col-hdr .hdr-hp.hp-red   { color: #fca5a5; }
+        .dmg-col-hdr .hdr-hp.hp-empty { color: #475569; }
 
         .dmg-col-hdr.active-col {
             background: rgba(56, 189, 248, 0.22);
@@ -587,6 +611,26 @@
 
         .dmg-cell.tier-empty {
             color: #475569;
+        }
+
+        /* Active KO Cell Highlight (Bright Gold) */
+        .dmg-cell.ko-active {
+            background: rgba(234, 179, 8, 0.48) !important;
+            border: 1.5px solid #fde047 !important;
+            color: #fef08a !important;
+            font-weight: 900 !important;
+            box-shadow: inset 0 0 6px rgba(250, 204, 21, 0.55), 0 0 6px rgba(250, 204, 21, 0.65);
+            text-shadow: 0 0 4px rgba(250, 204, 21, 0.65);
+            border-radius: 2px;
+        }
+
+        /* Swapped-Out / Benched KO Cell Highlight (Muted Gold / Amber) */
+        .dmg-cell.ko-muted {
+            background: rgba(180, 83, 9, 0.28) !important;
+            border: 1px dashed rgba(251, 191, 36, 0.65) !important;
+            color: #fcd34d !important;
+            font-weight: 800;
+            border-radius: 2px;
         }
 
         .user-fast-badge {
@@ -1632,13 +1676,25 @@
                     console.error("Matrix render error", e);
                 }
 
+                const enableHpTracking = battleData.enableHpBarTracking !== undefined ? !!battleData.enableHpBarTracking : true;
+                const getHpTierCls = (hp) => {
+                    if (hp === null || hp === undefined) return "hp-empty";
+                    if (hp > 50) return "hp-green";
+                    if (hp > 20) return "hp-amber";
+                    return "hp-red";
+                };
+
                 // 2. Render Opponent Attacks 3-Column Header & Segmented Range Rows
                 try {
                     if (oppDmgHeadersEl) {
                         oppDmgHeadersEl.innerHTML = teamList.slice(0, 3).map((member, idx) => {
                             const code = member.code || abbrPoke(member.name, false);
                             const isAct = (idx === activeSlotIdx);
-                            return `<span class="dmg-col-hdr ${isAct ? 'active-col' : ''}">${code}</span>`;
+                            const hpPct = typeof member.hpPct === "number" ? member.hpPct : 100;
+                            const hpRowHtml = enableHpTracking
+                                ? `<span class="hdr-hp ${getHpTierCls(hpPct)}">${hpPct}%</span>`
+                                : "";
+                            return `<span class="dmg-col-hdr ${isAct ? 'active-col' : ''}" title="${member.name || code}: ${hpPct}% HP"><span class="hdr-code">${code}</span>${hpRowHtml}</span>`;
                         }).join("");
                     }
 
@@ -1686,12 +1742,13 @@
 
                             const centerHtml = `<div class="seg-bar-track">${cyclesHtml}</div>`;
 
-                            // 3-Column Team Damage Matrix with Vertical Active Column Highlight
+                            // 3-Column Team Damage Matrix with Vertical Active Column Highlight & Gold KO Highlight
                             let teamDamages = row.teamDamages;
                             if (!teamDamages || teamDamages.length < 3) {
                                 teamDamages = teamList.slice(0, 3).map((m, idx) => ({
                                     code: m.code || abbrPoke(m.name, false),
                                     dmgPct: idx === activeSlotIdx ? actvPct : 40,
+                                    hpPct: typeof m.hpPct === "number" ? m.hpPct : 100,
                                     tier: "neutral",
                                     isActive: idx === activeSlotIdx
                                 }));
@@ -1699,8 +1756,13 @@
 
                             const rightGridHtml = teamDamages.slice(0, 3).map((td, idx) => {
                                 const isAct = td.isActive !== undefined ? !!td.isActive : (idx === activeSlotIdx);
+                                const slotHp = typeof td.hpPct === "number" ? td.hpPct : (typeof teamList[idx]?.hpPct === "number" ? teamList[idx].hpPct : 100);
+                                const isKoAct = td.isKoActive !== undefined ? !!td.isKoActive : (enableHpTracking && isAct && td.dmgPct >= slotHp);
+                                const isKoMut = td.isKoMuted !== undefined ? !!td.isKoMuted : (enableHpTracking && !isAct && td.dmgPct >= slotHp);
+                                const koCls = isKoAct ? "ko-active" : (isKoMut ? "ko-muted" : "");
                                 const tierCls = td.tier === "resist" ? "tier-resist" : (td.tier === "weak" ? "tier-weak" : "tier-neutral");
-                                return `<div class="dmg-cell ${tierCls} ${isAct ? 'active-col' : ''}">${td.dmgPct}%</div>`;
+                                const cellTitle = `${td.dmgPct}% dmg vs ${slotHp}% HP${isKoAct ? ' (ACTIVE KO!)' : (isKoMut ? ' (BENCH KO!)' : '')}`;
+                                return `<div class="dmg-cell ${tierCls} ${isAct ? 'active-col' : ''} ${koCls}" title="${cellTitle}">${td.dmgPct}%</div>`;
                             }).join("");
 
                             return `
@@ -1728,8 +1790,12 @@
                             const isAct = opp && opp.isActive !== undefined ? !!opp.isActive : (idx === activeOppSlotIdx);
                             const isShad = opp && opp.isShadow !== undefined ? !!opp.isShadow : (isAct && battleData.isOpponentShadow);
                             const code = opp ? (opp.code || abbrPoke(opp.name, isShad)) : "—";
-                            const clickAttr = opp ? `onclick="swapOpponentByIndex(${idx})" style="cursor:pointer;"` : "";
-                            return `<span class="dmg-col-hdr ${isAct ? 'active-col' : ''}" ${clickAttr}>${code}</span>`;
+                            const hpPct = opp ? (typeof opp.hpPct === "number" ? opp.hpPct : 100) : null;
+                            const hpRowHtml = enableHpTracking
+                                ? `<span class="hdr-hp ${getHpTierCls(hpPct)}">${hpPct !== null ? hpPct + '%' : '—'}</span>`
+                                : "";
+                            const clickAttr = opp ? `onclick="swapOpponentByIndex(${idx})" style="cursor:pointer;" title="${opp.name || code}: ${hpPct}% HP"` : "";
+                            return `<span class="dmg-col-hdr ${isAct ? 'active-col' : ''}" ${clickAttr}><span class="hdr-code">${code}</span>${hpRowHtml}</span>`;
                         }).join("");
                     }
 
@@ -1793,19 +1859,25 @@
                                 oppDamages = [0, 1, 2].map(idx => ({
                                     code: scanned[idx] ? abbrPoke(scanned[idx].name, false) : "—",
                                     dmgPct: idx === 0 ? dmgPct : null,
+                                    hpPct: scanned[idx] && typeof scanned[idx].hpPct === "number" ? scanned[idx].hpPct : 100,
                                     tier: idx === 0 ? (dmgPct >= 65 ? "high" : (dmgPct <= 35 ? "low" : "neutral")) : "empty",
                                     isActive: idx === 0
                                 }));
                             }
 
                             const rightGridHtml = oppDamages.slice(0, 3).map((od, idx) => {
-                                const isAct = od.isActive !== undefined ? !!od.isActive : (idx === 0);
+                                const isAct = od.isActive !== undefined ? !!od.isActive : (idx === activeOppSlotIdx);
                                 if (od.dmgPct === null || od.dmgPct === undefined || od.tier === "empty") {
                                     return `<div class="dmg-cell tier-empty ${isAct ? 'active-col' : ''}">—</div>`;
                                 }
+                                const slotHp = typeof od.hpPct === "number" ? od.hpPct : (scanned[idx] && typeof scanned[idx].hpPct === "number" ? scanned[idx].hpPct : 100);
+                                const isKoAct = od.isKoActive !== undefined ? !!od.isKoActive : (enableHpTracking && isAct && od.dmgPct >= slotHp);
+                                const isKoMut = od.isKoMuted !== undefined ? !!od.isKoMuted : (enableHpTracking && !isAct && od.dmgPct >= slotHp);
+                                const koCls = isKoAct ? "ko-active" : (isKoMut ? "ko-muted" : "");
                                 const tierCls = od.tier === "high" ? "tier-high" : (od.tier === "low" ? "tier-low" : "tier-neutral");
                                 const text = od.dmgPct >= 100 ? "KO!" : `${od.dmgPct}%`;
-                                return `<div class="dmg-cell ${tierCls} ${isAct ? 'active-col' : ''}">${text}</div>`;
+                                const cellTitle = `${od.dmgPct}% dmg vs ${slotHp}% HP${isKoAct ? ' (ACTIVE KO!)' : (isKoMut ? ' (BENCH KO!)' : '')}`;
+                                return `<div class="dmg-cell ${tierCls} ${isAct ? 'active-col' : ''} ${koCls}" title="${cellTitle}">${text}</div>`;
                             }).join("");
 
                             return `

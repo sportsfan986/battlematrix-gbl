@@ -103,6 +103,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var pageBattleLog: android.view.View
     private lateinit var btnReparseBattlesSettings: Button
     private lateinit var textReparseBattlesStatus: TextView
+    private lateinit var btnToggleHpBarTracking: Button
+    private lateinit var textHpBarTrackingDesc: TextView
+    private lateinit var btnToggleBattleToasts: Button
+    private lateinit var textBattleToastsDesc: TextView
     private lateinit var btnToggleOppCountBasis: Button
     private lateinit var textOppCountBasisDesc: TextView
     private lateinit var btnToggleOppChargedMoves: Button
@@ -153,6 +157,8 @@ class MainActivity : AppCompatActivity() {
     private val PREFS_KEY_OPP_COUNT_MODE = "opp_count_mode"
     private val PREFS_KEY_ENABLE_4_CHARGED_MOVES = OverlayService.PREFS_KEY_ENABLE_4_CHARGED_MOVES
     private val PREFS_KEY_LAST_SYNC_TIMESTAMP = OverlayService.PREFS_KEY_LAST_SYNC_TIMESTAMP
+    private val PREFS_KEY_ENABLE_HP_BAR_TRACKING = OverlayService.PREFS_KEY_ENABLE_HP_BAR_TRACKING
+    private val PREFS_KEY_ENABLE_BATTLE_TOASTS = OverlayService.PREFS_KEY_ENABLE_BATTLE_TOASTS
     private val PREFS_KEY_OVERLAY_SCALE_PCT = "overlay_scale_pct"
     private val DEFAULT_OVERLAY_SCALE_PCT = 78
     private val PREFS_KEY_OVERLAY_TRANSPARENCY_PCT = OverlayService.PREFS_KEY_OVERLAY_TRANSPARENCY_PCT
@@ -302,6 +308,10 @@ class MainActivity : AppCompatActivity() {
         pageBattleLog = findViewById(R.id.page_battle_log)
         btnReparseBattlesSettings = findViewById(R.id.btn_reparse_battles_settings)
         textReparseBattlesStatus = findViewById(R.id.text_reparse_battles_status)
+        btnToggleHpBarTracking = findViewById(R.id.btn_toggle_hp_bar_tracking)
+        textHpBarTrackingDesc = findViewById(R.id.text_hp_bar_tracking_desc)
+        btnToggleBattleToasts = findViewById(R.id.btn_toggle_battle_toasts)
+        textBattleToastsDesc = findViewById(R.id.text_battle_toasts_desc)
         btnToggleOppCountBasis = findViewById(R.id.btn_toggle_opp_count_basis)
         textOppCountBasisDesc = findViewById(R.id.text_opp_count_basis_desc)
         btnToggleOppChargedMoves = findViewById(R.id.btn_toggle_opp_charged_moves)
@@ -358,6 +368,8 @@ class MainActivity : AppCompatActivity() {
         btnNavSettings.setOnClickListener { switchMainPage("settings") }
         btnNavBattleLog.setOnClickListener { switchMainPage("battle_log") }
 
+        updateHpBarTrackingUi()
+        updateBattleToastsUi()
         updateOppCountBasisUi()
         updateOppChargedMovesUi()
 
@@ -481,6 +493,36 @@ class MainActivity : AppCompatActivity() {
                 }
                 .setNegativeButton("Cancel", null)
                 .show()
+        }
+
+        btnToggleHpBarTracking.setOnClickListener {
+            val currentEnabled = prefs.getBoolean(PREFS_KEY_ENABLE_HP_BAR_TRACKING, true)
+            val nextEnabled = !currentEnabled
+            prefs.edit().putBoolean(PREFS_KEY_ENABLE_HP_BAR_TRACKING, nextEnabled).apply()
+            updateHpBarTrackingUi()
+
+            if (isOverlayRunning) {
+                val updateIntent = Intent(this, OverlayService::class.java).apply {
+                    action = OverlayService.ACTION_UPDATE_SETTINGS
+                    putExtra(OverlayService.EXTRA_ENABLE_HP_BAR_TRACKING, nextEnabled)
+                }
+                startService(updateIntent)
+            }
+        }
+
+        btnToggleBattleToasts.setOnClickListener {
+            val currentToasts = prefs.getBoolean(PREFS_KEY_ENABLE_BATTLE_TOASTS, true)
+            val nextToasts = !currentToasts
+            prefs.edit().putBoolean(PREFS_KEY_ENABLE_BATTLE_TOASTS, nextToasts).apply()
+            updateBattleToastsUi()
+
+            if (isOverlayRunning) {
+                val updateIntent = Intent(this, OverlayService::class.java).apply {
+                    action = OverlayService.ACTION_UPDATE_SETTINGS
+                    putExtra(OverlayService.EXTRA_ENABLE_BATTLE_TOASTS, nextToasts)
+                }
+                startService(updateIntent)
+            }
         }
 
         btnToggleOppCountBasis.setOnClickListener {
@@ -2406,6 +2448,32 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
+    private fun updateHpBarTrackingUi() {
+        val enabled = prefs.getBoolean(PREFS_KEY_ENABLE_HP_BAR_TRACKING, true)
+        if (enabled) {
+            btnToggleHpBarTracking.text = "HP: ON"
+            btnToggleHpBarTracking.backgroundTintList = android.content.res.ColorStateList.valueOf(0xFFCA8A04.toInt())
+            textHpBarTrackingDesc.text = "Active: Scans floating HP bars with 2-read swap debounce, shows HP% in headers & highlights KO moves in Gold"
+        } else {
+            btnToggleHpBarTracking.text = "HP: OFF"
+            btnToggleHpBarTracking.backgroundTintList = android.content.res.ColorStateList.valueOf(0xFF475569.toInt())
+            textHpBarTrackingDesc.text = "Disabled: Static 100% damage numbers only (HP bar reading & dynamic KO highlights turned off)"
+        }
+    }
+
+    private fun updateBattleToastsUi() {
+        val enabled = prefs.getBoolean(PREFS_KEY_ENABLE_BATTLE_TOASTS, true)
+        if (enabled) {
+            btnToggleBattleToasts.text = "Toasts: ON"
+            btnToggleBattleToasts.backgroundTintList = android.content.res.ColorStateList.valueOf(0xFF059669.toInt())
+            textBattleToastsDesc.text = "Active: Pop-up Toast alerts enabled for opponent & switch detections"
+        } else {
+            btnToggleBattleToasts.text = "Toasts: OFF"
+            btnToggleBattleToasts.backgroundTintList = android.content.res.ColorStateList.valueOf(0xFF475569.toInt())
+            textBattleToastsDesc.text = "Muted: All pop-up Toast notifications suppressed during battles"
+        }
+    }
+
     private fun updateOppCountBasisUi() {
         val mode = prefs.getString(PREFS_KEY_OPP_COUNT_MODE, "my_fasts") ?: "my_fasts"
         if (mode == "opp_fasts") {
@@ -2546,6 +2614,8 @@ class MainActivity : AppCompatActivity() {
             putExtra(OverlayService.EXTRA_PRESET_JSON, gson.toJson(getSelectedPreset()))
             putExtra(OverlayService.EXTRA_OPP_COUNT_MODE, prefs.getString(PREFS_KEY_OPP_COUNT_MODE, "my_fasts") ?: "my_fasts")
             putExtra(OverlayService.EXTRA_ENABLE_4_CHARGED_MOVES, prefs.getBoolean(PREFS_KEY_ENABLE_4_CHARGED_MOVES, false))
+            putExtra(OverlayService.EXTRA_ENABLE_HP_BAR_TRACKING, prefs.getBoolean(PREFS_KEY_ENABLE_HP_BAR_TRACKING, true))
+            putExtra(OverlayService.EXTRA_ENABLE_BATTLE_TOASTS, prefs.getBoolean(PREFS_KEY_ENABLE_BATTLE_TOASTS, true))
             putExtra(OverlayService.EXTRA_OVERLAY_SCALE_PCT, prefs.getInt(PREFS_KEY_OVERLAY_SCALE_PCT, DEFAULT_OVERLAY_SCALE_PCT))
             putExtra(OverlayService.EXTRA_OVERLAY_TRANSPARENCY_PCT, prefs.getInt(PREFS_KEY_OVERLAY_TRANSPARENCY_PCT, DEFAULT_OVERLAY_TRANSPARENCY_PCT))
         }

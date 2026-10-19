@@ -90,8 +90,12 @@ class OverlayService : LifecycleService() {
         const val EXTRA_OVERLAY_SCALE_PCT = "extra_overlay_scale_pct"
         const val EXTRA_OVERLAY_TRANSPARENCY_PCT = "extra_overlay_transparency_pct"
         const val EXTRA_ENABLE_4_CHARGED_MOVES = "extra_enable_4_charged_moves"
+        const val EXTRA_ENABLE_HP_BAR_TRACKING = "extra_enable_hp_bar_tracking"
+        const val EXTRA_ENABLE_BATTLE_TOASTS = "extra_enable_battle_toasts"
 
         const val PREFS_KEY_ENABLE_4_CHARGED_MOVES = "enable_4_charged_moves"
+        const val PREFS_KEY_ENABLE_HP_BAR_TRACKING = "enable_hp_bar_tracking"
+        const val PREFS_KEY_ENABLE_BATTLE_TOASTS = "enable_battle_toasts"
         const val PREFS_KEY_OVERLAY_TRANSPARENCY_PCT = "overlay_transparency_pct"
         const val PREFS_KEY_LAST_SYNC_TIMESTAMP = "last_sync_timestamp"
         const val PREFS_KEY_BATTLE_LOGS = "gbl_battle_logs_v1"
@@ -2836,11 +2840,65 @@ class OverlayService : LifecycleService() {
     private var currentLayoutMode = "option1"
     private var oppCountMode = "my_fasts"
     private var enable4ChargedMoves = false
+    private var enableHpBarTracking = true
+    private var enableBattleToasts = true
     private var overlayScalePct = 78
     private var overlayTransparencyPct = 72
     private var isOverlayMinimized = false
     private var cachedScreenBitmap: Bitmap? = null
     private val captureLock = Any()
+
+    // Per-Pokémon remaining HP% memory (1..100) preserved across switches during a battle
+    private val userTeamHpPct = java.util.concurrent.ConcurrentHashMap<Int, Int>()
+    private val opponentHpBySpecies = java.util.concurrent.ConcurrentHashMap<String, Int>()
+    @Volatile private var playerSwapDebounceFrames = 0
+    @Volatile private var oppSwapDebounceFrames = 0
+    @Volatile private var pendingPlayerHpRead: Int? = null
+    @Volatile private var pendingOppHpRead: Int? = null
+    @Volatile private var lastTrackedPlayerSlot: Int = 0
+    @Volatile private var lastTrackedOpponentSpecies: String = ""
+
+    private fun showBattleToast(message: String, duration: Int = Toast.LENGTH_SHORT) {
+        if (!enableBattleToasts || !::prefs.isInitialized) return
+        Handler(Looper.getMainLooper()).post {
+            if (enableBattleToasts) {
+                Toast.makeText(this@OverlayService, message, duration).show()
+            }
+        }
+    }
+
+    private fun resetAllPokemonHpMemory() {
+        userTeamHpPct.clear()
+        userTeamHpPct[0] = 100
+        userTeamHpPct[1] = 100
+        userTeamHpPct[2] = 100
+        opponentHpBySpecies.clear()
+        playerSwapDebounceFrames = 2
+        oppSwapDebounceFrames = 2
+        pendingPlayerHpRead = null
+        pendingOppHpRead = null
+    }
+
+    private fun triggerPlayerSwapDebounce(newSlotIdx: Int) {
+        if (newSlotIdx != lastTrackedPlayerSlot) {
+            lastTrackedPlayerSlot = newSlotIdx
+            // Discard any unconfirmed 1-frame pending reading so outgoing Pokémon keeps its last confirmed HP
+            pendingPlayerHpRead = null
+            playerSwapDebounceFrames = 2
+            userTeamHpPct.putIfAbsent(newSlotIdx, 100)
+        }
+    }
+
+    private fun triggerOpponentSwapDebounce(newBaseSpecies: String) {
+        val normKey = newBaseSpecies.lowercase().trim()
+        if (normKey.isNotEmpty() && normKey != lastTrackedOpponentSpecies) {
+            lastTrackedOpponentSpecies = normKey
+            // Discard any unconfirmed 1-frame pending reading so outgoing opponent keeps its last confirmed HP
+            pendingOppHpRead = null
+            oppSwapDebounceFrames = 2
+            opponentHpBySpecies.putIfAbsent(normKey, 100)
+        }
+    }
 
     data class BattleQualityMetadata(
         val pWin: Double,
@@ -2888,8 +2946,11 @@ class OverlayService : LifecycleService() {
         prefs = getSharedPreferences("gbl_overlay_prefs", Context.MODE_PRIVATE)
         oppCountMode = prefs.getString("opp_count_mode", "my_fasts") ?: "my_fasts"
         enable4ChargedMoves = prefs.getBoolean(PREFS_KEY_ENABLE_4_CHARGED_MOVES, false)
+        enableHpBarTracking = prefs.getBoolean(PREFS_KEY_ENABLE_HP_BAR_TRACKING, true)
+        enableBattleToasts = prefs.getBoolean(PREFS_KEY_ENABLE_BATTLE_TOASTS, true)
         overlayScalePct = prefs.getInt("overlay_scale_pct", 78).coerceIn(50, 100)
         overlayTransparencyPct = prefs.getInt(PREFS_KEY_OVERLAY_TRANSPARENCY_PCT, 72).coerceIn(0, 100)
+        resetAllPokemonHpMemory()
 
         val metrics = resources.displayMetrics
         screenWidth = metrics.widthPixels
@@ -3195,7 +3256,7 @@ class OverlayService : LifecycleService() {
         }
         overlayView?.evaluateJavascript("if (window.setOverlayMinimizedState) setOverlayMinimizedState(true);", null)
         startForegroundNotification()
-        Toast.makeText(this, "Overlay minimized (OCR paused). Tap bubble to resume.", Toast.LENGTH_SHORT).show()
+        showBattleToast("Overlay minimized (OCR paused). Tap bubble to resume.")
     }
 
     private fun restoreOverlayFromBubble() {
@@ -3218,7 +3279,7 @@ class OverlayService : LifecycleService() {
         }
         recalculateAndPushBattleData()
         startForegroundNotification()
-        Toast.makeText(this, "⚔️ Overlay restored & OCR resumed", Toast.LENGTH_SHORT).show()
+        showBattleToast("⚔️ Overlay restored & OCR resumed")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -3252,6 +3313,16 @@ class OverlayService : LifecycleService() {
                     intent.getBooleanExtra(EXTRA_ENABLE_4_CHARGED_MOVES, false)
                 } else {
                     prefs.getBoolean(PREFS_KEY_ENABLE_4_CHARGED_MOVES, enable4ChargedMoves)
+                }
+                enableHpBarTracking = if (intent?.hasExtra(EXTRA_ENABLE_HP_BAR_TRACKING) == true) {
+                    intent.getBooleanExtra(EXTRA_ENABLE_HP_BAR_TRACKING, true)
+                } else {
+                    prefs.getBoolean(PREFS_KEY_ENABLE_HP_BAR_TRACKING, enableHpBarTracking)
+                }
+                enableBattleToasts = if (intent?.hasExtra(EXTRA_ENABLE_BATTLE_TOASTS) == true) {
+                    intent.getBooleanExtra(EXTRA_ENABLE_BATTLE_TOASTS, true)
+                } else {
+                    prefs.getBoolean(PREFS_KEY_ENABLE_BATTLE_TOASTS, enableBattleToasts)
                 }
 
                 intent?.getStringExtra(EXTRA_PRESET_JSON)?.let { presetJson ->
@@ -3308,6 +3379,16 @@ class OverlayService : LifecycleService() {
                     enable4ChargedMoves = intent.getBooleanExtra(EXTRA_ENABLE_4_CHARGED_MOVES, false)
                 } else {
                     enable4ChargedMoves = prefs.getBoolean(PREFS_KEY_ENABLE_4_CHARGED_MOVES, enable4ChargedMoves)
+                }
+                if (intent?.hasExtra(EXTRA_ENABLE_HP_BAR_TRACKING) == true) {
+                    enableHpBarTracking = intent.getBooleanExtra(EXTRA_ENABLE_HP_BAR_TRACKING, true)
+                } else {
+                    enableHpBarTracking = prefs.getBoolean(PREFS_KEY_ENABLE_HP_BAR_TRACKING, enableHpBarTracking)
+                }
+                if (intent?.hasExtra(EXTRA_ENABLE_BATTLE_TOASTS) == true) {
+                    enableBattleToasts = intent.getBooleanExtra(EXTRA_ENABLE_BATTLE_TOASTS, true)
+                } else {
+                    enableBattleToasts = prefs.getBoolean(PREFS_KEY_ENABLE_BATTLE_TOASTS, enableBattleToasts)
                 }
                 val updatedScalePct = intent?.getIntExtra(
                     EXTRA_OVERLAY_SCALE_PCT,
@@ -3600,6 +3681,14 @@ class OverlayService : LifecycleService() {
         val dstPlayer = Rect(0, oppZoneH + gap, dstPlayerW, oppZoneH + gap + dstPlayerH)
         val dstMoves = Rect(0, oppZoneH + gap + dstPlayerH + gap, movesW, compH)
 
+        // Scan floating 3D battlefield HP bars before recycling `screen` (overlayView is already masked out above)
+        val rawPlayerHpRead: Int? = if (enableHpBarTracking) {
+            detectFloatingHpBarPercentage(screen, isPlayerSide = true)
+        } else null
+        val rawOppHpRead: Int? = if (enableHpBarTracking) {
+            detectFloatingHpBarPercentage(screen, isPlayerSide = false)
+        } else null
+
         canvas.drawBitmap(screen, srcOpp, dstOppRaw, filterPaint)
         if (bwOppBitmap != null) {
             canvas.drawBitmap(bwOppBitmap, null, dstOppBw, filterPaint)
@@ -3649,6 +3738,284 @@ class OverlayService : LifecycleService() {
 
         handleOpponentLines(oppLines)
         handlePlayerSwitchLines(playerTopLines, playerMoveLines)
+        if (enableHpBarTracking && !isWaitingForOpponent) {
+            updateHpTrackingAfterOcr(rawPlayerHpRead, rawOppHpRead)
+        }
+    }
+
+    private data class HpScanlineCandidate(
+        val y: Int,
+        val xStart: Int,
+        val xEnd: Int,
+        val hpPct: Int
+    )
+
+    /**
+     * Scans the 3D battlefield region for the floating horizontal HP bar above either the Player's
+     * foreground Pokémon (X: 0.02..0.44w, Y: 0.32..0.68h — handles both tall Pokémon and low bars
+     * on shorter Pokémon like Manectric at Y ≈ 0.585h) or the Opponent's Pokémon (X: 0.44..0.85w,
+     * Y: 0.15..0.50h — stays left of the X > 0.83w switch drawer cards).
+     *
+     * Matches the exact Pokémon GO floating health bar signature:
+     * - Total interior width (`fillLen + divider + emptyTrackLen`) between 23% and 34% of screen width (~28.5% nominal)
+     * - Left colored fill: vibrant spring-green/teal (#10E7A2), yellow/amber, or red/crimson with low pixel-to-pixel RGB jitter
+     * - Right depleted track: flat dark charcoal gray (#484C52) with low saturation & low RGB variance
+     * - At least 3 vertically aligned scanlines sharing the same [xStart, xEnd] rectangle bounds
+     */
+    private fun detectFloatingHpBarPercentage(screen: Bitmap, isPlayerSide: Boolean): Int? {
+        return try {
+            val w = screen.width
+            val h = screen.height
+            if (w < 200 || h < 400) return null
+
+            val cropLeft = (if (isPlayerSide) w * 0.02f else w * 0.44f).toInt().coerceIn(0, w - 1)
+            val cropRight = (if (isPlayerSide) w * 0.44f else w * 0.85f).toInt().coerceIn(cropLeft + 1, w)
+            val cropTop = (if (isPlayerSide) h * 0.32f else h * 0.15f).toInt().coerceIn(0, h - 1)
+            val cropBottom = (if (isPlayerSide) h * 0.68f else h * 0.50f).toInt().coerceIn(cropTop + 1, h)
+
+            val cw = cropRight - cropLeft
+            val ch = cropBottom - cropTop
+            val minTotalBarW = (w * 0.23f).toInt().coerceAtLeast(40)
+            val maxTotalBarW = (w * 0.34f).toInt().coerceAtLeast(minTotalBarW + 10)
+            if (cw < minTotalBarW) return null
+
+            val pixels = IntArray(cw * ch)
+            screen.getPixels(pixels, 0, cw, cropLeft, cropTop, cw, ch)
+
+            // 1 = Green/Teal Fill, 2 = Yellow/Amber Fill, 3 = Red/Crimson Fill, 4 = Empty Dark Track, 5 = Divider/Border, 0 = Other
+            fun classifyPixel(c: Int): Int {
+                val r = (c shr 16) and 0xFF
+                val g = (c shr 8) and 0xFF
+                val b = c and 0xFF
+
+                // Spring-Green / Mint-Teal (#10E7A2 -> R:16, G:231, B:162) or vibrant HP green
+                if (g >= 145 && r <= 125 && b in 65..220 && (g - r) >= 42) {
+                    return 1
+                }
+                // Yellow / Amber HP fill
+                if (r >= 175 && g in 120..248 && b <= 98 && (r - b) >= 85 && kotlin.math.abs(r - g) <= 95) {
+                    return 2
+                }
+                // Red / Crimson HP fill
+                if (r >= 165 && g <= 115 && b <= 95 && (r - max(g, b)) >= 58) {
+                    return 3
+                }
+                // Depleted dark-charcoal gray track (#484C52 -> R:72, G:76, B:82)
+                val maxCh = max(r, max(g, b))
+                val minCh = min(r, min(g, b))
+                if (r in 42..112 && g in 45..116 && b in 48..124 && (maxCh - minCh) <= 22) {
+                    return 4
+                }
+                // White or Orange damage-flash border/divider tick
+                if ((r >= 185 && g >= 185 && b >= 185) || (r >= 180 && g in 95..198 && b <= 92)) {
+                    return 5
+                }
+                return 0
+            }
+
+            val candidates = mutableListOf<HpScanlineCandidate>()
+            val stepY = 2
+
+            for (ry in 0 until ch step stepY) {
+                val rowOffset = ry * cw
+                var x = 0
+                while (x < cw - 8) {
+                    val pType = classifyPixel(pixels[rowOffset + x])
+                    if (pType in 1..3) {
+                        val fillColorFamily = pType
+                        val xStart = x
+                        var fillEnd = x
+                        var gapCount = 0
+                        var colorDeltaSum = 0
+                        var prevColor = pixels[rowOffset + x]
+                        var fillSamples = 0
+
+                        while (x < cw) {
+                            val px = pixels[rowOffset + x]
+                            val t = classifyPixel(px)
+                            if (t == fillColorFamily) {
+                                gapCount = 0
+                                fillEnd = x + 1
+                                if (fillSamples > 0) {
+                                    val dr = kotlin.math.abs(((px shr 16) and 0xFF) - ((prevColor shr 16) and 0xFF))
+                                    val dg = kotlin.math.abs(((px shr 8) and 0xFF) - ((prevColor shr 8) and 0xFF))
+                                    val db = kotlin.math.abs((px and 0xFF) - (prevColor and 0xFF))
+                                    colorDeltaSum += (dr + dg + db) / 3
+                                }
+                                prevColor = px
+                                fillSamples++
+                                x++
+                            } else if (gapCount < 2) {
+                                gapCount++
+                                x++
+                            } else {
+                                break
+                            }
+                        }
+
+                        val fillLen = fillEnd - xStart
+                        val avgFillJitter = if (fillSamples > 1) colorDeltaSum / (fillSamples - 1) else 0
+
+                        if (fillLen >= 3 && avgFillJitter <= 18) {
+                            // Bridge 0..5 pixels of divider/transition between colored fill and empty dark track
+                            var scanX = fillEnd
+                            var divCount = 0
+                            while (scanX < cw && divCount < 5) {
+                                val dt = classifyPixel(pixels[rowOffset + scanX])
+                                if (dt == 4) break
+                                divCount++
+                                scanX++
+                            }
+
+                            var emptyEnd = scanX
+                            var emptyGap = 0
+                            var emptyDeltaSum = 0
+                            var prevEmptyColor = if (scanX < cw) pixels[rowOffset + scanX] else 0
+                            var emptySamples = 0
+
+                            while (scanX < cw) {
+                                val px = pixels[rowOffset + scanX]
+                                val et = classifyPixel(px)
+                                if (et == 4) {
+                                    emptyGap = 0
+                                    emptyEnd = scanX + 1
+                                    if (emptySamples > 0) {
+                                        val dr = kotlin.math.abs(((px shr 16) and 0xFF) - ((prevEmptyColor shr 16) and 0xFF))
+                                        val dg = kotlin.math.abs(((px shr 8) and 0xFF) - ((prevEmptyColor shr 8) and 0xFF))
+                                        val db = kotlin.math.abs((px and 0xFF) - (prevEmptyColor and 0xFF))
+                                        emptyDeltaSum += (dr + dg + db) / 3
+                                    }
+                                    prevEmptyColor = px
+                                    emptySamples++
+                                    scanX++
+                                } else if (emptyGap < 2) {
+                                    emptyGap++
+                                    scanX++
+                                } else {
+                                    break
+                                }
+                            }
+
+                            val emptyLen = if (emptySamples >= 4) (emptyEnd - fillEnd) else 0
+                            val avgEmptyJitter = if (emptySamples > 1) emptyDeltaSum / (emptySamples - 1) else 0
+
+                            if (emptyLen > 0 && avgEmptyJitter <= 14) {
+                                val totalLen = emptyEnd - xStart
+                                if (totalLen in minTotalBarW..maxTotalBarW) {
+                                    val pct = ((fillLen.toDouble() / totalLen.toDouble()) * 100.0).roundToInt().coerceIn(1, 99)
+                                    candidates.add(HpScanlineCandidate(ry, xStart, emptyEnd, pct))
+                                }
+                            } else if (fillLen in minTotalBarW..maxTotalBarW && fillColorFamily == 1) {
+                                // 100% full health bar (entire bar width is vibrant green fill)
+                                candidates.add(HpScanlineCandidate(ry, xStart, fillEnd, 100))
+                            }
+                        }
+                    } else {
+                        x++
+                    }
+                }
+            }
+
+            if (candidates.size < 3) return null
+
+            // Find a vertically coherent cluster of >= 3 scanlines sharing the same [xStart, xEnd] rectangle
+            var bestCluster: List<HpScanlineCandidate>? = null
+            for (i in candidates.indices) {
+                val anchor = candidates[i]
+                val cluster = candidates.filter { c ->
+                    kotlin.math.abs(c.y - anchor.y) <= 14 &&
+                        kotlin.math.abs(c.xStart - anchor.xStart) <= 5 &&
+                        kotlin.math.abs(c.xEnd - anchor.xEnd) <= 5 &&
+                        kotlin.math.abs(c.hpPct - anchor.hpPct) <= 4
+                }
+                if (cluster.size >= 3 && (bestCluster == null || cluster.size > bestCluster.size)) {
+                    bestCluster = cluster
+                }
+            }
+
+            val winningCluster = bestCluster ?: return null
+            val sortedPcts = winningCluster.map { it.hpPct }.sorted()
+            sortedPcts[sortedPcts.size / 2].coerceIn(1, 100)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Applies 2-reading swap debounce and monotonic upward-jump protection before committing
+     * live HP bar percentages to `userTeamHpPct` and `opponentHpBySpecies`.
+     */
+    private fun updateHpTrackingAfterOcr(rawPlayerHp: Int?, rawOppHp: Int?) {
+        var didChangeHp = false
+
+        val p1Name = currentPreset?.pokemon?.getOrNull(0)?.name ?: "Dialga (Origin)"
+        val p2Name = currentPreset?.pokemon?.getOrNull(1)?.name ?: "Lugia"
+        val p3Name = currentPreset?.pokemon?.getOrNull(2)?.name ?: "Kyogre"
+        val activePlayerName = activeUserPokemonName ?: p1Name
+        val teamNames = listOf(p1Name, p2Name, p3Name)
+        val activeUserSlotIdx = teamNames.indexOfFirst { it.equals(activePlayerName, ignoreCase = true) }.let { if (it >= 0) it else 0 }
+
+        if (activeUserSlotIdx != lastTrackedPlayerSlot) {
+            triggerPlayerSwapDebounce(activeUserSlotIdx)
+        }
+
+        val activeOppKey = activeOpponentSpecies.ifBlank { FormResolver.extractBaseSpecies(activeOpponentName) }.lowercase().trim()
+        if (activeOppKey.isNotEmpty() && activeOppKey != lastTrackedOpponentSpecies) {
+            triggerOpponentSwapDebounce(activeOppKey)
+        }
+
+        // 1. Process Player Active Pokémon HP reading with 2-reading swap debounce + upward jump guard
+        if (playerSwapDebounceFrames > 0) {
+            playerSwapDebounceFrames--
+            pendingPlayerHpRead = null
+        } else if (rawPlayerHp != null) {
+            val currentCommitted = userTeamHpPct[activeUserSlotIdx] ?: 100
+            // Guard: Pokémon cannot heal in GBL. If HP jumps upward by > 8%, reject as a swap transition frame!
+            if (rawPlayerHp <= currentCommitted + 8) {
+                val prevPending = pendingPlayerHpRead
+                if (prevPending != null && kotlin.math.abs(rawPlayerHp - prevPending) <= 6) {
+                    val averaged = ((rawPlayerHp + prevPending) / 2.0).roundToInt().coerceIn(1, 100)
+                    val clamped = min(currentCommitted, averaged)
+                    if (kotlin.math.abs(clamped - currentCommitted) >= 1) {
+                        userTeamHpPct[activeUserSlotIdx] = clamped
+                        didChangeHp = true
+                    }
+                    pendingPlayerHpRead = clamped
+                } else {
+                    pendingPlayerHpRead = rawPlayerHp
+                }
+            } else {
+                pendingPlayerHpRead = null
+            }
+        }
+
+        // 2. Process Opponent Active Pokémon HP reading with 2-reading swap debounce + upward jump guard
+        if (oppSwapDebounceFrames > 0) {
+            oppSwapDebounceFrames--
+            pendingOppHpRead = null
+        } else if (rawOppHp != null && activeOppKey.isNotEmpty()) {
+            val currentCommitted = opponentHpBySpecies[activeOppKey] ?: 100
+            if (rawOppHp <= currentCommitted + 8) {
+                val prevPending = pendingOppHpRead
+                if (prevPending != null && kotlin.math.abs(rawOppHp - prevPending) <= 6) {
+                    val averaged = ((rawOppHp + prevPending) / 2.0).roundToInt().coerceIn(1, 100)
+                    val clamped = min(currentCommitted, averaged)
+                    if (kotlin.math.abs(clamped - currentCommitted) >= 1) {
+                        opponentHpBySpecies[activeOppKey] = clamped
+                        didChangeHp = true
+                    }
+                    pendingOppHpRead = clamped
+                } else {
+                    pendingOppHpRead = rawOppHp
+                }
+            } else {
+                pendingOppHpRead = null
+            }
+        }
+
+        if (didChangeHp) {
+            recalculateAndPushBattleData()
+        }
     }
 
     /**
@@ -3910,15 +4277,10 @@ class OverlayService : LifecycleService() {
 
                 // 1-per-species deduplication on opponent team
                 upsertDetectedOpponentBySpecies(matched.name, newBaseSpecies)
+                triggerOpponentSwapDebounce(newBaseSpecies)
 
                 recalculateAndPushBattleData()
-                Handler(Looper.getMainLooper()).post {
-                    Toast.makeText(
-                        this,
-                        "⚔️ Opponent: ${matched.name} (${matched.fastTurns}t ${matched.defaultFastMove})",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
+                showBattleToast("⚔️ Opponent: ${matched.name} (${matched.fastTurns}t ${matched.defaultFastMove})")
             } else if (anyLineHasShadow && !manualShadowOverrides.containsKey(newBaseSpecies) && !isOpponentShadow) {
                 isOpponentShadow = true
                 manualShadowOverrides[newBaseSpecies] = true
@@ -3951,7 +4313,7 @@ class OverlayService : LifecycleService() {
             }
             if (matchCountInLine > 1) continue
 
-            for (slot in preset.pokemon) {
+            for ((slotIdx, slot) in preset.pokemon.withIndex()) {
                 val speciesBase = FormResolver.extractBaseSpecies(slot.name)
                 val cpStr = slot.cp.toString()
 
@@ -3980,10 +4342,9 @@ class OverlayService : LifecycleService() {
                 if (isMatched) {
                     if (!slot.name.equals(activeUserPokemonName, ignoreCase = true)) {
                         activeUserPokemonName = slot.name
+                        triggerPlayerSwapDebounce(slotIdx.coerceIn(0, 2))
                         recalculateAndPushBattleData()
-                        Handler(Looper.getMainLooper()).post {
-                            Toast.makeText(this, "🔄 Player Switch: ${slot.name}", Toast.LENGTH_SHORT).show()
-                        }
+                        showBattleToast("🔄 Player Switch: ${slot.name}")
                     }
                     return
                 }
@@ -3996,9 +4357,10 @@ class OverlayService : LifecycleService() {
             val combinedBottomLower = playerMoveLines.joinToString(" ") { it.text.lowercase() }
 
             var bestSlot: TeamMember? = null
+            var bestSlotIdx = 0
             var bestScore = 0
 
-            for (slot in preset.pokemon) {
+            for ((slotIdx, slot) in preset.pokemon.withIndex()) {
                 val meta = getPokemonMeta(slot.name)
                 val candidateMoves = listOf(slot.chargedMove1, slot.chargedMove2, meta.chargedMove1, meta.chargedMove2)
                     .map { it.trim() }
@@ -4023,16 +4385,16 @@ class OverlayService : LifecycleService() {
                 if (score > bestScore) {
                     bestScore = score
                     bestSlot = slot
+                    bestSlotIdx = slotIdx
                 }
             }
 
             if (bestSlot != null && bestScore >= 2) {
                 if (!bestSlot.name.equals(activeUserPokemonName, ignoreCase = true)) {
                     activeUserPokemonName = bestSlot.name
+                    triggerPlayerSwapDebounce(bestSlotIdx.coerceIn(0, 2))
                     recalculateAndPushBattleData()
-                    Handler(Looper.getMainLooper()).post {
-                        Toast.makeText(this, "🔄 Player Switch: ${bestSlot.name}", Toast.LENGTH_SHORT).show()
-                    }
+                    showBattleToast("🔄 Player Switch: ${bestSlot.name}")
                 }
             }
         }
@@ -4076,6 +4438,7 @@ class OverlayService : LifecycleService() {
         detectedOpponents.clear()
         manualFormOverrides.clear()
         manualShadowOverrides.clear()
+        resetAllPokemonHpMemory()
         manualLeadMatchupOverride = null
         currentLeadMatchup = "NEUTRAL"
         isWaitingForOpponent = true
@@ -4088,9 +4451,7 @@ class OverlayService : LifecycleService() {
         stopBattleOcrLoop()
         startBattleOcrLoop()
         recalculateAndPushBattleData()
-        Handler(Looper.getMainLooper()).post {
-            Toast.makeText(this, "⚔️ Battle Started — Scanning Opponents", Toast.LENGTH_SHORT).show()
-        }
+        showBattleToast("⚔️ Battle Started — Scanning Opponents")
     }
 
     /**
@@ -4114,9 +4475,7 @@ class OverlayService : LifecycleService() {
         isBattleActive = false
         stopBattleOcrLoop()
         recalculateAndPushBattleData()
-        Handler(Looper.getMainLooper()).post {
-            Toast.makeText(this, "🛑 Battle Stopped — Log Win/Loss or Start Next", Toast.LENGTH_SHORT).show()
-        }
+        showBattleToast("🛑 Battle Stopped — Log Win/Loss or Start Next")
     }
 
     fun logBattleResultFromOverlay(result: String, leadOverride: String?) {
@@ -4209,11 +4568,7 @@ class OverlayService : LifecycleService() {
                 "NEGATIVE" -> "Neg Lead"
                 else -> "Neu Lead"
             }
-            Toast.makeText(
-                this,
-                "✓ Logged $normalizedResult ($leadShort) • ${formattedOpponents.joinToString(", ").ifEmpty { "No opponents" }}",
-                Toast.LENGTH_SHORT
-            ).show()
+            showBattleToast("✓ Logged $normalizedResult ($leadShort) • ${formattedOpponents.joinToString(", ").ifEmpty { "No opponents" }}")
         }
 
         // Always trigger background 2-device delta sync after logging a battle
@@ -4268,22 +4623,17 @@ class OverlayService : LifecycleService() {
         }
         isOpponentShadow = manualShadowOverrides[newBaseSpecies] ?: pokemonName.contains("Shadow", ignoreCase = true)
         upsertDetectedOpponentBySpecies(matched.name, newBaseSpecies)
+        triggerOpponentSwapDebounce(newBaseSpecies)
         recalculateAndPushBattleData()
-        if (::prefs.isInitialized) {
-            Handler(Looper.getMainLooper()).post {
-                Toast.makeText(this, "⚔️ Active Opponent: ${matched.name}", Toast.LENGTH_SHORT).show()
-            }
-        }
+        showBattleToast("⚔️ Active Opponent: ${matched.name}")
     }
 
     fun selectActiveUserPokemon(pokemonName: String) {
         activeUserPokemonName = pokemonName
+        val slotIdx = currentPreset?.pokemon?.indexOfFirst { it.name.equals(pokemonName, ignoreCase = true) }?.takeIf { it >= 0 } ?: 0
+        triggerPlayerSwapDebounce(slotIdx.coerceIn(0, 2))
         recalculateAndPushBattleData()
-        if (::prefs.isInitialized) {
-            Handler(Looper.getMainLooper()).post {
-                Toast.makeText(this, "Active Lead: $pokemonName", Toast.LENGTH_SHORT).show()
-            }
-        }
+        showBattleToast("Active Lead: $pokemonName")
     }
 
     fun configureReplayState(
@@ -4978,9 +5328,27 @@ class OverlayService : LifecycleService() {
         val activeUserSlotIndex = teamNames.indexOfFirst { it.equals(activePlayerName, ignoreCase = true) }.let { if (it >= 0) it else 0 }
 
         val teamData = listOf(
-            mapOf("initial" to (p1Name.firstOrNull()?.uppercase() ?: "P1"), "code" to abbrPokemon3(p1Name), "name" to p1Name),
-            mapOf("initial" to (p2Name.firstOrNull()?.uppercase() ?: "P2"), "code" to abbrPokemon3(p2Name), "name" to p2Name),
-            mapOf("initial" to (p3Name.firstOrNull()?.uppercase() ?: "P3"), "code" to abbrPokemon3(p3Name), "name" to p3Name)
+            mapOf(
+                "initial" to (p1Name.firstOrNull()?.uppercase() ?: "P1"),
+                "code" to abbrPokemon3(p1Name),
+                "name" to p1Name,
+                "hpPct" to (userTeamHpPct[0] ?: 100),
+                "isActive" to (activeUserSlotIndex == 0)
+            ),
+            mapOf(
+                "initial" to (p2Name.firstOrNull()?.uppercase() ?: "P2"),
+                "code" to abbrPokemon3(p2Name),
+                "name" to p2Name,
+                "hpPct" to (userTeamHpPct[1] ?: 100),
+                "isActive" to (activeUserSlotIndex == 1)
+            ),
+            mapOf(
+                "initial" to (p3Name.firstOrNull()?.uppercase() ?: "P3"),
+                "code" to abbrPokemon3(p3Name),
+                "name" to p3Name,
+                "hpPct" to (userTeamHpPct[2] ?: 100),
+                "isActive" to (activeUserSlotIndex == 2)
+            )
         )
 
         if (isWaitingForOpponent || activeOpponentName == "Waiting...") {
@@ -4990,6 +5358,7 @@ class OverlayService : LifecycleService() {
                 "activeOpponentTurns" to 0,
                 "oppFastTelemetry" to "1 Hz OCR Active",
                 "userFastTelemetry" to "",
+                "enableHpBarTracking" to enableHpBarTracking,
                 "isOpponentShadow" to isOpponentShadow,
                 "currentFormLabel" to "Base",
                 "availableForms" to emptyList<String>(),
@@ -5169,12 +5538,14 @@ class OverlayService : LifecycleService() {
                 )
             } else 0
             val matrix = calculate3v3Matrix(meta, isThisOppShadow, p1, p2, p3)
+            val oppHpPct = opponentHpBySpecies[rawBaseKey] ?: 100
             mapOf(
                 "name" to meta.name,
                 "code" to abbrPokemon3(meta.name, isThisOppShadow),
                 "slotOrder" to (idx + 1),
                 "isActive" to (idx == activeOpponentSlotIndex),
                 "isShadow" to isThisOppShadow,
+                "hpPct" to oppHpPct,
                 "turns" to meta.fastTurns,
                 "c1" to "${abbrMove5(meta.chargedMove1)} ($oppC1Pct%)",
                 "c2" to "${abbrMove5(meta.chargedMove2)} ($oppC2Pct%)",
@@ -5352,13 +5723,20 @@ class OverlayService : LifecycleService() {
                     tDmgPct >= 65 || tEff >= 1.5 -> "weak"
                     else -> "neutral"
                 }
+                val isSlotActive = (tIdx == activeUserSlotIndex)
+                val slotHpPct = userTeamHpPct[tIdx] ?: 100
+                val isKoActive = enableHpBarTracking && isSlotActive && (tDmgPct >= slotHpPct)
+                val isKoMuted = enableHpBarTracking && !isSlotActive && (tDmgPct >= slotHpPct)
                 mapOf(
                     "name" to tName,
                     "code" to abbrPokemon3(tName),
                     "dmgPct" to tDmgPct,
+                    "hpPct" to slotHpPct,
                     "eff" to tEff,
                     "tier" to tier,
-                    "isActive" to (tIdx == activeUserSlotIndex)
+                    "isActive" to isSlotActive,
+                    "isKoActive" to isKoActive,
+                    "isKoMuted" to isKoMuted
                 )
             }
 
@@ -5494,22 +5872,32 @@ class OverlayService : LifecycleService() {
                         oDmgPct <= 35 || oEff <= 0.65 -> "low"
                         else -> "neutral"
                     }
+                    val isSlotActive = (slotIdx == activeOpponentSlotIndex)
+                    val slotHpPct = opponentHpBySpecies[rawBaseKeySlot] ?: 100
+                    val isKoActive = enableHpBarTracking && isSlotActive && (oDmgPct >= slotHpPct)
+                    val isKoMuted = enableHpBarTracking && !isSlotActive && (oDmgPct >= slotHpPct)
                     mapOf(
                         "name" to oppMetaSlot.name,
                         "code" to abbrPokemon3(oppMetaSlot.name, isSlotShadow),
                         "dmgPct" to oDmgPct,
+                        "hpPct" to slotHpPct,
                         "eff" to oEff,
                         "tier" to tier,
-                        "isActive" to (slotIdx == activeOpponentSlotIndex)
+                        "isActive" to isSlotActive,
+                        "isKoActive" to isKoActive,
+                        "isKoMuted" to isKoMuted
                     )
                 } else {
                     mapOf(
                         "name" to "—",
                         "code" to "—",
                         "dmgPct" to null,
+                        "hpPct" to null,
                         "eff" to 1.0,
                         "tier" to "empty",
-                        "isActive" to false
+                        "isActive" to false,
+                        "isKoActive" to false,
+                        "isKoMuted" to false
                     )
                 }
             }
@@ -5539,6 +5927,7 @@ class OverlayService : LifecycleService() {
             "userFastTelemetry" to userFastTelemetry,
             "oppCountMode" to oppCountMode,
             "enable4ChargedMoves" to enable4ChargedMoves,
+            "enableHpBarTracking" to enableHpBarTracking,
             "overlayTransparencyPct" to overlayTransparencyPct,
             "isOverlayMinimized" to isOverlayMinimized,
             "maxHorizonTurns" to maxHorizonTurns,
@@ -5725,11 +6114,12 @@ class OverlayService : LifecycleService() {
             if (chosen != null) {
                 currentPreset = chosen
                 activeUserPokemonName = chosen.pokemon.firstOrNull()?.name
+                resetAllPokemonHpMemory()
                 prefs.edit().putString("gbl_selected_preset_id", presetId).apply()
                 Handler(Looper.getMainLooper()).post {
                     recalculateAndPushBattleData()
-                    Toast.makeText(this@OverlayService, "Loaded Team: ${chosen.name}", Toast.LENGTH_SHORT).show()
                 }
+                showBattleToast("Loaded Team: ${chosen.name}")
             }
         }
 
