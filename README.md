@@ -1,4 +1,6 @@
-# SilphScope PvP — Real-Time 3x3 Matchup Matrix, Damage Calculations, Turn Pacing HUD & Battle Log Overlay for Pokémon GO PvP (v2.13)
+# SilphScope PvP — Real-Time 3x3 Matchup Matrix, Damage Calculations, Turn Pacing HUD & Battle Log Overlay for Pokémon GO PvP (v2.30)
+
+> **Note on Release v2.30:** Releases v2.20–v2.27 attempted real-time on-screen Pokémon HP bar tracking with no success due to 3D head-bobbing motion, background contrast shifts, and pending damage animations. In v2.30, on-screen HP bar tracking has been completely removed to maintain lightweight, rock-solid 1 Hz OCR performance for move timing, damage matrices, and CMP tie calculation.
 
 [![Live Web Simulator](https://img.shields.io/badge/🌐%20Live%20Web%20Simulator-Try%20in%20Browser-0284c7?style=for-the-badge&logo=googlechrome&logoColor=white)](https://sportsfan986.github.io/silphscope-pvp/)
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Support%20the%20Project-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/sportsfan986)

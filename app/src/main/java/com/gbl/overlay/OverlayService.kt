@@ -2840,7 +2840,7 @@ class OverlayService : LifecycleService() {
     private var currentLayoutMode = "option1"
     private var oppCountMode = "my_fasts"
     private var enable4ChargedMoves = false
-    private var enableHpBarTracking = true
+    private var enableHpBarTracking = false
     private var enableBattleToasts = true
     private var overlayScalePct = 78
     private var overlayTransparencyPct = 72
@@ -3862,8 +3862,7 @@ class OverlayService : LifecycleService() {
      * 3. Consumes and bridges over any trailing Orange Pending Damage on the right half of the bar so it
      *    can never be scanned as a separate segment on that scanline.
      */
-    private fun detectFloatingHpBarPercentage(screen: Bitmap, isPlayerSide: Boolean): Int? {
-        return try {
+    private fun detectFloatingHpBarPercentage(screen: Bitmap, isPlayerSide: Boolean): Int? = null
             val w = screen.width
             val h = screen.height
             if (w < 200 || h < 400) return null
