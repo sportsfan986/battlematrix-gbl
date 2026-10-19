@@ -3651,21 +3651,56 @@ export function calculateMyMoveTimingRows(
   });
 }
 
+export interface MatchupTierThresholds {
+  swMin: number;
+  wMin: number;
+  lMax: number;
+  slMax: number;
+}
+
+export const DEFAULT_MATCHUP_TIER_THRESHOLDS: MatchupTierThresholds = {
+  swMin: 620,
+  wMin: 530,
+  lMax: 470,
+  slMax: 380
+};
+
+export const MATCHUP_TIER_THRESHOLDS_STORAGE_KEY = "gbl_matchup_tier_thresholds_v1";
+
+export function getStoredMatchupTierThresholds(): MatchupTierThresholds {
+  try {
+    if (typeof window === "undefined" || !window.localStorage) {
+      return { ...DEFAULT_MATCHUP_TIER_THRESHOLDS };
+    }
+    const raw = window.localStorage.getItem(MATCHUP_TIER_THRESHOLDS_STORAGE_KEY);
+    if (!raw) return { ...DEFAULT_MATCHUP_TIER_THRESHOLDS };
+    const parsed = JSON.parse(raw);
+    const slMax = Math.max(100, Math.min(800, Number(parsed?.slMax) || DEFAULT_MATCHUP_TIER_THRESHOLDS.slMax));
+    const lMax = Math.max(slMax + 1, Math.min(850, Number(parsed?.lMax) || DEFAULT_MATCHUP_TIER_THRESHOLDS.lMax));
+    const wMin = Math.max(lMax + 1, Math.min(900, Number(parsed?.wMin) || DEFAULT_MATCHUP_TIER_THRESHOLDS.wMin));
+    const swMin = Math.max(wMin + 1, Math.min(950, Number(parsed?.swMin) || DEFAULT_MATCHUP_TIER_THRESHOLDS.swMin));
+    return { swMin, wMin, lMax, slMax };
+  } catch {
+    return { ...DEFAULT_MATCHUP_TIER_THRESHOLDS };
+  }
+}
+
 /**
- * Computes 3v3 matchup tiers (0s, 1s, 2s shields)
- * Returns comma-separated 5-tier codes per shield scenario:
- *  - "SW": Strong Win (Dominant type/stat advantage)
- *  - "W":  Win
- *  - "N":  Neutral (Grey)
- *  - "L":  Loss
- *  - "SL": Strong Loss (Hard walled or double super-effective against)
+ * Computes 5-tier 0s/1s/2s matchup codes ("SW,W,N,L,SL"):
+ * - SW = Strong Win (rating >= swMin, default 620)
+ * - W  = Win (wMin <= rating < swMin, default 530 <= rating < 620)
+ * - N  = Neutral / Grey (lMax < rating < wMin, default 470 < rating < 530)
+ * - L  = Loss (slMax < rating <= lMax, default 380 < rating <= 470)
+ * - SL = Strong Loss (rating <= slMax, default <= 380)
  */
 export function calculateShieldMatrix(
   oppName: string,
   teamMembers: string[],
   isOppShadow: boolean = false,
-  league: string = "MASTER LEAGUE"
+  league: string = "MASTER LEAGUE",
+  customThresholds?: MatchupTierThresholds
 ): Record<string, string> {
+  const thresholds = customThresholds || getStoredMatchupTierThresholds();
   const result: Record<string, string> = {};
   const effectiveOppShadow = isOppShadow || /^Shadow\s+/i.test(oppName) || oppName.toLowerCase().includes("(shadow)");
   const cleanOppName = oppName.replace(/^Shadow\s+/i, "").replace(/\s*\(Shadow\)/i, "").trim();
@@ -3687,51 +3722,44 @@ export function calculateShieldMatrix(
       Object.values(POKEMON_DATABASE)[0];
     const myStats = computeEffectiveStatsForLeague(rawMyStats, league, undefined, undefined, isMyShadow);
 
-    const myFastEff = getTypeMultiplier(myStats.defaultFastMove.type, oppStats.types);
-    const myFastStab = myStats.types.includes(myStats.defaultFastMove.type) ? 1.2 : 1.0;
-    const myFastScore = myFastEff * myFastStab * (isMyShadow ? 1.12 : 1.0);
-
-    const oppFastEff = getTypeMultiplier(oppStats.defaultFastMove.type, myStats.types);
-    const oppFastStab = oppStats.types.includes(oppStats.defaultFastMove.type) ? 1.2 : 1.0;
-    const oppFastScore = oppFastEff * oppFastStab * (effectiveOppShadow ? 1.12 : 1.0);
-
-    const myChargedDamages = myStats.chargedMoves.map(
+    const myChargedDamages = myStats.chargedMoves.slice(0, 2).map(
       (cm) => calculateChargedDamage(myStats, oppStats, cm, isMyShadow, effectiveOppShadow).percentage
     );
-    const myMaxCharged = myChargedDamages.length ? Math.max(...myChargedDamages) : 45;
-    const myMinEnergy = myStats.chargedMoves.length
-      ? Math.min(...myStats.chargedMoves.map((c) => c.energyCost))
-      : 45;
+    const bestUserCharged = myChargedDamages.length ? Math.max(...myChargedDamages) : 45;
+    const minUserCharged = myChargedDamages.length ? Math.min(...myChargedDamages) : 35;
 
-    const oppChargedDamages = oppStats.chargedMoves.map(
+    const oppChargedDamages = oppStats.chargedMoves.slice(0, 2).map(
       (cm) => calculateChargedDamage(oppStats, myStats, cm, effectiveOppShadow, isMyShadow).percentage
     );
-    const oppMaxCharged = oppChargedDamages.length ? Math.max(...oppChargedDamages) : 45;
-    const oppMinEnergy = oppStats.chargedMoves.length
-      ? Math.min(...oppStats.chargedMoves.map((c) => c.energyCost))
-      : 45;
+    const bestOppCharged = oppChargedDamages.length ? Math.max(...oppChargedDamages) : 45;
+    const minOppCharged = oppChargedDamages.length ? Math.min(...oppChargedDamages) : 35;
 
-    const myBulk = myStats.baseStats.def * myStats.baseStats.hp * (isMyShadow ? 0.833 : 1.0);
-    const oppBulk = oppStats.baseStats.def * oppStats.baseStats.hp * (effectiveOppShadow ? 0.833 : 1.0);
-    const bulkRatio = oppBulk > 0 ? Math.min(1.35, Math.max(0.7, myBulk / oppBulk)) : 1.0;
+    const userFastEff = getTypeMultiplier(myStats.defaultFastMove.type, oppStats.types);
+    const oppFastEff = getTypeMultiplier(oppStats.defaultFastMove.type, myStats.types);
+    const shadowBulkDelta = (isMyShadow ? -12 : 0) + (effectiveOppShadow ? 12 : 0);
 
-    const fastRatio = oppFastScore > 0 ? myFastScore / oppFastScore : 1.0;
-    const chargedRatio = oppMaxCharged > 0 ? myMaxCharged / oppMaxCharged : 1.0;
-    const paceAdvantage = (oppMinEnergy - myMinEnergy) / 100.0;
+    const rating0s = Math.round(
+      500 + (bestUserCharged - bestOppCharged) * 3.4 + (userFastEff - oppFastEff) * 95 + shadowBulkDelta
+    );
+    const rating1s = Math.round(
+      500 +
+        ((bestUserCharged + minUserCharged) * 0.5 - (bestOppCharged + minOppCharged) * 0.5) * 2.8 +
+        (userFastEff - oppFastEff) * 120 +
+        shadowBulkDelta
+    );
+    const rating2s = Math.round(
+      500 + (minUserCharged - minOppCharged) * 2.0 + (userFastEff - oppFastEff) * 155 + shadowBulkDelta * 2
+    );
 
-    const score0s = fastRatio * 0.4 + chargedRatio * 0.45 + bulkRatio * 0.15 + paceAdvantage * 0.5;
-    const score1s = fastRatio * 0.52 + chargedRatio * 0.28 + bulkRatio * 0.2 + paceAdvantage * 0.8;
-    const score2s = fastRatio * 0.68 + chargedRatio * 0.14 + bulkRatio * 0.18 + paceAdvantage * 0.45;
-
-    const toTier = (score: number): string => {
-      if (score >= 1.28) return "SW";
-      if (score >= 1.07) return "W";
-      if (score >= 0.93) return "N";
-      if (score >= 0.76) return "L";
+    const toTier = (r: number): string => {
+      if (r >= thresholds.swMin) return "SW";
+      if (r >= thresholds.wMin) return "W";
+      if (r > thresholds.lMax) return "N";
+      if (r > thresholds.slMax) return "L";
       return "SL";
     };
 
-    result[key] = `${toTier(score0s)},${toTier(score1s)},${toTier(score2s)}`;
+    result[key] = `${toTier(rating0s)},${toTier(rating1s)},${toTier(rating2s)}`;
   });
 
   return result;

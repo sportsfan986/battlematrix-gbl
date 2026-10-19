@@ -41,7 +41,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Real-Time PvP Floating Overlay • v2.35"
+                android:text="Real-Time PvP Floating Overlay • v2.36"
                 android:textSize="11sp"
                 android:textColor="#94a3b8"
                 android:layout_marginTop="1dp" />
@@ -794,6 +794,199 @@
                     android:textSize="10sp"
                     android:layout_marginTop="4dp" />
             </LinearLayout>
+
+            <!-- 5-Tier 0s/1s/2s Matchup Rating Thresholds Card (SW, W, N, L, SL) -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="8dp"
+                android:background="#0f172a"
+                android:padding="10dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="🎯 5-Tier 0s/1s/2s Matchup Thresholds (SW, W, N, L, SL)"
+                    android:textColor="#38bdf8"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/text_tier_definitions_summary"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="• SW = Strong Win (rating >= 620) (Default: 620)\n• W = Win (530 &lt;= rating &lt; 620) (Default: 530)\n• N = Neutral / Grey (470 &lt; rating &lt; 530) (Default: 470–530)\n• L = Loss (380 &lt; rating &lt;= 470) (Default: 470)\n• SL = Strong Loss (rating &lt;= 380) (Default: 380)"
+                    android:textColor="#94a3b8"
+                    android:textSize="10sp"
+                    android:layout_marginTop="3dp" />
+
+                <!-- Row 1: SW & W -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="6dp">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical"
+                        android:layout_marginEnd="6dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="SW Strong Win &gt;= (620)"
+                            android:textColor="#4ade80"
+                            android:textSize="10sp"
+                            android:textStyle="bold" />
+
+                        <EditText
+                            android:id="@+id/edit_tier_sw_min"
+                            android:layout_width="match_parent"
+                            android:layout_height="36dp"
+                            android:layout_marginTop="2dp"
+                            android:background="#1e293b"
+                            android:paddingHorizontal="8dp"
+                            android:hint="(620)"
+                            android:text="620"
+                            android:textColor="#f8fafc"
+                            android:textColorHint="#64748b"
+                            android:textSize="11.5sp"
+                            android:inputType="number"
+                            android:singleLine="true" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="W Win &gt;= (530)"
+                            android:textColor="#86efac"
+                            android:textSize="10sp"
+                            android:textStyle="bold" />
+
+                        <EditText
+                            android:id="@+id/edit_tier_w_min"
+                            android:layout_width="match_parent"
+                            android:layout_height="36dp"
+                            android:layout_marginTop="2dp"
+                            android:background="#1e293b"
+                            android:paddingHorizontal="8dp"
+                            android:hint="(530)"
+                            android:text="530"
+                            android:textColor="#f8fafc"
+                            android:textColorHint="#64748b"
+                            android:textSize="11.5sp"
+                            android:inputType="number"
+                            android:singleLine="true" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <!-- Row 2: L & SL -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="6dp">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical"
+                        android:layout_marginEnd="6dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="L Loss &lt;= (470)"
+                            android:textColor="#fca5a5"
+                            android:textSize="10sp"
+                            android:textStyle="bold" />
+
+                        <EditText
+                            android:id="@+id/edit_tier_l_max"
+                            android:layout_width="match_parent"
+                            android:layout_height="36dp"
+                            android:layout_marginTop="2dp"
+                            android:background="#1e293b"
+                            android:paddingHorizontal="8dp"
+                            android:hint="(470)"
+                            android:text="470"
+                            android:textColor="#f8fafc"
+                            android:textColorHint="#64748b"
+                            android:textSize="11.5sp"
+                            android:inputType="number"
+                            android:singleLine="true" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="SL Strong Loss &lt;= (380)"
+                            android:textColor="#f87171"
+                            android:textSize="10sp"
+                            android:textStyle="bold" />
+
+                        <EditText
+                            android:id="@+id/edit_tier_sl_max"
+                            android:layout_width="match_parent"
+                            android:layout_height="36dp"
+                            android:layout_marginTop="2dp"
+                            android:background="#1e293b"
+                            android:paddingHorizontal="8dp"
+                            android:hint="(380)"
+                            android:text="380"
+                            android:textColor="#f8fafc"
+                            android:textColorHint="#64748b"
+                            android:textSize="11.5sp"
+                            android:inputType="number"
+                            android:singleLine="true" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="8dp">
+
+                    <Button
+                        android:id="@+id/btn_save_tier_thresholds"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:text="💾 Save Thresholds"
+                        android:textSize="11sp"
+                        android:backgroundTint="#0284c7"
+                        android:textColor="#ffffff"
+                        android:layout_marginEnd="6dp" />
+
+                    <Button
+                        android:id="@+id/btn_restore_tier_thresholds"
+                        android:layout_width="wrap_content"
+                        android:layout_height="36dp"
+                        android:text="↺ Restore Defaults"
+                        android:textSize="11sp"
+                        android:backgroundTint="#334155"
+                        android:textColor="#e2e8f0" />
+                </LinearLayout>
+            </LinearLayout>
         </LinearLayout>
     </ScrollView>
 
@@ -947,7 +1140,7 @@
                 android:minWidth="0dp"
                 android:paddingHorizontal="10dp"
                 android:singleLine="true"
-                android:text="📋 Copy Text"
+                android:text="📋 Copy GBL"
                 android:textSize="10.5sp"
                 android:backgroundTint="#1e293b"
                 android:textColor="#38bdf8"

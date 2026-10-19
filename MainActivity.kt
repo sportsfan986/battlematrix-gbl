@@ -107,6 +107,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var textOppCountBasisDesc: TextView
     private lateinit var btnToggleOppChargedMoves: Button
     private lateinit var textOppChargedMovesDesc: TextView
+    private lateinit var btnToggleBattleToasts: Button
+    private lateinit var textBattleToastsDesc: TextView
     private lateinit var seekbarOverlayScale: SeekBar
     private lateinit var textOverlayScaleValue: TextView
     private lateinit var textOverlayScaleDefaultTick: TextView
@@ -119,6 +121,13 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnSyncDevicesSettings: Button
     private lateinit var btnSyncBundleSettings: Button
     private lateinit var textSyncStatus: TextView
+    private lateinit var textTierDefinitionsSummary: TextView
+    private lateinit var editTierSwMin: EditText
+    private lateinit var editTierWMin: EditText
+    private lateinit var editTierLMax: EditText
+    private lateinit var editTierSlMax: EditText
+    private lateinit var btnSaveTierThresholds: Button
+    private lateinit var btnRestoreTierThresholds: Button
     private lateinit var presetsContainer: LinearLayout
     private lateinit var battleLogContainer: LinearLayout
     private lateinit var textBattleLogTotal: TextView
@@ -152,6 +161,7 @@ class MainActivity : AppCompatActivity() {
     private val PREFS_KEY_SELECTED_PRESET = "gbl_selected_preset_id"
     private val PREFS_KEY_OPP_COUNT_MODE = "opp_count_mode"
     private val PREFS_KEY_ENABLE_4_CHARGED_MOVES = OverlayService.PREFS_KEY_ENABLE_4_CHARGED_MOVES
+    private val PREFS_KEY_DISABLE_BATTLE_TOASTS = OverlayService.PREFS_KEY_DISABLE_BATTLE_TOASTS
     private val PREFS_KEY_LAST_SYNC_TIMESTAMP = OverlayService.PREFS_KEY_LAST_SYNC_TIMESTAMP
     private val PREFS_KEY_OVERLAY_SCALE_PCT = "overlay_scale_pct"
     private val DEFAULT_OVERLAY_SCALE_PCT = 78
@@ -219,6 +229,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         prefs = getSharedPreferences("gbl_overlay_prefs", Context.MODE_PRIVATE)
+        OverlayService.syncTierThresholdsFromPrefs(prefs)
         projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as? MediaProjectionManager
 
         initViews()
@@ -306,6 +317,8 @@ class MainActivity : AppCompatActivity() {
         textOppCountBasisDesc = findViewById(R.id.text_opp_count_basis_desc)
         btnToggleOppChargedMoves = findViewById(R.id.btn_toggle_opp_charged_moves)
         textOppChargedMovesDesc = findViewById(R.id.text_opp_charged_moves_desc)
+        btnToggleBattleToasts = findViewById(R.id.btn_toggle_battle_toasts)
+        textBattleToastsDesc = findViewById(R.id.text_battle_toasts_desc)
         seekbarOverlayScale = findViewById(R.id.seekbar_overlay_scale)
         textOverlayScaleValue = findViewById(R.id.text_overlay_scale_value)
         textOverlayScaleDefaultTick = findViewById(R.id.text_overlay_scale_default_tick)
@@ -318,6 +331,13 @@ class MainActivity : AppCompatActivity() {
         btnSyncDevicesSettings = findViewById(R.id.btn_sync_devices_settings)
         btnSyncBundleSettings = findViewById(R.id.btn_sync_bundle_settings)
         textSyncStatus = findViewById(R.id.text_sync_status)
+        textTierDefinitionsSummary = findViewById(R.id.text_tier_definitions_summary)
+        editTierSwMin = findViewById(R.id.edit_tier_sw_min)
+        editTierWMin = findViewById(R.id.edit_tier_w_min)
+        editTierLMax = findViewById(R.id.edit_tier_l_max)
+        editTierSlMax = findViewById(R.id.edit_tier_sl_max)
+        btnSaveTierThresholds = findViewById(R.id.btn_save_tier_thresholds)
+        btnRestoreTierThresholds = findViewById(R.id.btn_restore_tier_thresholds)
         presetsContainer = findViewById(R.id.layout_presets_list)
         battleLogContainer = findViewById(R.id.layout_battle_log_list)
         textBattleLogTotal = findViewById(R.id.text_battle_log_total)
@@ -360,6 +380,7 @@ class MainActivity : AppCompatActivity() {
 
         updateOppCountBasisUi()
         updateOppChargedMovesUi()
+        updateBattleToastsUi()
 
         editSyncGithubToken.setText(prefs.getString(PREFS_KEY_SYNC_GITHUB_TOKEN, "") ?: "")
         editSyncGistId.setText(prefs.getString(PREFS_KEY_SYNC_GIST_ID, "") ?: "")
@@ -380,6 +401,14 @@ class MainActivity : AppCompatActivity() {
 
         btnSyncBundleSettings.setOnClickListener {
             showSyncBundleDialog()
+        }
+
+        loadAndRenderTierThresholdsUi()
+        btnSaveTierThresholds.setOnClickListener {
+            saveTierThresholdsFromInputs(showToast = true)
+        }
+        btnRestoreTierThresholds.setOnClickListener {
+            restoreDefaultTierThresholds()
         }
 
         val savedScalePct = prefs.getInt(PREFS_KEY_OVERLAY_SCALE_PCT, DEFAULT_OVERLAY_SCALE_PCT).coerceIn(50, 100)
@@ -443,7 +472,22 @@ class MainActivity : AppCompatActivity() {
         }
 
         btnCopyBattleLog.setOnClickListener {
-            showExportFormatAndTimeframeDialog(isShareIntent = false)
+            val allLogs = loadBattleLogs()
+            val gblExport = buildCopyGblExport(
+                allLogs,
+                selectedLogLeagueFilter,
+                selectedLogTeamFilter,
+                selectedLogTimeframeFilter
+            )
+            val cm = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            cm.setPrimaryClip(android.content.ClipData.newPlainText("SilphScope Copy GBL", gblExport))
+            val count = filterBattleLogs(
+                allLogs,
+                selectedLogLeagueFilter,
+                selectedLogTeamFilter,
+                selectedLogTimeframeFilter
+            ).size
+            Toast.makeText(this, "Copied GBL format ($count battles) to clipboard!", Toast.LENGTH_SHORT).show()
         }
 
         btnShareBattleLog.setOnClickListener {
@@ -508,6 +552,21 @@ class MainActivity : AppCompatActivity() {
                 val updateIntent = Intent(this, OverlayService::class.java).apply {
                     action = OverlayService.ACTION_UPDATE_SETTINGS
                     putExtra(OverlayService.EXTRA_ENABLE_4_CHARGED_MOVES, nextEnable4)
+                }
+                startService(updateIntent)
+            }
+        }
+
+        btnToggleBattleToasts.setOnClickListener {
+            val currentDisable = prefs.getBoolean(PREFS_KEY_DISABLE_BATTLE_TOASTS, false)
+            val nextDisable = !currentDisable
+            prefs.edit().putBoolean(PREFS_KEY_DISABLE_BATTLE_TOASTS, nextDisable).apply()
+            updateBattleToastsUi()
+
+            if (isOverlayRunning) {
+                val updateIntent = Intent(this, OverlayService::class.java).apply {
+                    action = OverlayService.ACTION_UPDATE_SETTINGS
+                    putExtra(OverlayService.EXTRA_DISABLE_BATTLE_TOASTS, nextDisable)
                 }
                 startService(updateIntent)
             }
@@ -1672,6 +1731,75 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private data class ResolvedUserTeamInfo(
+        val teamName: String,
+        val mons: List<String>,
+        val monsBracket: String,
+        val groupKey: String
+    )
+
+    private fun resolveUserTeamInfo(entry: BattleLogEntry, presets: List<TeamPreset>): ResolvedUserTeamInfo {
+        val matchedPreset = presets.find {
+            (entry.presetId.isNotBlank() && it.id == entry.presetId) ||
+                it.name.equals(entry.userTeamName, ignoreCase = true)
+        }
+        val teamName = entry.userTeamName.ifBlank { matchedPreset?.name ?: "My Team" }
+        val directMons = entry.userPokemon.map { it.trim() }.filter { it.isNotEmpty() }
+        val presetMons = matchedPreset?.pokemon?.map { it.name.trim() }?.filter { it.isNotEmpty() }.orEmpty()
+        val mons = when {
+            directMons.isNotEmpty() -> directMons
+            presetMons.isNotEmpty() -> presetMons
+            else -> listOf(teamName)
+        }
+        val monsBracket = "[${mons.joinToString(" ")}]"
+        val groupKey = "${teamName.lowercase()}||${mons.joinToString(" ").lowercase()}"
+        return ResolvedUserTeamInfo(teamName, mons, monsBracket, groupKey)
+    }
+
+    /**
+     * Builds the "Copy GBL" clipboard export:
+     * Header line: [Pokemon1 Pokemon2 Pokemon3]
+     * Rows: Opponent1 Opponent2 Opponent3 W/L
+     * Grouped by each team in the filter, sorted newest to oldest, prioritizing most recently used team first.
+     */
+    private fun buildCopyGblExport(
+        logs: List<BattleLogEntry>,
+        leagueFilter: String,
+        teamFilter: String,
+        timeframeKey: String
+    ): String {
+        val filtered = filterBattleLogs(logs, leagueFilter, teamFilter, timeframeKey)
+            .sortedByDescending { it.timestampMs }
+        val presets = loadPresets()
+        if (filtered.isEmpty()) {
+            val selectedPreset = if (teamFilter != "ALL") {
+                presets.find { it.name.equals(teamFilter, ignoreCase = true) }
+            } else {
+                presets.find { it.isSelected } ?: presets.firstOrNull()
+            }
+            val fallbackMons = selectedPreset?.pokemon?.map { it.name.trim() }?.filter { it.isNotEmpty() }.orEmpty()
+            return if (fallbackMons.isNotEmpty()) "[${fallbackMons.joinToString(" ")}]" else "[My Team]"
+        }
+
+        val groupedByBracket = filtered.groupBy { resolveUserTeamInfo(it, presets).monsBracket }
+        val sortedTeams = groupedByBracket.entries.sortedByDescending { (_, teamEntries) ->
+            teamEntries.maxOfOrNull { it.timestampMs } ?: 0L
+        }
+
+        val blocks = sortedTeams.map { (monsBracket, teamEntries) ->
+            val sb = StringBuilder()
+            sb.append(monsBracket).append("\n")
+            for (entry in teamEntries.sortedByDescending { it.timestampMs }) {
+                val oppList = entry.opponents.map { it.trim() }.filter { it.isNotEmpty() }
+                val oppStr = if (oppList.isEmpty()) "Unknown" else oppList.joinToString(" ")
+                val wl = if (entry.result.equals("WIN", ignoreCase = true)) "W" else "L"
+                sb.append("$oppStr $wl\n")
+            }
+            sb.toString().trimEnd()
+        }
+        return blocks.joinToString("\n\n")
+    }
+
     private fun buildPlainTextExport(
         logs: List<BattleLogEntry>,
         leagueFilter: String,
@@ -1679,9 +1807,9 @@ class MainActivity : AppCompatActivity() {
         timeframeKey: String
     ): String {
         val filtered = filterBattleLogs(logs, leagueFilter, teamFilter, timeframeKey)
+            .sortedByDescending { it.timestampMs }
         val (currSeason, prevSeason) = getCurrentAndPreviousSeason()
         val dateFmt = java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.US)
-        val timeFmt = java.text.SimpleDateFormat("h:mm a", java.util.Locale.US)
 
         val rangeLabel = when (timeframeKey) {
             "DAY" -> "Today (${dateFmt.format(java.util.Date())})"
@@ -1717,27 +1845,121 @@ class MainActivity : AppCompatActivity() {
 
         val groupedByDay = filtered.groupBy { dateFmt.format(java.util.Date(it.timestampMs)) }
         for ((dayStr, dayEntries) in groupedByDay) {
-            val dWins = dayEntries.count { it.result.equals("WIN", ignoreCase = true) }
-            val dLosses = dayEntries.count { it.result.equals("LOSS", ignoreCase = true) }
-            val dTotal = dWins + dLosses
-            val dPct = if (dTotal > 0) Math.round((dWins.toDouble() / dTotal.toDouble()) * 100.0).toInt() else 0
-            val dFav = dayEntries.count { it.leadMatchup.equals("FAVORABLE", ignoreCase = true) }
-            val dNeu = dayEntries.count { it.leadMatchup.equals("NEUTRAL", ignoreCase = true) || it.leadMatchup.isBlank() }
-            val dNeg = dayEntries.count { it.leadMatchup.equals("NEGATIVE", ignoreCase = true) }
-            val dWae = OverlayService.calculateAggregateWAEStatic(dayEntries.map { resolveEntryQuality(it, presets) })
+            val groupedByTeam = dayEntries.groupBy { resolveUserTeamInfo(it, presets).groupKey }
+            val sortedDayTeams = groupedByTeam.entries.sortedWith(
+                compareByDescending<Map.Entry<String, List<BattleLogEntry>>> { it.value.size }
+                    .thenByDescending { it.value.maxOfOrNull { e -> e.timestampMs } ?: 0L }
+            )
 
-            sb.append("\n=== $dayStr — Daily Record: ${dWins}W - ${dLosses}L ($dPct%) [Leads: $dFav Fav, $dNeu Neu, $dNeg Neg] • WAE: ${dWae.formatted} ===\n")
-            for (entry in dayEntries) {
-                val wl = if (entry.result.equals("WIN", ignoreCase = true)) "W" else "L"
-                val q = resolveEntryQuality(entry, presets)
-                val expTag = if (q != null) "(${q.expWinPct}%)" else "(—%)"
-                val oppList = entry.opponents.map { it.trim() }.filter { it.isNotEmpty() }
-                val oppStr = if (oppList.isEmpty()) "Unknown" else oppList.joinToString(",")
-                val teamName = entry.userTeamName.ifBlank { "My Team" }
-                sb.append("$wl$expTag $teamName vs. $oppStr\n")
+            for ((_, teamDayEntries) in sortedDayTeams) {
+                val teamInfo = resolveUserTeamInfo(teamDayEntries.first(), presets)
+                val dWins = teamDayEntries.count { it.result.equals("WIN", ignoreCase = true) }
+                val dLosses = teamDayEntries.count { it.result.equals("LOSS", ignoreCase = true) }
+                val dTotal = dWins + dLosses
+                val dPct = if (dTotal > 0) Math.round((dWins.toDouble() / dTotal.toDouble()) * 100.0).toInt() else 0
+                val dFav = teamDayEntries.count { it.leadMatchup.equals("FAVORABLE", ignoreCase = true) }
+                val dNeu = teamDayEntries.count { it.leadMatchup.equals("NEUTRAL", ignoreCase = true) || it.leadMatchup.isBlank() }
+                val dNeg = teamDayEntries.count { it.leadMatchup.equals("NEGATIVE", ignoreCase = true) }
+                val dWae = OverlayService.calculateAggregateWAEStatic(teamDayEntries.map { resolveEntryQuality(it, presets) })
+
+                sb.append("\n=== $dayStr - ${teamInfo.teamName} ${teamInfo.monsBracket} Daily Record: ${dWins}W - ${dLosses}L ($dPct%) [Leads: $dFav Fav, $dNeu Neu, $dNeg Neg] • WAE: ${dWae.formatted} ===\n")
+                for (entry in teamDayEntries.sortedByDescending { it.timestampMs }) {
+                    val wl = if (entry.result.equals("WIN", ignoreCase = true)) "W" else "L"
+                    val leadTag = when (entry.leadMatchup.uppercase()) {
+                        "FAVORABLE" -> "Fav"
+                        "NEGATIVE" -> "Neg"
+                        else -> "Neu"
+                    }
+                    val q = resolveEntryQuality(entry, presets)
+                    val matchWinTag = if (q != null) "${q.expWinPct}%" else "—%"
+                    val oppList = entry.opponents.map { it.trim() }.filter { it.isNotEmpty() }
+                    val oppStr = if (oppList.isEmpty()) "Unknown" else oppList.joinToString(" ")
+                    sb.append("$wl (Lead:$leadTag Match:$matchWinTag): $oppStr\n")
+                }
             }
         }
         return sb.toString().trim()
+    }
+
+    private fun loadAndRenderTierThresholdsUi() {
+        if (!::editTierSwMin.isInitialized) return
+        OverlayService.syncTierThresholdsFromPrefs(prefs)
+        val sw = OverlayService.activeTierSwMin
+        val w = OverlayService.activeTierWMin
+        val l = OverlayService.activeTierLMax
+        val sl = OverlayService.activeTierSlMax
+        editTierSwMin.setText(sw.toString())
+        editTierWMin.setText(w.toString())
+        editTierLMax.setText(l.toString())
+        editTierSlMax.setText(sl.toString())
+        updateTierSummaryLabel(sw, w, l, sl)
+    }
+
+    private fun updateTierSummaryLabel(sw: Int, w: Int, l: Int, sl: Int) {
+        if (!::textTierDefinitionsSummary.isInitialized) return
+        textTierDefinitionsSummary.text =
+            "• SW = Strong Win (rating >= $sw) (Default: 620)\n" +
+            "• W = Win ($w <= rating < $sw) (Default: 530)\n" +
+            "• N = Neutral / Grey ($l < rating < $w) (Default: 470–530)\n" +
+            "• L = Loss ($sl < rating <= $l) (Default: 470)\n" +
+            "• SL = Strong Loss (rating <= $sl) (Default: 380)"
+    }
+
+    private fun saveTierThresholdsFromInputs(showToast: Boolean) {
+        val rawSw = editTierSwMin.text.toString().trim().toIntOrNull() ?: OverlayService.DEFAULT_TIER_SW_MIN
+        val rawW = editTierWMin.text.toString().trim().toIntOrNull() ?: OverlayService.DEFAULT_TIER_W_MIN
+        val rawL = editTierLMax.text.toString().trim().toIntOrNull() ?: OverlayService.DEFAULT_TIER_L_MAX
+        val rawSl = editTierSlMax.text.toString().trim().toIntOrNull() ?: OverlayService.DEFAULT_TIER_SL_MAX
+
+        val sl = rawSl.coerceIn(100, 800)
+        val l = rawL.coerceIn(sl + 1, 850)
+        val w = rawW.coerceIn(l + 1, 900)
+        val sw = rawSw.coerceIn(w + 1, 950)
+
+        prefs.edit()
+            .putInt(OverlayService.PREFS_KEY_TIER_SW_MIN, sw)
+            .putInt(OverlayService.PREFS_KEY_TIER_W_MIN, w)
+            .putInt(OverlayService.PREFS_KEY_TIER_L_MAX, l)
+            .putInt(OverlayService.PREFS_KEY_TIER_SL_MAX, sl)
+            .apply()
+        OverlayService.syncTierThresholdsFromPrefs(prefs)
+        loadAndRenderTierThresholdsUi()
+
+        if (isOverlayRunning) {
+            val updateIntent = Intent(this, OverlayService::class.java).apply {
+                action = OverlayService.ACTION_UPDATE_SETTINGS
+            }
+            startService(updateIntent)
+        }
+        if (showToast) {
+            Toast.makeText(
+                this,
+                "Saved 5-Tier Matchup Thresholds: SW>=$sw, W>=$w, N($l..$w), L<=$l, SL<=$sl",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
+    private fun restoreDefaultTierThresholds() {
+        prefs.edit()
+            .putInt(OverlayService.PREFS_KEY_TIER_SW_MIN, OverlayService.DEFAULT_TIER_SW_MIN)
+            .putInt(OverlayService.PREFS_KEY_TIER_W_MIN, OverlayService.DEFAULT_TIER_W_MIN)
+            .putInt(OverlayService.PREFS_KEY_TIER_L_MAX, OverlayService.DEFAULT_TIER_L_MAX)
+            .putInt(OverlayService.PREFS_KEY_TIER_SL_MAX, OverlayService.DEFAULT_TIER_SL_MAX)
+            .apply()
+        OverlayService.syncTierThresholdsFromPrefs(prefs)
+        loadAndRenderTierThresholdsUi()
+        if (isOverlayRunning) {
+            val updateIntent = Intent(this, OverlayService::class.java).apply {
+                action = OverlayService.ACTION_UPDATE_SETTINGS
+            }
+            startService(updateIntent)
+        }
+        Toast.makeText(
+            this,
+            "Restored default 5-Tier Thresholds (620 / 530 / 470 / 380)",
+            Toast.LENGTH_SHORT
+        ).show()
     }
 
     private fun showExportFormatAndTimeframeDialog(isShareIntent: Boolean) {
@@ -2428,6 +2650,19 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun updateBattleToastsUi() {
+        val disableToasts = prefs.getBoolean(PREFS_KEY_DISABLE_BATTLE_TOASTS, false)
+        if (disableToasts) {
+            btnToggleBattleToasts.text = "Toasts Off"
+            btnToggleBattleToasts.backgroundTintList = android.content.res.ColorStateList.valueOf(0xFF64748B.toInt())
+            textBattleToastsDesc.text = "Active: In-game Battle Toast popups disabled"
+        } else {
+            btnToggleBattleToasts.text = "Toasts On"
+            btnToggleBattleToasts.backgroundTintList = android.content.res.ColorStateList.valueOf(0xFF0284C7.toInt())
+            textBattleToastsDesc.text = "Default: Popups shown for Battle Start/Stop, Switches & Logs"
+        }
+    }
+
     /**
      * Checks notifications (Android 13+), SYSTEM_ALERT_WINDOW, and initiates overlay launch
      */
@@ -2546,6 +2781,7 @@ class MainActivity : AppCompatActivity() {
             putExtra(OverlayService.EXTRA_PRESET_JSON, gson.toJson(getSelectedPreset()))
             putExtra(OverlayService.EXTRA_OPP_COUNT_MODE, prefs.getString(PREFS_KEY_OPP_COUNT_MODE, "my_fasts") ?: "my_fasts")
             putExtra(OverlayService.EXTRA_ENABLE_4_CHARGED_MOVES, prefs.getBoolean(PREFS_KEY_ENABLE_4_CHARGED_MOVES, false))
+            putExtra(OverlayService.EXTRA_DISABLE_BATTLE_TOASTS, prefs.getBoolean(PREFS_KEY_DISABLE_BATTLE_TOASTS, false))
             putExtra(OverlayService.EXTRA_OVERLAY_SCALE_PCT, prefs.getInt(PREFS_KEY_OVERLAY_SCALE_PCT, DEFAULT_OVERLAY_SCALE_PCT))
             putExtra(OverlayService.EXTRA_OVERLAY_TRANSPARENCY_PCT, prefs.getInt(PREFS_KEY_OVERLAY_TRANSPARENCY_PCT, DEFAULT_OVERLAY_TRANSPARENCY_PCT))
         }

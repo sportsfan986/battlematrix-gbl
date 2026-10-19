@@ -103,6 +103,27 @@ class OverlayService : LifecycleService() {
         const val PREFS_KEY_DELETED_TEAMS_TRASH = "gbl_deleted_teams_trash_v1"
         const val PREFS_KEY_GBL_SEASONS_JSON = "gbl_seasons_json_v1"
         const val PREFS_KEY_SYNC_GITHUB_TOKEN = "gbl_sync_github_token"
+
+        const val PREFS_KEY_TIER_SW_MIN = "gbl_tier_sw_min"
+        const val PREFS_KEY_TIER_W_MIN = "gbl_tier_w_min"
+        const val PREFS_KEY_TIER_L_MAX = "gbl_tier_l_max"
+        const val PREFS_KEY_TIER_SL_MAX = "gbl_tier_sl_max"
+        const val DEFAULT_TIER_SW_MIN = 620
+        const val DEFAULT_TIER_W_MIN = 530
+        const val DEFAULT_TIER_L_MAX = 470
+        const val DEFAULT_TIER_SL_MAX = 380
+
+        @Volatile var activeTierSwMin: Int = DEFAULT_TIER_SW_MIN
+        @Volatile var activeTierWMin: Int = DEFAULT_TIER_W_MIN
+        @Volatile var activeTierLMax: Int = DEFAULT_TIER_L_MAX
+        @Volatile var activeTierSlMax: Int = DEFAULT_TIER_SL_MAX
+
+        fun syncTierThresholdsFromPrefs(prefs: SharedPreferences) {
+            activeTierSwMin = prefs.getInt(PREFS_KEY_TIER_SW_MIN, DEFAULT_TIER_SW_MIN).coerceIn(150, 950)
+            activeTierWMin = prefs.getInt(PREFS_KEY_TIER_W_MIN, DEFAULT_TIER_W_MIN).coerceIn(150, 950)
+            activeTierLMax = prefs.getInt(PREFS_KEY_TIER_L_MAX, DEFAULT_TIER_L_MAX).coerceIn(100, 900)
+            activeTierSlMax = prefs.getInt(PREFS_KEY_TIER_SL_MAX, DEFAULT_TIER_SL_MAX).coerceIn(100, 900)
+        }
         const val PREFS_KEY_SYNC_GIST_ID = "gbl_sync_gist_id"
         const val PREFS_KEY_SYNC_LAST_AT = "gbl_sync_last_at"
         const val PREFS_KEY_DEVICE_LABEL = "gbl_device_label"
@@ -2599,8 +2620,8 @@ class OverlayService : LifecycleService() {
                 myIvs = myIvs
             )
             return when {
-                rating1s >= 530 -> "FAVORABLE"
-                rating1s <= 470 -> "NEGATIVE"
+                rating1s >= activeTierWMin -> "FAVORABLE"
+                rating1s <= activeTierLMax -> "NEGATIVE"
                 else -> "NEUTRAL"
             }
         }
@@ -2930,6 +2951,7 @@ class OverlayService : LifecycleService() {
         disableBattleToasts = prefs.getBoolean(PREFS_KEY_DISABLE_BATTLE_TOASTS, false)
         overlayScalePct = prefs.getInt("overlay_scale_pct", 78).coerceIn(50, 100)
         overlayTransparencyPct = prefs.getInt(PREFS_KEY_OVERLAY_TRANSPARENCY_PCT, 72).coerceIn(0, 100)
+        syncTierThresholdsFromPrefs(prefs)
 
         val metrics = resources.displayMetrics
         screenWidth = metrics.widthPixels
@@ -3369,6 +3391,7 @@ class OverlayService : LifecycleService() {
                     disableBattleToasts = prefs.getBoolean(PREFS_KEY_DISABLE_BATTLE_TOASTS, disableBattleToasts)
                 }
                 overlayView?.evaluateJavascript("if (window.setDisableBattleToasts) setDisableBattleToasts($disableBattleToasts);", null)
+                syncTierThresholdsFromPrefs(prefs)
                 val updatedScalePct = intent?.getIntExtra(
                     EXTRA_OVERLAY_SCALE_PCT,
                     prefs.getInt("overlay_scale_pct", overlayScalePct)
@@ -6325,12 +6348,12 @@ class OverlayService : LifecycleService() {
     }
 
     /**
-     * Computes 5-tier 0s/1s/2s matchup codes ("SW,W,N,L,SL"):
-     * - SW = Strong Win (rating >= 620)
-     * - W  = Win (530 <= rating < 620)
-     * - N  = Neutral / Grey (470 < rating < 530)
-     * - L  = Loss (380 < rating <= 470)
-     * - SL = Strong Loss (rating <= 380)
+     * Computes 5-tier 0s/1s/2s matchup codes ("SW,W,N,L,SL") using user-configurable thresholds from Settings:
+     * - SW = Strong Win (rating >= activeTierSwMin, default 620)
+     * - W  = Win (activeTierWMin <= rating < activeTierSwMin, default 530 <= rating < 620)
+     * - N  = Neutral / Grey (activeTierLMax < rating < activeTierWMin, default 470 < rating < 530)
+     * - L  = Loss (activeTierSlMax < rating <= activeTierLMax, default 380 < rating <= 470)
+     * - SL = Strong Loss (rating <= activeTierSlMax, default <= 380)
      */
     private fun calculate3v3Matrix(
         oppMeta: PokemonMeta,
@@ -6339,6 +6362,12 @@ class OverlayService : LifecycleService() {
         p2: TeamMember?,
         p3: TeamMember?
     ): Map<String, String> {
+        syncTierThresholdsFromPrefs(prefs)
+        val swMin = activeTierSwMin
+        val wMin = activeTierWMin
+        val lMax = activeTierLMax
+        val slMax = activeTierSlMax
+
         fun evaluateSlot(slot: TeamMember?, fallbackName: String): String {
             val activeLeague = currentPreset?.league ?: "MASTER LEAGUE"
             val userName = slot?.name ?: fallbackName
@@ -6377,10 +6406,10 @@ class OverlayService : LifecycleService() {
             val rating2s = (500.0 + (minUserCharged - minOppCharged) * 2.0 + (userFastEff - oppFastEff) * 155.0 + shadowBulkDelta * 2).roundToInt()
 
             fun toTier(r: Int): String = when {
-                r >= 620 -> "SW"
-                r >= 530 -> "W"
-                r > 470 -> "N"
-                r > 380 -> "L"
+                r >= swMin -> "SW"
+                r >= wMin -> "W"
+                r > lMax -> "N"
+                r > slMax -> "L"
                 else -> "SL"
             }
 

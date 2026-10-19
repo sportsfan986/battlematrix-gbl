@@ -5,6 +5,7 @@ import {
   TeamPreset,
   calculateChargedDamage,
   computeEffectiveStatsForLeague,
+  getStoredMatchupTierThresholds,
   getTypeMultiplier
 } from './gblData';
 
@@ -142,8 +143,9 @@ export function calculateAutoLeadMatchup(
 ): 'FAVORABLE' | 'NEUTRAL' | 'NEGATIVE' {
   if (!myLead?.trim() || !oppLead?.trim()) return 'NEUTRAL';
   const r1s = evaluatePvPokeMatchupRating(myLead, oppLead, 1, league);
-  if (r1s >= 530) return 'FAVORABLE';
-  if (r1s <= 470) return 'NEGATIVE';
+  const thresholds = getStoredMatchupTierThresholds();
+  if (r1s >= thresholds.wMin) return 'FAVORABLE';
+  if (r1s <= thresholds.lMax) return 'NEGATIVE';
   return 'NEUTRAL';
 }
 

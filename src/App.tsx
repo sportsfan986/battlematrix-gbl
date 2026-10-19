@@ -50,7 +50,11 @@ import {
   syncPvPokeDataAndRankings,
   getPvPokeDatabaseTelemetry,
   getPokemonAutocompleteSuggestions,
-  PokemonAutocompleteOption
+  PokemonAutocompleteOption,
+  MatchupTierThresholds,
+  DEFAULT_MATCHUP_TIER_THRESHOLDS,
+  MATCHUP_TIER_THRESHOLDS_STORAGE_KEY,
+  getStoredMatchupTierThresholds
 } from './data/gblData';
 import {
   BattleQualityMetadata,
@@ -357,6 +361,18 @@ export default function App() {
   const [showTeamsTrashModal, setShowTeamsTrashModal] = useState<boolean>(false);
   const [undoBanner, setUndoBanner] = useState<{ message: string; onUndo: () => void } | null>(null);
   const [exportFormatMode, setExportFormatMode] = useState<'GO_BATTLE_LOG' | 'STANDARD'>('GO_BATTLE_LOG');
+  const [tierThresholds, setTierThresholds] = useState<MatchupTierThresholds>(() => getStoredMatchupTierThresholds());
+
+  const updateTierThresholds = (next: MatchupTierThresholds) => {
+    setTierThresholds(next);
+    try {
+      localStorage.setItem(MATCHUP_TIER_THRESHOLDS_STORAGE_KEY, JSON.stringify(next));
+    } catch {}
+  };
+
+  const restoreDefaultTierThresholds = () => {
+    updateTierThresholds({ ...DEFAULT_MATCHUP_TIER_THRESHOLDS });
+  };
 
   const triggerUndoBanner = (message: string, onUndo: () => void) => {
     setUndoBanner({ message, onUndo });
@@ -4492,6 +4508,107 @@ export default function App() {
                 </button>
               </div>
             </div>
+
+            {/* 5-Tier 0s/1s/2s Matchup Rating Thresholds Card (Bottom of Settings) */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-sm font-bold text-sky-400 flex items-center gap-2">
+                    <Target className="w-4 h-4" />
+                    <span>🎯 5-Tier 0s/1s/2s Matchup Thresholds (SW, W, N, L, SL)</span>
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Configure rating cutoffs used to compute 0s/1s/2s matchup codes and lead classifications. Defaults shown in ().
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={restoreDefaultTierThresholds}
+                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-bold transition shrink-0"
+                >
+                  ↺ Restore Defaults (620 / 530 / 470 / 380)
+                </button>
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 font-mono text-xs text-slate-300 space-y-1">
+                <div>• <strong className="text-emerald-400">SW</strong> = Strong Win (rating &gt;= {tierThresholds.swMin}) <span className="text-slate-500">(Default: 620)</span></div>
+                <div>• <strong className="text-green-300">W</strong>  = Win ({tierThresholds.wMin} &lt;= rating &lt; {tierThresholds.swMin}) <span className="text-slate-500">(Default: 530 &lt;= rating &lt; 620)</span></div>
+                <div>• <strong className="text-slate-400">N</strong>  = Neutral / Grey ({tierThresholds.lMax} &lt; rating &lt; {tierThresholds.wMin}) <span className="text-slate-500">(Default: 470 &lt; rating &lt; 530)</span></div>
+                <div>• <strong className="text-rose-300">L</strong>  = Loss ({tierThresholds.slMax} &lt; rating &lt;= {tierThresholds.lMax}) <span className="text-slate-500">(Default: 380 &lt; rating &lt;= 470)</span></div>
+                <div>• <strong className="text-rose-500">SL</strong> = Strong Loss (rating &lt;= {tierThresholds.slMax}) <span className="text-slate-500">(Default: &lt;= 380)</span></div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-emerald-400 mb-1">
+                    SW Strong Win &gt;= (620)
+                  </label>
+                  <input
+                    type="number"
+                    value={tierThresholds.swMin}
+                    placeholder="(620)"
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      if (!Number.isNaN(val)) {
+                        updateTierThresholds({ ...tierThresholds, swMin: val });
+                      }
+                    }}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-green-300 mb-1">
+                    W Win &gt;= (530)
+                  </label>
+                  <input
+                    type="number"
+                    value={tierThresholds.wMin}
+                    placeholder="(530)"
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      if (!Number.isNaN(val)) {
+                        updateTierThresholds({ ...tierThresholds, wMin: val });
+                      }
+                    }}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-rose-300 mb-1">
+                    L Loss &lt;= (470)
+                  </label>
+                  <input
+                    type="number"
+                    value={tierThresholds.lMax}
+                    placeholder="(470)"
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      if (!Number.isNaN(val)) {
+                        updateTierThresholds({ ...tierThresholds, lMax: val });
+                      }
+                    }}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-rose-500 mb-1">
+                    SL Strong Loss &lt;= (380)
+                  </label>
+                  <input
+                    type="number"
+                    value={tierThresholds.slMax}
+                    placeholder="(380)"
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      if (!Number.isNaN(val)) {
+                        updateTierThresholds({ ...tierThresholds, slMax: val });
+                      }
+                    }}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono"
+                  />
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -4564,10 +4681,69 @@ export default function App() {
             }
           });
 
+          const resolveUserTeamInfo = (entry: WebBattleLogEntry) => {
+            const matchedPreset = presets.find(
+              (p) =>
+                (entry.presetId && p.id === entry.presetId) ||
+                p.name.toLowerCase() === (entry.userTeamName || '').toLowerCase()
+            );
+            const tName = (entry.userTeamName || '').trim() || matchedPreset?.name || 'My Team';
+            const directMons = (entry.userPokemon || []).map((m) => m.trim()).filter(Boolean);
+            const presetMons = (matchedPreset?.pokemon || []).map((p) => p.name.trim()).filter(Boolean);
+            const mons = directMons.length > 0 ? directMons : presetMons.length > 0 ? presetMons : [tName];
+            const monsBracket = `[${mons.join(' ')}]`;
+            const groupKey = `${tName.toLowerCase()}||${mons.join(' ').toLowerCase()}`;
+            return { teamName: tName, mons, monsBracket, groupKey };
+          };
+
+          const buildCopyGblText = (
+            rangeCode: 'DAY' | 'WEEK' | 'CURRENT_SEASON' | 'PREVIOUS_SEASON' | 'ALL' = logFilterTimeframe
+          ) => {
+            const list = [...filterByRange(battleLogs, rangeCode)].sort((a, b) => b.timestampMs - a.timestampMs);
+            if (list.length === 0) {
+              const chosenPreset =
+                logFilterTeamId !== 'ALL TEAMS'
+                  ? presets.find((p) => p.id === logFilterTeamId)
+                  : presets.find((p) => p.isSelected) || presets[0];
+              const fallbackMons = (chosenPreset?.pokemon || []).map((p) => p.name.trim()).filter(Boolean);
+              return fallbackMons.length > 0 ? `[${fallbackMons.join(' ')}]` : '[My Team]';
+            }
+
+            const teamGroups = new Map<string, WebBattleLogEntry[]>();
+            list.forEach((b) => {
+              const info = resolveUserTeamInfo(b);
+              const existing = teamGroups.get(info.monsBracket);
+              if (existing) {
+                existing.push(b);
+              } else {
+                teamGroups.set(info.monsBracket, [b]);
+              }
+            });
+
+            const sortedBlocks = Array.from(teamGroups.entries()).sort((a, b) => {
+              const maxA = Math.max(...a[1].map((x) => x.timestampMs));
+              const maxB = Math.max(...b[1].map((x) => x.timestampMs));
+              return maxB - maxA;
+            });
+
+            return sortedBlocks
+              .map(([monsBracket, entries]) => {
+                const sortedEntries = [...entries].sort((a, b) => b.timestampMs - a.timestampMs);
+                const rows = sortedEntries.map((entry) => {
+                  const oppList = (entry.opponents || []).map((o) => o.trim()).filter(Boolean);
+                  const oppStr = oppList.length > 0 ? oppList.join(' ') : 'Unknown';
+                  const wl = entry.result === 'WIN' ? 'W' : 'L';
+                  return `${oppStr} ${wl}`;
+                });
+                return [monsBracket, ...rows].join('\n');
+              })
+              .join('\n\n');
+          };
+
           const buildPlainTextSummary = (
             rangeCode: 'DAY' | 'WEEK' | 'CURRENT_SEASON' | 'PREVIOUS_SEASON' | 'ALL'
           ) => {
-            const list = filterByRange(battleLogs, rangeCode);
+            const list = [...filterByRange(battleLogs, rangeCode)].sort((a, b) => b.timestampMs - a.timestampMs);
             const w = list.filter((e) => e.result === 'WIN').length;
             const l = list.filter((e) => e.result === 'LOSS').length;
             const tot = w + l;
@@ -4580,7 +4756,7 @@ export default function App() {
               rangeCode === 'DAY'
                 ? 'Day (Today)'
                 : rangeCode === 'WEEK'
-                ? 'Week (Last 7 Days)'
+                ? 'This Week (Last 7 Days)'
                 : rangeCode === 'CURRENT_SEASON'
                 ? `Current Season (${currentSeason.name})`
                 : rangeCode === 'PREVIOUS_SEASON'
@@ -4590,8 +4766,9 @@ export default function App() {
               logFilterTeamId === 'ALL TEAMS'
                 ? 'All Teams'
                 : presets.find((p) => p.id === logFilterTeamId)?.name || 'Selected Team';
+            const leagueHeader = logFilterLeague === 'ALL LEAGUES' ? 'All Leagues' : logFilterLeague;
             const lines: string[] = [
-              `SilphScope PvP Battle Log — ${logFilterLeague}`,
+              `SilphScope PvP Battle Log — ${leagueHeader}`,
               `Team: ${teamName}`,
               `Range: ${rangeTitle}`,
               `Overall Record: ${w}W - ${l}L (${pct}%) • Leads: ${fv} Fav / ${nu} Neu / ${ng} Neg • Quality (WAE): ${waeInfo.formatted}`
@@ -4619,26 +4796,50 @@ export default function App() {
             });
 
             dayGroups.forEach(({ dayStr, items }) => {
-              const dw = items.filter((e) => e.result === 'WIN').length;
-              const dl = items.filter((e) => e.result === 'LOSS').length;
-              const dtot = dw + dl;
-              const dpct = dtot > 0 ? Math.round((dw * 100) / dtot) : 0;
-              const dfv = items.filter((e) => e.leadMatchup === 'FAVORABLE').length;
-              const dnu = items.filter((e) => e.leadMatchup === 'NEUTRAL').length;
-              const dng = items.filter((e) => e.leadMatchup === 'NEGATIVE').length;
-              const dwae = calculateAggregateWAE(items, presets);
-              lines.push(
-                '',
-                `=== ${dayStr} — Daily Record: ${dw}W - ${dl}L (${dpct}%) [Leads: ${dfv} Fav, ${dnu} Neu, ${dng} Neg] • WAE: ${dwae.formatted} ===`
-              );
+              const dayTeamsMap = new Map<string, WebBattleLogEntry[]>();
               items.forEach((b) => {
-                const wl = b.result === 'WIN' ? 'W' : 'L';
-                const q = resolveLogEntryQuality(b, presets);
-                const expTag = q ? `(${Math.round(q.pWin * 100)}%)` : '(—%)';
-                const oppList = (b.opponents || []).map((o) => o.trim()).filter(Boolean);
-                const oppStr = oppList.length > 0 ? oppList.join(',') : 'Unknown';
-                const myTeam = b.userTeamName || 'My Team';
-                lines.push(`${wl}${expTag} ${myTeam} vs. ${oppStr}`);
+                const tInfo = resolveUserTeamInfo(b);
+                const existing = dayTeamsMap.get(tInfo.groupKey);
+                if (existing) {
+                  existing.push(b);
+                } else {
+                  dayTeamsMap.set(tInfo.groupKey, [b]);
+                }
+              });
+
+              const sortedDayTeams = Array.from(dayTeamsMap.values()).sort((a, b) => {
+                if (b.length !== a.length) return b.length - a.length;
+                const maxA = Math.max(...a.map((x) => x.timestampMs));
+                const maxB = Math.max(...b.map((x) => x.timestampMs));
+                return maxB - maxA;
+              });
+
+              sortedDayTeams.forEach((teamItems) => {
+                const tInfo = resolveUserTeamInfo(teamItems[0]);
+                const dw = teamItems.filter((e) => e.result === 'WIN').length;
+                const dl = teamItems.filter((e) => e.result === 'LOSS').length;
+                const dtot = dw + dl;
+                const dpct = dtot > 0 ? Math.round((dw * 100) / dtot) : 0;
+                const dfv = teamItems.filter((e) => e.leadMatchup === 'FAVORABLE').length;
+                const dnu = teamItems.filter((e) => e.leadMatchup === 'NEUTRAL').length;
+                const dng = teamItems.filter((e) => e.leadMatchup === 'NEGATIVE').length;
+                const dwae = calculateAggregateWAE(teamItems, presets);
+                lines.push(
+                  '',
+                  `=== ${dayStr} - ${tInfo.teamName} ${tInfo.monsBracket} Daily Record: ${dw}W - ${dl}L (${dpct}%) [Leads: ${dfv} Fav, ${dnu} Neu, ${dng} Neg] • WAE: ${dwae.formatted} ===`
+                );
+                [...teamItems]
+                  .sort((a, b) => b.timestampMs - a.timestampMs)
+                  .forEach((b) => {
+                    const wl = b.result === 'WIN' ? 'W' : 'L';
+                    const leadTag =
+                      b.leadMatchup === 'FAVORABLE' ? 'Fav' : b.leadMatchup === 'NEGATIVE' ? 'Neg' : 'Neu';
+                    const q = resolveLogEntryQuality(b, presets);
+                    const matchWinTag = q ? `${Math.round(q.pWin * 100)}%` : '—%';
+                    const oppList = (b.opponents || []).map((o) => o.trim()).filter(Boolean);
+                    const oppStr = oppList.length > 0 ? oppList.join(' ') : 'Unknown';
+                    lines.push(`${wl} (Lead:${leadTag} Match:${matchWinTag}): ${oppStr}`);
+                  });
               });
             });
             return lines.join('\n');
@@ -4736,12 +4937,14 @@ export default function App() {
                     <button
                       type="button"
                       onClick={() => {
-                        setExportFormatMode('STANDARD');
-                        setExportPromptAction('COPY');
+                        const gblText = buildCopyGblText(logFilterTimeframe);
+                        navigator.clipboard.writeText(gblText);
+                        setCopiedFile(true);
+                        setTimeout(() => setCopiedFile(false), 2000);
                       }}
                       className="px-3 py-1.5 rounded-xl bg-sky-600/25 hover:bg-sky-600/40 border border-sky-400/50 text-sky-200 text-xs font-bold transition"
                     >
-                      📋 Copy Log Summary
+                      {copiedFile ? '✓ Copied GBL!' : '📋 Copy GBL'}
                     </button>
                     <button
                       type="button"
