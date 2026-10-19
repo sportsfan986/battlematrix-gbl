@@ -91,7 +91,8 @@ jobs:
       - name: Prepare Named Release APK for Public Download
         if: github.event.inputs.build_target == 'release' || github.event.inputs.build_target == 'both' || github.event.inputs.build_target == '' || github.event_name == 'push'
         run: |
-          mv app/build/outputs/apk/release/app-release.apk "app/build/outputs/apk/release/silphscope-pvp-${{ steps.version.outputs.tag }}.apk"
+          mkdir -p app/build/outputs/apk/release/named
+          cp app/build/outputs/apk/release/*.apk "app/build/outputs/apk/release/named/silphscope-pvp-${{ steps.version.outputs.tag }}.apk"
 
       - name: Build Debug APK
         if: github.event.inputs.build_target == 'debug' || github.event.inputs.build_target == 'both'
@@ -102,7 +103,7 @@ jobs:
         if: always()
         with:
           name: silphscope-pvp-release-apk
-          path: app/build/outputs/apk/release/silphscope-pvp-*.apk
+          path: app/build/outputs/apk/release/named/silphscope-pvp-*.apk
           if-no-files-found: ignore
           retention-days: 14
 
@@ -127,10 +128,11 @@ jobs:
             ### Download & Install
             Download **`silphscope-pvp-${{ steps.version.outputs.tag }}.apk`** from the **Assets** section below and install on your Android device.
           files: |
-            app/build/outputs/apk/release/silphscope-pvp-${{ steps.version.outputs.tag }}.apk
+            app/build/outputs/apk/release/named/silphscope-pvp-${{ steps.version.outputs.tag }}.apk
           draft: false
           prerelease: false
           make_latest: "true"
+          overwrite: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
