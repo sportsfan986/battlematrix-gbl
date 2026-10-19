@@ -1707,17 +1707,13 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Top Opponent & Player HP Bar Headers (Matching Pokémon GO Battle HUD) */}
+                {/* Top Opponent & Player Headers (Matching Pokémon GO Battle HUD) */}
                 <div className="relative z-10 px-4 pt-1 flex justify-between items-start">
                   {/* Player Header */}
                   <div className="bg-slate-900/80 backdrop-blur-md rounded-xl p-2.5 border border-slate-700/60 shadow-lg w-[145px]">
                     <div className="flex justify-between items-center text-[10.5px]">
                       <span className="font-bold text-slate-200 truncate">{userActivePokemon.name.split(' ')[0]}*</span>
                       <span className="font-semibold text-slate-400">CP 4624</span>
-                    </div>
-                    {/* HP Bar */}
-                    <div className="w-full h-2 bg-slate-800 rounded-full mt-1 overflow-hidden border border-slate-700">
-                      <div className="h-full bg-emerald-500 rounded-full w-[82%]" />
                     </div>
                     {/* Pokeballs & Shields */}
                     <div className="flex items-center justify-between mt-1.5 text-[9px] text-slate-400">
@@ -1745,10 +1741,6 @@ export default function App() {
                     <div className="flex justify-between items-center text-[10.5px]">
                       <span className="font-semibold text-slate-400">CP 4108</span>
                       <span className="font-bold text-amber-300">{activeOpponent.name}</span>
-                    </div>
-                    {/* HP Bar */}
-                    <div className="w-full h-2 bg-slate-800 rounded-full mt-1 overflow-hidden border border-slate-700">
-                      <div className="h-full bg-emerald-500 rounded-full w-[74%]" />
                     </div>
                     {/* Pokeballs & Shields */}
                     <div className="flex items-center justify-between mt-1.5 text-[9px] text-slate-400">

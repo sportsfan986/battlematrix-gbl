@@ -2920,6 +2920,8 @@ class OverlayService : LifecycleService() {
                 }
             } catch (_: Exception) {}
         }
+    }
+
     private fun showBattleToast(message: String, duration: Int = Toast.LENGTH_SHORT) {
         if (disableBattleToasts) return
         Handler(Looper.getMainLooper()).post {
