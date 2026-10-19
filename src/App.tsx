@@ -1462,7 +1462,7 @@ export default function App() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'SilphScope_PvP_v2.24_Android_Project.zip';
+      a.download = 'SilphScope_PvP_v2.25_Android_Project.zip';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -1489,7 +1489,7 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <h1 className="font-bold text-base md:text-lg tracking-tight text-white">SilphScope PvP</h1>
                 <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20">
-                  v2.24 • Android Native Overlay
+                  v2.25 • Android Native Overlay
                 </span>
               </div>
               <p className="text-xs text-slate-400 hidden sm:block">
@@ -2095,6 +2095,19 @@ export default function App() {
                             const p1Init = activePreset.pokemon[0]?.name.charAt(0) || 'D';
                             const p2Init = activePreset.pokemon[1]?.name.charAt(0) || 'L';
                             const p3Init = activePreset.pokemon[2]?.name.charAt(0) || 'K';
+                            const getHpTextCls = (hp: number, fallback: string) =>
+                              !enableHpBarTracking
+                                ? fallback
+                                : hp > 50
+                                ? 'text-emerald-300'
+                                : hp > 20
+                                ? 'text-yellow-300'
+                                : 'text-red-300';
+                            const oppSlotHp = oppTeamHpPct[idx] ?? 100;
+                            const oppNameColorCls = getHpTextCls(oppSlotHp, 'text-slate-100');
+                            const p1ColorCls = getHpTextCls(userTeamHpPct[0] ?? 100, 'text-slate-300');
+                            const p2ColorCls = getHpTextCls(userTeamHpPct[1] ?? 100, 'text-slate-300');
+                            const p3ColorCls = getHpTextCls(userTeamHpPct[2] ?? 100, 'text-slate-300');
 
                             return (
                               <div
@@ -2105,24 +2118,24 @@ export default function App() {
                                     ? 'bg-sky-500/25 border border-sky-400/50 shadow-[0_0_8px_rgba(56,189,248,0.25)]'
                                     : 'hover:bg-white/10 border border-transparent'
                                 }`}
-                                title={isActiveSlot ? `#${idx + 1} Seen: ${oppName} (Active on field)` : `Click to set #${idx + 1} (${oppName}) as active opponent (keeps fixed #1/#2/#3 order)`}
+                                title={isActiveSlot ? `#${idx + 1} Seen: ${oppName} (${oppSlotHp}% HP · Active on field)` : `Click to set #${idx + 1} (${oppName}, ${oppSlotHp}% HP) as active opponent`}
                               >
                                 <div className="flex items-center gap-1 w-[100px] min-w-[100px] max-w-[100px] shrink-0">
                                   <span className={`text-[8px] font-bold shrink-0 ${isActiveSlot ? 'text-sky-300' : 'text-slate-400'}`}>
                                     #{idx + 1}
                                   </span>
-                                  <span className="font-bold text-slate-100 truncate text-[9.5px]" title={fullOppDisplay}>
+                                  <span className={`font-bold truncate text-[9.5px] ${oppNameColorCls}`} title={`${fullOppDisplay} (${oppSlotHp}% HP)`}>
                                     {fullOppDisplay}
                                   </span>
                                 </div>
                                 <div className="flex items-center gap-[1px] text-[9px] font-mono shrink-0">
-                                  <span className="font-bold text-slate-300">{p1Init}:</span>
+                                  <span className={`font-bold ${p1ColorCls}`}>{p1Init}:</span>
                                   {renderTierDots(matrix.p1)}
                                   <span className="text-white/25 mx-[1.5px] text-[8px]">|</span>
-                                  <span className="font-bold text-slate-300">{p2Init}:</span>
+                                  <span className={`font-bold ${p2ColorCls}`}>{p2Init}:</span>
                                   {renderTierDots(matrix.p2)}
                                   <span className="text-white/25 mx-[1.5px] text-[8px]">|</span>
-                                  <span className="font-bold text-slate-300">{p3Init}:</span>
+                                  <span className={`font-bold ${p3ColorCls}`}>{p3Init}:</span>
                                   {renderTierDots(matrix.p3)}
                                 </div>
                               </div>
@@ -2173,7 +2186,7 @@ export default function App() {
                                         : 'text-slate-400'
                                     }`}
                                   >
-                                    <span className="text-[7.5px] font-black leading-tight">{code}</span>
+                                    <span className={`text-[7.5px] font-black leading-tight ${enableHpBarTracking ? hpColor : ''}`}>{code}</span>
                                     {enableHpBarTracking && (
                                       <span className={`text-[6.5px] font-extrabold tabular-nums leading-none mt-[0.5px] ${hpColor}`}>
                                         {slotHp}%
@@ -2334,7 +2347,7 @@ export default function App() {
                                         : 'text-slate-400'
                                     }`}
                                   >
-                                    <span className="text-[7.5px] font-black leading-tight">{code}</span>
+                                    <span className={`text-[7.5px] font-black leading-tight ${enableHpBarTracking ? hpColor : ''}`}>{code}</span>
                                     {enableHpBarTracking && (
                                       <span className={`text-[6.5px] font-extrabold tabular-nums leading-none mt-[0.5px] ${hpColor}`}>
                                         {slotHp !== null ? `${slotHp}%` : '—'}
@@ -5835,7 +5848,7 @@ export default function App() {
 
       {/* Footer */}
       <footer className="border-t border-slate-800/80 py-4 px-6 text-center text-xs text-slate-500">
-        SilphScope PvP v2.24 Overlay • Built with Kotlin, WindowManager TYPE_APPLICATION_OVERLAY, MediaProjection in-memory frame capture, and ML Kit Text Recognition.
+        SilphScope PvP v2.25 Overlay • Built with Kotlin, WindowManager TYPE_APPLICATION_OVERLAY, MediaProjection in-memory frame capture, and ML Kit Text Recognition.
       </footer>
     </div>
   );

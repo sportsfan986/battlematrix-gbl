@@ -418,10 +418,18 @@
             margin-top: 0.5px;
         }
 
-        .dmg-col-hdr .hdr-hp.hp-green { color: #6ee7b7; }
-        .dmg-col-hdr .hdr-hp.hp-amber { color: #fde047; }
-        .dmg-col-hdr .hdr-hp.hp-red   { color: #fca5a5; }
-        .dmg-col-hdr .hdr-hp.hp-empty { color: #475569; }
+        .dmg-col-hdr .hdr-code.hp-green,
+        .dmg-col-hdr .hdr-hp.hp-green,
+        .hp-name-green { color: #4ade80 !important; }
+        .dmg-col-hdr .hdr-code.hp-amber,
+        .dmg-col-hdr .hdr-hp.hp-amber,
+        .hp-name-amber { color: #fde047 !important; }
+        .dmg-col-hdr .hdr-code.hp-red,
+        .dmg-col-hdr .hdr-hp.hp-red,
+        .hp-name-red   { color: #f87171 !important; }
+        .dmg-col-hdr .hdr-code.hp-empty,
+        .dmg-col-hdr .hdr-hp.hp-empty,
+        .hp-name-empty { color: #475569 !important; }
 
         .dmg-col-hdr.active-col {
             background: rgba(56, 189, 248, 0.22);
@@ -1553,7 +1561,22 @@
                     if (startBattleBtn) startBattleBtn.classList.remove("hidden");
                 }
 
-                // Render active team chips for player switches
+                const enableHpTracking = battleData.enableHpBarTracking !== undefined ? !!battleData.enableHpBarTracking : true;
+                const getHpTierCls = (hp) => {
+                    if (hp === null || hp === undefined) return "hp-empty";
+                    if (hp > 50) return "hp-green";
+                    if (hp > 20) return "hp-amber";
+                    return "hp-red";
+                };
+                const getHpNameCls = (hp) => {
+                    if (!enableHpTracking) return "";
+                    if (hp === null || hp === undefined) return "hp-name-empty";
+                    if (hp > 50) return "hp-name-green";
+                    if (hp > 20) return "hp-name-amber";
+                    return "hp-name-red";
+                };
+
+                // Render active team chips for player switches (colored by Core HP Color Code)
                 const teamChipsContainer = document.getElementById("sky-team-chips");
                 if (teamChipsContainer && battleData.team) {
                     teamChipsContainer.innerHTML = battleData.team.map((member, mIdx) => {
@@ -1564,12 +1587,29 @@
                             .split(" ")[0]
                             .substring(0, 6);
                         const isActive = (fullName.toLowerCase() === (battleData.userActivePokemon || "").toLowerCase());
-                        return `<button class="chip-btn ${isActive ? 'active' : ''}" onclick="selectUserPokemonByIndex(${mIdx})" title="Active lead: ${fullName}">${shortName}</button>`;
+                        const mHp = typeof member.hpPct === "number" ? member.hpPct : 100;
+                        const hpNameCls = getHpNameCls(mHp);
+                        return `<button class="chip-btn ${isActive ? 'active' : ''} ${hpNameCls}" onclick="selectUserPokemonByIndex(${mIdx})" title="Active lead: ${fullName} (${mHp}% HP)">${shortName}</button>`;
                     }).join("");
                 }
             } catch (e) {
                 console.error("Toolbar render error", e);
             }
+
+            const enableHpTracking = battleData.enableHpBarTracking !== undefined ? !!battleData.enableHpBarTracking : true;
+            const getHpTierCls = (hp) => {
+                if (hp === null || hp === undefined) return "hp-empty";
+                if (hp > 50) return "hp-green";
+                if (hp > 20) return "hp-amber";
+                return "hp-red";
+            };
+            const getHpNameCls = (hp) => {
+                if (!enableHpTracking) return "";
+                if (hp === null || hp === undefined) return "hp-name-empty";
+                if (hp > 50) return "hp-name-green";
+                if (hp > 20) return "hp-name-amber";
+                return "hp-name-red";
+            };
 
             const oppNameEl = document.getElementById("sky-opp-name");
             const oppMoveEl = document.getElementById("sky-opp-fastmove");
@@ -1596,14 +1636,19 @@
                 if (activeSlotIdx < 0) activeSlotIdx = 0;
             }
 
+            const activeUserHp = typeof teamList[activeSlotIdx]?.hpPct === "number" ? teamList[activeSlotIdx].hpPct : 100;
             const my3Letter = abbrPoke(battleData.userActivePokemon || "Lead", false);
             const userFastTelemetry = battleData.userFastTelemetry || `${abbrMove5(battleData.userFastMoveName || "Fast")} ${battleData.userFastMoveTurns || 2}t`;
             if (myShortEl) {
                 myShortEl.textContent = isWaitingState ? `${my3Letter}` : `${my3Letter} · ${userFastTelemetry}`;
+                myShortEl.className = isWaitingState ? "" : getHpNameCls(activeUserHp);
             }
 
             if (isWaitingState) {
-                if (oppNameEl) oppNameEl.textContent = "WAITING FOR OPPONENT...";
+                if (oppNameEl) {
+                    oppNameEl.textContent = "WAITING FOR OPPONENT...";
+                    oppNameEl.className = "";
+                }
                 if (oppMoveEl) oppMoveEl.textContent = "(1 Hz OCR Active)";
                 if (userFastEl) userFastEl.classList.add("hidden");
                 if (cmpBadgeEl) {
@@ -1624,8 +1669,16 @@
                     `;
                 }
             } else {
+                const activeOppSlotIdx = typeof battleData.activeOpponentSlotIndex === "number" ? battleData.activeOpponentSlotIndex : 0;
+                const scannedList = battleData.scannedOpponents || [];
+                const activeOppObj = scannedList[activeOppSlotIdx] || scannedList[0];
+                const activeOppHp = activeOppObj && typeof activeOppObj.hpPct === "number" ? activeOppObj.hpPct : 100;
+
                 const shadPrefix = battleData.isOpponentShadow ? "SHADOW " : "";
-                if (oppNameEl) oppNameEl.textContent = "VS " + shadPrefix + (battleData.activeOpponent || "").toUpperCase();
+                if (oppNameEl) {
+                    oppNameEl.textContent = "VS " + shadPrefix + (battleData.activeOpponent || "").toUpperCase();
+                    oppNameEl.className = getHpNameCls(activeOppHp);
+                }
 
                 const oppFastTelemetry = battleData.oppFastTelemetry
                     || `${abbrMove5(battleData.activeOpponentFastMove || "Fast")} ${battleData.activeOpponentTurns || 2}t`;
@@ -1643,30 +1696,34 @@
                 }
 
                 // 1. Render 3v3 Battle Matrix FIRST in FIXED [1st seen, 2nd seen, 3rd seen] order
-                const activeOppSlotIdx = typeof battleData.activeOpponentSlotIndex === "number" ? battleData.activeOpponentSlotIndex : 0;
                 try {
                     if (matrixBody && battleData.scannedOpponents && battleData.scannedOpponents.length > 0) {
                         const ordLabels = ["1st", "2nd", "3rd"];
+                        const t0Cls = getHpNameCls(typeof teamList[0]?.hpPct === "number" ? teamList[0].hpPct : 100);
+                        const t1Cls = getHpNameCls(typeof teamList[1]?.hpPct === "number" ? teamList[1].hpPct : 100);
+                        const t2Cls = getHpNameCls(typeof teamList[2]?.hpPct === "number" ? teamList[2].hpPct : 100);
                         matrixBody.innerHTML = battleData.scannedOpponents.map((opp, idx) => {
                             const isActiveOpp = (opp.isActive !== undefined) ? !!opp.isActive : (idx === activeOppSlotIdx);
                             const isOppShad = (opp.isShadow !== undefined) ? !!opp.isShadow : (isActiveOpp && battleData.isOpponentShadow);
                             const fullOppDisplay = (isOppShad ? "S-" : "") + (opp.name || opp.code);
+                            const oppHp = typeof opp.hpPct === "number" ? opp.hpPct : 100;
+                            const oppNameHpCls = getHpNameCls(oppHp);
                             const p1Dots = renderTierDots(opp.matrix ? opp.matrix.p1 : "W,N,L");
                             const p2Dots = renderTierDots(opp.matrix ? opp.matrix.p2 : "N,N,N");
                             const p3Dots = renderTierDots(opp.matrix ? opp.matrix.p3 : "SW,W,W");
                             const ordTag = ordLabels[idx] || `#${idx + 1}`;
                             return `
-                            <div class="matrix-row ${isActiveOpp ? 'active-lead' : ''}" onclick="swapOpponentByIndex(${idx})" style="cursor:pointer;" title="${isActiveOpp ? 'Active Opponent (' + ordTag + ' seen)' : 'Tap to inspect/activate (' + ordTag + ' seen)'}">
-                                <span class="matrix-opp-name" title="${fullOppDisplay}">
+                            <div class="matrix-row ${isActiveOpp ? 'active-lead' : ''}" onclick="swapOpponentByIndex(${idx})" style="cursor:pointer;" title="${isActiveOpp ? 'Active Opponent (' + ordTag + ' seen, ' + oppHp + '% HP)' : 'Tap to inspect/activate (' + ordTag + ' seen, ' + oppHp + '% HP)'}">
+                                <span class="matrix-opp-name ${oppNameHpCls}" title="${fullOppDisplay} (${oppHp}% HP)">
                                     <span style="color:${isActiveOpp ? '#38bdf8' : '#64748b'}; font-weight:700; font-size:7.5px; margin-right:3px;">${ordTag}</span>
                                     ${fullOppDisplay}
                                 </span>
                                 <div class="matrix-team-block">
-                                    <span class="team-initial">${teamList[0].initial}:</span><span class="shield-dots">${p1Dots}</span>
+                                    <span class="team-initial ${t0Cls}">${teamList[0].initial}:</span><span class="shield-dots">${p1Dots}</span>
                                     <span class="divider">|</span>
-                                    <span class="team-initial">${teamList[1].initial}:</span><span class="shield-dots">${p2Dots}</span>
+                                    <span class="team-initial ${t1Cls}">${teamList[1].initial}:</span><span class="shield-dots">${p2Dots}</span>
                                     <span class="divider">|</span>
-                                    <span class="team-initial">${teamList[2].initial}:</span><span class="shield-dots">${p3Dots}</span>
+                                    <span class="team-initial ${t2Cls}">${teamList[2].initial}:</span><span class="shield-dots">${p3Dots}</span>
                                 </div>
                             </div>
                             `;
@@ -1676,14 +1733,6 @@
                     console.error("Matrix render error", e);
                 }
 
-                const enableHpTracking = battleData.enableHpBarTracking !== undefined ? !!battleData.enableHpBarTracking : true;
-                const getHpTierCls = (hp) => {
-                    if (hp === null || hp === undefined) return "hp-empty";
-                    if (hp > 50) return "hp-green";
-                    if (hp > 20) return "hp-amber";
-                    return "hp-red";
-                };
-
                 // 2. Render Opponent Attacks 3-Column Header & Segmented Range Rows
                 try {
                     if (oppDmgHeadersEl) {
@@ -1691,10 +1740,11 @@
                             const code = member.code || abbrPoke(member.name, false);
                             const isAct = (idx === activeSlotIdx);
                             const hpPct = typeof member.hpPct === "number" ? member.hpPct : 100;
+                            const tierCls = enableHpTracking ? getHpTierCls(hpPct) : "";
                             const hpRowHtml = enableHpTracking
-                                ? `<span class="hdr-hp ${getHpTierCls(hpPct)}">${hpPct}%</span>`
+                                ? `<span class="hdr-hp ${tierCls}">${hpPct}%</span>`
                                 : "";
-                            return `<span class="dmg-col-hdr ${isAct ? 'active-col' : ''}" title="${member.name || code}: ${hpPct}% HP"><span class="hdr-code">${code}</span>${hpRowHtml}</span>`;
+                            return `<span class="dmg-col-hdr ${isAct ? 'active-col' : ''}" title="${member.name || code}: ${hpPct}% HP"><span class="hdr-code ${tierCls}">${code}</span>${hpRowHtml}</span>`;
                         }).join("");
                     }
 
@@ -1791,11 +1841,12 @@
                             const isShad = opp && opp.isShadow !== undefined ? !!opp.isShadow : (isAct && battleData.isOpponentShadow);
                             const code = opp ? (opp.code || abbrPoke(opp.name, isShad)) : "—";
                             const hpPct = opp ? (typeof opp.hpPct === "number" ? opp.hpPct : 100) : null;
+                            const tierCls = enableHpTracking ? getHpTierCls(hpPct) : "";
                             const hpRowHtml = enableHpTracking
-                                ? `<span class="hdr-hp ${getHpTierCls(hpPct)}">${hpPct !== null ? hpPct + '%' : '—'}</span>`
+                                ? `<span class="hdr-hp ${tierCls}">${hpPct !== null ? hpPct + '%' : '—'}</span>`
                                 : "";
                             const clickAttr = opp ? `onclick="swapOpponentByIndex(${idx})" style="cursor:pointer;" title="${opp.name || code}: ${hpPct}% HP"` : "";
-                            return `<span class="dmg-col-hdr ${isAct ? 'active-col' : ''}" ${clickAttr}><span class="hdr-code">${code}</span>${hpRowHtml}</span>`;
+                            return `<span class="dmg-col-hdr ${isAct ? 'active-col' : ''}" ${clickAttr}><span class="hdr-code ${tierCls}">${code}</span>${hpRowHtml}</span>`;
                         }).join("");
                     }
 
