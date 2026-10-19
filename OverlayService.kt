@@ -2853,6 +2853,9 @@ class OverlayService : LifecycleService() {
     private val opponentHpBySpecies = java.util.concurrent.ConcurrentHashMap<String, Int>()
     @Volatile private var playerSwapDebounceFrames = 0
     @Volatile private var oppSwapDebounceFrames = 0
+    @Volatile private var chargedMoveBlankingFrames = 0
+    @Volatile private var playerPrevRawHp: Int? = null
+    @Volatile private var oppPrevRawHp: Int? = null
     @Volatile private var playerStableHpOneReadAgo: Int = 100
     @Volatile private var playerStableHpTwoReadsAgo: Int = 100
     @Volatile private var oppStableHpOneReadAgo: Int = 100
@@ -2879,8 +2882,11 @@ class OverlayService : LifecycleService() {
         userTeamHpPct[1] = 100
         userTeamHpPct[2] = 100
         opponentHpBySpecies.clear()
-        playerSwapDebounceFrames = 1
-        oppSwapDebounceFrames = 1
+        playerSwapDebounceFrames = 2
+        oppSwapDebounceFrames = 2
+        chargedMoveBlankingFrames = 0
+        playerPrevRawHp = null
+        oppPrevRawHp = null
         playerStableHpOneReadAgo = 100
         playerStableHpTwoReadsAgo = 100
         oppStableHpOneReadAgo = 100
@@ -2903,7 +2909,8 @@ class OverlayService : LifecycleService() {
                 }
             }
             lastTrackedPlayerSlot = newSlotIdx
-            playerSwapDebounceFrames = 1
+            playerSwapDebounceFrames = 2
+            playerPrevRawHp = null
             userTeamHpPct.putIfAbsent(newSlotIdx, 100)
             val incomingHp = userTeamHpPct[newSlotIdx] ?: 100
             playerStableHpOneReadAgo = incomingHp
@@ -2926,7 +2933,8 @@ class OverlayService : LifecycleService() {
                 }
             }
             lastTrackedOpponentSpecies = normKey
-            oppSwapDebounceFrames = 1
+            oppSwapDebounceFrames = 2
+            oppPrevRawHp = null
             opponentHpBySpecies.putIfAbsent(normKey, 100)
             val incomingHp = opponentHpBySpecies[normKey] ?: 100
             oppStableHpOneReadAgo = incomingHp
@@ -3635,18 +3643,10 @@ class OverlayService : LifecycleService() {
         val w = screen.width
         val h = screen.height
 
-        // CRITICAL: Scan floating 3D battlefield HP bars FIRST on the clean unmasked screen bitmap!
-        // Running this before drawing the black OCR mask prevents the overlay window's bounding box
-        // (and Android status-bar Y offset) from blacking out floating HP bars near the middle of the screen.
-        val rawPlayerHpRead: Int? = if (enableHpBarTracking) {
-            detectFloatingHpBarPercentage(screen, isPlayerSide = true)
-        } else null
-        val rawOppHpRead: Int? = if (enableHpBarTracking) {
-            detectFloatingHpBarPercentage(screen, isPlayerSide = false)
-        } else null
-
-        // Mask out our own floating overlay window on the captured frame before ML Kit OCR
-        // so ML Kit can NEVER read our own HUD text as a Pokémon name!
+        // CRITICAL: Mask out our own floating overlay window at its exact physical screen coordinates (loc[0], loc[1])
+        // BEFORE both HP bar scanning and ML Kit OCR so neither our red 🛑 Stop Battle icon/badges nor our dark slate
+        // HUD background (#1e293b) can ever be read as a 1% HP bar or self-OCR text!
+        // Note: We strictly use getLocationOnScreen(loc) without subtracting layoutParams.y so we never mask above the overlay.
         try {
             val view = overlayView
             if (view != null) {
@@ -3657,18 +3657,26 @@ class OverlayService : LifecycleService() {
                 val ox = (if (loc[0] > 0) loc[0] else layoutParams.x).coerceIn(0, w - 1)
                 val oy = (if (loc[1] > 0) loc[1] else layoutParams.y).coerceIn(0, h - 1)
                 val ow = (if (view.width > 0) view.width else layoutParams.width).coerceAtLeast(1)
-                val oh = (if (view.height > 0) view.height else (220 * resources.displayMetrics.density).toInt()).coerceAtLeast(1)
+                val oh = (if (view.height > 0) view.height else (200 * resources.displayMetrics.density).toInt()).coerceAtLeast(1)
                 val screenCanvas = Canvas(screen)
                 val maskPaint = Paint().apply { color = Color.BLACK; style = Paint.Style.FILL }
                 screenCanvas.drawRect(
-                    (ox - 4).coerceAtLeast(0).toFloat(),
-                    (oy - 4).coerceAtLeast(0).toFloat(),
-                    (ox + ow + 8).coerceAtMost(w).toFloat(),
-                    (oy + oh + 8).coerceAtMost(h).toFloat(),
+                    ox.toFloat(),
+                    oy.toFloat(),
+                    (ox + ow).coerceAtMost(w).toFloat(),
+                    (oy + oh).coerceAtMost(h).toFloat(),
                     maskPaint
                 )
             }
         } catch (_: Exception) {}
+
+        // Scan floating 3D battlefield HP bars across the full vertical head-bobbing range
+        val rawPlayerHpRead: Int? = if (enableHpBarTracking && !isWaitingForOpponent) {
+            detectFloatingHpBarPercentage(screen, isPlayerSide = true)
+        } else null
+        val rawOppHpRead: Int? = if (enableHpBarTracking && !isWaitingForOpponent) {
+            detectFloatingHpBarPercentage(screen, isPlayerSide = false)
+        } else null
 
         // Generous top nameplate bounds (Y: 0.025..0.148) where Player & Opponent Pokémon names & CPs sit
         // (overlayView is already masked out above so it can never be self-read)
@@ -3773,11 +3781,88 @@ class OverlayService : LifecycleService() {
             return
         }
 
+        // Blank HP bar tracking during Charged Move sequences (when Pokémon GO hides the top nameplates,
+        // bottom charged move buttons, and floating HP bars during the bubble minigame / shield prompt / attack cutscene).
+        if (!isWaitingForOpponent && isChargedMoveSequenceActive(oppLines, playerTopLines, playerMoveLines)) {
+            chargedMoveBlankingFrames = 2
+            playerPrevRawHp = null
+            oppPrevRawHp = null
+            playerUpwardJumpCandidate = null
+            playerUpwardJumpCount = 0
+            oppUpwardJumpCandidate = null
+            oppUpwardJumpCount = 0
+            return
+        }
+
         handleOpponentLines(oppLines)
         handlePlayerSwitchLines(playerTopLines, playerMoveLines)
         if (enableHpBarTracking && !isWaitingForOpponent) {
-            updateHpTrackingAfterOcr(rawPlayerHpRead, rawOppHpRead)
+            if (chargedMoveBlankingFrames > 0) {
+                chargedMoveBlankingFrames--
+                playerPrevRawHp = null
+                oppPrevRawHp = null
+            } else {
+                updateHpTrackingAfterOcr(rawPlayerHpRead, rawOppHpRead)
+            }
         }
+    }
+
+    /**
+     * Detects when Pokémon GO is in a Charged Move sequence (camera zoom-in, charging bubbles minigame,
+     * "USE PROTECT SHIELD?" / "INCOMING ATTACK!" prompt, or "SUPER EFFECTIVE!" / "NOT VERY EFFECTIVE" cutscene)
+     * during which the floating HP bars, top nameplates, and bottom Charged Move buttons disappear from screen.
+     */
+    private fun isChargedMoveSequenceActive(
+        oppLines: List<Text.Line>,
+        playerTopLines: List<Text.Line>,
+        playerMoveLines: List<Text.Line>
+    ): Boolean {
+        val allLines = oppLines + playerTopLines + playerMoveLines
+        val combinedLower = allLines
+            .map { it.text.lowercase() }
+            .filter { !isOverlayHudSelfText(it) }
+            .joinToString(" ")
+
+        // 1. Explicit Charged Move sequence prompt / banner keywords
+        if (combinedLower.contains("incoming") ||
+            combinedLower.contains("protect shield") ||
+            combinedLower.contains("use protect") ||
+            combinedLower.contains("super effective") ||
+            combinedLower.contains("not very effective") ||
+            combinedLower.contains("doesn't affect") ||
+            combinedLower.contains("blocked") ||
+            combinedLower.contains("excellent")
+        ) {
+            return true
+        }
+
+        // 2. Check if normal combat HUD (Top Nameplates/CP or Bottom Charged Move buttons) is visible
+        val topCleanText = (oppLines + playerTopLines)
+            .map { it.text.trim() }
+            .filter { it.length >= 3 && !isOverlayHudSelfText(it.lowercase()) }
+            .joinToString(" ")
+
+        val hasCpInTop = Regex("(?i)\\bcp\\s*\\d{2,4}\\b").containsMatchIn(topCleanText) ||
+            Regex("\\b\\d{3,4}\\b").containsMatchIn(topCleanText)
+
+        val hasActivePokemonInTop = (activeOpponentSpecies.isNotEmpty() && topCleanText.contains(activeOpponentSpecies, ignoreCase = true)) ||
+            (currentPreset?.pokemon?.any { slot ->
+                val base = FormResolver.extractBaseSpecies(slot.name)
+                base.length >= 3 && topCleanText.contains(base, ignoreCase = true)
+            } == true)
+
+        val bottomCleanText = playerMoveLines
+            .map { it.text.trim() }
+            .filter { it.length >= 3 && !isOverlayHudSelfText(it.lowercase()) }
+            .joinToString(" ")
+
+        // When BOTH top nameplates/CP AND bottom move buttons vanish simultaneously during an active battle,
+        // the camera is in a Charged Move / switch cutscene where floating HP bars are hidden.
+        if (!hasCpInTop && !hasActivePokemonInTop && bottomCleanText.isEmpty()) {
+            return true
+        }
+
+        return false
     }
 
     private data class HpScanlineCandidate(
@@ -3787,20 +3872,19 @@ class OverlayService : LifecycleService() {
         val hpPct: Int
     )
 
-    @Volatile private var lastKnownHpBarWidthPx: Int = 0
-
     /**
      * Scans the 3D battlefield region for the floating horizontal HP bar above either the Player's
-     * foreground Pokémon (X: 0.02..0.50w, Y: 0.15..0.70h — handles both tall legendaries like Zygarde
-     * at Y ≈ 0.238h and shorter Pokémon like Manectric at Y ≈ 0.585h) or the Opponent's Pokémon
-     * (X: 0.44..0.95w, Y: 0.15..0.55h — covers opponent bars like Flareon at X: 0.55..0.84w, Y: 0.308h
-     * even during horizontal camera sway).
+     * foreground Pokémon (X: 0.02..0.50w, Y: 0.14..0.70h — handles both tall legendaries like Zygarde
+     * at Y ≈ 0.238h, shorter Pokémon like Manectric at Y ≈ 0.585h, and vertical head-bobbing motion)
+     * or the Opponent's Pokémon (X: 0.44..0.95w, Y: 0.14..0.56h — covers opponent bars like Flareon
+     * at X: 0.55..0.84w, Y: 0.308h even as the Pokémon moves its head up/down/sideways).
      *
      * Matches the exact Pokémon GO floating health bar signature:
-     * - Total bar width (`fillLen + divider + emptyTrackLen`) between 20% and 35% of screen width (~28.5% nominal)
+     * - Total bar width (`fillLen + divider + emptyTrackLen`) strictly between 22% and 34% of screen width (~28.5% nominal)
      * - Left colored fill: vibrant spring-green/mint (#10E7A2), yellow/amber, or red/crimson with low pixel-to-pixel RGB jitter
-     * - Right depleted track: dark charcoal/slate gray (#484C52) with low saturation & low RGB variance
-     * - Vertical thinness check: must be a thin horizontal ribbon (pixels 7px above and 7px below are not the same fill color)
+     * - Right depleted track: flat neutral charcoal gray (#484C52) with low saturation & low RGB variance
+     * - Dual vertical thinness check: BOTH the colored fill AND the depleted gray track must be a thin horizontal ribbon
+     *   (so dark Pokémon bodies like Zygarde or dark shadows next to a small colored spot can never report 1% HP)
      * - At least 2 vertically aligned scanlines sharing the same [xStart, xEnd] rectangle bounds
      */
     private fun detectFloatingHpBarPercentage(screen: Bitmap, isPlayerSide: Boolean): Int? {
@@ -3811,20 +3895,16 @@ class OverlayService : LifecycleService() {
 
             val cropLeft = (if (isPlayerSide) w * 0.02f else w * 0.44f).toInt().coerceIn(0, w - 1)
             val cropRight = (if (isPlayerSide) w * 0.50f else w * 0.95f).toInt().coerceIn(cropLeft + 1, w)
-            val cropTop = (if (isPlayerSide) h * 0.15f else h * 0.15f).toInt().coerceIn(0, h - 1)
-            val cropBottom = (if (isPlayerSide) h * 0.70f else h * 0.55f).toInt().coerceIn(cropTop + 1, h)
+            val cropTop = (if (isPlayerSide) h * 0.14f else h * 0.14f).toInt().coerceIn(0, h - 1)
+            val cropBottom = (if (isPlayerSide) h * 0.70f else h * 0.56f).toInt().coerceIn(cropTop + 1, h)
 
             val cw = cropRight - cropLeft
             val ch = cropBottom - cropTop
             // Nominal floating HP bar width in Pokémon GO is ~28.5% of screen width (~308px on 1080p)
-            val nominalBarW = if (lastKnownHpBarWidthPx in (w * 0.22f).toInt()..(w * 0.34f).toInt()) {
-                lastKnownHpBarWidthPx
-            } else {
-                (w * 0.285f).toInt()
-            }
-            val minTotalBarW = (w * 0.20f).toInt().coerceAtLeast(40)
-            val minFullBarW = (w * 0.24f).toInt().coerceAtLeast(minTotalBarW)
-            val maxTotalBarW = (w * 0.35f).toInt().coerceAtLeast(minFullBarW + 16)
+            val minTotalBarW = (w * 0.22f).toInt().coerceAtLeast(45)
+            val minFullBarW = (w * 0.25f).toInt().coerceAtLeast(minTotalBarW)
+            val maxTotalBarW = (w * 0.34f).toInt().coerceAtLeast(minFullBarW + 16)
+            val minFillWidthPx = (w * 0.008f).toInt().coerceAtLeast(6)
             if (cw < minTotalBarW) return null
 
             val pixels = IntArray(cw * ch)
@@ -3837,34 +3917,34 @@ class OverlayService : LifecycleService() {
                 val b = c and 0xFF
 
                 // Spring-Green / Mint-Teal (#10E7A2 -> R:16, G:231, B:162) or vibrant HP green
-                if (g >= 140 && r <= 135 && b in 60..225 && (g - r) >= 35 && g >= b - 12) {
+                if (g >= 142 && r <= 130 && b in 62..222 && (g - r) >= 38 && g >= b - 10) {
                     return 1
                 }
                 // Yellow / Amber HP fill
-                if (r >= 170 && g in 110..250 && b <= 108 && (r - b) >= 75 && (g - b) >= 40 && kotlin.math.abs(r - g) <= 100) {
+                if (r >= 175 && g in 115..248 && b <= 102 && (r - b) >= 80 && (g - b) >= 42 && kotlin.math.abs(r - g) <= 95) {
                     return 2
                 }
                 // Red / Crimson HP fill
-                if (r >= 160 && g <= 118 && b <= 105 && (r - max(g, b)) >= 52) {
+                if (r >= 165 && g <= 112 && b <= 98 && (r - max(g, b)) >= 58) {
                     return 3
                 }
-                // Depleted dark-charcoal/slate gray track (#484C52 -> R:72, G:76, B:82, including subtle background tint)
+                // Depleted neutral charcoal gray track (#484C52 -> R:72, G:76, B:82)
                 val maxCh = max(r, max(g, b))
                 val minCh = min(r, min(g, b))
-                if (r in 24..132 && g in 26..136 && b in 28..142 && (maxCh - minCh) <= 34) {
+                if (r in 40..115 && g in 42..120 && b in 45..126 && (maxCh - minCh) <= 22) {
                     return 4
                 }
                 // White or Orange damage-flash border/divider tick
-                if ((r >= 180 && g >= 180 && b >= 180) || (r >= 175 && g in 90..205 && b <= 98)) {
+                if ((r >= 182 && g >= 182 && b >= 182) || (r >= 178 && g in 92..202 && b <= 95)) {
                     return 5
                 }
                 return 0
             }
 
-            // Ensures a candidate scanline is a thin horizontal ribbon (HP bar is ~3..9px tall)
-            // rather than part of a tall green/yellow/red Pokémon body (like Zygarde or Flareon)
-            fun isThinHorizontalRibbon(ry: Int, xStart: Int, fillEnd: Int, fillFamily: Int): Boolean {
-                val span = (fillEnd - xStart).coerceAtLeast(1)
+            // Ensures a horizontal segment [segStart..segEnd] is a thin horizontal ribbon (HP bar is ~3..10px tall)
+            // rather than part of a tall Pokémon body (like Zygarde's black/green body or Flareon's orange/red body)
+            fun isThinHorizontalRibbon(ry: Int, segStart: Int, segEnd: Int, targetFamily: Int): Boolean {
+                val span = (segEnd - segStart).coerceAtLeast(1)
                 val offset = (h * 0.0045f).toInt().coerceIn(6, 12)
                 val yAbove = ry - offset
                 val yBelow = ry + offset
@@ -3872,14 +3952,14 @@ class OverlayService : LifecycleService() {
                 var nonMatching = 0
                 var totalChecks = 0
                 for (s in 0 until steps) {
-                    val sx = (xStart + (span * (s + 0.5f) / steps).toInt()).coerceIn(0, cw - 1)
+                    val sx = (segStart + (span * (s + 0.5f) / steps).toInt()).coerceIn(0, cw - 1)
                     if (yAbove >= 0) {
                         totalChecks++
-                        if (classifyPixel(pixels[yAbove * cw + sx]) != fillFamily) nonMatching++
+                        if (classifyPixel(pixels[yAbove * cw + sx]) != targetFamily) nonMatching++
                     }
                     if (yBelow < ch) {
                         totalChecks++
-                        if (classifyPixel(pixels[yBelow * cw + sx]) != fillFamily) nonMatching++
+                        if (classifyPixel(pixels[yBelow * cw + sx]) != targetFamily) nonMatching++
                     }
                 }
                 return totalChecks == 0 || nonMatching * 10 >= totalChecks * 7
@@ -3890,7 +3970,7 @@ class OverlayService : LifecycleService() {
             for (ry in 0 until ch) {
                 val rowOffset = ry * cw
                 var x = 0
-                while (x < cw - 6) {
+                while (x < cw - minFillWidthPx) {
                     val pType = classifyPixel(pixels[rowOffset + x])
                     if (pType in 1..3) {
                         val fillColorFamily = pType
@@ -3927,20 +4007,18 @@ class OverlayService : LifecycleService() {
                         val fillLen = fillEnd - xStart
                         val avgFillJitter = if (fillSamples > 1) colorDeltaSum / (fillSamples - 1) else 0
 
-                        if (fillLen >= 3 && avgFillJitter <= 20 && isThinHorizontalRibbon(ry, xStart, fillEnd, fillColorFamily)) {
-                            // Bridge divider/transition or active white/orange damage-drain flash between colored fill and empty dark track
+                        if (fillLen >= minFillWidthPx && avgFillJitter <= 16 && isThinHorizontalRibbon(ry, xStart, fillEnd, fillColorFamily)) {
+                            // Bridge 0..6 pixels of divider/transition between colored fill and empty dark track
                             var scanX = fillEnd
                             var divCount = 0
-                            val maxBridge = (maxTotalBarW - fillLen).coerceAtLeast(8)
-                            while (scanX < cw && divCount < maxBridge) {
+                            while (scanX < cw && divCount < 6) {
                                 val dt = classifyPixel(pixels[rowOffset + scanX])
                                 if (dt == 4) break
-                                // Allow up to 8px of arbitrary anti-aliased boundary or longer runs of white/orange damage-drain flash (dt == 5)
-                                if (divCount >= 8 && dt != 5) break
                                 divCount++
                                 scanX++
                             }
 
+                            val emptyStart = scanX
                             var emptyEnd = scanX
                             var emptyGap = 0
                             var emptyDeltaSum = 0
@@ -3970,35 +4048,26 @@ class OverlayService : LifecycleService() {
                                 }
                             }
 
-                            val emptyLen = if (emptySamples >= 3) (emptyEnd - fillEnd) else 0
+                            val emptyLen = if (emptySamples >= 5) (emptyEnd - fillEnd) else 0
                             val avgEmptyJitter = if (emptySamples > 1) emptyDeltaSum / (emptySamples - 1) else 0
 
-                            if (emptyLen > 0 && avgEmptyJitter <= 20) {
-                                val rawTotalLen = emptyEnd - xStart
-                                val effectiveTotalLen = when {
-                                    rawTotalLen in minTotalBarW..maxTotalBarW -> {
-                                        lastKnownHpBarWidthPx = rawTotalLen
-                                        rawTotalLen
-                                    }
-                                    emptySamples >= 6 && rawTotalLen < minTotalBarW && fillLen < nominalBarW -> nominalBarW
-                                    else -> -1
-                                }
-                                if (effectiveTotalLen > 0) {
-                                    val pct = ((fillLen.toDouble() / effectiveTotalLen.toDouble()) * 100.0).roundToInt().coerceIn(1, 99)
+                            if (emptyLen > 0 && avgEmptyJitter <= 12 && isThinHorizontalRibbon(ry, emptyStart, emptyEnd, 4)) {
+                                val totalLen = emptyEnd - xStart
+                                if (totalLen in minTotalBarW..maxTotalBarW) {
+                                    val pct = ((fillLen.toDouble() / totalLen.toDouble()) * 100.0).roundToInt().coerceIn(2, 99)
                                     // Enforce Pokémon GO HP color-to-percentage invariants so random artifacts never match
                                     val colorMatchesPct = when (fillColorFamily) {
-                                        1 -> pct >= 44 // Green bar is 50%..99% HP
-                                        2 -> pct in 15..58 // Yellow/Amber bar is 20%..50% HP
-                                        3 -> pct in 1..28 // Red bar is 1%..20% HP
+                                        1 -> pct >= 46 // Green bar is 50%..99% HP
+                                        2 -> pct in 17..56 // Yellow/Amber bar is 20%..50% HP
+                                        3 -> pct in 3..25 // Red bar is 3%..20% HP
                                         else -> false
                                     }
                                     if (colorMatchesPct) {
-                                        candidates.add(HpScanlineCandidate(ry, xStart, xStart + effectiveTotalLen, pct))
+                                        candidates.add(HpScanlineCandidate(ry, xStart, emptyEnd, pct))
                                     }
                                 }
-                            } else if (fillLen in minFullBarW..maxTotalBarW && fillColorFamily == 1) {
+                            } else if (emptySamples < 3 && fillLen in minFullBarW..maxTotalBarW && fillColorFamily == 1) {
                                 // 100% full health bar (entire bar width is vibrant green fill)
-                                lastKnownHpBarWidthPx = fillLen
                                 candidates.add(HpScanlineCandidate(ry, xStart, fillEnd, 100))
                             }
                         }
@@ -4018,7 +4087,7 @@ class OverlayService : LifecycleService() {
                     kotlin.math.abs(c.y - anchor.y) <= 10 &&
                         kotlin.math.abs(c.xStart - anchor.xStart) <= 5 &&
                         kotlin.math.abs(c.xEnd - anchor.xEnd) <= 6 &&
-                        kotlin.math.abs(c.hpPct - anchor.hpPct) <= 5
+                        kotlin.math.abs(c.hpPct - anchor.hpPct) <= 4
                 }
                 if (cluster.size >= 2 && (bestCluster == null || cluster.size > bestCluster.size)) {
                     bestCluster = cluster
@@ -4027,15 +4096,18 @@ class OverlayService : LifecycleService() {
 
             val winningCluster = bestCluster ?: return null
             val sortedPcts = winningCluster.map { it.hpPct }.sorted()
-            sortedPcts[sortedPcts.size / 2].coerceIn(1, 100)
+            sortedPcts[sortedPcts.size / 2].coerceIn(2, 100)
         } catch (_: Exception) {
             null
         }
     }
 
     /**
-     * Commits live HP bar drops immediately in real time while protecting outgoing/incoming Pokémon
-     * within 1–2 readings of a swap via rolling 2-read rollback history and upward-jump confirmation.
+     * Tracks floating HP bars in real time as Pokémon move their heads up and down:
+     * - Requires 2 consecutive consistent readings (within ±14% so continuous Fast Move drain commits
+     *   every frame in real time, while 1-frame head-bob/plume occlusions are rejected)
+     * - Protects outgoing/incoming Pokémon within 1–2 readings of a swap via 2-read rollback history
+     * - Self-corrects upward if the same Pokémon consistently reads higher HP for 2 consecutive scans
      */
     private fun updateHpTrackingAfterOcr(rawPlayerHp: Int?, rawOppHp: Int?) {
         var didChangeHp = false
@@ -4056,32 +4128,40 @@ class OverlayService : LifecycleService() {
             triggerOpponentSwapDebounce(activeOppKey)
         }
 
-        // 1. Process Player Active Pokémon HP reading in real time (with 1-2 reading swap protection)
+        // 1. Process Player Active Pokémon HP reading (handles head-bob motion + swap protection)
         if (playerSwapDebounceFrames > 0) {
             playerSwapDebounceFrames--
+            playerPrevRawHp = null
         } else if (rawPlayerHp != null) {
             val currentCommitted = userTeamHpPct[activeUserSlotIdx] ?: 100
             if (rawPlayerHp <= currentCommitted + 4) {
                 playerUpwardJumpCandidate = null
                 playerUpwardJumpCount = 0
-                val nextHp = min(currentCommitted, rawPlayerHp).coerceIn(1, 100)
-                playerStableHpTwoReadsAgo = playerStableHpOneReadAgo
-                playerStableHpOneReadAgo = nextHp
-                if (nextHp != currentCommitted) {
-                    userTeamHpPct[activeUserSlotIdx] = nextHp
-                    didChangeHp = true
+                val prevRaw = playerPrevRawHp
+                playerPrevRawHp = rawPlayerHp
+                // Commit immediately once 2 consecutive readings agree within ±14% (tracks continuous fast-move drain
+                // in real time while rejecting 1-frame head/plume occlusions as the Pokémon moves its head)
+                if (prevRaw != null && kotlin.math.abs(rawPlayerHp - prevRaw) <= 14) {
+                    val nextHp = min(currentCommitted, rawPlayerHp).coerceIn(2, 100)
+                    playerStableHpTwoReadsAgo = playerStableHpOneReadAgo
+                    playerStableHpOneReadAgo = nextHp
+                    if (nextHp != currentCommitted) {
+                        userTeamHpPct[activeUserSlotIdx] = nextHp
+                        didChangeHp = true
+                    }
                 }
             } else {
-                // Upward jump > 4%: block for 2 readings in case a healthier Pokémon just swapped in before OCR saw its name;
-                // if the same species remains active and confirms the higher HP 3 times in a row, self-correct.
+                // Upward jump > 4%: block on the 1st reading in case a healthier Pokémon just swapped in before OCR saw its name;
+                // if the same species remains active and confirms the higher HP on 2 consecutive readings, self-correct.
                 val prevCand = playerUpwardJumpCandidate
-                if (prevCand != null && kotlin.math.abs(rawPlayerHp - prevCand) <= 6) {
+                if (prevCand != null && kotlin.math.abs(rawPlayerHp - prevCand) <= 8) {
                     playerUpwardJumpCount++
-                    if (playerUpwardJumpCount >= 3) {
-                        val corrected = rawPlayerHp.coerceIn(1, 100)
+                    if (playerUpwardJumpCount >= 2) {
+                        val corrected = rawPlayerHp.coerceIn(2, 100)
                         userTeamHpPct[activeUserSlotIdx] = corrected
                         playerStableHpTwoReadsAgo = corrected
                         playerStableHpOneReadAgo = corrected
+                        playerPrevRawHp = corrected
                         playerUpwardJumpCandidate = null
                         playerUpwardJumpCount = 0
                         didChangeHp = true
@@ -4093,30 +4173,36 @@ class OverlayService : LifecycleService() {
             }
         }
 
-        // 2. Process Opponent Active Pokémon HP reading in real time (with 1-2 reading swap protection)
+        // 2. Process Opponent Active Pokémon HP reading (handles head-bob motion + swap protection)
         if (oppSwapDebounceFrames > 0) {
             oppSwapDebounceFrames--
+            oppPrevRawHp = null
         } else if (rawOppHp != null && activeOppKey.isNotEmpty()) {
             val currentCommitted = opponentHpBySpecies[activeOppKey] ?: 100
             if (rawOppHp <= currentCommitted + 4) {
                 oppUpwardJumpCandidate = null
                 oppUpwardJumpCount = 0
-                val nextHp = min(currentCommitted, rawOppHp).coerceIn(1, 100)
-                oppStableHpTwoReadsAgo = oppStableHpOneReadAgo
-                oppStableHpOneReadAgo = nextHp
-                if (nextHp != currentCommitted) {
-                    opponentHpBySpecies[activeOppKey] = nextHp
-                    didChangeHp = true
+                val prevRaw = oppPrevRawHp
+                oppPrevRawHp = rawOppHp
+                if (prevRaw != null && kotlin.math.abs(rawOppHp - prevRaw) <= 14) {
+                    val nextHp = min(currentCommitted, rawOppHp).coerceIn(2, 100)
+                    oppStableHpTwoReadsAgo = oppStableHpOneReadAgo
+                    oppStableHpOneReadAgo = nextHp
+                    if (nextHp != currentCommitted) {
+                        opponentHpBySpecies[activeOppKey] = nextHp
+                        didChangeHp = true
+                    }
                 }
             } else {
                 val prevCand = oppUpwardJumpCandidate
-                if (prevCand != null && kotlin.math.abs(rawOppHp - prevCand) <= 6) {
+                if (prevCand != null && kotlin.math.abs(rawOppHp - prevCand) <= 8) {
                     oppUpwardJumpCount++
-                    if (oppUpwardJumpCount >= 3) {
-                        val corrected = rawOppHp.coerceIn(1, 100)
+                    if (oppUpwardJumpCount >= 2) {
+                        val corrected = rawOppHp.coerceIn(2, 100)
                         opponentHpBySpecies[activeOppKey] = corrected
                         oppStableHpTwoReadsAgo = corrected
                         oppStableHpOneReadAgo = corrected
+                        oppPrevRawHp = corrected
                         oppUpwardJumpCandidate = null
                         oppUpwardJumpCount = 0
                         didChangeHp = true

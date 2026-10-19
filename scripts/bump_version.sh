@@ -27,5 +27,9 @@ echo "$NEW_TAG" > VERSION
 
 sed -i "s/versionCode = [0-9]\+/versionCode = ${VERSION_CODE}/g" app/build.gradle.kts
 sed -i "s/versionName = \"[^\"]*\"/versionName = \"${NEW_NUM}\"/g" app/build.gradle.kts
+sed -i "s/Real-Time PvP Floating Overlay • v[0-9]\+\.[0-9]\+/Real-Time PvP Floating Overlay • v${NEW_NUM}/g" app/src/main/res/layout/activity_main.xml
+sed -i "s/v[0-9]\+\.[0-9]\+ • Android Native Overlay/v${NEW_NUM} • Android Native Overlay/g" src/App.tsx
+sed -i "s/SilphScope PvP v[0-9]\+\.[0-9]\+ Overlay/SilphScope PvP v${NEW_NUM} Overlay/g" src/App.tsx
+sed -i "s/SilphScope_PvP_v[0-9]\+\.[0-9]\+_Android_Project\.zip/SilphScope_PvP_v${NEW_NUM}_Android_Project.zip/g" src/App.tsx
 
 echo "Updated version to ${NEW_TAG} (versionCode=${VERSION_CODE}, versionName=${NEW_NUM})"
