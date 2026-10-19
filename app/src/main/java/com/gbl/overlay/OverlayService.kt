@@ -4018,6 +4018,20 @@ class OverlayService : LifecycleService() {
                 return false
             }
 
+            // Detects border rectangle pixels surrounding the floating HP bar capsule:
+            // 1. White/Light Silver (Standard)
+            // 2. Bright Cyan/Blue ("Not Very Effective" damage applied)
+            // 3. Orange-Red / Amber-Red ("Neutral" or "Super Effective" damage applied)
+            fun isHpBarBorderPixel(c: Int): Boolean {
+                val r = (c shr 16) and 0xFF
+                val g = (c shr 8) and 0xFF
+                val b = c and 0xFF
+                if (r >= 192 && g >= 192 && b >= 192) return true // White / Silver border
+                if (b >= 175 && (b - r) >= 20 && g >= 125) return true // Blue NVE border
+                if (r >= 195 && g in 35..170 && b <= 110 && (r - b) >= 85) return true // Orange-Red Neutral/SE border
+                return false
+            }
+
             val candidates = mutableListOf<HpScanlineCandidate>()
 
             for (ry in 0 until ch) {
@@ -4095,19 +4109,17 @@ class OverlayService : LifecycleService() {
                                 continue
                             }
 
-                            // Scan depleted track to the right of barSpanEnd (after any trailing Orange Pending Damage)
+                            // Scan rightwards to detect the exact bounding border capsule or right track edge at xRightBorder
                             var scanX = barSpanEnd
-                            var divCount = 0
-                            while (scanX < cw && divCount < 4) {
-                                if (isDepletedTrackPixel(ry, scanX)) break
-                                divCount++
-                                scanX++
-                            }
-
+                            var borderFoundX = -1
                             var emptyGap = 0
                             var contiguousEmptySamples = 0
-                            val maxScanRight = min(cw, xStart + maxFullW + 6)
+                            val maxScanRight = min(cw, xStart + maxFullW + 8)
                             while (scanX < maxScanRight) {
+                                val cPx = pixels[rowOffset + scanX]
+                                if (isHpBarBorderPixel(cPx)) {
+                                    borderFoundX = scanX + 1
+                                }
                                 if (isDepletedTrackPixel(ry, scanX)) {
                                     emptyGap = 0
                                     contiguousEmptySamples++
@@ -4120,7 +4132,10 @@ class OverlayService : LifecycleService() {
                                 }
                             }
 
-                            val expectedBarRight = min(cw, xStart + knownBarW)
+                            val measuredBarW = if (borderFoundX > xStart) (borderFoundX - xStart) else (scanX - xStart)
+                            val effectiveBarW = if (measuredBarW in minFullW..maxFullW) measuredBarW else knownBarW
+
+                            val expectedBarRight = min(cw, xStart + effectiveBarW)
                             var windowTrackPixels = 0
                             for (wx in coreFillEnd until expectedBarRight) {
                                 if (isDepletedTrackPixel(ry, wx)) {
@@ -4132,17 +4147,15 @@ class OverlayService : LifecycleService() {
                                 kotlin.math.abs(xStart - lastAnchorX) <= maxAnchorDx &&
                                 kotlin.math.abs(ry - lastAnchorY) <= maxAnchorDy
 
+                            val rawBarPct = ((coreFillLen * 100f) / effectiveBarW.toFloat()).roundToInt()
+
                             when (leftHalfColorFamily) {
                                 1 -> {
-                                    // GREEN (>50% HP): Core green fill must be at least 42% of nominal bar width (~51px on 1080p)
-                                    val minGreenW = (knownBarW * 0.42f).toInt().coerceAtLeast(28)
+                                    // GREEN (>50% HP): Core green fill must be at least 42% of bar width (~51px on 1080p)
+                                    val minGreenW = (effectiveBarW * 0.42f).toInt().coerceAtLeast(28)
                                     if (coreFillLen in minGreenW..maxFullW) {
-                                        val isFullGreen = coreFillLen >= (knownBarW * 0.86f).toInt() && contiguousEmptySamples <= 3
-                                        val greenHpVal = if (isFullGreen) {
-                                            100
-                                        } else {
-                                            ((coreFillLen * 100f) / knownBarW.toFloat()).roundToInt().coerceIn(55, 98)
-                                        }
+                                        val isFullGreen = coreFillLen >= (effectiveBarW * 0.86f).toInt() && contiguousEmptySamples <= 3
+                                        val greenHpVal = if (isFullGreen) 100 else rawBarPct.coerceIn(52, 98)
                                         candidates.add(
                                             HpScanlineCandidate(
                                                 y = ry,
@@ -4158,13 +4171,13 @@ class OverlayService : LifecycleService() {
                                 }
                                 2 -> {
                                     // YELLOW (21..50% HP): Core yellow fill must be 18%..58% of bar width (~22..71px on 1080p)
-                                    val minYellowW = (knownBarW * 0.18f).toInt().coerceAtLeast(16)
-                                    val maxYellowW = (knownBarW * 0.58f).toInt().coerceAtLeast(minYellowW + 10)
+                                    val minYellowW = (effectiveBarW * 0.18f).toInt().coerceAtLeast(16)
+                                    val maxYellowW = (effectiveBarW * 0.58f).toInt().coerceAtLeast(minYellowW + 10)
                                     val hasTrackOrAnchor = contiguousEmptySamples >= 2 ||
-                                        windowTrackPixels >= (knownBarW * 0.18f).toInt() ||
+                                        windowTrackPixels >= (effectiveBarW * 0.18f).toInt() ||
                                         hasAnchorMatch
                                     if (coreFillLen in minYellowW..maxYellowW) {
-                                        val yellowHpVal = ((coreFillLen * 100f) / knownBarW.toFloat()).roundToInt().coerceIn(25, 50)
+                                        val yellowHpVal = rawBarPct.coerceIn(22, 50)
                                         candidates.add(
                                             HpScanlineCandidate(
                                                 y = ry,
@@ -4180,14 +4193,13 @@ class OverlayService : LifecycleService() {
                                 }
                                 3 -> {
                                     // RED (<=20% HP): Core crimson fill must be 5%..24% of bar width (~6..29px on 1080p)
-                                    // AND have a verified depleted track or locked HP bar anchor
-                                    val minRedW = (knownBarW * 0.05f).toInt().coerceAtLeast(6)
-                                    val maxRedW = (knownBarW * 0.24f).toInt().coerceAtLeast(minRedW + 6)
+                                    val minRedW = (effectiveBarW * 0.05f).toInt().coerceAtLeast(6)
+                                    val maxRedW = (effectiveBarW * 0.24f).toInt().coerceAtLeast(minRedW + 6)
                                     val hasStrongDepletedTrack = (contiguousEmptySamples >= 5 &&
-                                        windowTrackPixels >= (knownBarW * 0.35f).toInt()) ||
-                                        (hasAnchorMatch && windowTrackPixels >= (knownBarW * 0.20f).toInt())
+                                        windowTrackPixels >= (effectiveBarW * 0.35f).toInt()) ||
+                                        (hasAnchorMatch && windowTrackPixels >= (effectiveBarW * 0.20f).toInt())
                                     if (coreFillLen in minRedW..maxRedW && hasStrongDepletedTrack) {
-                                        val redHpVal = ((coreFillLen * 100f) / knownBarW.toFloat()).roundToInt().coerceIn(10, 20)
+                                        val redHpVal = rawBarPct.coerceIn(8, 20)
                                         candidates.add(
                                             HpScanlineCandidate(
                                                 y = ry,
@@ -4259,7 +4271,7 @@ class OverlayService : LifecycleService() {
             val sortedFillLens = winningCluster.map { it.fillEnd - it.xStart }.sorted()
 
             val midIdx = winningCluster.size / 2
-            val medianPct = sortedPcts[midIdx].coerceIn(15, 100)
+            val medianPct = sortedPcts[midIdx].coerceIn(8, 100)
             val medianXStart = sortedXStarts[midIdx]
             val medianY = sortedYs[midIdx]
             val medianFillLen = sortedFillLens[midIdx]
@@ -4291,8 +4303,9 @@ class OverlayService : LifecycleService() {
     }
 
     /**
-     * Commits Core HP Color Code readings (Green >50%, Yellow 21–50%, Red <=20%) with 2-read confirmation
-     * on color-tier transitions and 2-read swap rollback history.
+     * Commits Core HP Color Code readings (Green >50%, Yellow 21–50%, Red <=20%) in real time.
+     * When an active on-field Pokémon's HP bar is detected on screen, its HP updates immediately
+     * for same-tier or lower-tier changes, and recovers on the 2nd consecutive frame for higher-tier changes.
      */
     private fun updateHpTrackingAfterOcr(rawPlayerHp: Int?, rawOppHp: Int?) {
         var didChangeHp = false
@@ -4322,41 +4335,13 @@ class OverlayService : LifecycleService() {
             val currentTier = hpColorTierOf(currentCommitted)
             val newTier = hpColorTierOf(rawPlayerHp)
 
-            if (rawPlayerHp <= currentCommitted) {
-                playerUpwardJumpCandidate = null
-                playerUpwardJumpCount = 0
-                val prevRaw = playerPrevRawHp
-                // Same-tier update (100 -> 65 within Green) commits immediately;
-                // dropping to a lower color tier (Green -> Yellow or Yellow -> Red) confirms on 2nd consecutive reading.
-                val canCommitDrop = (newTier == currentTier) || (prevRaw != null && hpColorTierOf(prevRaw) == newTier)
-                playerPrevRawHp = rawPlayerHp
-                if (canCommitDrop) {
-                    val nextHp = min(currentCommitted, rawPlayerHp).coerceIn(15, 100)
-                    playerStableHpTwoReadsAgo = playerStableHpOneReadAgo
-                    playerStableHpOneReadAgo = nextHp
-                    if (nextHp != currentCommitted) {
-                        userTeamHpPct[activeUserSlotIdx] = nextHp
-                        didChangeHp = true
-                    }
-                }
-            } else {
-                // Upward tier recovery: confirm on 2 consecutive readings of the higher color tier
-                val prevCand = playerUpwardJumpCandidate
-                if (prevCand != null && hpColorTierOf(rawPlayerHp) == hpColorTierOf(prevCand)) {
-                    playerUpwardJumpCount++
-                    if (playerUpwardJumpCount >= 2) {
-                        val corrected = rawPlayerHp.coerceIn(15, 100)
-                        userTeamHpPct[activeUserSlotIdx] = corrected
-                        playerStableHpTwoReadsAgo = corrected
-                        playerStableHpOneReadAgo = corrected
-                        playerPrevRawHp = corrected
-                        playerUpwardJumpCandidate = null
-                        playerUpwardJumpCount = 0
-                        didChangeHp = true
-                    }
-                } else {
-                    playerUpwardJumpCandidate = rawPlayerHp
-                    playerUpwardJumpCount = 1
+            val prevRaw = playerPrevRawHp
+            playerPrevRawHp = rawPlayerHp
+
+            if (newTier <= currentTier || (prevRaw != null && hpColorTierOf(prevRaw) == newTier)) {
+                if (rawPlayerHp != currentCommitted) {
+                    userTeamHpPct[activeUserSlotIdx] = rawPlayerHp
+                    didChangeHp = true
                 }
             }
         }
@@ -4370,38 +4355,13 @@ class OverlayService : LifecycleService() {
             val currentTier = hpColorTierOf(currentCommitted)
             val newTier = hpColorTierOf(rawOppHp)
 
-            if (rawOppHp <= currentCommitted) {
-                oppUpwardJumpCandidate = null
-                oppUpwardJumpCount = 0
-                val prevRaw = oppPrevRawHp
-                val canCommitDrop = (newTier == currentTier) || (prevRaw != null && hpColorTierOf(prevRaw) == newTier)
-                oppPrevRawHp = rawOppHp
-                if (canCommitDrop) {
-                    val nextHp = min(currentCommitted, rawOppHp).coerceIn(15, 100)
-                    oppStableHpTwoReadsAgo = oppStableHpOneReadAgo
-                    oppStableHpOneReadAgo = nextHp
-                    if (nextHp != currentCommitted) {
-                        opponentHpBySpecies[activeOppKey] = nextHp
-                        didChangeHp = true
-                    }
-                }
-            } else {
-                val prevCand = oppUpwardJumpCandidate
-                if (prevCand != null && hpColorTierOf(rawOppHp) == hpColorTierOf(prevCand)) {
-                    oppUpwardJumpCount++
-                    if (oppUpwardJumpCount >= 2) {
-                        val corrected = rawOppHp.coerceIn(15, 100)
-                        opponentHpBySpecies[activeOppKey] = corrected
-                        oppStableHpTwoReadsAgo = corrected
-                        oppStableHpOneReadAgo = corrected
-                        oppPrevRawHp = corrected
-                        oppUpwardJumpCandidate = null
-                        oppUpwardJumpCount = 0
-                        didChangeHp = true
-                    }
-                } else {
-                    oppUpwardJumpCandidate = rawOppHp
-                    oppUpwardJumpCount = 1
+            val prevRaw = oppPrevRawHp
+            oppPrevRawHp = rawOppHp
+
+            if (newTier <= currentTier || (prevRaw != null && hpColorTierOf(prevRaw) == newTier)) {
+                if (rawOppHp != currentCommitted) {
+                    opponentHpBySpecies[activeOppKey] = rawOppHp
+                    didChangeHp = true
                 }
             }
         }
@@ -5837,8 +5797,8 @@ class OverlayService : LifecycleService() {
             isDefenderShadow = isOpponentShadow
         )
 
-        val oppFastTelemetry = "${abbrMove5(oppFastMoveName)} ${oppFastTurns}t/${oppFastEnergy}e/${oppFastDmgPct}%"
-        val userFastTelemetry = "${abbrMove5(userFastMoveName)} ${userFastTurns}t/${userFastEnergy}e/${userFastDmgPct}%"
+        val oppFastTelemetry = "${abbrMove5(oppFastMoveName)} ${oppFastTurns}t/${oppFastEnergy}e/${oppFastDmgPct}d"
+        val userFastTelemetry = "${abbrMove5(userFastMoveName)} ${userFastTurns}t/${userFastEnergy}e/${userFastDmgPct}d"
 
         fun formatOrdinal(n: Int): String = when {
             n % 100 in 11..13 -> "${n}th"
