@@ -19,17 +19,29 @@ android {
 
     signingConfigs {
         create("release") {
-            storeFile = file("release.keystore")
-            storePassword = System.getenv("RELEASE_STORE_PASSWORD") ?: "gblrelease123"
-            keyAlias = System.getenv("RELEASE_KEY_ALIAS") ?: "gblkey"
-            keyPassword = System.getenv("RELEASE_KEY_PASSWORD") ?: "gblrelease123"
+            val ksFile = file("release.keystore")
+            if (ksFile.exists()) {
+                storeFile = ksFile
+                storePassword = System.getenv("RELEASE_STORE_PASSWORD") ?: "gblrelease123"
+                keyAlias = System.getenv("RELEASE_KEY_ALIAS") ?: "gblkey"
+                keyPassword = System.getenv("RELEASE_KEY_PASSWORD") ?: "gblrelease123"
+            }
         }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("release")
+            val relSigning = signingConfigs.findByName("release")
+            if (relSigning?.storeFile?.exists() == true) {
+                try {
+                    signingConfig = relSigning
+                } catch (_: Exception) {
+                    signingConfig = signingConfigs.getByName("debug")
+                }
+            } else {
+                signingConfig = signingConfigs.getByName("debug")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
