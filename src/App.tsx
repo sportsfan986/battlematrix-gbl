@@ -651,6 +651,27 @@ export default function App() {
   const [userShields, setUserShields] = useState<number>(2);
   const [oppShields, setOppShields] = useState<number>(2);
 
+  // v2.32: Dual 50s Countdown State Machines, Dynamic Color Coding & Pokéball Faint Tracking
+  const [playerSwapEndTimeMs, setPlayerSwapEndTimeMs] = useState<number>(0);
+  const [oppSwapEndTimeMs, setOppSwapEndTimeMs] = useState<number>(0);
+  const [playerPokeballCount, setPlayerPokeballCount] = useState<number>(3);
+  const [oppPokeballCount, setOppPokeballCount] = useState<number>(3);
+  const [playerFaintedSlots, setPlayerFaintedSlots] = useState<boolean[]>([false, false, false]);
+  const [oppFaintedSlots, setOppFaintedSlots] = useState<boolean[]>([false, false, false]);
+  const [isPlayerTurnOne, setIsPlayerTurnOne] = useState<boolean>(true);
+  const [isOppTurnOne, setIsOppTurnOne] = useState<boolean>(true);
+  const [nowMs, setNowMs] = useState<number>(() => Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNowMs(Date.now());
+    }, 200);
+    return () => clearInterval(timer);
+  }, []);
+
+  const playerSwapRemainingSec = Math.max(0, Math.ceil((playerSwapEndTimeMs - nowMs) / 1000));
+  const oppSwapRemainingSec = Math.max(0, Math.ceil((oppSwapEndTimeMs - nowMs) / 1000));
+
   // Scanned Opponents (Fixed Discovery Order: Slot 0 = 1st Seen, Slot 1 = 2nd Seen, Slot 2 = 3rd Seen)
   const [scannedOpponents, setScannedOpponents] = useState<string[]>(['Zacian (Crowned)', 'Yveltal', 'Entei']);
   const [lastClearedOpponents, setLastClearedOpponents] = useState<string[]>([]);
@@ -842,6 +863,15 @@ export default function App() {
     setOppTurnsElapsed(0);
     setUserEnergy(0);
     setOppEnergy(0);
+    // v2.32: Reset swap timers and pokeball states to initial 0s Ready & 3 balls
+    setPlayerSwapEndTimeMs(0);
+    setOppSwapEndTimeMs(0);
+    setPlayerPokeballCount(3);
+    setOppPokeballCount(3);
+    setPlayerFaintedSlots([false, false, false]);
+    setOppFaintedSlots([false, false, false]);
+    setIsPlayerTurnOne(true);
+    setIsOppTurnOne(true);
   };
 
   // Stop Battle: pauses battle & opens the Win/Loss log option bar
@@ -870,6 +900,12 @@ export default function App() {
     setOppTurnsElapsed(0);
     setUserEnergy(0);
     setOppEnergy(0);
+    setPlayerSwapEndTimeMs(0);
+    setOppSwapEndTimeMs(0);
+    setPlayerPokeballCount(3);
+    setOppPokeballCount(3);
+    setPlayerFaintedSlots([false, false, false]);
+    setOppFaintedSlots([false, false, false]);
   };
 
   // Fixed Opponent Discovery Order: [1st seen, 2nd seen, 3rd seen] NEVER reorders when swapping active opponent!
@@ -882,6 +918,13 @@ export default function App() {
     setLastClearedOpponents([]);
     setOppTurnsElapsed(0);
     setOppEnergy(0);
+
+    // v2.32 True Swap logic: If active pokeball count unchanged (not fainted), reset opponent swap clock to 50s
+    if (!oppFaintedSlots[activeOpponentSlotIndex]) {
+      setOppSwapEndTimeMs(Date.now() + 50000);
+    }
+    setIsOppTurnOne(false);
+
     const targetBase = getBaseSpeciesKey(name);
     setScannedOpponents((prev) => {
       const existingIdx = prev.findIndex((n) => getBaseSpeciesKey(n) === targetBase);
@@ -903,6 +946,83 @@ export default function App() {
       setActiveOpponentSlotIndex(targetSlot);
       return replaced;
     });
+  };
+
+  // v2.32 Player Lead/Roster Switch
+  const handleSelectUserSlot = (slotIdx: number) => {
+    if (slotIdx === activeUserSlotIndex) return;
+    const isPrevFainted = !!playerFaintedSlots[activeUserSlotIndex];
+    // If not a faint replacement (active Pokéball count unchanged): True Swap -> reset to 50s
+    if (!isPrevFainted) {
+      setPlayerSwapEndTimeMs(Date.now() + 50000);
+    }
+    setIsPlayerTurnOne(false);
+    setActiveUserSlotIndex(slotIdx);
+  };
+
+  const handleSimulatePlayerSwap = () => {
+    const nextSlot = (activeUserSlotIndex + 1) % 3;
+    setPlayerSwapEndTimeMs(Date.now() + 50000);
+    setIsPlayerTurnOne(false);
+    setActiveUserSlotIndex(nextSlot);
+    setStartBattleToast(`Player Swapped -> ${activePreset?.pokemon[nextSlot]?.name || 'Lead'} (50s timer)`);
+    setTimeout(() => setStartBattleToast(null), 1800);
+  };
+
+  const handleSimulateOpponentSwap = () => {
+    if (scannedOpponents.length > 1) {
+      const nextSlot = (activeOpponentSlotIndex + 1) % scannedOpponents.length;
+      setActiveOpponentSlotIndex(nextSlot);
+      setActiveOpponentKey(scannedOpponents[nextSlot]);
+    }
+    setOppSwapEndTimeMs(Date.now() + 50000);
+    setIsOppTurnOne(false);
+    setStartBattleToast(`Opponent Swapped (50s timer)`);
+    setTimeout(() => setStartBattleToast(null), 1800);
+  };
+
+  const handleSimulatePlayerFaint = () => {
+    setPlayerFaintedSlots((prev) => {
+      const updated = [...prev];
+      updated[activeUserSlotIndex] = true;
+      return updated;
+    });
+    setPlayerPokeballCount((prev) => Math.max(0, prev - 1));
+    const nextLiveIdx = [0, 1, 2].find((idx) => idx !== activeUserSlotIndex && !playerFaintedSlots[idx]);
+    if (nextLiveIdx !== undefined) {
+      setActiveUserSlotIndex(nextLiveIdx);
+    }
+    setStartBattleToast(`Player Fainted (-1 Pokéball, Timer Preserved)`);
+    setTimeout(() => setStartBattleToast(null), 2000);
+  };
+
+  const handleSimulateOpponentFaint = () => {
+    setOppFaintedSlots((prev) => {
+      const updated = [...prev];
+      updated[activeOpponentSlotIndex] = true;
+      return updated;
+    });
+    setOppPokeballCount((prev) => Math.max(0, prev - 1));
+    const nextLiveIdx = scannedOpponents.findIndex((_, idx) => idx !== activeOpponentSlotIndex && !oppFaintedSlots[idx]);
+    if (nextLiveIdx >= 0) {
+      setActiveOpponentSlotIndex(nextLiveIdx);
+      setActiveOpponentKey(scannedOpponents[nextLiveIdx]);
+    }
+    setStartBattleToast(`Opponent Fainted (-1 Pokéball, Timer Preserved)`);
+    setTimeout(() => setStartBattleToast(null), 2000);
+  };
+
+  const handleResetTimersAndBalls = () => {
+    setPlayerSwapEndTimeMs(0);
+    setOppSwapEndTimeMs(0);
+    setPlayerPokeballCount(3);
+    setOppPokeballCount(3);
+    setPlayerFaintedSlots([false, false, false]);
+    setOppFaintedSlots([false, false, false]);
+    setIsPlayerTurnOne(true);
+    setIsOppTurnOne(true);
+    setStartBattleToast(`Swap Clocks & Pokéballs Reset (3 balls, 0s Ready)`);
+    setTimeout(() => setStartBattleToast(null), 1800);
   };
 
   const handleSelectOpponent = (name: string) => {
@@ -1438,7 +1558,7 @@ export default function App() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'SilphScope_PvP_v2.31_Android_Project.zip';
+      a.download = 'SilphScope_PvP_v2.32_Android_Project.zip';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -1465,7 +1585,7 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <h1 className="font-bold text-base md:text-lg tracking-tight text-white">SilphScope PvP</h1>
                 <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20">
-                  v2.31 • Android Native Overlay
+                  v2.32 • Android Native Overlay
                 </span>
               </div>
               <p className="text-xs text-slate-400 hidden sm:block">
@@ -1873,9 +1993,19 @@ export default function App() {
                             </>
                           )}
                         </div>
+                        {/* v2.32: Opponent Swap Clock (Top-Right Header badge replacing redundant fast-move telemetry) */}
                         {!isWaitingOpponent && scannedOpponents.length > 0 && (
-                          <span className="text-sky-300 font-bold text-[8px] font-mono shrink-0 bg-black/35 px-1 rounded border border-sky-400/30">
-                            {userFastInfo.telemetry}
+                          <span
+                            className={`font-mono font-extrabold text-[8px] px-1.5 py-0.5 rounded border leading-none transition-colors shrink-0 ${
+                              oppSwapRemainingSec <= 0
+                                ? 'text-[#FF3B30] bg-red-950/60 border-red-500/60 shadow-[0_0_6px_rgba(255,59,48,0.35)]'
+                                : oppSwapRemainingSec < 10
+                                ? 'text-[#FFD700] bg-amber-950/60 border-amber-400/60'
+                                : 'text-white bg-black/45 border-white/40'
+                            }`}
+                            title="Opponent Swap Countdown (50s countdown, resets on True Swap)"
+                          >
+                            Opp Swap: {oppSwapRemainingSec}s
                           </span>
                         )}
                       </div>
@@ -1951,16 +2081,79 @@ export default function App() {
                           {activePreset.pokemon.map((member, idx) => (
                             <button
                               key={member.id}
-                              onClick={() => setActiveUserSlotIndex(idx)}
+                              onClick={() => handleSelectUserSlot(idx)}
                               className={`text-[8px] font-bold px-1 py-0.5 rounded border transition ${
-                                activeUserSlotIndex === idx
+                                activeUserSlotIndex === idx && !playerFaintedSlots[idx]
                                   ? 'bg-emerald-500/40 text-white border-emerald-400'
+                                  : playerFaintedSlots[idx]
+                                  ? 'bg-slate-900/30 text-slate-500 border-white/10 opacity-35 line-through'
                                   : 'bg-slate-900/50 text-slate-200 border-white/20 hover:bg-slate-800'
                               }`}
+                              title={`${member.name}${playerFaintedSlots[idx] ? ' (Fainted)' : ''}`}
                             >
                               {member.name.replace(/^Shadow\s+/i, 'S-').replace(/^Kanto\s+/i, '').split(' ')[0].slice(0, 5)}
                             </button>
                           ))}
+                        </div>
+                      </div>
+
+                      {/* v2.32: Pokéball Counts & Quick Simulation Controls */}
+                      <div className="flex items-center justify-between gap-1 px-1 py-0.5 bg-black/35 rounded border border-white/10 text-[7px] font-mono my-0.5">
+                        <div className="flex items-center gap-1">
+                          <span className="text-slate-400 font-bold">You:</span>
+                          <span className="flex items-center tracking-tighter" title={`Player Pokéballs: ${playerPokeballCount}/3 remaining`}>
+                            {[0, 1, 2].map((i) => (
+                              <span key={i} className={i < playerPokeballCount ? 'text-red-500' : 'text-slate-600 opacity-40'}>●</span>
+                            ))}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={handleSimulatePlayerSwap}
+                            className="px-1 py-0.2 rounded bg-sky-500/20 hover:bg-sky-500/40 text-sky-200 border border-sky-400/30"
+                            title="Simulate True Swap for Player (resets to 50s)"
+                          >
+                            Swap P
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleSimulatePlayerFaint}
+                            className="px-1 py-0.2 rounded bg-red-500/20 hover:bg-red-500/40 text-red-200 border border-red-400/30"
+                            title="Simulate Player Faint (-1 ball, dims column, preserves swap timer)"
+                          >
+                            Faint P
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-slate-400 font-bold">Opp:</span>
+                          <span className="flex items-center tracking-tighter" title={`Opponent Pokéballs: ${oppPokeballCount}/3 remaining`}>
+                            {[0, 1, 2].map((i) => (
+                              <span key={i} className={i < oppPokeballCount ? 'text-red-500' : 'text-slate-600 opacity-40'}>●</span>
+                            ))}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={handleSimulateOpponentSwap}
+                            className="px-1 py-0.2 rounded bg-sky-500/20 hover:bg-sky-500/40 text-sky-200 border border-sky-400/30"
+                            title="Simulate True Swap for Opponent (resets to 50s)"
+                          >
+                            Swap Opp
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleSimulateOpponentFaint}
+                            className="px-1 py-0.2 rounded bg-red-500/20 hover:bg-red-500/40 text-red-200 border border-red-400/30"
+                            title="Simulate Opponent Faint (-1 ball, dims column, preserves swap timer)"
+                          >
+                            Faint Opp
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleResetTimersAndBalls}
+                            className="px-1 py-0.2 rounded bg-slate-700/50 hover:bg-slate-600 text-slate-300 border border-slate-500/30"
+                            title="Reset all swap clocks to 0s (Ready) and restore 3 Pokéballs"
+                          >
+                            ↺
+                          </button>
                         </div>
                       </div>
 
@@ -2064,22 +2257,25 @@ export default function App() {
                             const p2Init = activePreset.pokemon[1]?.name.charAt(0) || 'L';
                             const p3Init = activePreset.pokemon[2]?.name.charAt(0) || 'K';
 
+                            const isOppFainted = !!oppFaintedSlots[idx];
                             return (
                               <div
                                 key={`${oppName}-${idx}`}
                                 onClick={() => handleSwapActiveOpponent(oppName)}
                                 className={`flex items-center justify-start gap-1.5 px-1.5 py-0.5 rounded cursor-pointer transition ${
-                                  isActiveSlot
+                                  isOppFainted
+                                    ? 'opacity-35 line-through bg-black/20'
+                                    : isActiveSlot
                                     ? 'bg-sky-500/25 border border-sky-400/50 shadow-[0_0_8px_rgba(56,189,248,0.25)]'
                                     : 'hover:bg-white/10 border border-transparent'
                                 }`}
-                                title={isActiveSlot ? `#${idx + 1} Seen: ${oppName} (Active on field)` : `Click to set #${idx + 1} (${oppName}) as active opponent (keeps fixed #1/#2/#3 order)`}
+                                title={isOppFainted ? `#${idx + 1} Seen: ${oppName} (Fainted)` : isActiveSlot ? `#${idx + 1} Seen: ${oppName} (Active on field)` : `Click to set #${idx + 1} (${oppName}) as active opponent (keeps fixed #1/#2/#3 order)`}
                               >
                                 <div className="flex items-center gap-1 w-[100px] min-w-[100px] max-w-[100px] shrink-0">
-                                  <span className={`text-[8px] font-bold shrink-0 ${isActiveSlot ? 'text-sky-300' : 'text-slate-400'}`}>
+                                  <span className={`text-[8px] font-bold shrink-0 ${isOppFainted ? 'text-slate-500' : isActiveSlot ? 'text-sky-300' : 'text-slate-400'}`}>
                                     #{idx + 1}
                                   </span>
-                                  <span className="font-bold text-slate-100 truncate text-[9.5px]" title={fullOppDisplay}>
+                                  <span className={`font-bold truncate text-[9.5px] ${isOppFainted ? 'text-slate-400 line-through' : 'text-slate-100'}`} title={fullOppDisplay}>
                                     {fullOppDisplay}
                                   </span>
                                 </div>
@@ -2123,14 +2319,18 @@ export default function App() {
                                   ? abbrPoke3(memberName, false).toUpperCase().slice(0, 3)
                                   : '---';
                                 const isActv = slotIdx === activeUserSlotIndex;
+                                const isFainted = !!playerFaintedSlots[slotIdx];
                                 return (
                                   <span
                                     key={slotIdx}
                                     className={`py-0.5 leading-none transition ${
-                                      isActv
+                                      isFainted
+                                        ? 'opacity-35 text-[#5A6577] line-through'
+                                        : isActv
                                         ? 'bg-sky-500/25 text-sky-200 border-t border-x border-sky-400/80 rounded-t shadow-[0_0_6px_rgba(56,189,248,0.25)]'
                                         : 'text-slate-400'
                                     }`}
+                                    title={isFainted ? `${memberName} (Fainted)` : memberName}
                                   >
                                     {code}
                                   </span>
@@ -2208,12 +2408,15 @@ export default function App() {
                                     </div>
                                   </div>
 
-                                  {/* Right: 3-Pokemon Team Damage % Columns with Vertical Active Highlight */}
+                                  {/* Right: 3-Pokemon Team Damage % Columns with Vertical Active Highlight & Faint Column Dimming */}
                                   <div className="grid grid-cols-3 w-[84px] items-center text-center font-mono shrink-0">
                                     {row.teamDamages.map((cell, cIdx) => {
                                       const isActv = cIdx === activeUserSlotIndex;
+                                      const isFainted = !!playerFaintedSlots[cIdx];
                                       const textCls =
-                                        cell.tier === 'resist'
+                                        isFainted
+                                          ? 'text-[#5A6577] opacity-35'
+                                          : cell.tier === 'resist'
                                           ? 'text-emerald-300'
                                           : cell.tier === 'weak'
                                           ? 'text-red-300'
@@ -2222,13 +2425,15 @@ export default function App() {
                                         <div
                                           key={cIdx}
                                           className={`py-0.5 text-[7.5px] font-extrabold leading-tight ${textCls} ${
-                                            isActv
+                                            isFainted
+                                              ? 'bg-slate-950/40 opacity-35'
+                                              : isActv
                                               ? `bg-sky-500/25 border-x border-sky-400/80 shadow-[inset_0_0_6px_rgba(56,189,248,0.25)] ${
                                                   isLastRow ? 'border-b rounded-b' : ''
                                                 }`
                                               : 'bg-slate-900/40'
                                           }`}
-                                          title={`${cell.name}: ${cell.dmgPct}%`}
+                                          title={isFainted ? `${cell.name} (Fainted)` : `${cell.name}: ${cell.dmgPct}%`}
                                         >
                                           {cell.isEmpty ? '—' : `${cell.dmgPct}%`}
                                         </div>
@@ -2240,10 +2445,24 @@ export default function App() {
                             })}
                           </div>
 
-                          {/* My Attacks Section Header + 3-Opponent Column Headers */}
+                          {/* My Attacks Section Header + 3-Opponent Column Headers & Player Swap Clock */}
                           <div className="grid grid-cols-[44px_1fr_84px] items-center gap-1 px-1 pt-1">
                             <span className="text-[7.5px] font-extrabold text-slate-400 uppercase tracking-wider col-span-2 flex items-center justify-between pr-1">
-                              <span>My Attacks</span>
+                              <span className="flex items-center gap-1.5">
+                                <span>My Attacks</span>
+                                <span
+                                  className={`font-mono font-extrabold text-[7px] px-1 py-0.2 rounded border leading-none transition-colors shrink-0 ${
+                                    playerSwapRemainingSec <= 0
+                                      ? 'text-[#00FF00] bg-emerald-950/60 border-emerald-500/60 shadow-[0_0_6px_rgba(0,255,0,0.35)]'
+                                      : playerSwapRemainingSec < 10
+                                      ? 'text-[#FFD700] bg-amber-950/60 border-amber-400/60'
+                                      : 'text-white bg-black/45 border-white/40'
+                                  }`}
+                                  title="Player Swap Countdown (50s countdown, resets on True Swap)"
+                                >
+                                  Swap: {playerSwapRemainingSec}s
+                                </span>
+                              </span>
                               <span className="text-sky-300 font-extrabold text-[7.5px] font-mono">
                                 {abbrPoke3(userLeadName, false)} ({userFastInfo.telemetry})
                               </span>
@@ -2255,15 +2474,19 @@ export default function App() {
                                   ? abbrPoke3(oppName, false).toUpperCase().slice(0, 3)
                                   : '---';
                                 const isActv = oppIdx === safeActiveOppSlot;
+                                const isFainted = !!oppFaintedSlots[oppIdx];
                                 return (
                                   <span
                                     key={oppIdx}
                                     onClick={() => oppName && handleSwapActiveOpponent(oppName)}
                                     className={`py-0.5 leading-none transition ${oppName ? 'cursor-pointer' : ''} ${
-                                      isActv
+                                      isFainted
+                                        ? 'opacity-35 text-[#5A6577] line-through'
+                                        : isActv
                                         ? 'bg-sky-500/25 text-sky-200 border-t border-x border-sky-400/80 rounded-t shadow-[0_0_6px_rgba(56,189,248,0.25)]'
                                         : 'text-slate-400'
                                     }`}
+                                    title={isFainted ? `${oppName} (Fainted)` : oppName}
                                   >
                                     {code}
                                   </span>
@@ -2356,11 +2579,14 @@ export default function App() {
                                     </div>
                                   </div>
 
-                                  {/* Right: 3-Opponent Outgoing Damage % Columns with Vertical Active Highlight */}
+                                  {/* Right: 3-Opponent Outgoing Damage % Columns with Vertical Active Highlight & Faint Dimming */}
                                   <div className="grid grid-cols-3 w-[84px] items-center text-center font-mono shrink-0">
                                     {row.oppDamages.map((cell, cIdx) => {
                                       const isActv = cIdx === safeActiveOppSlot;
-                                      const textCls = cell.isEmpty
+                                      const isFainted = !!oppFaintedSlots[cIdx];
+                                      const textCls = isFainted
+                                        ? 'text-[#5A6577] opacity-35'
+                                        : cell.isEmpty
                                         ? 'text-slate-500'
                                         : cell.tier === 'resist'
                                         ? 'text-emerald-300'
@@ -2371,13 +2597,15 @@ export default function App() {
                                         <div
                                           key={cIdx}
                                           className={`py-0.5 text-[7.5px] font-extrabold leading-tight ${textCls} ${
-                                            isActv
+                                            isFainted
+                                              ? 'bg-slate-950/40 opacity-35'
+                                              : isActv
                                               ? `bg-sky-500/25 border-x border-sky-400/80 shadow-[inset_0_0_6px_rgba(56,189,248,0.25)] ${
                                                   isLastRow ? 'border-b rounded-b' : ''
                                                 }`
                                               : 'bg-slate-900/40'
                                           }`}
-                                          title={cell.isEmpty ? 'Unscanned opponent slot' : `${cell.name}: ${cell.dmgPct}%`}
+                                          title={isFainted ? `${cell.name} (Fainted)` : cell.isEmpty ? 'Unscanned opponent slot' : `${cell.name}: ${cell.dmgPct}%`}
                                         >
                                           {cell.isEmpty ? '—' : cell.dmgPct >= 100 ? 'KO!' : `${cell.dmgPct}%`}
                                         </div>
@@ -4104,7 +4332,7 @@ export default function App() {
                           'Content-Type': 'application/json'
                         },
                         body: JSON.stringify({
-                          description: 'SilphScope PvP v2.31 Multi-Device Delta Sync Vault',
+                          description: 'SilphScope PvP v2.32 Multi-Device Delta Sync Vault',
                           public: false,
                           files: {
                             'gbl_delta_sync_v2.json': { content: bundleStr }
@@ -5634,7 +5862,7 @@ export default function App() {
 
       {/* Footer */}
       <footer className="border-t border-slate-800/80 py-4 px-6 text-center text-xs text-slate-500">
-        SilphScope PvP v2.31 Overlay • Built with Kotlin, WindowManager TYPE_APPLICATION_OVERLAY, MediaProjection in-memory frame capture, and ML Kit Text Recognition.
+        SilphScope PvP v2.32 Overlay • Built with Kotlin, WindowManager TYPE_APPLICATION_OVERLAY, MediaProjection in-memory frame capture, and ML Kit Text Recognition.
       </footer>
     </div>
   );

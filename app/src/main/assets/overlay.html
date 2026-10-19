@@ -589,6 +589,36 @@
             color: #475569;
         }
 
+        .swap-clock-badge {
+            font-size: 8px;
+            font-weight: 800;
+            font-family: monospace;
+            padding: 1px 4.5px;
+            border-radius: 3px;
+            white-space: nowrap;
+            flex-shrink: 0;
+            font-variant-numeric: tabular-nums;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            background: rgba(15, 23, 42, 0.7);
+            transition: color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+        }
+
+        .col-fainted {
+            opacity: 0.38 !important;
+            color: #64748b !important;
+            filter: grayscale(90%) !important;
+            text-decoration: line-through rgba(148, 163, 184, 0.5) !important;
+            background: rgba(15, 23, 42, 0.2) !important;
+            border-color: rgba(100, 116, 139, 0.15) !important;
+        }
+
+        .dmg-col-hdr.col-fainted {
+            opacity: 0.38 !important;
+            color: #64748b !important;
+            border-color: transparent !important;
+            background: transparent !important;
+        }
+
         .user-fast-badge {
             font-size: 8px;
             font-weight: 800;
@@ -765,14 +795,14 @@
 
     <!-- OPTION 1: Top-Left Sky Trench (Transparent, Full-Width Header, 3-Column Threat Matrices) -->
     <div id="mode-sky-trench" class="glass-panel">
-        <!-- Header: Upper-Left Sword Minimize Button, Opponent Name, Opponent Fast Move Telemetry & Your Fast Move Telemetry -->
+        <!-- Header: Upper-Left Sword Minimize Button, Opponent Name, Opponent Fast Move Telemetry & Opponent Swap Clock Badge -->
         <div class="header-row">
             <div class="opp-title" id="sky-title">
                 <button id="btn-minimize-sword" class="sword-minimize-btn" onclick="minimizeToBubble()" title="Minimize overlay to floating bubble & pause OCR">⚔️</button>
                 <span id="sky-opp-name">WAITING FOR OPPONENT...</span> 
                 <span class="opp-move-tag" id="sky-opp-fastmove">(1 Hz OCR Active)</span>
             </div>
-            <span class="user-fast-badge hidden" id="sky-user-fastmove">You: —</span>
+            <span class="swap-clock-badge opp-swap-badge" id="sky-opp-swap-clock" title="Opponent Switch/Swap Cooldown Timer">Opp Swap: 0s</span>
         </div>
 
         <!-- Toolbar: Start/Stop Battle Trigger, Shadow Toggle, Form Cycler, and Active Team Chips -->
@@ -835,8 +865,11 @@
         <div class="timing-rows-container">
             <div class="section-header-grid">
                 <div class="section-header-left">
-                    <span>My Attacks</span>
-                    <span id="sky-my-short" style="color:#38bdf8; font-weight:800; font-family:monospace; text-transform:none;">Lead</span>
+                    <div style="display:flex; align-items:center; gap:4px; min-width:0; overflow:hidden;">
+                        <span>My Attacks</span>
+                        <span id="sky-my-short" style="color:#38bdf8; font-weight:800; font-family:monospace; text-transform:none;">Lead</span>
+                    </div>
+                    <span class="swap-clock-badge player-swap-badge" id="sky-player-swap-clock" title="Player Switch/Swap Cooldown Timer">Swap: 0s</span>
                 </div>
                 <div id="sky-my-dmg-headers" class="dmg-col-headers"></div>
             </div>
@@ -1257,6 +1290,64 @@
             disableBattleToasts = !!disabled;
         };
 
+        // v2.32: Dynamic Color-Coded Swap Countdown Timers
+        function updateSwapClockBadge(element, prefix, seconds, isOpponent) {
+            if (!element) return;
+            const text = seconds <= 0 ? `${prefix}: 0s` : `${prefix}: ${seconds}s`;
+            element.textContent = text;
+            if (seconds <= 0) {
+                if (isOpponent) {
+                    // Opponent Ready (0s): Alert Red (#FF3B30)
+                    element.style.color = "#FF3B30";
+                    element.style.borderColor = "rgba(255, 59, 48, 0.75)";
+                    element.style.backgroundColor = "rgba(239, 68, 68, 0.28)";
+                    element.style.boxShadow = "0 0 5px rgba(255, 59, 48, 0.45)";
+                } else {
+                    // Player Ready (0s): Standard UI Green (#00FF00)
+                    element.style.color = "#00FF00";
+                    element.style.borderColor = "rgba(0, 255, 0, 0.75)";
+                    element.style.backgroundColor = "rgba(34, 197, 94, 0.28)";
+                    element.style.boxShadow = "0 0 5px rgba(0, 255, 0, 0.45)";
+                }
+            } else if (seconds < 10) {
+                // Under 10s: Yellow (#FFE600 / #FFD700)
+                element.style.color = "#FFE600";
+                element.style.borderColor = "rgba(255, 230, 0, 0.75)";
+                element.style.backgroundColor = "rgba(245, 158, 11, 0.28)";
+                element.style.boxShadow = "0 0 4px rgba(255, 230, 0, 0.35)";
+            } else {
+                // 10s or Greater: White (#FFFFFF)
+                element.style.color = "#FFFFFF";
+                element.style.borderColor = "rgba(255, 255, 255, 0.35)";
+                element.style.backgroundColor = "rgba(255, 255, 255, 0.12)";
+                element.style.boxShadow = "none";
+            }
+        }
+
+        function refreshSwapClocks() {
+            const now = Date.now();
+            let playerSec = 0;
+            if (battleData.playerSwapEndTimeMs && battleData.playerSwapEndTimeMs > now) {
+                playerSec = Math.max(0, Math.ceil((battleData.playerSwapEndTimeMs - now) / 1000));
+            } else if (typeof battleData.playerSwapRemainingSec === "number") {
+                playerSec = Math.max(0, battleData.playerSwapRemainingSec);
+            }
+
+            let oppSec = 0;
+            if (battleData.oppSwapEndTimeMs && battleData.oppSwapEndTimeMs > now) {
+                oppSec = Math.max(0, Math.ceil((battleData.oppSwapEndTimeMs - now) / 1000));
+            } else if (typeof battleData.oppSwapRemainingSec === "number") {
+                oppSec = Math.max(0, battleData.oppSwapRemainingSec);
+            }
+
+            const oppClockEl = document.getElementById("sky-opp-swap-clock");
+            const playerClockEl = document.getElementById("sky-player-swap-clock");
+            updateSwapClockBadge(oppClockEl, "Opp Swap", oppSec, true);
+            updateSwapClockBadge(playerClockEl, "Swap", playerSec, false);
+        }
+
+        setInterval(refreshSwapClocks, 250);
+
         function updateBattleButtonUi() {
             if (buttonToastActive) return;
             const btn = document.getElementById("btn-start-battle");
@@ -1525,16 +1616,19 @@
                             .split(" ")[0]
                             .substring(0, 6);
                         const isActive = (fullName.toLowerCase() === (battleData.userActivePokemon || "").toLowerCase());
-                        return `<button class="chip-btn ${isActive ? 'active' : ''}" onclick="selectUserPokemonByIndex(${mIdx})" title="Active lead: ${fullName}">${shortName}</button>`;
+                        const isFainted = !!(battleData.playerFaintedSlots && battleData.playerFaintedSlots[mIdx]);
+                        const faintStyle = isFainted ? 'opacity:0.4; text-decoration:line-through;' : '';
+                        return `<button class="chip-btn ${isActive && !isFainted ? 'active' : ''} ${isFainted ? 'col-fainted' : ''}" style="${faintStyle}" onclick="selectUserPokemonByIndex(${mIdx})" title="Active lead: ${fullName}${isFainted ? ' (Fainted)' : ''}">${shortName}</button>`;
                     }).join("");
                 }
             } catch (e) {
                 console.error("Toolbar render error", e);
             }
 
+            refreshSwapClocks();
+
             const oppNameEl = document.getElementById("sky-opp-name");
             const oppMoveEl = document.getElementById("sky-opp-fastmove");
-            const userFastEl = document.getElementById("sky-user-fastmove");
             const myShortEl = document.getElementById("sky-my-short");
             const cmpBadgeEl = document.getElementById("sky-cmp-badge");
             const oppDmgHeadersEl = document.getElementById("sky-opp-dmg-headers");
@@ -1566,7 +1660,6 @@
             if (isWaitingState) {
                 if (oppNameEl) oppNameEl.textContent = "WAITING FOR OPPONENT...";
                 if (oppMoveEl) oppMoveEl.textContent = "(1 Hz OCR Active)";
-                if (userFastEl) userFastEl.classList.add("hidden");
                 if (cmpBadgeEl) {
                     cmpBadgeEl.textContent = "CMP: —";
                     cmpBadgeEl.className = "cmp-pill win";
@@ -1591,11 +1684,6 @@
                 const oppFastTelemetry = battleData.oppFastTelemetry
                     || `${abbrMove5(battleData.activeOpponentFastMove || "Fast")} ${battleData.activeOpponentTurns || 2}t`;
                 if (oppMoveEl) oppMoveEl.textContent = `[${oppFastTelemetry}]`;
-
-                if (userFastEl) {
-                    userFastEl.textContent = `You: ${userFastTelemetry}`;
-                    userFastEl.classList.remove("hidden");
-                }
 
                 const winsCmp = battleData.winsCmp !== undefined ? !!battleData.winsCmp : true;
                 if (cmpBadgeEl) {
@@ -1643,7 +1731,9 @@
                         oppDmgHeadersEl.innerHTML = teamList.slice(0, 3).map((member, idx) => {
                             const code = member.code || abbrPoke(member.name, false);
                             const isAct = (idx === activeSlotIdx);
-                            return `<span class="dmg-col-hdr ${isAct ? 'active-col' : ''}">${code}</span>`;
+                            const isFainted = !!(battleData.playerFaintedSlots && battleData.playerFaintedSlots[idx]);
+                            const faintCls = isFainted ? "col-fainted" : "";
+                            return `<span class="dmg-col-hdr ${isAct && !isFainted ? 'active-col' : ''} ${faintCls}">${code}</span>`;
                         }).join("");
                     }
 
@@ -1691,7 +1781,7 @@
 
                             const centerHtml = `<div class="seg-bar-track">${cyclesHtml}</div>`;
 
-                            // 3-Column Team Damage Matrix with Vertical Active Column Highlight
+                            // 3-Column Team Damage Matrix with Vertical Active Column Highlight & Faint Dimming
                             let teamDamages = row.teamDamages;
                             if (!teamDamages || teamDamages.length < 3) {
                                 teamDamages = teamList.slice(0, 3).map((m, idx) => ({
@@ -1704,8 +1794,10 @@
 
                             const rightGridHtml = teamDamages.slice(0, 3).map((td, idx) => {
                                 const isAct = td.isActive !== undefined ? !!td.isActive : (idx === activeSlotIdx);
+                                const isFainted = !!(battleData.playerFaintedSlots && battleData.playerFaintedSlots[idx]);
+                                const faintCls = isFainted ? "col-fainted" : "";
                                 const tierCls = td.tier === "resist" ? "tier-resist" : (td.tier === "weak" ? "tier-weak" : "tier-neutral");
-                                return `<div class="dmg-cell ${tierCls} ${isAct ? 'active-col' : ''}">${td.dmgPct}%</div>`;
+                                return `<div class="dmg-cell ${tierCls} ${isAct && !isFainted ? 'active-col' : ''} ${faintCls}">${td.dmgPct}%</div>`;
                             }).join("");
 
                             return `
@@ -1733,8 +1825,10 @@
                             const isAct = opp && opp.isActive !== undefined ? !!opp.isActive : (idx === activeOppSlotIdx);
                             const isShad = opp && opp.isShadow !== undefined ? !!opp.isShadow : (isAct && battleData.isOpponentShadow);
                             const code = opp ? (opp.code || abbrPoke(opp.name, isShad)) : "—";
+                            const isFainted = !!(battleData.oppFaintedSlots && battleData.oppFaintedSlots[idx]);
+                            const faintCls = isFainted ? "col-fainted" : "";
                             const clickAttr = opp ? `onclick="swapOpponentByIndex(${idx})" style="cursor:pointer;"` : "";
-                            return `<span class="dmg-col-hdr ${isAct ? 'active-col' : ''}" ${clickAttr}>${code}</span>`;
+                            return `<span class="dmg-col-hdr ${isAct && !isFainted ? 'active-col' : ''} ${faintCls}" ${clickAttr}>${code}</span>`;
                         }).join("");
                     }
 
@@ -1805,12 +1899,14 @@
 
                             const rightGridHtml = oppDamages.slice(0, 3).map((od, idx) => {
                                 const isAct = od.isActive !== undefined ? !!od.isActive : (idx === 0);
+                                const isFainted = !!(battleData.oppFaintedSlots && battleData.oppFaintedSlots[idx]);
+                                const faintCls = isFainted ? "col-fainted" : "";
                                 if (od.dmgPct === null || od.dmgPct === undefined || od.tier === "empty") {
-                                    return `<div class="dmg-cell tier-empty ${isAct ? 'active-col' : ''}">—</div>`;
+                                    return `<div class="dmg-cell tier-empty ${isAct && !isFainted ? 'active-col' : ''} ${faintCls}">—</div>`;
                                 }
                                 const tierCls = od.tier === "high" ? "tier-high" : (od.tier === "low" ? "tier-low" : "tier-neutral");
                                 const text = od.dmgPct >= 100 ? "KO!" : `${od.dmgPct}%`;
-                                return `<div class="dmg-cell ${tierCls} ${isAct ? 'active-col' : ''}">${text}</div>`;
+                                return `<div class="dmg-cell ${tierCls} ${isAct && !isFainted ? 'active-col' : ''} ${faintCls}">${text}</div>`;
                             }).join("");
 
                             return `

@@ -2845,6 +2845,20 @@ class OverlayService : LifecycleService() {
     private var cachedScreenBitmap: Bitmap? = null
     private val captureLock = Any()
 
+    // v2.32: Independent 50s Swap Countdown Timers & Pokéball/Faint State Machine
+    private var playerSwapEndTimeMs: Long = 0L
+    private var oppSwapEndTimeMs: Long = 0L
+    private var playerPokeballCount: Int = 3
+    private var oppPokeballCount: Int = 3
+    private val playerFaintedSlots = BooleanArray(3) { false }
+    private val oppFaintedSlots = BooleanArray(3) { false }
+    private var prevFrameTimestampMs: Long = 0L
+    private var currentFrameTimestampMs: Long = 0L
+    private var isPlayerTurnOne: Boolean = true
+    private var isOppTurnOne: Boolean = true
+    private var sampledPlayerBalls: Int = 3
+    private var sampledOppBalls: Int = 3
+
     data class BattleQualityMetadata(
         val pWin: Double,
         val expWinPct: Int,
@@ -3631,6 +3645,13 @@ class OverlayService : LifecycleService() {
         }
         canvas.drawBitmap(screen, srcPlayer, dstPlayer, filterPaint)
         canvas.drawBitmap(screen, srcMoves, dstMoves, null)
+
+        // v2.32: Frame Timestamp Tracking & Pokéball Status Sampling before screen recycle
+        prevFrameTimestampMs = currentFrameTimestampMs
+        currentFrameTimestampMs = System.currentTimeMillis()
+        sampledPlayerBalls = detectActivePokeballCount(screen, srcPlayer)
+        sampledOppBalls = detectActivePokeballCount(screen, srcOpp)
+
         screen.recycle()
 
         val visionText = suspendCancellableCoroutine<Text?> { cont ->
@@ -3699,6 +3720,74 @@ class OverlayService : LifecycleService() {
             Bitmap.createBitmap(pixels, cw, ch, Bitmap.Config.ARGB_8888)
         } catch (_: Exception) {
             null
+        }
+    }
+
+    /**
+     * Interpolates T_swap midway between frame F_prev and detection frame F_detect
+     * to eliminate capture interval latency, anchoring the timer to calculated animation start.
+     */
+    private fun getInterpolatedSwapStartTimeMs(): Long {
+        return if (prevFrameTimestampMs > 0L && currentFrameTimestampMs > prevFrameTimestampMs) {
+            (prevFrameTimestampMs + currentFrameTimestampMs) / 2L
+        } else {
+            currentFrameTimestampMs
+        }
+    }
+
+    /**
+     * Detects active (unfainted) Pokéball count from the screen bitmap.
+     * In Pokémon GO PvP, live Pokéballs have bright red upper hemispheres (high R, low G/B).
+     * Fainted Pokéballs are translucent or dark slate grey.
+     */
+    private fun detectActivePokeballCount(screen: Bitmap, searchRect: Rect): Int {
+        return try {
+            val left = searchRect.left.coerceIn(0, screen.width - 1)
+            val right = searchRect.right.coerceIn(0, screen.width)
+            val top = searchRect.top.coerceIn(0, screen.height - 1)
+            val bottom = searchRect.bottom.coerceIn(0, screen.height)
+            if (right <= left || bottom <= top) return 3
+
+            val step = 2
+            val redXCoordinates = mutableListOf<Int>()
+            for (y in top until bottom step step) {
+                for (x in left until right step step) {
+                    val pixel = screen.getPixel(x, y)
+                    val r = (pixel shr 16) and 0xFF
+                    val g = (pixel shr 8) and 0xFF
+                    val b = pixel and 0xFF
+                    // Live Pokéball red top half
+                    if (r >= 165 && g <= 100 && b <= 100 && (r - max(g, b)) >= 65) {
+                        redXCoordinates.add(x)
+                    }
+                }
+            }
+            if (redXCoordinates.isEmpty()) return 0
+
+            redXCoordinates.sort()
+            val minClusterSpacing = (screen.width * 0.025f).toInt().coerceAtLeast(8)
+            var clusters = 0
+            var currentClusterSize = 0
+            var lastX = -100
+
+            for (x in redXCoordinates) {
+                if (x - lastX > minClusterSpacing) {
+                    if (currentClusterSize >= 3) {
+                        clusters++
+                    }
+                    currentClusterSize = 1
+                    lastX = x
+                } else {
+                    currentClusterSize++
+                    lastX = x
+                }
+            }
+            if (currentClusterSize >= 3) {
+                clusters++
+            }
+            clusters.coerceIn(0, 3)
+        } catch (_: Exception) {
+            3
         }
     }
 
@@ -3915,6 +4004,28 @@ class OverlayService : LifecycleService() {
             // Trigger immediately when opponent spawns or switches/faints into a different species
             if (System.currentTimeMillis() - lastBattleResetTimeMs < 600L) return
             if (isWaitingForOpponent || !newBaseSpecies.equals(activeOpponentSpecies, ignoreCase = true)) {
+                // v2.32: Faint vs. True Swap Decision Logic & Timestamp Interpolation for Opponent
+                if (!isWaitingForOpponent) {
+                    val prevOppSlotIdx = if (detectedOpponents.isNotEmpty()) {
+                        val base = FormResolver.extractBaseSpecies(activeOpponentName).lowercase()
+                        detectedOpponents.indexOfFirst { FormResolver.extractBaseSpecies(it).equals(base, ignoreCase = true) }.coerceAtLeast(0)
+                    } else 0
+
+                    val isFaintReplacement = sampledOppBalls in 0..2 && sampledOppBalls < oppPokeballCount
+                    if (isFaintReplacement) {
+                        // Pokéball count decreased by 1: Faint Replacement -> Mark previous opponent fainted, preserve swap clock
+                        oppPokeballCount = sampledOppBalls
+                        if (prevOppSlotIdx in 0..2) {
+                            oppFaintedSlots[prevOppSlotIdx] = true
+                        }
+                    } else {
+                        // Pokéball count unchanged (or Turn 1 exception): True Swap -> Reset Opponent Swap Clock to 50s
+                        val swapStartMs = getInterpolatedSwapStartTimeMs()
+                        oppSwapEndTimeMs = swapStartMs + 50000L
+                    }
+                    isOppTurnOne = false
+                }
+
                 isWaitingForOpponent = false
                 isBattleActive = true
                 lastClearedOpponentsSnapshot = emptyList()
@@ -3943,6 +4054,34 @@ class OverlayService : LifecycleService() {
                 recalculateAndPushBattleData()
             }
         }
+    }
+
+    /**
+     * Executes a player switch, applying Faint vs. True Swap classification,
+     * timestamp interpolation, and 50s cooldown countdown management (v2.32).
+     */
+    private fun executePlayerSwitch(newSlotName: String) {
+        val preset = currentPreset ?: return
+        if (newSlotName.equals(activeUserPokemonName, ignoreCase = true)) return
+
+        val prevSlotIdx = preset.pokemon.indexOfFirst { it.name.equals(activeUserPokemonName, ignoreCase = true) }.let { if (it >= 0) it else 0 }
+        val isFaintReplacement = sampledPlayerBalls in 0..2 && sampledPlayerBalls < playerPokeballCount
+        if (isFaintReplacement) {
+            // Active Pokéball count decreased by 1 -> Faint Replacement: mark previous fainted, preserve swap clock
+            playerPokeballCount = sampledPlayerBalls
+            if (prevSlotIdx in 0..2) {
+                playerFaintedSlots[prevSlotIdx] = true
+            }
+        } else {
+            // Active Pokéball count unchanged (or Turn 1 exception) -> True Swap: reset swap clock to 50s
+            val swapStartMs = getInterpolatedSwapStartTimeMs()
+            playerSwapEndTimeMs = swapStartMs + 50000L
+        }
+        isPlayerTurnOne = false
+
+        activeUserPokemonName = newSlotName
+        recalculateAndPushBattleData()
+        showBattleToast("🔄 Player Switch: $newSlotName")
     }
 
     /**
@@ -3996,11 +4135,7 @@ class OverlayService : LifecycleService() {
                 }
 
                 if (isMatched) {
-                    if (!slot.name.equals(activeUserPokemonName, ignoreCase = true)) {
-                        activeUserPokemonName = slot.name
-                        recalculateAndPushBattleData()
-                        showBattleToast("🔄 Player Switch: ${slot.name}")
-                    }
+                    executePlayerSwitch(slot.name)
                     return
                 }
             }
@@ -4043,11 +4178,7 @@ class OverlayService : LifecycleService() {
             }
 
             if (bestSlot != null && bestScore >= 2) {
-                if (!bestSlot.name.equals(activeUserPokemonName, ignoreCase = true)) {
-                    activeUserPokemonName = bestSlot.name
-                    recalculateAndPushBattleData()
-                    showBattleToast("🔄 Player Switch: ${bestSlot.name}")
-                }
+                executePlayerSwitch(bestSlot.name)
             }
         }
     }
@@ -4099,6 +4230,19 @@ class OverlayService : LifecycleService() {
         isOpponentShadow = false
         availableOpponentForms = emptyList()
         currentFormIndex = 0
+
+        // v2.32: Reset Swap Clocks & Pokéball Faint state
+        playerSwapEndTimeMs = 0L
+        oppSwapEndTimeMs = 0L
+        playerPokeballCount = 3
+        oppPokeballCount = 3
+        playerFaintedSlots.fill(false)
+        oppFaintedSlots.fill(false)
+        isPlayerTurnOne = true
+        isOppTurnOne = true
+        prevFrameTimestampMs = 0L
+        currentFrameTimestampMs = 0L
+
         stopBattleOcrLoop()
         startBattleOcrLoop()
         recalculateAndPushBattleData()
@@ -4985,6 +5129,10 @@ class OverlayService : LifecycleService() {
             mapOf("initial" to (p3Name.firstOrNull()?.uppercase() ?: "P3"), "code" to abbrPokemon3(p3Name), "name" to p3Name)
         )
 
+        val nowMs = System.currentTimeMillis()
+        val playerSwapRemainingSec = if (playerSwapEndTimeMs > nowMs) ((playerSwapEndTimeMs - nowMs + 999L) / 1000L).toInt() else 0
+        val oppSwapRemainingSec = if (oppSwapEndTimeMs > nowMs) ((oppSwapEndTimeMs - nowMs + 999L) / 1000L).toInt() else 0
+
         if (isWaitingForOpponent || activeOpponentName == "Waiting...") {
             val waitingPayload = mapOf(
                 "activeOpponent" to "Waiting...",
@@ -5004,6 +5152,14 @@ class OverlayService : LifecycleService() {
                 "myMove2Summary" to "—",
                 "throwAlignmentText" to "Waiting for Opponent spawn",
                 "throwHorizonText" to "—",
+                "playerSwapRemainingSec" to playerSwapRemainingSec,
+                "playerSwapEndTimeMs" to playerSwapEndTimeMs,
+                "oppSwapRemainingSec" to oppSwapRemainingSec,
+                "oppSwapEndTimeMs" to oppSwapEndTimeMs,
+                "playerPokeballs" to playerPokeballCount,
+                "oppPokeballs" to oppPokeballCount,
+                "playerFaintedSlots" to playerFaintedSlots.toList(),
+                "oppFaintedSlots" to oppFaintedSlots.toList(),
                 "team" to teamData,
                 "scannedOpponents" to emptyList<Map<String, Any>>(),
                 "oppMoveTimingRows" to emptyList<Map<String, Any>>(),
@@ -5560,6 +5716,14 @@ class OverlayService : LifecycleService() {
             "myMove2Summary" to myMove2Summary,
             "throwAlignmentText" to throwAlignmentText,
             "throwHorizonText" to throwHorizonText,
+            "playerSwapRemainingSec" to playerSwapRemainingSec,
+            "playerSwapEndTimeMs" to playerSwapEndTimeMs,
+            "oppSwapRemainingSec" to oppSwapRemainingSec,
+            "oppSwapEndTimeMs" to oppSwapEndTimeMs,
+            "playerPokeballs" to playerPokeballCount,
+            "oppPokeballs" to oppPokeballCount,
+            "playerFaintedSlots" to playerFaintedSlots.toList(),
+            "oppFaintedSlots" to oppFaintedSlots.toList(),
             "team" to teamData,
             "scannedOpponents" to scannedOpponentsData,
             "oppMoveTimingRows" to oppMoveTimingRows,
