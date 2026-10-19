@@ -914,6 +914,10 @@ export default function App() {
 
   // Fixed Opponent Discovery Order: [1st seen, 2nd seen, 3rd seen] NEVER reorders when swapping active opponent!
   const handleSwapActiveOpponent = (name: string) => {
+    const wasWaiting = isWaitingOpponent;
+    const prevBase = getBaseSpeciesKey(activeOpponentKey);
+    const targetBase = getBaseSpeciesKey(name);
+
     setActiveOpponentKey(name);
     setIsWaitingOpponent(false);
     setIsBattleActive(true);
@@ -923,44 +927,65 @@ export default function App() {
     setOppTurnsElapsed(0);
     setOppEnergy(0);
 
-    // v2.33 State Machine Correction:
-    // Species Changed = YES:
-    // - If balls_curr == balls_prev (unchanged / not fainted): True Tactical Swap -> reset opponent swap clock to 50s, species alive
-    // - If balls_curr < balls_prev (decremented): Faint Replacement -> preserve swap clock, mark prior species FAINTED
-    if (!oppFaintedSlots[activeOpponentSlotIndex]) {
+    // State Machine:
+    // Turn 1 lead spawn (wasWaiting) starts at 0s Ready.
+    // Subsequent True Tactical Swap (!wasWaiting && species changed && prior slot not fainted) resets to 50s.
+    if (wasWaiting) {
+      setOppSwapEndTimeMs(0);
+      setOppPokeballCount(3);
+      setOppFaintedSlots([false, false, false]);
+    } else if (targetBase !== prevBase && !oppFaintedSlots[activeOpponentSlotIndex]) {
       setOppSwapEndTimeMs(Date.now() + 50000);
     }
     setIsOppTurnOne(false);
 
-    const targetBase = getBaseSpeciesKey(name);
     setScannedOpponents((prev) => {
       const existingIdx = prev.findIndex((n) => getBaseSpeciesKey(n) === targetBase);
+      let resolvedSlot = 0;
+      let nextList = prev;
       if (existingIdx >= 0) {
         const updated = [...prev];
         updated[existingIdx] = name;
-        setActiveOpponentSlotIndex(existingIdx);
-        return updated;
-      }
-      if (prev.length < 3) {
+        resolvedSlot = existingIdx;
+        nextList = updated;
+      } else if (prev.length < 3) {
         const appended = [...prev, name];
-        setActiveOpponentSlotIndex(appended.length - 1);
-        return appended;
+        resolvedSlot = appended.length - 1;
+        nextList = appended;
+      } else {
+        // Replace currently active slot in-place without shifting the other slots
+        const replaced = [...prev];
+        const targetSlot = Math.max(0, Math.min(activeOpponentSlotIndex, 2));
+        replaced[targetSlot] = name;
+        resolvedSlot = targetSlot;
+        nextList = replaced;
       }
-      // Replace currently active slot in-place without shifting the other slots
-      const replaced = [...prev];
-      const targetSlot = Math.max(0, Math.min(activeOpponentSlotIndex, 2));
-      replaced[targetSlot] = name;
-      setActiveOpponentSlotIndex(targetSlot);
-      return replaced;
+      setActiveOpponentSlotIndex(resolvedSlot);
+      // Resurrection Guard: Any Pokémon entering the field is alive
+      setOppFaintedSlots((prevFainted) => {
+        if (!prevFainted[resolvedSlot]) return prevFainted;
+        const nextFainted = [...prevFainted];
+        nextFainted[resolvedSlot] = false;
+        setOppPokeballCount(Math.max(1, 3 - nextFainted.filter(Boolean).length));
+        return nextFainted;
+      });
+      return nextList;
     });
   };
 
-  // v2.33 Player Lead/Roster Switch
+  // Player Lead/Roster Switch with Resurrection Guard
   const handleSelectUserSlot = (slotIdx: number) => {
+    if (playerFaintedSlots[slotIdx]) {
+      setPlayerFaintedSlots((prev) => {
+        const next = [...prev];
+        next[slotIdx] = false;
+        setPlayerPokeballCount(Math.max(1, 3 - next.filter(Boolean).length));
+        return next;
+      });
+    }
     if (slotIdx === activeUserSlotIndex) return;
     const isPrevFainted = !!playerFaintedSlots[activeUserSlotIndex];
-    // If balls_curr == balls_prev (unchanged / not fainted): True Tactical Swap -> reset to 50s
-    if (!isPrevFainted) {
+    if (!isWaitingOpponent && !isPrevFainted) {
       setPlayerSwapEndTimeMs(Date.now() + 50000);
     }
     setIsPlayerTurnOne(false);
@@ -968,7 +993,16 @@ export default function App() {
   };
 
   const handleSimulatePlayerSwap = () => {
-    const nextSlot = (activeUserSlotIndex + 1) % 3;
+    const liveNext = [1, 2].map((offset) => (activeUserSlotIndex + offset) % 3).find((idx) => !playerFaintedSlots[idx]);
+    const nextSlot = liveNext !== undefined ? liveNext : (activeUserSlotIndex + 1) % 3;
+    setPlayerFaintedSlots((prev) => {
+      if (!prev[nextSlot] && !prev[activeUserSlotIndex]) return prev;
+      const next = [...prev];
+      next[nextSlot] = false;
+      next[activeUserSlotIndex] = false;
+      setPlayerPokeballCount(Math.max(1, 3 - next.filter(Boolean).length));
+      return next;
+    });
     setPlayerSwapEndTimeMs(Date.now() + 50000);
     setIsPlayerTurnOne(false);
     setActiveUserSlotIndex(nextSlot);
@@ -978,7 +1012,19 @@ export default function App() {
 
   const handleSimulateOpponentSwap = () => {
     if (scannedOpponents.length > 1) {
-      const nextSlot = (activeOpponentSlotIndex + 1) % scannedOpponents.length;
+      const len = scannedOpponents.length;
+      const liveNext = [1, 2]
+        .map((offset) => (activeOpponentSlotIndex + offset) % len)
+        .find((idx) => !oppFaintedSlots[idx]);
+      const nextSlot = liveNext !== undefined ? liveNext : (activeOpponentSlotIndex + 1) % len;
+      setOppFaintedSlots((prev) => {
+        if (!prev[nextSlot] && !prev[activeOpponentSlotIndex]) return prev;
+        const next = [...prev];
+        next[nextSlot] = false;
+        next[activeOpponentSlotIndex] = false;
+        setOppPokeballCount(Math.max(1, 3 - next.filter(Boolean).length));
+        return next;
+      });
       setActiveOpponentSlotIndex(nextSlot);
       setActiveOpponentKey(scannedOpponents[nextSlot]);
     }
@@ -2370,7 +2416,7 @@ export default function App() {
                                   ? abbrPoke3(memberName, false).toUpperCase().slice(0, 3)
                                   : '---';
                                 const isActv = slotIdx === activeUserSlotIndex;
-                                const isFainted = !!playerFaintedSlots[slotIdx];
+                                const isFainted = !isActv && !!playerFaintedSlots[slotIdx];
                                 return (
                                   <span
                                     key={slotIdx}
@@ -2463,7 +2509,7 @@ export default function App() {
                                   <div className="grid grid-cols-3 w-[84px] items-center text-center font-mono shrink-0">
                                     {row.teamDamages.map((cell, cIdx) => {
                                       const isActv = cIdx === activeUserSlotIndex;
-                                      const isFainted = !!playerFaintedSlots[cIdx];
+                                      const isFainted = !isActv && !!playerFaintedSlots[cIdx];
                                       const textCls =
                                         isFainted
                                           ? 'text-[#5A6577] opacity-35'
@@ -2525,7 +2571,7 @@ export default function App() {
                                   ? abbrPoke3(oppName, false).toUpperCase().slice(0, 3)
                                   : '---';
                                 const isActv = oppIdx === safeActiveOppSlot;
-                                const isFainted = !!oppFaintedSlots[oppIdx];
+                                const isFainted = !isActv && !!oppFaintedSlots[oppIdx];
                                 return (
                                   <span
                                     key={oppIdx}
@@ -2634,7 +2680,7 @@ export default function App() {
                                   <div className="grid grid-cols-3 w-[84px] items-center text-center font-mono shrink-0">
                                     {row.oppDamages.map((cell, cIdx) => {
                                       const isActv = cIdx === safeActiveOppSlot;
-                                      const isFainted = !!oppFaintedSlots[cIdx];
+                                      const isFainted = !isActv && !!oppFaintedSlots[cIdx];
                                       const textCls = isFainted
                                         ? 'text-[#5A6577] opacity-35'
                                         : cell.isEmpty

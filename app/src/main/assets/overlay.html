@@ -1376,6 +1376,20 @@
             battleData.oppMoveTimingRows = [];
             battleData.myMoveTimingRows = [];
             battleData.activeOpponentSlotIndex = 0;
+            battleData.activeUserSlotIndex = 0;
+            if (battleData.team && battleData.team[0] && battleData.team[0].name) {
+                battleData.userActivePokemon = battleData.team[0].name;
+            }
+            battleData.playerSwapEndTimeMs = 0;
+            battleData.oppSwapEndTimeMs = 0;
+            battleData.playerSwapRemainingSec = 0;
+            battleData.oppSwapRemainingSec = 0;
+            battleData.playerPokeballCount = 3;
+            battleData.oppPokeballCount = 3;
+            battleData.player_shields_remaining = 2;
+            battleData.opponent_shields_remaining = 2;
+            battleData.playerFaintedSlots = [false, false, false];
+            battleData.oppFaintedSlots = [false, false, false];
             battleData.leadMatchup = preservedLead || "NEUTRAL";
             battleData.throwAlignmentText = "—";
             battleData.throwHorizonText = "—";
@@ -1521,6 +1535,9 @@
             const pokemonName = battleData.team[idx].name;
             battleData.userActivePokemon = pokemonName;
             battleData.activeUserSlotIndex = idx;
+            if (Array.isArray(battleData.playerFaintedSlots)) {
+                battleData.playerFaintedSlots[idx] = false;
+            }
             render();
             if (window.AndroidOverlay && window.AndroidOverlay.selectActiveUserPokemon) {
                 window.AndroidOverlay.selectActiveUserPokemon(pokemonName);
@@ -1530,6 +1547,9 @@
         function swapOpponentByIndex(idx) {
             if (!battleData.scannedOpponents || !battleData.scannedOpponents[idx]) return;
             const pokemonName = battleData.scannedOpponents[idx].name || battleData.scannedOpponents[idx].code;
+            if (Array.isArray(battleData.oppFaintedSlots)) {
+                battleData.oppFaintedSlots[idx] = false;
+            }
             if (window.AndroidOverlay && window.AndroidOverlay.swapActiveOpponent) {
                 window.AndroidOverlay.swapActiveOpponent(pokemonName);
             }
@@ -1616,7 +1636,7 @@
                             .split(" ")[0]
                             .substring(0, 6);
                         const isActive = (fullName.toLowerCase() === (battleData.userActivePokemon || "").toLowerCase());
-                        const isFainted = !!(battleData.playerFaintedSlots && battleData.playerFaintedSlots[mIdx]);
+                        const isFainted = !isActive && !!(battleData.playerFaintedSlots && battleData.playerFaintedSlots[mIdx]);
                         const faintStyle = isFainted ? 'opacity:0.4; text-decoration:line-through;' : '';
                         return `<button class="chip-btn ${isActive && !isFainted ? 'active' : ''} ${isFainted ? 'col-fainted' : ''}" style="${faintStyle}" onclick="selectUserPokemonByIndex(${mIdx})" title="Active lead: ${fullName}${isFainted ? ' (Fainted)' : ''}">${shortName}</button>`;
                     }).join("");
@@ -1731,7 +1751,7 @@
                         oppDmgHeadersEl.innerHTML = teamList.slice(0, 3).map((member, idx) => {
                             const code = member.code || abbrPoke(member.name, false);
                             const isAct = (idx === activeSlotIdx);
-                            const isFainted = !!(battleData.playerFaintedSlots && battleData.playerFaintedSlots[idx]);
+                            const isFainted = !isAct && !!(battleData.playerFaintedSlots && battleData.playerFaintedSlots[idx]);
                             const faintCls = isFainted ? "col-fainted" : "";
                             return `<span class="dmg-col-hdr ${isAct && !isFainted ? 'active-col' : ''} ${faintCls}">${code}</span>`;
                         }).join("");
@@ -1794,7 +1814,7 @@
 
                             const rightGridHtml = teamDamages.slice(0, 3).map((td, idx) => {
                                 const isAct = td.isActive !== undefined ? !!td.isActive : (idx === activeSlotIdx);
-                                const isFainted = !!(battleData.playerFaintedSlots && battleData.playerFaintedSlots[idx]);
+                                const isFainted = !isAct && !!(battleData.playerFaintedSlots && battleData.playerFaintedSlots[idx]);
                                 const faintCls = isFainted ? "col-fainted" : "";
                                 const tierCls = td.tier === "resist" ? "tier-resist" : (td.tier === "weak" ? "tier-weak" : "tier-neutral");
                                 return `<div class="dmg-cell ${tierCls} ${isAct && !isFainted ? 'active-col' : ''} ${faintCls}">${td.dmgPct}%</div>`;
@@ -1825,7 +1845,7 @@
                             const isAct = opp && opp.isActive !== undefined ? !!opp.isActive : (idx === activeOppSlotIdx);
                             const isShad = opp && opp.isShadow !== undefined ? !!opp.isShadow : (isAct && battleData.isOpponentShadow);
                             const code = opp ? (opp.code || abbrPoke(opp.name, isShad)) : "—";
-                            const isFainted = !!(battleData.oppFaintedSlots && battleData.oppFaintedSlots[idx]);
+                            const isFainted = !isAct && !!(battleData.oppFaintedSlots && battleData.oppFaintedSlots[idx]);
                             const faintCls = isFainted ? "col-fainted" : "";
                             const clickAttr = opp ? `onclick="swapOpponentByIndex(${idx})" style="cursor:pointer;"` : "";
                             return `<span class="dmg-col-hdr ${isAct && !isFainted ? 'active-col' : ''} ${faintCls}" ${clickAttr}>${code}</span>`;
@@ -1899,7 +1919,7 @@
 
                             const rightGridHtml = oppDamages.slice(0, 3).map((od, idx) => {
                                 const isAct = od.isActive !== undefined ? !!od.isActive : (idx === 0);
-                                const isFainted = !!(battleData.oppFaintedSlots && battleData.oppFaintedSlots[idx]);
+                                const isFainted = !isAct && !!(battleData.oppFaintedSlots && battleData.oppFaintedSlots[idx]);
                                 const faintCls = isFainted ? "col-fainted" : "";
                                 if (od.dmgPct === null || od.dmgPct === undefined || od.tier === "empty") {
                                     return `<div class="dmg-cell tier-empty ${isAct && !isFainted ? 'active-col' : ''} ${faintCls}">—</div>`;
