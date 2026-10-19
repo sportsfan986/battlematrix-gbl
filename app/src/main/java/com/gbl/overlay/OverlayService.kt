@@ -4233,7 +4233,7 @@ class OverlayService : LifecycleService() {
                         kotlin.math.abs(c.xStart - anchor.xStart) <= 4 &&
                         kotlin.math.abs(c.fillEnd - anchor.fillEnd) <= 5
                 }
-                val minClusterLines = if (anchor.colorFamily == 3 && !cluster.any { it.hasAnchorMatch }) 3 else 2
+                val minClusterLines = 2
                 if (cluster.size >= minClusterLines) {
                     validClusters.add(cluster)
                 }
@@ -4253,11 +4253,8 @@ class OverlayService : LifecycleService() {
             var bestScore = Int.MIN_VALUE
             for (cluster in validClusters) {
                 if (cluster.first().colorFamily != targetColorFamily) continue
-                val anchor = cluster.first()
-                val anyAnchor = cluster.any { it.hasAnchorMatch }
                 val avgConf = cluster.sumOf { it.trackConfidence } / cluster.size
-                val sizeBonus = min(cluster.size, 8) * 4
-                val score = (if (anyAnchor) 50 else 0) + avgConf + sizeBonus - (anchor.y / 60)
+                val score = cluster.size * 15 + avgConf
                 if (score > bestScore) {
                     bestScore = score
                     bestCluster = cluster
@@ -5797,8 +5794,8 @@ class OverlayService : LifecycleService() {
             isDefenderShadow = isOpponentShadow
         )
 
-        val oppFastTelemetry = "${abbrMove5(oppFastMoveName)} ${oppFastTurns}t/${oppFastEnergy}e/${oppFastDmgPct}d"
-        val userFastTelemetry = "${abbrMove5(userFastMoveName)} ${userFastTurns}t/${userFastEnergy}e/${userFastDmgPct}d"
+        val oppFastTelemetry = "${abbrMove5(oppFastMoveName)} ${oppFastTurns}t/${oppFastEnergy}e/${oppFastDmgPct}%"
+        val userFastTelemetry = "${abbrMove5(userFastMoveName)} ${userFastTurns}t/${userFastEnergy}e/${userFastDmgPct}%"
 
         fun formatOrdinal(n: Int): String = when {
             n % 100 in 11..13 -> "${n}th"
