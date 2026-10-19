@@ -107,6 +107,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var textOppCountBasisDesc: TextView
     private lateinit var btnToggleOppChargedMoves: Button
     private lateinit var textOppChargedMovesDesc: TextView
+    private lateinit var btnToggleBattleToasts: Button
+    private lateinit var textBattleToastsDesc: TextView
     private lateinit var seekbarOverlayScale: SeekBar
     private lateinit var textOverlayScaleValue: TextView
     private lateinit var textOverlayScaleDefaultTick: TextView
@@ -152,6 +154,7 @@ class MainActivity : AppCompatActivity() {
     private val PREFS_KEY_SELECTED_PRESET = "gbl_selected_preset_id"
     private val PREFS_KEY_OPP_COUNT_MODE = "opp_count_mode"
     private val PREFS_KEY_ENABLE_4_CHARGED_MOVES = OverlayService.PREFS_KEY_ENABLE_4_CHARGED_MOVES
+    private val PREFS_KEY_DISABLE_BATTLE_TOASTS = OverlayService.PREFS_KEY_DISABLE_BATTLE_TOASTS
     private val PREFS_KEY_LAST_SYNC_TIMESTAMP = OverlayService.PREFS_KEY_LAST_SYNC_TIMESTAMP
     private val PREFS_KEY_OVERLAY_SCALE_PCT = "overlay_scale_pct"
     private val DEFAULT_OVERLAY_SCALE_PCT = 78
@@ -306,6 +309,8 @@ class MainActivity : AppCompatActivity() {
         textOppCountBasisDesc = findViewById(R.id.text_opp_count_basis_desc)
         btnToggleOppChargedMoves = findViewById(R.id.btn_toggle_opp_charged_moves)
         textOppChargedMovesDesc = findViewById(R.id.text_opp_charged_moves_desc)
+        btnToggleBattleToasts = findViewById(R.id.btn_toggle_battle_toasts)
+        textBattleToastsDesc = findViewById(R.id.text_battle_toasts_desc)
         seekbarOverlayScale = findViewById(R.id.seekbar_overlay_scale)
         textOverlayScaleValue = findViewById(R.id.text_overlay_scale_value)
         textOverlayScaleDefaultTick = findViewById(R.id.text_overlay_scale_default_tick)
@@ -360,6 +365,7 @@ class MainActivity : AppCompatActivity() {
 
         updateOppCountBasisUi()
         updateOppChargedMovesUi()
+        updateBattleToastsUi()
 
         editSyncGithubToken.setText(prefs.getString(PREFS_KEY_SYNC_GITHUB_TOKEN, "") ?: "")
         editSyncGistId.setText(prefs.getString(PREFS_KEY_SYNC_GIST_ID, "") ?: "")
@@ -508,6 +514,21 @@ class MainActivity : AppCompatActivity() {
                 val updateIntent = Intent(this, OverlayService::class.java).apply {
                     action = OverlayService.ACTION_UPDATE_SETTINGS
                     putExtra(OverlayService.EXTRA_ENABLE_4_CHARGED_MOVES, nextEnable4)
+                }
+                startService(updateIntent)
+            }
+        }
+
+        btnToggleBattleToasts.setOnClickListener {
+            val currentDisable = prefs.getBoolean(PREFS_KEY_DISABLE_BATTLE_TOASTS, false)
+            val nextDisable = !currentDisable
+            prefs.edit().putBoolean(PREFS_KEY_DISABLE_BATTLE_TOASTS, nextDisable).apply()
+            updateBattleToastsUi()
+
+            if (isOverlayRunning) {
+                val updateIntent = Intent(this, OverlayService::class.java).apply {
+                    action = OverlayService.ACTION_UPDATE_SETTINGS
+                    putExtra(OverlayService.EXTRA_DISABLE_BATTLE_TOASTS, nextDisable)
                 }
                 startService(updateIntent)
             }
@@ -2428,6 +2449,19 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun updateBattleToastsUi() {
+        val disableToasts = prefs.getBoolean(PREFS_KEY_DISABLE_BATTLE_TOASTS, false)
+        if (disableToasts) {
+            btnToggleBattleToasts.text = "Toasts Off"
+            btnToggleBattleToasts.backgroundTintList = android.content.res.ColorStateList.valueOf(0xFF64748B.toInt())
+            textBattleToastsDesc.text = "Active: In-game Battle Toast popups disabled"
+        } else {
+            btnToggleBattleToasts.text = "Toasts On"
+            btnToggleBattleToasts.backgroundTintList = android.content.res.ColorStateList.valueOf(0xFF0284C7.toInt())
+            textBattleToastsDesc.text = "Default: Popups shown for Battle Start/Stop, Switches & Logs"
+        }
+    }
+
     /**
      * Checks notifications (Android 13+), SYSTEM_ALERT_WINDOW, and initiates overlay launch
      */
@@ -2546,6 +2580,7 @@ class MainActivity : AppCompatActivity() {
             putExtra(OverlayService.EXTRA_PRESET_JSON, gson.toJson(getSelectedPreset()))
             putExtra(OverlayService.EXTRA_OPP_COUNT_MODE, prefs.getString(PREFS_KEY_OPP_COUNT_MODE, "my_fasts") ?: "my_fasts")
             putExtra(OverlayService.EXTRA_ENABLE_4_CHARGED_MOVES, prefs.getBoolean(PREFS_KEY_ENABLE_4_CHARGED_MOVES, false))
+            putExtra(OverlayService.EXTRA_DISABLE_BATTLE_TOASTS, prefs.getBoolean(PREFS_KEY_DISABLE_BATTLE_TOASTS, false))
             putExtra(OverlayService.EXTRA_OVERLAY_SCALE_PCT, prefs.getInt(PREFS_KEY_OVERLAY_SCALE_PCT, DEFAULT_OVERLAY_SCALE_PCT))
             putExtra(OverlayService.EXTRA_OVERLAY_TRANSPARENCY_PCT, prefs.getInt(PREFS_KEY_OVERLAY_TRANSPARENCY_PCT, DEFAULT_OVERLAY_TRANSPARENCY_PCT))
         }

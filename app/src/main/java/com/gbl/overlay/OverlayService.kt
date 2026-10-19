@@ -90,8 +90,10 @@ class OverlayService : LifecycleService() {
         const val EXTRA_OVERLAY_SCALE_PCT = "extra_overlay_scale_pct"
         const val EXTRA_OVERLAY_TRANSPARENCY_PCT = "extra_overlay_transparency_pct"
         const val EXTRA_ENABLE_4_CHARGED_MOVES = "extra_enable_4_charged_moves"
+        const val EXTRA_DISABLE_BATTLE_TOASTS = "extra_disable_battle_toasts"
 
         const val PREFS_KEY_ENABLE_4_CHARGED_MOVES = "enable_4_charged_moves"
+        const val PREFS_KEY_DISABLE_BATTLE_TOASTS = "disable_battle_toasts"
         const val PREFS_KEY_OVERLAY_TRANSPARENCY_PCT = "overlay_transparency_pct"
         const val PREFS_KEY_LAST_SYNC_TIMESTAMP = "last_sync_timestamp"
         const val PREFS_KEY_BATTLE_LOGS = "gbl_battle_logs_v1"
@@ -2836,6 +2838,7 @@ class OverlayService : LifecycleService() {
     private var currentLayoutMode = "option1"
     private var oppCountMode = "my_fasts"
     private var enable4ChargedMoves = false
+    private var disableBattleToasts = false
     private var overlayScalePct = 78
     private var overlayTransparencyPct = 72
     private var isOverlayMinimized = false
@@ -2888,6 +2891,7 @@ class OverlayService : LifecycleService() {
         prefs = getSharedPreferences("gbl_overlay_prefs", Context.MODE_PRIVATE)
         oppCountMode = prefs.getString("opp_count_mode", "my_fasts") ?: "my_fasts"
         enable4ChargedMoves = prefs.getBoolean(PREFS_KEY_ENABLE_4_CHARGED_MOVES, false)
+        disableBattleToasts = prefs.getBoolean(PREFS_KEY_DISABLE_BATTLE_TOASTS, false)
         overlayScalePct = prefs.getInt("overlay_scale_pct", 78).coerceIn(50, 100)
         overlayTransparencyPct = prefs.getInt(PREFS_KEY_OVERLAY_TRANSPARENCY_PCT, 72).coerceIn(0, 100)
 
@@ -2915,6 +2919,11 @@ class OverlayService : LifecycleService() {
                     }
                 }
             } catch (_: Exception) {}
+        }
+    private fun showBattleToast(message: String, duration: Int = Toast.LENGTH_SHORT) {
+        if (disableBattleToasts) return
+        Handler(Looper.getMainLooper()).post {
+            Toast.makeText(this, message, duration).show()
         }
     }
 
@@ -3254,6 +3263,13 @@ class OverlayService : LifecycleService() {
                     prefs.getBoolean(PREFS_KEY_ENABLE_4_CHARGED_MOVES, enable4ChargedMoves)
                 }
 
+                disableBattleToasts = if (intent?.hasExtra(EXTRA_DISABLE_BATTLE_TOASTS) == true) {
+                    intent.getBooleanExtra(EXTRA_DISABLE_BATTLE_TOASTS, false)
+                } else {
+                    prefs.getBoolean(PREFS_KEY_DISABLE_BATTLE_TOASTS, disableBattleToasts)
+                }
+                overlayView?.evaluateJavascript("if (window.setDisableBattleToasts) setDisableBattleToasts($disableBattleToasts);", null)
+
                 intent?.getStringExtra(EXTRA_PRESET_JSON)?.let { presetJson ->
                     try {
                         val incoming = gson.fromJson(presetJson, TeamPreset::class.java)
@@ -3309,6 +3325,12 @@ class OverlayService : LifecycleService() {
                 } else {
                     enable4ChargedMoves = prefs.getBoolean(PREFS_KEY_ENABLE_4_CHARGED_MOVES, enable4ChargedMoves)
                 }
+                if (intent?.hasExtra(EXTRA_DISABLE_BATTLE_TOASTS) == true) {
+                    disableBattleToasts = intent.getBooleanExtra(EXTRA_DISABLE_BATTLE_TOASTS, false)
+                } else {
+                    disableBattleToasts = prefs.getBoolean(PREFS_KEY_DISABLE_BATTLE_TOASTS, disableBattleToasts)
+                }
+                overlayView?.evaluateJavascript("if (window.setDisableBattleToasts) setDisableBattleToasts($disableBattleToasts);", null)
                 val updatedScalePct = intent?.getIntExtra(
                     EXTRA_OVERLAY_SCALE_PCT,
                     prefs.getInt("overlay_scale_pct", overlayScalePct)
@@ -3912,13 +3934,7 @@ class OverlayService : LifecycleService() {
                 upsertDetectedOpponentBySpecies(matched.name, newBaseSpecies)
 
                 recalculateAndPushBattleData()
-                Handler(Looper.getMainLooper()).post {
-                    Toast.makeText(
-                        this,
-                        "⚔️ Opponent: ${matched.name} (${matched.fastTurns}t ${matched.defaultFastMove})",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
+                showBattleToast("⚔️ Opponent: ${matched.name} (${matched.fastTurns}t ${matched.defaultFastMove})")
             } else if (anyLineHasShadow && !manualShadowOverrides.containsKey(newBaseSpecies) && !isOpponentShadow) {
                 isOpponentShadow = true
                 manualShadowOverrides[newBaseSpecies] = true
@@ -3981,9 +3997,7 @@ class OverlayService : LifecycleService() {
                     if (!slot.name.equals(activeUserPokemonName, ignoreCase = true)) {
                         activeUserPokemonName = slot.name
                         recalculateAndPushBattleData()
-                        Handler(Looper.getMainLooper()).post {
-                            Toast.makeText(this, "🔄 Player Switch: ${slot.name}", Toast.LENGTH_SHORT).show()
-                        }
+                        showBattleToast("🔄 Player Switch: ${slot.name}")
                     }
                     return
                 }
@@ -4030,9 +4044,7 @@ class OverlayService : LifecycleService() {
                 if (!bestSlot.name.equals(activeUserPokemonName, ignoreCase = true)) {
                     activeUserPokemonName = bestSlot.name
                     recalculateAndPushBattleData()
-                    Handler(Looper.getMainLooper()).post {
-                        Toast.makeText(this, "🔄 Player Switch: ${bestSlot.name}", Toast.LENGTH_SHORT).show()
-                    }
+                    showBattleToast("🔄 Player Switch: ${bestSlot.name}")
                 }
             }
         }
@@ -4088,9 +4100,7 @@ class OverlayService : LifecycleService() {
         stopBattleOcrLoop()
         startBattleOcrLoop()
         recalculateAndPushBattleData()
-        Handler(Looper.getMainLooper()).post {
-            Toast.makeText(this, "⚔️ Battle Started — Scanning Opponents", Toast.LENGTH_SHORT).show()
-        }
+        showBattleToast("⚔️ Battle Started — Scanning Opponents")
     }
 
     /**
@@ -4114,9 +4124,7 @@ class OverlayService : LifecycleService() {
         isBattleActive = false
         stopBattleOcrLoop()
         recalculateAndPushBattleData()
-        Handler(Looper.getMainLooper()).post {
-            Toast.makeText(this, "🛑 Battle Stopped — Log Win/Loss or Start Next", Toast.LENGTH_SHORT).show()
-        }
+        showBattleToast("🛑 Battle Stopped — Log Win/Loss or Start Next")
     }
 
     fun logBattleResultFromOverlay(result: String, leadOverride: String?) {
@@ -4209,11 +4217,7 @@ class OverlayService : LifecycleService() {
                 "NEGATIVE" -> "Neg Lead"
                 else -> "Neu Lead"
             }
-            Toast.makeText(
-                this,
-                "✓ Logged $normalizedResult ($leadShort) • ${formattedOpponents.joinToString(", ").ifEmpty { "No opponents" }}",
-                Toast.LENGTH_SHORT
-            ).show()
+            showBattleToast("✓ Logged $normalizedResult ($leadShort) • ${formattedOpponents.joinToString(", ").ifEmpty { "No opponents" }}")
         }
 
         // Always trigger background 2-device delta sync after logging a battle
@@ -4270,9 +4274,7 @@ class OverlayService : LifecycleService() {
         upsertDetectedOpponentBySpecies(matched.name, newBaseSpecies)
         recalculateAndPushBattleData()
         if (::prefs.isInitialized) {
-            Handler(Looper.getMainLooper()).post {
-                Toast.makeText(this, "⚔️ Active Opponent: ${matched.name}", Toast.LENGTH_SHORT).show()
-            }
+            showBattleToast("⚔️ Active Opponent: ${matched.name}")
         }
     }
 
@@ -4280,9 +4282,7 @@ class OverlayService : LifecycleService() {
         activeUserPokemonName = pokemonName
         recalculateAndPushBattleData()
         if (::prefs.isInitialized) {
-            Handler(Looper.getMainLooper()).post {
-                Toast.makeText(this, "Active Lead: $pokemonName", Toast.LENGTH_SHORT).show()
-            }
+            showBattleToast("Active Lead: $pokemonName")
         }
     }
 
@@ -5726,10 +5726,8 @@ class OverlayService : LifecycleService() {
                 currentPreset = chosen
                 activeUserPokemonName = chosen.pokemon.firstOrNull()?.name
                 prefs.edit().putString("gbl_selected_preset_id", presetId).apply()
-                Handler(Looper.getMainLooper()).post {
-                    recalculateAndPushBattleData()
-                    Toast.makeText(this@OverlayService, "Loaded Team: ${chosen.name}", Toast.LENGTH_SHORT).show()
-                }
+                recalculateAndPushBattleData()
+                showBattleToast("Loaded Team: ${chosen.name}")
             }
         }
 

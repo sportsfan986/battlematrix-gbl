@@ -1251,6 +1251,11 @@
         let startBattleMenuOpen = false;
         let startBattleAutoCloseTimer = null;
         let buttonToastActive = false;
+        let disableBattleToasts = false;
+
+        window.setDisableBattleToasts = function(disabled) {
+            disableBattleToasts = !!disabled;
+        };
 
         function updateBattleButtonUi() {
             if (buttonToastActive) return;

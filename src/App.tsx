@@ -228,6 +228,22 @@ export default function App() {
     } catch {}
   };
 
+  // App Setting: Disable Battle Toast Messages (Default: false -> Toasts Enabled)
+  const [disableBattleToasts, setDisableBattleToasts] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('gbl_disable_battle_toasts') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const handleSetDisableBattleToasts = (disabled: boolean) => {
+    setDisableBattleToasts(disabled);
+    try {
+      localStorage.setItem('gbl_disable_battle_toasts', String(disabled));
+    } catch {}
+  };
+
   // App-Level Setting: Overlay Screen Width Scale (50% - 100%, Default 78%, step 2%)
   const [overlayScalePct, setOverlayScalePct] = useState<number>(() => {
     try {
@@ -976,8 +992,10 @@ export default function App() {
     saveBattleLogsToStorage([newEntry, ...battleLogs]);
     setLastClearedOpponents([]);
     setLastClearedLeadMatchup('NEUTRAL');
-    setStartBattleToast(result === 'WIN' ? '🏆 Win Logged!' : '💀 Loss Logged!');
-    setTimeout(() => setStartBattleToast(null), 1100);
+    if (!disableBattleToasts) {
+      setStartBattleToast(result === 'WIN' ? '🏆 Win Logged!' : '💀 Loss Logged!');
+      setTimeout(() => setStartBattleToast(null), 1100);
+    }
     handleSkipLoggingStoppedBattle();
   };
 
@@ -1420,7 +1438,7 @@ export default function App() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'SilphScope_PvP_v2.15_Android_Project.zip';
+      a.download = 'SilphScope_PvP_v2.31_Android_Project.zip';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -1447,7 +1465,7 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <h1 className="font-bold text-base md:text-lg tracking-tight text-white">SilphScope PvP</h1>
                 <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20">
-                  v2.15 • Android Native Overlay
+                  v2.31 • Android Native Overlay
                 </span>
               </div>
               <p className="text-xs text-slate-400 hidden sm:block">
@@ -3830,6 +3848,41 @@ export default function App() {
               </div>
             </div>
 
+            {/* Battle Toast Messages Setting */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-bold text-white">Battle Toast Messages</span>
+                <span className="text-[10px] font-mono text-sky-400">
+                  {disableBattleToasts ? 'Toasts Off' : 'Toasts On (Default)'}
+                </span>
+              </div>
+              <p className="text-xs text-slate-400">
+                Enable or disable floating toast popups during battle (Battle Start/Stop, Switches &amp; Logs).
+              </p>
+              <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-950 rounded-xl border border-slate-800">
+                <button
+                  onClick={() => handleSetDisableBattleToasts(false)}
+                  className={`py-2 px-2 rounded-lg text-xs font-bold transition ${
+                    !disableBattleToasts
+                      ? 'bg-sky-500/25 border border-sky-400/70 text-sky-200'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  Toasts On (Default)
+                </button>
+                <button
+                  onClick={() => handleSetDisableBattleToasts(true)}
+                  className={`py-2 px-2 rounded-lg text-xs font-bold transition ${
+                    disableBattleToasts
+                      ? 'bg-sky-500/25 border border-sky-400/70 text-sky-200'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  Toasts Off
+                </button>
+              </div>
+            </div>
+
             {/* Overlay Size Slider */}
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-2.5">
               <div className="flex items-center justify-between">
@@ -4059,7 +4112,7 @@ export default function App() {
                           'Content-Type': 'application/json'
                         },
                         body: JSON.stringify({
-                          description: 'SilphScope PvP v2.15 Multi-Device Delta Sync Vault',
+                          description: 'SilphScope PvP v2.31 Multi-Device Delta Sync Vault',
                           public: false,
                           files: {
                             'gbl_delta_sync_v2.json': { content: bundleStr }
@@ -5589,7 +5642,7 @@ export default function App() {
 
       {/* Footer */}
       <footer className="border-t border-slate-800/80 py-4 px-6 text-center text-xs text-slate-500">
-        SilphScope PvP v2.15 Overlay • Built with Kotlin, WindowManager TYPE_APPLICATION_OVERLAY, MediaProjection in-memory frame capture, and ML Kit Text Recognition.
+        SilphScope PvP v2.31 Overlay • Built with Kotlin, WindowManager TYPE_APPLICATION_OVERLAY, MediaProjection in-memory frame capture, and ML Kit Text Recognition.
       </footer>
     </div>
   );
