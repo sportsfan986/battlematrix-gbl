@@ -651,7 +651,7 @@ export default function App() {
   const [userShields, setUserShields] = useState<number>(2);
   const [oppShields, setOppShields] = useState<number>(2);
 
-  // v2.32: Dual 50s Countdown State Machines, Dynamic Color Coding & Pokéball Faint Tracking
+  // v2.33: Dual 50s Countdown State Machines, Dynamic Color Coding & Pokéball Faint Tracking
   const [playerSwapEndTimeMs, setPlayerSwapEndTimeMs] = useState<number>(0);
   const [oppSwapEndTimeMs, setOppSwapEndTimeMs] = useState<number>(0);
   const [playerPokeballCount, setPlayerPokeballCount] = useState<number>(3);
@@ -863,11 +863,13 @@ export default function App() {
     setOppTurnsElapsed(0);
     setUserEnergy(0);
     setOppEnergy(0);
-    // v2.32: Reset swap timers and pokeball states to initial 0s Ready & 3 balls
+    // v2.33: Reset swap timers, shields, and Pokéball faint state to initial (0s Ready, 3 balls, 2 shields)
     setPlayerSwapEndTimeMs(0);
     setOppSwapEndTimeMs(0);
     setPlayerPokeballCount(3);
     setOppPokeballCount(3);
+    setUserShields(2);
+    setOppShields(2);
     setPlayerFaintedSlots([false, false, false]);
     setOppFaintedSlots([false, false, false]);
     setIsPlayerTurnOne(true);
@@ -904,6 +906,8 @@ export default function App() {
     setOppSwapEndTimeMs(0);
     setPlayerPokeballCount(3);
     setOppPokeballCount(3);
+    setUserShields(2);
+    setOppShields(2);
     setPlayerFaintedSlots([false, false, false]);
     setOppFaintedSlots([false, false, false]);
   };
@@ -919,7 +923,10 @@ export default function App() {
     setOppTurnsElapsed(0);
     setOppEnergy(0);
 
-    // v2.32 True Swap logic: If active pokeball count unchanged (not fainted), reset opponent swap clock to 50s
+    // v2.33 State Machine Correction:
+    // Species Changed = YES:
+    // - If balls_curr == balls_prev (unchanged / not fainted): True Tactical Swap -> reset opponent swap clock to 50s, species alive
+    // - If balls_curr < balls_prev (decremented): Faint Replacement -> preserve swap clock, mark prior species FAINTED
     if (!oppFaintedSlots[activeOpponentSlotIndex]) {
       setOppSwapEndTimeMs(Date.now() + 50000);
     }
@@ -948,11 +955,11 @@ export default function App() {
     });
   };
 
-  // v2.32 Player Lead/Roster Switch
+  // v2.33 Player Lead/Roster Switch
   const handleSelectUserSlot = (slotIdx: number) => {
     if (slotIdx === activeUserSlotIndex) return;
     const isPrevFainted = !!playerFaintedSlots[activeUserSlotIndex];
-    // If not a faint replacement (active Pokéball count unchanged): True Swap -> reset to 50s
+    // If balls_curr == balls_prev (unchanged / not fainted): True Tactical Swap -> reset to 50s
     if (!isPrevFainted) {
       setPlayerSwapEndTimeMs(Date.now() + 50000);
     }
@@ -965,7 +972,7 @@ export default function App() {
     setPlayerSwapEndTimeMs(Date.now() + 50000);
     setIsPlayerTurnOne(false);
     setActiveUserSlotIndex(nextSlot);
-    setStartBattleToast(`Player Swapped -> ${activePreset?.pokemon[nextSlot]?.name || 'Lead'} (50s timer)`);
+    setStartBattleToast(`Player Tactical Swap -> ${activePreset?.pokemon[nextSlot]?.name || 'Lead'} (50s timer)`);
     setTimeout(() => setStartBattleToast(null), 1800);
   };
 
@@ -977,7 +984,7 @@ export default function App() {
     }
     setOppSwapEndTimeMs(Date.now() + 50000);
     setIsOppTurnOne(false);
-    setStartBattleToast(`Opponent Swapped (50s timer)`);
+    setStartBattleToast(`Opponent Tactical Swap (50s timer reset)`);
     setTimeout(() => setStartBattleToast(null), 1800);
   };
 
@@ -992,7 +999,8 @@ export default function App() {
     if (nextLiveIdx !== undefined) {
       setActiveUserSlotIndex(nextLiveIdx);
     }
-    setStartBattleToast(`Player Fainted (-1 Pokéball, Timer Preserved)`);
+    // Faint Replacement: Do NOT reset swap clock (preserve existing timer)
+    setStartBattleToast(`Player Faint Replacement (-1 Pokéball, Timer Preserved)`);
     setTimeout(() => setStartBattleToast(null), 2000);
   };
 
@@ -1008,8 +1016,23 @@ export default function App() {
       setActiveOpponentSlotIndex(nextLiveIdx);
       setActiveOpponentKey(scannedOpponents[nextLiveIdx]);
     }
-    setStartBattleToast(`Opponent Fainted (-1 Pokéball, Timer Preserved)`);
+    // Faint Replacement: Do NOT reset swap clock (preserve existing timer)
+    setStartBattleToast(`Opponent Faint Replacement (-1 Pokéball, Timer Preserved)`);
     setTimeout(() => setStartBattleToast(null), 2000);
+  };
+
+  const handleUsePlayerShield = () => {
+    // Species Changed = NO: Shield Used updates shield state, NEVER alters life or swap clocks
+    setUserShields((prev) => Math.max(0, prev - 1));
+    setStartBattleToast(`🛡️ Player Shield Used (${Math.max(0, userShields - 1)} left)`);
+    setTimeout(() => setStartBattleToast(null), 1800);
+  };
+
+  const handleUseOpponentShield = () => {
+    // Species Changed = NO: Shield Used updates shield state, NEVER alters life or swap clocks
+    setOppShields((prev) => Math.max(0, prev - 1));
+    setStartBattleToast(`🛡️ Opponent Shield Used (${Math.max(0, oppShields - 1)} left)`);
+    setTimeout(() => setStartBattleToast(null), 1800);
   };
 
   const handleResetTimersAndBalls = () => {
@@ -1017,11 +1040,13 @@ export default function App() {
     setOppSwapEndTimeMs(0);
     setPlayerPokeballCount(3);
     setOppPokeballCount(3);
+    setUserShields(2);
+    setOppShields(2);
     setPlayerFaintedSlots([false, false, false]);
     setOppFaintedSlots([false, false, false]);
     setIsPlayerTurnOne(true);
     setIsOppTurnOne(true);
-    setStartBattleToast(`Swap Clocks & Pokéballs Reset (3 balls, 0s Ready)`);
+    setStartBattleToast(`Match Reset (3 Balls, 2 Shields, 0s Ready)`);
     setTimeout(() => setStartBattleToast(null), 1800);
   };
 
@@ -1558,7 +1583,7 @@ export default function App() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'SilphScope_PvP_v2.32_Android_Project.zip';
+      a.download = 'SilphScope_PvP_v2.33_Android_Project.zip';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -1585,7 +1610,7 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <h1 className="font-bold text-base md:text-lg tracking-tight text-white">SilphScope PvP</h1>
                 <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20">
-                  v2.32 • Android Native Overlay
+                  v2.33 • Android Native Overlay
                 </span>
               </div>
               <p className="text-xs text-slate-400 hidden sm:block">
@@ -1993,7 +2018,7 @@ export default function App() {
                             </>
                           )}
                         </div>
-                        {/* v2.32: Opponent Swap Clock (Top-Right Header badge replacing redundant fast-move telemetry) */}
+                        {/* v2.33: Opponent Swap Clock (Top-Right Header badge replacing redundant fast-move telemetry) */}
                         {!isWaitingOpponent && scannedOpponents.length > 0 && (
                           <span
                             className={`font-mono font-extrabold text-[8px] px-1.5 py-0.5 rounded border leading-none transition-colors shrink-0 ${
@@ -2097,63 +2122,89 @@ export default function App() {
                         </div>
                       </div>
 
-                      {/* v2.32: Pokéball Counts & Quick Simulation Controls */}
-                      <div className="flex items-center justify-between gap-1 px-1 py-0.5 bg-black/35 rounded border border-white/10 text-[7px] font-mono my-0.5">
-                        <div className="flex items-center gap-1">
-                          <span className="text-slate-400 font-bold">You:</span>
-                          <span className="flex items-center tracking-tighter" title={`Player Pokéballs: ${playerPokeballCount}/3 remaining`}>
-                            {[0, 1, 2].map((i) => (
-                              <span key={i} className={i < playerPokeballCount ? 'text-red-500' : 'text-slate-600 opacity-40'}>●</span>
-                            ))}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={handleSimulatePlayerSwap}
-                            className="px-1 py-0.2 rounded bg-sky-500/20 hover:bg-sky-500/40 text-sky-200 border border-sky-400/30"
-                            title="Simulate True Swap for Player (resets to 50s)"
-                          >
-                            Swap P
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleSimulatePlayerFaint}
-                            className="px-1 py-0.2 rounded bg-red-500/20 hover:bg-red-500/40 text-red-200 border border-red-400/30"
-                            title="Simulate Player Faint (-1 ball, dims column, preserves swap timer)"
-                          >
-                            Faint P
-                          </button>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <span className="text-slate-400 font-bold">Opp:</span>
-                          <span className="flex items-center tracking-tighter" title={`Opponent Pokéballs: ${oppPokeballCount}/3 remaining`}>
-                            {[0, 1, 2].map((i) => (
-                              <span key={i} className={i < oppPokeballCount ? 'text-red-500' : 'text-slate-600 opacity-40'}>●</span>
-                            ))}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={handleSimulateOpponentSwap}
-                            className="px-1 py-0.2 rounded bg-sky-500/20 hover:bg-sky-500/40 text-sky-200 border border-sky-400/30"
-                            title="Simulate True Swap for Opponent (resets to 50s)"
-                          >
-                            Swap Opp
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleSimulateOpponentFaint}
-                            className="px-1 py-0.2 rounded bg-red-500/20 hover:bg-red-500/40 text-red-200 border border-red-400/30"
-                            title="Simulate Opponent Faint (-1 ball, dims column, preserves swap timer)"
-                          >
-                            Faint Opp
-                          </button>
+                      {/* v2.33: Pokéball Counts, Shield Counts & Quick Simulation Controls */}
+                      <div className="flex flex-col gap-0.5 px-1 py-0.5 bg-black/35 rounded border border-white/10 text-[7px] font-mono my-0.5">
+                        <div className="flex items-center justify-between gap-1">
+                          <div className="flex items-center gap-1">
+                            <span className="text-slate-400 font-bold">You:</span>
+                            <span className="flex items-center tracking-tighter" title={`Player Pokéballs: ${playerPokeballCount}/3 remaining`}>
+                              {[0, 1, 2].map((i) => (
+                                <span key={i} className={i < playerPokeballCount ? 'text-red-500' : 'text-slate-600 opacity-40'}>●</span>
+                              ))}
+                            </span>
+                            <span className="text-pink-400 font-bold ml-0.5" title={`Player Shields: ${userShields}/2 remaining`}>
+                              🛡️{userShields}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={handleSimulatePlayerSwap}
+                              className="px-1 py-0.2 rounded bg-sky-500/20 hover:bg-sky-500/40 text-sky-200 border border-sky-400/30"
+                              title="Simulate True Swap for Player (resets to 50s)"
+                            >
+                              Swap P
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleSimulatePlayerFaint}
+                              className="px-1 py-0.2 rounded bg-red-500/20 hover:bg-red-500/40 text-red-200 border border-red-400/30"
+                              title="Simulate Player Faint (-1 ball, dims column, preserves swap timer)"
+                            >
+                              Faint P
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleUsePlayerShield}
+                              className="px-1 py-0.2 rounded bg-pink-500/20 hover:bg-pink-500/40 text-pink-200 border border-pink-400/30"
+                              title="Simulate Player Shield Used (-1 shield, never alters life or swap timer)"
+                            >
+                              Shld P
+                            </button>
+                          </div>
                           <button
                             type="button"
                             onClick={handleResetTimersAndBalls}
-                            className="px-1 py-0.2 rounded bg-slate-700/50 hover:bg-slate-600 text-slate-300 border border-slate-500/30"
-                            title="Reset all swap clocks to 0s (Ready) and restore 3 Pokéballs"
+                            className="px-1 py-0.2 rounded bg-slate-700/50 hover:bg-slate-600 text-slate-300 border border-slate-500/30 ml-auto"
+                            title="Reset all swap clocks to 0s (Ready), restore 3 Pokéballs and 2 Shields"
                           >
                             ↺
                           </button>
+                        </div>
+                        <div className="flex items-center justify-between gap-1">
+                          <div className="flex items-center gap-1">
+                            <span className="text-slate-400 font-bold">Opp:</span>
+                            <span className="flex items-center tracking-tighter" title={`Opponent Pokéballs: ${oppPokeballCount}/3 remaining`}>
+                              {[0, 1, 2].map((i) => (
+                                <span key={i} className={i < oppPokeballCount ? 'text-red-500' : 'text-slate-600 opacity-40'}>●</span>
+                              ))}
+                            </span>
+                            <span className="text-pink-400 font-bold ml-0.5" title={`Opponent Shields: ${oppShields}/2 remaining`}>
+                              🛡️{oppShields}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={handleSimulateOpponentSwap}
+                              className="px-1 py-0.2 rounded bg-sky-500/20 hover:bg-sky-500/40 text-sky-200 border border-sky-400/30"
+                              title="Simulate True Swap for Opponent (resets to 50s)"
+                            >
+                              Swap Opp
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleSimulateOpponentFaint}
+                              className="px-1 py-0.2 rounded bg-red-500/20 hover:bg-red-500/40 text-red-200 border border-red-400/30"
+                              title="Simulate Opponent Faint (-1 ball, dims column, preserves swap timer)"
+                            >
+                              Faint Opp
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleUseOpponentShield}
+                              className="px-1 py-0.2 rounded bg-pink-500/20 hover:bg-pink-500/40 text-pink-200 border border-pink-400/30"
+                              title="Simulate Opponent Shield Used (-1 shield, never alters life or swap timer)"
+                            >
+                              Shld Opp
+                            </button>
+                          </div>
                         </div>
                       </div>
 
@@ -4332,7 +4383,7 @@ export default function App() {
                           'Content-Type': 'application/json'
                         },
                         body: JSON.stringify({
-                          description: 'SilphScope PvP v2.32 Multi-Device Delta Sync Vault',
+                          description: 'SilphScope PvP v2.33 Multi-Device Delta Sync Vault',
                           public: false,
                           files: {
                             'gbl_delta_sync_v2.json': { content: bundleStr }
@@ -5862,7 +5913,7 @@ export default function App() {
 
       {/* Footer */}
       <footer className="border-t border-slate-800/80 py-4 px-6 text-center text-xs text-slate-500">
-        SilphScope PvP v2.32 Overlay • Built with Kotlin, WindowManager TYPE_APPLICATION_OVERLAY, MediaProjection in-memory frame capture, and ML Kit Text Recognition.
+        SilphScope PvP v2.33 Overlay • Built with Kotlin, WindowManager TYPE_APPLICATION_OVERLAY, MediaProjection in-memory frame capture, and ML Kit Text Recognition.
       </footer>
     </div>
   );
