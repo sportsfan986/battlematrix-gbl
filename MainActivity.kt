@@ -33,19 +33,19 @@ import kotlin.math.roundToInt
  * Data model for a custom saved GBL Team Preset
  */
 data class PokemonSlot(
-    val name: String,
-    val cp: Int,
-    val fastMove: String,
-    val chargedMove1: String,
-    val chargedMove2: String,
+    val name: String = "",
+    val cp: Int = 1500,
+    val fastMove: String = "",
+    val chargedMove1: String = "",
+    val chargedMove2: String = "",
     val ivs: String? = null
 )
 
 data class TeamPreset(
     val id: String = UUID.randomUUID().toString(),
-    val name: String,
-    val league: String, // "MASTER LEAGUE", "ULTRA LEAGUE", "GREAT LEAGUE"
-    val pokemon: List<PokemonSlot>,
+    val name: String = "",
+    val league: String = "GREAT LEAGUE", // "MASTER LEAGUE", "ULTRA LEAGUE", "GREAT LEAGUE"
+    val pokemon: List<PokemonSlot> = emptyList(),
     val isSelected: Boolean = false,
     val updatedAt: Long = System.currentTimeMillis()
 )
@@ -53,7 +53,7 @@ data class TeamPreset(
 data class BattleLogEntry(
     val id: String = UUID.randomUUID().toString(),
     val timestampMs: Long = System.currentTimeMillis(),
-    val updatedAt: Long = timestampMs,
+    val updatedAt: Long = System.currentTimeMillis(),
     val league: String = "GREAT LEAGUE",
     val presetId: String = "",
     val userTeamName: String = "",
@@ -77,10 +77,10 @@ data class BattleLogEntry(
 )
 
 data class GblSeasonInfo(
-    val id: String,
-    val name: String,
-    val startMs: Long,
-    val endMs: Long
+    val id: String = "",
+    val name: String = "",
+    val startMs: Long = 0L,
+    val endMs: Long = 0L
 )
 
 /**
@@ -1309,6 +1309,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    @Suppress("USELESS_ELVIS")
     private fun resolveEntryQuality(
         entry: BattleLogEntry,
         presets: List<TeamPreset>,
@@ -1319,31 +1320,36 @@ class MainActivity : AppCompatActivity() {
             if (entry.qualityEvaluated) return null
         }
 
-        val firstSwap = entry.opponents.getOrNull(1)?.trim().orEmpty()
+        val oppsList = entry.opponents ?: emptyList()
+        val firstSwap = oppsList.getOrNull(1)?.trim().orEmpty()
         if (firstSwap.isEmpty()) return null
 
+        val safePresetId = entry.presetId ?: ""
+        val safeUserTeamName = entry.userTeamName ?: ""
         val matchedPreset = presets.find {
-            (entry.presetId.isNotBlank() && it.id == entry.presetId) ||
-                it.name.equals(entry.userTeamName, ignoreCase = true)
+            (safePresetId.isNotBlank() && it.id == safePresetId) ||
+                it.name.equals(safeUserTeamName, ignoreCase = true)
         }
-        val myMons = if (entry.userPokemon.size >= 3) {
-            entry.userPokemon
+        val safeUserMons = entry.userPokemon ?: emptyList()
+        val myMons = if (safeUserMons.size >= 3) {
+            safeUserMons
         } else if (matchedPreset != null && matchedPreset.pokemon.isNotEmpty()) {
             matchedPreset.pokemon.map { it.name }
         } else {
-            entry.userPokemon
+            safeUserMons
         }
         val serviceSlots = matchedPreset?.pokemon?.map {
             OverlayService.TeamMember(it.name, it.cp, it.fastMove, it.chargedMove1, it.chargedMove2, it.ivs)
         }
-        val hasTimeline = entry.timelineEvents.isNotEmpty()
+        val safeTimeline = entry.timelineEvents ?: emptyList()
+        val hasTimeline = safeTimeline.isNotEmpty()
         return OverlayService.calculateBattleQuality(
             myTeam = myMons,
-            oppTeam = entry.opponents,
-            league = entry.league,
-            result = entry.result,
+            oppTeam = oppsList,
+            league = entry.league ?: "GREAT LEAGUE",
+            result = entry.result ?: "WIN",
             myTeamSlots = serviceSlots,
-            timelineEvents = entry.timelineEvents.takeIf { it.isNotEmpty() },
+            timelineEvents = safeTimeline.takeIf { it.isNotEmpty() },
             totalDurationSec = entry.battleDurationSec,
             explicitUserFaints = entry.userFaints ?: (if (hasTimeline) entry.quality?.userFaints else null),
             explicitOppFaints = entry.oppFaints ?: (if (hasTimeline) entry.quality?.oppFaints else null),
@@ -2306,7 +2312,8 @@ class MainActivity : AppCompatActivity() {
                     primaryBadgeRow.addView(badgeTv)
                     qualityRow.addView(primaryBadgeRow)
 
-                    val flagsList = entryQuality.contextualFlags.ifEmpty { entry.flags }
+                    @Suppress("USELESS_ELVIS")
+                    val flagsList = (entryQuality.contextualFlags ?: emptyList()).ifEmpty { entry.flags ?: emptyList() }
                     if (flagsList.isNotEmpty()) {
                         val flagsRow = LinearLayout(this).apply {
                             orientation = LinearLayout.HORIZONTAL
@@ -2605,150 +2612,202 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
+    inner class ReplayJavascriptBridge(
+        private val replayEngine: OverlayService,
+        private val pushReplayStateToWeb: () -> Unit
+    ) {
+        @android.webkit.JavascriptInterface
+        fun selectActiveUserPokemon(pokemonName: String) {
+            runOnUiThread {
+                try {
+                    replayEngine.selectActiveUserPokemon(pokemonName)
+                    pushReplayStateToWeb()
+                } catch (_: Exception) {}
+            }
+        }
+
+        @android.webkit.JavascriptInterface
+        fun swapActiveOpponent(pokemonName: String) {
+            runOnUiThread {
+                try {
+                    replayEngine.swapActiveOpponent(pokemonName)
+                    pushReplayStateToWeb()
+                } catch (_: Exception) {}
+            }
+        }
+
+        @android.webkit.JavascriptInterface
+        fun toggleOpponentShadow() {
+            runOnUiThread {
+                try {
+                    replayEngine.toggleShadowModifier()
+                    pushReplayStateToWeb()
+                } catch (_: Exception) {}
+            }
+        }
+
+        @android.webkit.JavascriptInterface
+        fun cycleOpponentForm() {
+            runOnUiThread {
+                try {
+                    replayEngine.cycleActiveOpponentForm()
+                    pushReplayStateToWeb()
+                } catch (_: Exception) {}
+            }
+        }
+
+        @android.webkit.JavascriptInterface
+        fun updateContentHeight(heightDp: Int) {}
+
+        @android.webkit.JavascriptInterface
+        fun onOverlayReady() {
+            runOnUiThread {
+                try {
+                    pushReplayStateToWeb()
+                } catch (_: Exception) {}
+            }
+        }
+    }
+
+    @Suppress("USELESS_ELVIS")
     @android.annotation.SuppressLint("SetJavaScriptEnabled")
     private fun showInteractiveBattleReplayDialog(entry: BattleLogEntry) {
-        val presets = loadPresets()
-        val matchedPreset = presets.find {
-            (entry.presetId.isNotBlank() && it.id == entry.presetId) ||
-                it.name.equals(entry.userTeamName, ignoreCase = true)
-        } ?: getSelectedPreset()
+        try {
+            OverlayService.syncTierThresholdsFromPrefs(prefs)
+            val presets = loadPresets()
+            val safePresetId = entry.presetId ?: ""
+            val safeUserTeamName = entry.userTeamName ?: ""
+            val safeLeague = entry.league ?: "GREAT LEAGUE"
+            val safeUserPokemon = entry.userPokemon ?: emptyList()
+            val safeOpponents = entry.opponents ?: emptyList()
+            val safeLeadMatchup = entry.leadMatchup ?: "NEUTRAL"
+            val safeResult = entry.result ?: "WIN"
 
-        val teamMembers: List<OverlayService.TeamMember> = if (matchedPreset != null && matchedPreset.pokemon.isNotEmpty()) {
-            matchedPreset.pokemon.map {
-                OverlayService.TeamMember(it.name, it.cp, it.fastMove, it.chargedMove1, it.chargedMove2, it.ivs)
+            val matchedPreset = presets.find {
+                (safePresetId.isNotBlank() && it.id == safePresetId) ||
+                    it.name.equals(safeUserTeamName, ignoreCase = true)
+            } ?: getSelectedPreset()
+
+            val teamMembers: List<OverlayService.TeamMember> = if (matchedPreset != null && matchedPreset.pokemon.isNotEmpty()) {
+                matchedPreset.pokemon.map {
+                    OverlayService.TeamMember(it.name, it.cp, it.fastMove, it.chargedMove1, it.chargedMove2, it.ivs)
+                }
+            } else {
+                val fallbackNames = if (safeUserPokemon.size >= 3) safeUserPokemon else getLeagueTop3Defaults(safeLeague).map { it.name }
+                fallbackNames.map { monName ->
+                    val rec = OverlayService.resolveRecommendedMovesForSpecies(monName, safeLeague)
+                    OverlayService.TeamMember(
+                        name = monName,
+                        cp = rec?.defaultCp ?: 1500,
+                        fastMove = rec?.defaultFastMove ?: "Fast Move",
+                        chargedMove1 = rec?.chargedMove1 ?: "Charged 1",
+                        chargedMove2 = rec?.chargedMove2 ?: "Charged 2"
+                    )
+                }
             }
-        } else {
-            val fallbackNames = if (entry.userPokemon.size >= 3) entry.userPokemon else getLeagueTop3Defaults(entry.league).map { it.name }
-            fallbackNames.map { monName ->
-                val rec = OverlayService.resolveRecommendedMovesForSpecies(monName, entry.league)
-                OverlayService.TeamMember(
-                    name = monName,
-                    cp = rec?.defaultCp ?: 1500,
-                    fastMove = rec?.defaultFastMove ?: "Fast Move",
-                    chargedMove1 = rec?.chargedMove1 ?: "Charged 1",
-                    chargedMove2 = rec?.chargedMove2 ?: "Charged 2"
+
+            val servicePreset = OverlayService.TeamPreset(
+                id = matchedPreset?.id ?: "replay-preset",
+                name = safeUserTeamName.ifBlank { matchedPreset?.name ?: "Replay Team" },
+                league = safeLeague,
+                pokemon = teamMembers
+            )
+
+            val replayOpponents = if (safeOpponents.isNotEmpty()) {
+                safeOpponents
+            } else {
+                getLeagueTop3Defaults(safeLeague).map { it.name }
+            }
+
+            val oppCountModeVal = prefs.getString(PREFS_KEY_OPP_COUNT_MODE, "my_fasts") ?: "my_fasts"
+            val enable4Val = prefs.getBoolean(PREFS_KEY_ENABLE_4_CHARGED_MOVES, false)
+
+            val replayEngine = OverlayService()
+            replayEngine.configureReplayState(
+                preset = servicePreset,
+                opponentsList = replayOpponents,
+                activeOppIdx = 0,
+                activeUserIdx = 0,
+                oppCountModeVal = oppCountModeVal,
+                enable4ChargedVal = enable4Val
+            )
+
+            val density = resources.displayMetrics.density
+            val dialogContainer = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setBackgroundColor(0xFF0F172A.toInt())
+                val pad = (8 * density).toInt()
+                setPadding(pad, pad, pad, pad)
+            }
+
+            val entryQuality = resolveEntryQuality(entry, presets)
+            val qualityLine = if (entryQuality != null) {
+                val bmfInt = (entryQuality.pPre * 100.0).roundToInt()
+                val waeVal = entryQuality.deltaQ * 100.0
+                val sign = if (waeVal >= 0.0) "+" else "-"
+                val waeStr = String.format(java.util.Locale.US, "%s%.1f%%", sign, kotlin.math.abs(waeVal))
+                "\n${entryQuality.badgeLabel} • BMF: ${bmfInt}% • Exec WAE: $waeStr"
+            } else ""
+
+            val hintTv = TextView(this).apply {
+                val leadTxt = when (safeLeadMatchup.uppercase()) {
+                    "FAVORABLE" -> "Lead: Favorable"
+                    "NEGATIVE" -> "Lead: Negative"
+                    else -> "Lead: Neutral"
+                }
+                text = "🔍 Interactive Post-Game Overlay • $safeResult ($leadTxt)$qualityLine\nTap any of your 3 Pokémon chips, opponent rows (1st/2nd/3rd), or Shadow/Form buttons to inspect matchup lines:"
+                setTextColor(0xFF94A3B8.toInt())
+                textSize = 11f
+                setPadding((4 * density).toInt(), 0, (4 * density).toInt(), (6 * density).toInt())
+            }
+
+            val replayWebView = android.webkit.WebView(this).apply {
+                settings.javaScriptEnabled = true
+                settings.domStorageEnabled = true
+                settings.allowFileAccess = true
+                setBackgroundColor(0x00000000)
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    (390 * density).toInt()
                 )
             }
+
+            val pushReplayStateToWeb = {
+                try {
+                    val payloadJson = replayEngine.buildBattlePayloadJson(isReplayMode = true)
+                    replayWebView.post {
+                        try {
+                            replayWebView.evaluateJavascript("if (window.setOverlayTransparencyPct) setOverlayTransparencyPct(15);", null)
+                            replayWebView.evaluateJavascript("if (window.updateBattleData) updateBattleData($payloadJson);", null)
+                        } catch (_: Exception) {}
+                    }
+                } catch (_: Exception) {}
+            }
+
+            val replayBridge = ReplayJavascriptBridge(replayEngine, pushReplayStateToWeb)
+
+            replayWebView.webViewClient = object : android.webkit.WebViewClient() {
+                override fun onPageFinished(view: android.webkit.WebView?, url: String?) {
+                    super.onPageFinished(view, url)
+                    pushReplayStateToWeb()
+                }
+            }
+            replayWebView.addJavascriptInterface(replayBridge, "AndroidOverlay")
+            replayWebView.loadUrl("file:///android_asset/overlay.html?replay=1")
+
+            dialogContainer.addView(hintTv)
+            dialogContainer.addView(replayWebView)
+
+            AlertDialog.Builder(this)
+                .setView(dialogContainer)
+                .setPositiveButton("Close Replay", null)
+                .setNeutralButton("✏️ Edit Log") { _, _ ->
+                    showEditOrCreateBattleLogDialog(entry)
+                }
+                .show()
+        } catch (e: Exception) {
+            Toast.makeText(this, "Error opening Battle Recap: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
         }
-
-        val servicePreset = OverlayService.TeamPreset(
-            id = matchedPreset?.id ?: "replay-preset",
-            name = entry.userTeamName.ifBlank { matchedPreset?.name ?: "Replay Team" },
-            league = entry.league,
-            pokemon = teamMembers
-        )
-
-        val replayOpponents = if (entry.opponents.isNotEmpty()) {
-            entry.opponents
-        } else {
-            getLeagueTop3Defaults(entry.league).map { it.name }
-        }
-
-        val oppCountModeVal = prefs.getString(PREFS_KEY_OPP_COUNT_MODE, "my_fasts") ?: "my_fasts"
-        val enable4Val = prefs.getBoolean(PREFS_KEY_ENABLE_4_CHARGED_MOVES, false)
-
-        val replayEngine = OverlayService()
-        replayEngine.configureReplayState(
-            preset = servicePreset,
-            opponentsList = replayOpponents,
-            activeOppIdx = 0,
-            activeUserIdx = 0,
-            oppCountModeVal = oppCountModeVal,
-            enable4ChargedVal = enable4Val
-        )
-
-        val density = resources.displayMetrics.density
-        val dialogContainer = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(0xFF0F172A.toInt())
-            val pad = (8 * density).toInt()
-            setPadding(pad, pad, pad, pad)
-        }
-
-        val hintTv = TextView(this).apply {
-            val leadTxt = when (entry.leadMatchup.uppercase()) {
-                "FAVORABLE" -> "Lead: Favorable"
-                "NEGATIVE" -> "Lead: Negative"
-                else -> "Lead: Neutral"
-            }
-            text = "🔍 Interactive Post-Game Overlay • ${entry.result} ($leadTxt)\nTap any of your 3 Pokémon chips, opponent rows (1st/2nd/3rd), or Shadow/Form buttons to inspect matchup lines:"
-            setTextColor(0xFF94A3B8.toInt())
-            textSize = 11f
-            setPadding((4 * density).toInt(), 0, (4 * density).toInt(), (6 * density).toInt())
-        }
-
-        val replayWebView = android.webkit.WebView(this).apply {
-            settings.javaScriptEnabled = true
-            settings.domStorageEnabled = true
-            settings.allowFileAccess = true
-            setBackgroundColor(0x00000000)
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                (390 * density).toInt()
-            )
-        }
-
-        val pushReplayStateToWeb = {
-            val payloadJson = replayEngine.buildBattlePayloadJson(isReplayMode = true)
-            replayWebView.post {
-                replayWebView.evaluateJavascript("if (window. setOverlayTransparencyPct) setOverlayTransparencyPct(15);", null)
-                replayWebView.evaluateJavascript("if (window.updateBattleData) updateBattleData($payloadJson);", null)
-            }
-        }
-
-        val replayBridge = object {
-            @android.webkit.JavascriptInterface
-            fun selectActiveUserPokemon(pokemonName: String) {
-                replayEngine.selectActiveUserPokemon(pokemonName)
-                pushReplayStateToWeb()
-            }
-
-            @android.webkit.JavascriptInterface
-            fun swapActiveOpponent(pokemonName: String) {
-                replayEngine.swapActiveOpponent(pokemonName)
-                pushReplayStateToWeb()
-            }
-
-            @android.webkit.JavascriptInterface
-            fun toggleOpponentShadow() {
-                replayEngine.toggleShadowModifier()
-                pushReplayStateToWeb()
-            }
-
-            @android.webkit.JavascriptInterface
-            fun cycleOpponentForm() {
-                replayEngine.cycleActiveOpponentForm()
-                pushReplayStateToWeb()
-            }
-
-            @android.webkit.JavascriptInterface
-            fun updateContentHeight(heightDp: Int) {}
-
-            @android.webkit.JavascriptInterface
-            fun onOverlayReady() {
-                pushReplayStateToWeb()
-            }
-        }
-
-        replayWebView.webViewClient = object : android.webkit.WebViewClient() {
-            override fun onPageFinished(view: android.webkit.WebView?, url: String?) {
-                super.onPageFinished(view, url)
-                pushReplayStateToWeb()
-            }
-        }
-        replayWebView.addJavascriptInterface(replayBridge, "AndroidOverlay")
-        replayWebView.loadUrl("file:///android_asset/overlay.html?replay=1")
-
-        dialogContainer.addView(hintTv)
-        dialogContainer.addView(replayWebView)
-
-        AlertDialog.Builder(this)
-            .setView(dialogContainer)
-            .setPositiveButton("Close Replay", null)
-            .setNeutralButton("✏️ Edit Log") { _, _ ->
-                showEditOrCreateBattleLogDialog(entry)
-            }
-            .show()
     }
 
     private fun updateOppCountBasisUi() {

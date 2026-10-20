@@ -3482,9 +3482,9 @@ class OverlayService : LifecycleService() {
     }
 
     data class BattleTimelineEvent(
-        val type: String, // "SWAP" | "SHIELD" | "FAINT"
-        val actor: String, // "user" | "opp"
-        val t: Double, // Relative elapsed seconds (Date.now() - t0) / 1000
+        val type: String = "SWAP", // "SWAP" | "SHIELD" | "FAINT"
+        val actor: String = "user", // "user" | "opp"
+        val t: Double = 0.0, // Relative elapsed seconds (Date.now() - t0) / 1000
         val pokemonIn: String? = null,
         val pokemonOut: String? = null,
         val pokemonFainted: String? = null,
@@ -3496,44 +3496,44 @@ class OverlayService : LifecycleService() {
     )
 
     data class ExecutionIntervalSegment(
-        val tStart: Double,
-        val tEnd: Double,
-        val duration: Double,
-        val tau: Double,
-        val userActive: String,
-        val oppActive: String,
-        val userShields: Int,
-        val oppShields: Int,
-        val rating: Double
+        val tStart: Double = 0.0,
+        val tEnd: Double = 0.0,
+        val duration: Double = 0.0,
+        val tau: Double = 0.0,
+        val userActive: String = "",
+        val oppActive: String = "",
+        val userShields: Int = 2,
+        val oppShields: Int = 2,
+        val rating: Double = 500.0
     )
 
     data class DynamicExecutionWAEResult(
-        val execWae: Double,
-        val weightedResidual: Double,
-        val pExec: Double,
-        val pPre: Double,
-        val sActual: Double?,
-        val deltaQBase: Double,
-        val deltaQFinal: Double,
-        val weight: Double,
-        val faintMarginScaled: Boolean,
-        val shieldPenaltyApplied: Double,
-        val userFaints: Int,
-        val oppFaints: Int,
-        val userShieldsRemaining: Int,
-        val oppShieldsRemaining: Int,
-        val intervals: List<ExecutionIntervalSegment>
+        val execWae: Double = 0.0,
+        val weightedResidual: Double = 0.0,
+        val pExec: Double = 0.5,
+        val pPre: Double = 0.5,
+        val sActual: Double? = null,
+        val deltaQBase: Double = 0.0,
+        val deltaQFinal: Double = 0.0,
+        val weight: Double = 1.0,
+        val faintMarginScaled: Boolean = false,
+        val shieldPenaltyApplied: Double = 0.0,
+        val userFaints: Int = 0,
+        val oppFaints: Int = 0,
+        val userShieldsRemaining: Int = 2,
+        val oppShieldsRemaining: Int = 2,
+        val intervals: List<ExecutionIntervalSegment> = emptyList()
     )
 
     data class BlindMatchupFavorabilityResult(
-        val bmf: Double?,
-        val pPre: Double?,
-        val bmfPercentage: Double?,
-        val weight: Double,
-        val sLead: Double?,
-        val sBack: Double?,
-        val compositeM: Double?,
-        val isUnrevealedThird: Boolean
+        val bmf: Double? = null,
+        val pPre: Double? = null,
+        val bmfPercentage: Double? = null,
+        val weight: Double = 0.0,
+        val sLead: Double? = null,
+        val sBack: Double? = null,
+        val compositeM: Double? = null,
+        val isUnrevealedThird: Boolean = false
     )
 
     data class BattleQualityMetadata(
@@ -3543,20 +3543,20 @@ class OverlayService : LifecycleService() {
         val sActual: Double? = null,
         val pExec: Double = 0.5,
         val execWae: Double = 0.0,
-        val pWin: Double,
-        val expWinPct: Int,
-        val deltaQ: Double,
-        val weight: Double,
-        val weightedResidual: Double,
-        val badgeLabel: String,
-        val badgeColorHex: String,
+        val pWin: Double = 0.5,
+        val expWinPct: Int = 50,
+        val deltaQ: Double = 0.0,
+        val weight: Double = 1.0,
+        val weightedResidual: Double = 0.0,
+        val badgeLabel: String = "Skill Win",
+        val badgeColorHex: String = "#4ade80",
         val badges: List<String> = emptyList(),
         val contextualFlags: List<String> = emptyList(),
         val flags: List<String> = emptyList(),
-        val unrevealedThird: Boolean,
-        val sLead: Double,
-        val sBack: Double,
-        val compositeScore: Double,
+        val unrevealedThird: Boolean = false,
+        val sLead: Double = 500.0,
+        val sBack: Double = 500.0,
+        val compositeScore: Double = 500.0,
         val faintMarginScaled: Boolean = false,
         val shieldPenaltyApplied: Double = 0.0,
         val userFaints: Int = 0,
@@ -7440,7 +7440,9 @@ class OverlayService : LifecycleService() {
         p2: TeamMember?,
         p3: TeamMember?
     ): Map<String, String> {
-        syncTierThresholdsFromPrefs(prefs)
+        if (::prefs.isInitialized) {
+            syncTierThresholdsFromPrefs(prefs)
+        }
         val swMin = activeTierSwMin
         val wMin = activeTierWMin
         val lMax = activeTierLMax
@@ -7511,6 +7513,7 @@ class OverlayService : LifecycleService() {
     }
 
     private fun loadPresets(): List<TeamPreset> {
+        if (!::prefs.isInitialized) return emptyList()
         val persistentJson = prefs.getString(PREFS_KEY_PERSISTENT_TEAMS, null)
         if (!persistentJson.isNullOrBlank()) {
             val type = object : TypeToken<List<TeamPreset>>() {}.type
