@@ -84,6 +84,24 @@ data class GblSeasonInfo(
     val endMs: Long = 0L
 )
 
+data class AppThemePalette(
+    val id: String,
+    val label: String,
+    val description: String,
+    val isLight: Boolean,
+    val bgColor: Int,
+    val navBarColor: Int,
+    val surfaceColor: Int,
+    val innerCardColor: Int,
+    val elevatedColor: Int,
+    val primaryTextColor: Int,
+    val secondaryTextColor: Int,
+    val accentColor: Int,
+    val buttonAccentColor: Int,
+    val overlayBorderColor: Int,
+    val emblemDrawableRes: Int? = null
+)
+
 /**
  * MainActivity handles:
  * 1. Permission checks (SYSTEM_ALERT_WINDOW, POST_NOTIFICATIONS & MediaProjection Screen Capture)
@@ -163,6 +181,191 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnUndoBannerDismiss: TextView
     private lateinit var btnTrashTeams: Button
     private lateinit var btnTrashBattleLog: Button
+    private lateinit var spinnerAppTheme: Spinner
+    private lateinit var ivThemePreviewEmblem: ImageView
+    private lateinit var tvThemePreviewDesc: TextView
+    private lateinit var viewSwatchBg: android.view.View
+    private lateinit var viewSwatchSurface: android.view.View
+    private lateinit var viewSwatchAccent: android.view.View
+    private lateinit var viewSwatchOverlay: android.view.View
+    private lateinit var switchShowThemeWatermark: Switch
+    private var currentActivePage: String = "teams"
+    private var isUpdatingThemeSpinner = false
+
+    private val APP_THEME_COLLECTION: List<AppThemePalette> by lazy {
+        listOf(
+            AppThemePalette(
+                id = "slate",
+                label = "SilphScope Slate (Default Dark)",
+                description = "SilphScope Slate (Default Dark) — Deep slate canvas with sky-cyan tactical accents and glass HUD.",
+                isLight = false,
+                bgColor = 0xFF0F172A.toInt(),
+                navBarColor = 0xFF020617.toInt(),
+                surfaceColor = 0xFF1E293B.toInt(),
+                innerCardColor = 0xFF0F172A.toInt(),
+                elevatedColor = 0xFF334155.toInt(),
+                primaryTextColor = 0xFFF8FAFC.toInt(),
+                secondaryTextColor = 0xFF94A3B8.toInt(),
+                accentColor = 0xFF38BDF8.toInt(),
+                buttonAccentColor = 0xFF0284C7.toInt(),
+                overlayBorderColor = 0xFF38BDF8.toInt(),
+                emblemDrawableRes = null
+            ),
+            AppThemePalette(
+                id = "amoled_cyan",
+                label = "Cyber Pulse Cyan (AMOLED Black)",
+                description = "Cyber Pulse Cyan (AMOLED) — Pitch-black #000000 battery-saving canvas with electric cyan accents.",
+                isLight = false,
+                bgColor = 0xFF000000.toInt(),
+                navBarColor = 0xFF03070E.toInt(),
+                surfaceColor = 0xFF0A1322.toInt(),
+                innerCardColor = 0xFF040911.toInt(),
+                elevatedColor = 0xFF132640.toInt(),
+                primaryTextColor = 0xFFECFEFF.toInt(),
+                secondaryTextColor = 0xFF67E8F9.toInt(),
+                accentColor = 0xFF00F5D4.toInt(),
+                buttonAccentColor = 0xFF0891B2.toInt(),
+                overlayBorderColor = 0xFF00F5D4.toInt(),
+                emblemDrawableRes = null
+            ),
+            AppThemePalette(
+                id = "amoled_matrix",
+                label = "Matrix Phosphor Green (AMOLED Black)",
+                description = "Matrix Phosphor Green (AMOLED) — True #000000 black terminal canvas with neon phosphor matrix green.",
+                isLight = false,
+                bgColor = 0xFF000000.toInt(),
+                navBarColor = 0xFF020A04.toInt(),
+                surfaceColor = 0xFF07170C.toInt(),
+                innerCardColor = 0xFF030C06.toInt(),
+                elevatedColor = 0xFF0F2D18.toInt(),
+                primaryTextColor = 0xFFDCFCE7.toInt(),
+                secondaryTextColor = 0xFF4ADE80.toInt(),
+                accentColor = 0xFF00FF66.toInt(),
+                buttonAccentColor = 0xFF16A34A.toInt(),
+                overlayBorderColor = 0xFF00FF66.toInt(),
+                emblemDrawableRes = null
+            ),
+            AppThemePalette(
+                id = "instinct_dark",
+                label = "⚡ Team Instinct Storm (Dark)",
+                description = "Team Instinct Storm (Dark) ⚡ — Obsidian storm-cloud dark mode with Zapdos lightning gold & emblem watermark.",
+                isLight = false,
+                bgColor = 0xFF0E0B03.toInt(),
+                navBarColor = 0xFF070501.toInt(),
+                surfaceColor = 0xFF1F1908.toInt(),
+                innerCardColor = 0xFF141005.toInt(),
+                elevatedColor = 0xFF362B0E.toInt(),
+                primaryTextColor = 0xFFFEFCE8.toInt(),
+                secondaryTextColor = 0xFFFDE047.toInt(),
+                accentColor = 0xFFFACC15.toInt(),
+                buttonAccentColor = 0xFFCA8A04.toInt(),
+                overlayBorderColor = 0xFFFACC15.toInt(),
+                emblemDrawableRes = R.drawable.bg_emblem_instinct
+            ),
+            AppThemePalette(
+                id = "instinct_light",
+                label = "⚡ Team Instinct Spark (Light)",
+                description = "Team Instinct Spark (Light) ⚡ — Warm solar-gold daylight theme with Zapdos crest watermark & dark tactical HUD.",
+                isLight = true,
+                bgColor = 0xFFFEFCE8.toInt(),
+                navBarColor = 0xFFFEF08A.toInt(),
+                surfaceColor = 0xFFFFFFFF.toInt(),
+                innerCardColor = 0xFFFEF9C3.toInt(),
+                elevatedColor = 0xFFFDE047.toInt(),
+                primaryTextColor = 0xFF1C1917.toInt(),
+                secondaryTextColor = 0xFF713F12.toInt(),
+                accentColor = 0xFFB45309.toInt(),
+                buttonAccentColor = 0xFFD97706.toInt(),
+                overlayBorderColor = 0xFFFACC15.toInt(),
+                emblemDrawableRes = R.drawable.bg_emblem_instinct
+            ),
+            AppThemePalette(
+                id = "mystic_dark",
+                label = "❄️ Team Mystic Blizzard (Dark)",
+                description = "Team Mystic Blizzard (Dark) ❄️ — Deep midnight glacier navy with Articuno ice-crystal blue & emblem watermark.",
+                isLight = false,
+                bgColor = 0xFF060E20.toInt(),
+                navBarColor = 0xFF030712.toInt(),
+                surfaceColor = 0xFF102040.toInt(),
+                innerCardColor = 0xFF09142B.toInt(),
+                elevatedColor = 0xFF1E3A6E.toInt(),
+                primaryTextColor = 0xFFF0F9FF.toInt(),
+                secondaryTextColor = 0xFF93C5FD.toInt(),
+                accentColor = 0xFF38BDF8.toInt(),
+                buttonAccentColor = 0xFF2563EB.toInt(),
+                overlayBorderColor = 0xFF38BDF8.toInt(),
+                emblemDrawableRes = R.drawable.bg_emblem_mystic
+            ),
+            AppThemePalette(
+                id = "mystic_light",
+                label = "❄️ Team Mystic Glacier (Light)",
+                description = "Team Mystic Glacier (Light) ❄️ — Crisp arctic ice-blue daylight theme with Articuno crest watermark.",
+                isLight = true,
+                bgColor = 0xFFF0F9FF.toInt(),
+                navBarColor = 0xFFDBEAFE.toInt(),
+                surfaceColor = 0xFFFFFFFF.toInt(),
+                innerCardColor = 0xFFE0F2FE.toInt(),
+                elevatedColor = 0xFFBAE6FD.toInt(),
+                primaryTextColor = 0xFF0F172A.toInt(),
+                secondaryTextColor = 0xFF1E40AF.toInt(),
+                accentColor = 0xFF0284C7.toInt(),
+                buttonAccentColor = 0xFF2563EB.toInt(),
+                overlayBorderColor = 0xFF38BDF8.toInt(),
+                emblemDrawableRes = R.drawable.bg_emblem_mystic
+            ),
+            AppThemePalette(
+                id = "valor_dark",
+                label = "🔥 Team Valor Inferno (Dark)",
+                description = "Team Valor Inferno (Dark) 🔥 — Volcanic ember dark mode with Moltres crimson-flame accents & emblem watermark.",
+                isLight = false,
+                bgColor = 0xFF16070B.toInt(),
+                navBarColor = 0xFF0B0305.toInt(),
+                surfaceColor = 0xFF290E16.toInt(),
+                innerCardColor = 0xFF1B090E.toInt(),
+                elevatedColor = 0xFF471725.toInt(),
+                primaryTextColor = 0xFFFFF1F2.toInt(),
+                secondaryTextColor = 0xFFFDA4AF.toInt(),
+                accentColor = 0xFFF43F5E.toInt(),
+                buttonAccentColor = 0xFFE11D48.toInt(),
+                overlayBorderColor = 0xFFF43F5E.toInt(),
+                emblemDrawableRes = R.drawable.bg_emblem_valor
+            ),
+            AppThemePalette(
+                id = "valor_light",
+                label = "🔥 Team Valor Dawn (Light)",
+                description = "Team Valor Dawn (Light) 🔥 — Warm rose-ivory daylight theme with crimson Moltres crest watermark.",
+                isLight = true,
+                bgColor = 0xFFFFF1F2.toInt(),
+                navBarColor = 0xFFFFE4E6.toInt(),
+                surfaceColor = 0xFFFFFFFF.toInt(),
+                innerCardColor = 0xFFFFE4E6.toInt(),
+                elevatedColor = 0xFFFECDD3.toInt(),
+                primaryTextColor = 0xFF1F090D.toInt(),
+                secondaryTextColor = 0xFF9F1239.toInt(),
+                accentColor = 0xFFE11D48.toInt(),
+                buttonAccentColor = 0xFFF43F5E.toInt(),
+                overlayBorderColor = 0xFFFB7185.toInt(),
+                emblemDrawableRes = R.drawable.bg_emblem_valor
+            ),
+            AppThemePalette(
+                id = "sylveon_pink",
+                label = "🎀 Sylveon Fairy Ribbon (Light Pink)",
+                description = "Sylveon Fairy Ribbon (Light Pink) 🎀 — Pastel fairy-blush & sky-blue bow palette with Sylveon ribbon watermark.",
+                isLight = true,
+                bgColor = 0xFFFDF2F8.toInt(),
+                navBarColor = 0xFFFCE7F3.toInt(),
+                surfaceColor = 0xFFFFFFFF.toInt(),
+                innerCardColor = 0xFFFCE7F3.toInt(),
+                elevatedColor = 0xFFFBCFE8.toInt(),
+                primaryTextColor = 0xFF3B0726.toInt(),
+                secondaryTextColor = 0xFF9D174D.toInt(),
+                accentColor = 0xFFDB2777.toInt(),
+                buttonAccentColor = 0xFFEC4899.toInt(),
+                overlayBorderColor = 0xFFF472B6.toInt(),
+                emblemDrawableRes = R.drawable.bg_emblem_sylveon
+            )
+        )
+    }
 
     private var pendingUndoAction: (() -> Unit)? = null
     private var undoHideJob: kotlinx.coroutines.Job? = null
@@ -376,17 +579,24 @@ class MainActivity : AppCompatActivity() {
         return (progress.coerceIn(0, 50) * 2).coerceIn(0, 100)
     }
 
+    private fun getActiveAppTheme(): AppThemePalette {
+        val savedId = prefs.getString(OverlayService.PREFS_KEY_APP_THEME_ID, "slate") ?: "slate"
+        return APP_THEME_COLLECTION.find { it.id == savedId } ?: APP_THEME_COLLECTION.first()
+    }
+
     private fun switchMainPage(page: String) {
+        currentActivePage = page
         pageTeams.visibility = if (page == "teams") android.view.View.VISIBLE else android.view.View.GONE
         pageBattleLog.visibility = if (page == "battle_log") android.view.View.VISIBLE else android.view.View.GONE
         pageSettings.visibility = if (page == "settings") android.view.View.VISIBLE else android.view.View.GONE
         pageHelp.visibility = if (page == "help") android.view.View.VISIBLE else android.view.View.GONE
 
-        val activeBg = android.content.res.ColorStateList.valueOf(0xFF0284C7.toInt())
-        val inactiveBg = android.content.res.ColorStateList.valueOf(0xFF1E293B.toInt())
-        val helpDefaultBg = android.content.res.ColorStateList.valueOf(0xFF0369A1.toInt())
+        val theme = if (::prefs.isInitialized) getActiveAppTheme() else APP_THEME_COLLECTION.first()
+        val activeBg = android.content.res.ColorStateList.valueOf(theme.buttonAccentColor)
+        val inactiveBg = android.content.res.ColorStateList.valueOf(theme.surfaceColor)
+        val helpDefaultBg = android.content.res.ColorStateList.valueOf(theme.elevatedColor)
         val activeText = 0xFFFFFFFF.toInt()
-        val inactiveText = 0xFF94A3B8.toInt()
+        val inactiveText = theme.secondaryTextColor
 
         btnNavTeams.backgroundTintList = if (page == "teams") activeBg else inactiveBg
         btnNavTeams.setTextColor(if (page == "teams") activeText else inactiveText)
@@ -399,10 +609,132 @@ class MainActivity : AppCompatActivity() {
 
         if (::btnOverlayQuickHelp.isInitialized) {
             btnOverlayQuickHelp.backgroundTintList = if (page == "help") activeBg else helpDefaultBg
+            btnOverlayQuickHelp.setTextColor(if (page == "help") activeText else theme.accentColor)
         }
 
         if (page == "battle_log") {
             renderBattleLogPage()
+        }
+    }
+
+    private fun withAlpha(color: Int, alpha: Int): Int {
+        return (color and 0x00FFFFFF) or ((alpha.coerceIn(0, 255)) shl 24)
+    }
+
+    private fun applyCurrentAppThemeToSubtree(rootView: android.view.View?) {
+        if (rootView == null || !::prefs.isInitialized) return
+        val theme = getActiveAppTheme()
+        val showWatermark = prefs.getBoolean(OverlayService.PREFS_KEY_SHOW_THEME_WATERMARK, true) && theme.emblemDrawableRes != null
+        applyThemeRecursively(rootView, theme, showWatermark)
+    }
+
+    private fun applyThemeRecursively(view: android.view.View, theme: AppThemePalette, hasWatermark: Boolean) {
+        if (view.id == R.id.view_swatch_bg ||
+            view.id == R.id.view_swatch_surface ||
+            view.id == R.id.view_swatch_accent ||
+            view.id == R.id.view_swatch_overlay ||
+            view.id == R.id.root_theme_frame ||
+            view.id == R.id.iv_theme_watermark_bg
+        ) {
+            return
+        }
+
+        val bgDrawable = view.background
+        if (bgDrawable is android.graphics.drawable.ColorDrawable) {
+            val origBg = (view.getTag(R.id.root_theme_frame) as? Int) ?: bgDrawable.color.also {
+                view.setTag(R.id.root_theme_frame, it)
+            }
+            val rgb = origBg and 0x00FFFFFF
+            val surfaceAlpha = if (hasWatermark) 0xDC else 0xFF
+            val innerAlpha = if (hasWatermark) 0xD4 else 0xFF
+            when (rgb) {
+                0x020617 -> view.setBackgroundColor(withAlpha(theme.navBarColor, surfaceAlpha))
+                0x0F172A -> view.setBackgroundColor(withAlpha(theme.innerCardColor, innerAlpha))
+                0x1E293B -> view.setBackgroundColor(withAlpha(theme.surfaceColor, surfaceAlpha))
+                0x334155 -> view.setBackgroundColor(withAlpha(theme.elevatedColor, surfaceAlpha))
+            }
+        }
+
+        if (view is TextView && view !is Button) {
+            val origText = (view.getTag(R.id.iv_theme_watermark_bg) as? Int) ?: view.currentTextColor.also {
+                view.setTag(R.id.iv_theme_watermark_bg, it)
+            }
+            when (origText and 0x00FFFFFF) {
+                0xF8FAFC, 0xFFFFFF, 0xE2E8F0 -> view.setTextColor(theme.primaryTextColor)
+                0xCBD5E1, 0x94A3B8, 0x64748B -> view.setTextColor(theme.secondaryTextColor)
+                0x38BDF8, 0x7DD3FC -> view.setTextColor(theme.accentColor)
+            }
+            if (view is EditText) {
+                view.setHintTextColor(withAlpha(theme.secondaryTextColor, 0x99))
+            }
+        }
+
+        if (view is android.view.ViewGroup) {
+            for (i in 0 until view.childCount) {
+                applyThemeRecursively(view.getChildAt(i), theme, hasWatermark)
+            }
+        }
+    }
+
+    private fun applyCurrentAppTheme(notifyOverlay: Boolean = false) {
+        if (!::prefs.isInitialized) return
+        val theme = getActiveAppTheme()
+        val showWatermark = prefs.getBoolean(OverlayService.PREFS_KEY_SHOW_THEME_WATERMARK, true)
+
+        findViewById<android.view.View>(R.id.root_theme_frame)?.setBackgroundColor(theme.bgColor)
+        try {
+            window.statusBarColor = theme.navBarColor
+            window.navigationBarColor = theme.bgColor
+        } catch (_: Exception) {}
+
+        findViewById<ImageView>(R.id.iv_theme_watermark_bg)?.let { iv ->
+            if (showWatermark && theme.emblemDrawableRes != null) {
+                iv.setImageResource(theme.emblemDrawableRes)
+                iv.alpha = if (theme.isLight) 0.16f else 0.13f
+                iv.visibility = android.view.View.VISIBLE
+            } else {
+                iv.visibility = android.view.View.GONE
+            }
+        }
+
+        if (::ivThemePreviewEmblem.isInitialized) {
+            if (theme.emblemDrawableRes != null) {
+                ivThemePreviewEmblem.setImageResource(theme.emblemDrawableRes)
+                ivThemePreviewEmblem.visibility = android.view.View.VISIBLE
+            } else {
+                ivThemePreviewEmblem.visibility = android.view.View.GONE
+            }
+        }
+        if (::tvThemePreviewDesc.isInitialized) {
+            tvThemePreviewDesc.text = theme.description
+        }
+        if (::viewSwatchBg.isInitialized) viewSwatchBg.setBackgroundColor(theme.bgColor)
+        if (::viewSwatchSurface.isInitialized) viewSwatchSurface.setBackgroundColor(theme.surfaceColor)
+        if (::viewSwatchAccent.isInitialized) viewSwatchAccent.setBackgroundColor(theme.accentColor)
+        if (::viewSwatchOverlay.isInitialized) viewSwatchOverlay.setBackgroundColor(theme.overlayBorderColor)
+
+        if (::seekbarOverlayScale.isInitialized) {
+            val accentState = android.content.res.ColorStateList.valueOf(theme.accentColor)
+            seekbarOverlayScale.progressTintList = accentState
+            seekbarOverlayScale.thumbTintList = accentState
+        }
+        if (::seekbarOverlayTransparency.isInitialized) {
+            val accentState = android.content.res.ColorStateList.valueOf(theme.accentColor)
+            seekbarOverlayTransparency.progressTintList = accentState
+            seekbarOverlayTransparency.thumbTintList = accentState
+        }
+
+        findViewById<android.view.View>(R.id.root_main_layout)?.let { mainRoot ->
+            applyThemeRecursively(mainRoot, theme, showWatermark && theme.emblemDrawableRes != null)
+        }
+        switchMainPage(currentActivePage)
+
+        if (notifyOverlay && isOverlayRunning) {
+            val updateIntent = Intent(this, OverlayService::class.java).apply {
+                action = OverlayService.ACTION_UPDATE_SETTINGS
+                putExtra(OverlayService.EXTRA_APP_THEME_ID, theme.id)
+            }
+            startService(updateIntent)
         }
     }
 
@@ -469,6 +801,38 @@ class MainActivity : AppCompatActivity() {
         btnUndoBannerDismiss = findViewById(R.id.btn_undo_dismiss)
         btnTrashTeams = findViewById(R.id.btn_trash_presets)
         btnTrashBattleLog = findViewById(R.id.btn_trash_battle_log)
+        spinnerAppTheme = findViewById(R.id.spinner_app_theme)
+        ivThemePreviewEmblem = findViewById(R.id.iv_theme_preview_emblem)
+        tvThemePreviewDesc = findViewById(R.id.tv_theme_preview_desc)
+        viewSwatchBg = findViewById(R.id.view_swatch_bg)
+        viewSwatchSurface = findViewById(R.id.view_swatch_surface)
+        viewSwatchAccent = findViewById(R.id.view_swatch_accent)
+        viewSwatchOverlay = findViewById(R.id.view_swatch_overlay)
+        switchShowThemeWatermark = findViewById(R.id.switch_show_theme_watermark)
+
+        isUpdatingThemeSpinner = true
+        val themeLabels = APP_THEME_COLLECTION.map { it.label }
+        spinnerAppTheme.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, themeLabels)
+        val savedThemeId = prefs.getString(OverlayService.PREFS_KEY_APP_THEME_ID, "slate") ?: "slate"
+        val themeIdx = APP_THEME_COLLECTION.indexOfFirst { it.id == savedThemeId }.takeIf { it >= 0 } ?: 0
+        spinnerAppTheme.setSelection(themeIdx, false)
+        switchShowThemeWatermark.isChecked = prefs.getBoolean(OverlayService.PREFS_KEY_SHOW_THEME_WATERMARK, true)
+        isUpdatingThemeSpinner = false
+
+        spinnerAppTheme.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
+                if (isUpdatingThemeSpinner) return
+                val chosen = APP_THEME_COLLECTION.getOrElse(position) { APP_THEME_COLLECTION.first() }
+                prefs.edit().putString(OverlayService.PREFS_KEY_APP_THEME_ID, chosen.id).apply()
+                applyCurrentAppTheme(notifyOverlay = true)
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
+
+        switchShowThemeWatermark.setOnCheckedChangeListener { _, isChecked ->
+            prefs.edit().putBoolean(OverlayService.PREFS_KEY_SHOW_THEME_WATERMARK, isChecked).apply()
+            applyCurrentAppTheme(notifyOverlay = false)
+        }
 
         btnUndoBannerAction.setOnClickListener {
             val action = pendingUndoAction
@@ -797,6 +1161,8 @@ class MainActivity : AppCompatActivity() {
         }
         textOverlayTransparencyDefaultTick.setOnClickListener { resetToDefaultTransparency() }
         textOverlayTransparencyValue.setOnClickListener { resetToDefaultTransparency() }
+
+        applyCurrentAppTheme(notifyOverlay = false)
     }
 
     private fun updateOverlayScaleUi(scalePct: Int) {
@@ -2982,6 +3348,7 @@ class MainActivity : AppCompatActivity() {
                 battleLogContainer.addView(card)
             }
         }
+        applyCurrentAppThemeToSubtree(battleLogContainer)
     }
 
     private fun deleteBattleLogEntry(entry: BattleLogEntry) {
@@ -3532,6 +3899,7 @@ class MainActivity : AppCompatActivity() {
             putExtra(OverlayService.EXTRA_DISABLE_BATTLE_TOASTS, prefs.getBoolean(PREFS_KEY_DISABLE_BATTLE_TOASTS, false))
             putExtra(OverlayService.EXTRA_OVERLAY_SCALE_PCT, prefs.getInt(PREFS_KEY_OVERLAY_SCALE_PCT, DEFAULT_OVERLAY_SCALE_PCT))
             putExtra(OverlayService.EXTRA_OVERLAY_TRANSPARENCY_PCT, prefs.getInt(PREFS_KEY_OVERLAY_TRANSPARENCY_PCT, DEFAULT_OVERLAY_TRANSPARENCY_PCT))
+            putExtra(OverlayService.EXTRA_APP_THEME_ID, prefs.getString(OverlayService.PREFS_KEY_APP_THEME_ID, "slate") ?: "slate")
         }
 
         try {
@@ -3806,6 +4174,7 @@ class MainActivity : AppCompatActivity() {
 
             presetsContainer.addView(itemView)
         }
+        applyCurrentAppThemeToSubtree(presetsContainer)
     }
 
     private inner class PokemonAutocompleteAdapter(
@@ -4400,6 +4769,7 @@ class TaskerOverlayActivity : Activity() {
             putExtra(OverlayService.EXTRA_DISABLE_BATTLE_TOASTS, prefs.getBoolean(OverlayService.PREFS_KEY_DISABLE_BATTLE_TOASTS, false))
             putExtra(OverlayService.EXTRA_OVERLAY_SCALE_PCT, prefs.getInt("overlay_scale_pct", 78))
             putExtra(OverlayService.EXTRA_OVERLAY_TRANSPARENCY_PCT, prefs.getInt(OverlayService.PREFS_KEY_OVERLAY_TRANSPARENCY_PCT, 72))
+            putExtra(OverlayService.EXTRA_APP_THEME_ID, prefs.getString(OverlayService.PREFS_KEY_APP_THEME_ID, "slate") ?: "slate")
         }
         try {
             ContextCompat.startForegroundService(this, serviceIntent)
@@ -4497,6 +4867,7 @@ class TaskerBroadcastReceiver : BroadcastReceiver() {
                         putExtra(OverlayService.EXTRA_DISABLE_BATTLE_TOASTS, prefs.getBoolean(OverlayService.PREFS_KEY_DISABLE_BATTLE_TOASTS, false))
                         putExtra(OverlayService.EXTRA_OVERLAY_SCALE_PCT, prefs.getInt("overlay_scale_pct", 78))
                         putExtra(OverlayService.EXTRA_OVERLAY_TRANSPARENCY_PCT, prefs.getInt(OverlayService.PREFS_KEY_OVERLAY_TRANSPARENCY_PCT, 72))
+                        putExtra(OverlayService.EXTRA_APP_THEME_ID, prefs.getString(OverlayService.PREFS_KEY_APP_THEME_ID, "slate") ?: "slate")
                     }
                     ContextCompat.startForegroundService(context, srvIntent)
                 } else {

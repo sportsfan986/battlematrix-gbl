@@ -182,6 +182,219 @@ const DEFAULT_SEASONS_FALLBACK: GblSeasonInfo[] = [
   }
 ];
 
+export interface WebAppThemePalette {
+  id: string;
+  name: string;
+  description: string;
+  isLight: boolean;
+  bgHex: string;
+  cardHex: string;
+  cardAltHex: string;
+  borderHex: string;
+  accentHex: string;
+  accentSecondaryHex: string;
+  textPrimaryHex: string;
+  textSecondaryHex: string;
+  overlayBgRgb: string;
+  overlayBorderRgb: string;
+  overlayHeaderRgb: string;
+  emblemType: 'none' | 'instinct' | 'mystic' | 'valor' | 'sylveon';
+  watermarkAlpha: number;
+}
+
+export const WEB_APP_THEMES: WebAppThemePalette[] = [
+  {
+    id: 'slate',
+    name: 'SilphScope Slate (Default)',
+    description: 'Default Dark • Deep tactical navy (#080C14) with Sky Cyan (#38BDF8) & Amber accents',
+    isLight: false,
+    bgHex: '#080C14',
+    cardHex: '#121824',
+    cardAltHex: '#0B111E',
+    borderHex: '#1E293B',
+    accentHex: '#38BDF8',
+    accentSecondaryHex: '#F59E0B',
+    textPrimaryHex: '#F8FAFC',
+    textSecondaryHex: '#94A3B8',
+    overlayBgRgb: '10, 14, 22',
+    overlayBorderRgb: '255, 255, 255',
+    overlayHeaderRgb: '56, 189, 248',
+    emblemType: 'none',
+    watermarkAlpha: 0
+  },
+  {
+    id: 'amoled_cyan',
+    name: 'AMOLED Cyber Cyan',
+    description: 'True Black #000000 • Electric Cyan (#00F0FF) accents for zero OLED pixel draw',
+    isLight: false,
+    bgHex: '#000000',
+    cardHex: '#070B10',
+    cardAltHex: '#040609',
+    borderHex: '#0F293A',
+    accentHex: '#00F0FF',
+    accentSecondaryHex: '#38BDF8',
+    textPrimaryHex: '#F8FAFC',
+    textSecondaryHex: '#94A3B8',
+    overlayBgRgb: '0, 0, 0',
+    overlayBorderRgb: '0, 240, 255',
+    overlayHeaderRgb: '0, 240, 255',
+    emblemType: 'none',
+    watermarkAlpha: 0
+  },
+  {
+    id: 'amoled_matrix',
+    name: 'AMOLED Matrix Phosphor',
+    description: 'True Black #000000 • Matrix Phosphor Lime (#00FF41) terminal accents',
+    isLight: false,
+    bgHex: '#000000',
+    cardHex: '#050C07',
+    cardAltHex: '#030704',
+    borderHex: '#0D3318',
+    accentHex: '#00FF41',
+    accentSecondaryHex: '#10B981',
+    textPrimaryHex: '#ECFDF5',
+    textSecondaryHex: '#6EE7B7',
+    overlayBgRgb: '0, 4, 1',
+    overlayBorderRgb: '0, 255, 65',
+    overlayHeaderRgb: '0, 255, 65',
+    emblemType: 'none',
+    watermarkAlpha: 0
+  },
+  {
+    id: 'instinct_dark',
+    name: 'Team Instinct Dark (Storm Gold)',
+    description: 'Pokémon GO Instinct • Thunder Charcoal (#0F0D06) with Zapdos Lightning Gold (#FACC15) & Emblem',
+    isLight: false,
+    bgHex: '#0F0D06',
+    cardHex: '#1A1609',
+    cardAltHex: '#120F06',
+    borderHex: '#3D3210',
+    accentHex: '#FACC15',
+    accentSecondaryHex: '#F59E0B',
+    textPrimaryHex: '#FEFCE8',
+    textSecondaryHex: '#FDE047',
+    overlayBgRgb: '18, 15, 6',
+    overlayBorderRgb: '250, 204, 21',
+    overlayHeaderRgb: '250, 204, 21',
+    emblemType: 'instinct',
+    watermarkAlpha: 0.08
+  },
+  {
+    id: 'instinct_light',
+    name: 'Team Instinct Light (Spark Daylight)',
+    description: 'Pokémon GO Instinct Light • Warm Ivory (#FFFDF4) with Golden Amber (#D97706) & Zapdos Emblem',
+    isLight: true,
+    bgHex: '#FFFDF4',
+    cardHex: '#FFFFFF',
+    cardAltHex: '#FEF9C3',
+    borderHex: '#FDE047',
+    accentHex: '#D97706',
+    accentSecondaryHex: '#B45309',
+    textPrimaryHex: '#1C1917',
+    textSecondaryHex: '#57534E',
+    overlayBgRgb: '18, 15, 6',
+    overlayBorderRgb: '245, 158, 11',
+    overlayHeaderRgb: '245, 158, 11',
+    emblemType: 'instinct',
+    watermarkAlpha: 0.1
+  },
+  {
+    id: 'mystic_dark',
+    name: 'Team Mystic Dark (Blizzard Navy)',
+    description: 'Pokémon GO Mystic • Deep Glacial Abyss (#060D1A) with Articuno Ice Blue (#3B82F6) & Emblem',
+    isLight: false,
+    bgHex: '#060D1A',
+    cardHex: '#0C1930',
+    cardAltHex: '#081224',
+    borderHex: '#1E3A8A',
+    accentHex: '#3B82F6',
+    accentSecondaryHex: '#38BDF8',
+    textPrimaryHex: '#EFF6FF',
+    textSecondaryHex: '#93C5FD',
+    overlayBgRgb: '8, 16, 32',
+    overlayBorderRgb: '59, 130, 246',
+    overlayHeaderRgb: '59, 130, 246',
+    emblemType: 'mystic',
+    watermarkAlpha: 0.08
+  },
+  {
+    id: 'mystic_light',
+    name: 'Team Mystic Light (Glacier Frost)',
+    description: 'Pokémon GO Mystic Light • Crisp Ice White (#F0F7FF) with Cobalt Blue (#1D4ED8) & Articuno Emblem',
+    isLight: true,
+    bgHex: '#F0F7FF',
+    cardHex: '#FFFFFF',
+    cardAltHex: '#DBEAFE',
+    borderHex: '#93C5FD',
+    accentHex: '#1D4ED8',
+    accentSecondaryHex: '#0284C7',
+    textPrimaryHex: '#0F172A',
+    textSecondaryHex: '#334155',
+    overlayBgRgb: '8, 16, 32',
+    overlayBorderRgb: '56, 189, 248',
+    overlayHeaderRgb: '56, 189, 248',
+    emblemType: 'mystic',
+    watermarkAlpha: 0.1
+  },
+  {
+    id: 'valor_dark',
+    name: 'Team Valor Dark (Magma Crimson)',
+    description: 'Pokémon GO Valor • Smoldering Obsidian (#160709) with Moltres Flame Red (#EF4444) & Emblem',
+    isLight: false,
+    bgHex: '#160709',
+    cardHex: '#240C10',
+    cardAltHex: '#1B080C',
+    borderHex: '#4C111B',
+    accentHex: '#EF4444',
+    accentSecondaryHex: '#F97316',
+    textPrimaryHex: '#FEF2F2',
+    textSecondaryHex: '#FCA5A5',
+    overlayBgRgb: '24, 8, 10',
+    overlayBorderRgb: '239, 68, 68',
+    overlayHeaderRgb: '239, 68, 68',
+    emblemType: 'valor',
+    watermarkAlpha: 0.08
+  },
+  {
+    id: 'valor_light',
+    name: 'Team Valor Light (Phoenix Sun)',
+    description: 'Pokémon GO Valor Light • Warm Cream (#FFF5F5) with Valor Crimson (#DC2626) & Moltres Emblem',
+    isLight: true,
+    bgHex: '#FFF5F5',
+    cardHex: '#FFFFFF',
+    cardAltHex: '#FEE2E2',
+    borderHex: '#FCA5A5',
+    accentHex: '#DC2626',
+    accentSecondaryHex: '#EA580C',
+    textPrimaryHex: '#1F1215',
+    textSecondaryHex: '#57363B',
+    overlayBgRgb: '24, 8, 10',
+    overlayBorderRgb: '249, 115, 22',
+    overlayHeaderRgb: '249, 115, 22',
+    emblemType: 'valor',
+    watermarkAlpha: 0.1
+  },
+  {
+    id: 'sylveon_light',
+    name: 'Sylveon Fairy Ribbon (Light)',
+    description: 'Sylveon Theme • Pastel Blush (#FFF5F8) with Ribbon Pink (#EC4899), Nymph Sky Blue & Sylveon Bow Watermark',
+    isLight: true,
+    bgHex: '#FFF5F8',
+    cardHex: '#FFFFFF',
+    cardAltHex: '#FCE7F3',
+    borderHex: '#F9A8D4',
+    accentHex: '#EC4899',
+    accentSecondaryHex: '#38BDF8',
+    textPrimaryHex: '#3B0724',
+    textSecondaryHex: '#831843',
+    overlayBgRgb: '24, 10, 20',
+    overlayBorderRgb: '244, 114, 182',
+    overlayHeaderRgb: '244, 114, 182',
+    emblemType: 'sylveon',
+    watermarkAlpha: 0.11
+  }
+];
+
 export default function App() {
   // Navigation tabs (reordered: Teams, Battle Logs, Settings, Help)
   const [activeTab, setActiveTab] = useState<'simulator' | 'presets' | 'battle_log' | 'settings' | 'help' | 'turn_matrix' | 'android_code'>('simulator');
@@ -299,6 +512,43 @@ export default function App() {
       localStorage.setItem('gbl_overlay_transparency_pct', String(clamped));
     } catch {}
   };
+
+  // App-Level Setting: App & Overlay Theme + Background Emblem Watermark (v3.02)
+  const [appThemeId, setAppThemeId] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('gbl_app_theme_id');
+      if (saved && WEB_APP_THEMES.some((t) => t.id === saved)) return saved;
+    } catch {}
+    return 'slate';
+  });
+
+  const handleSetAppThemeId = (themeId: string) => {
+    setAppThemeId(themeId);
+    try {
+      localStorage.setItem('gbl_app_theme_id', themeId);
+    } catch {}
+  };
+
+  const [showThemeWatermark, setShowThemeWatermark] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('gbl_show_theme_watermark');
+      return saved === null ? true : saved === 'true';
+    } catch {
+      return true;
+    }
+  });
+
+  const handleSetShowThemeWatermark = (show: boolean) => {
+    setShowThemeWatermark(show);
+    try {
+      localStorage.setItem('gbl_show_theme_watermark', String(show));
+    } catch {}
+  };
+
+  const activeTheme = useMemo(
+    () => WEB_APP_THEMES.find((t) => t.id === appThemeId) || WEB_APP_THEMES[0],
+    [appThemeId]
+  );
 
   // Provisioned Battle Log State (Page 3) + Tombstones + Seasons + 2-Device Sync
   const [deviceId] = useState<string>(() => {
@@ -1904,24 +2154,153 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-sky-500 selection:text-white">
+    <div
+      className="min-h-screen flex flex-col font-sans selection:bg-sky-500 selection:text-white relative overflow-x-hidden transition-colors duration-200"
+      style={{
+        backgroundColor: activeTheme.bgHex,
+        color: activeTheme.textPrimaryHex
+      }}
+    >
+      {/* Dynamic CSS Theme Surface Overrides for Light / AMOLED / Team / Sylveon Themes */}
+      {activeTheme.id !== 'slate' && (
+        <style>{`
+          .theme-surface .bg-slate-900, .theme-surface .bg-slate-900\\/80, .theme-surface .bg-slate-900\\/90 {
+            background-color: ${activeTheme.cardHex} !important;
+          }
+          .theme-surface .bg-slate-950, .theme-surface .bg-slate-950\\/70, .theme-surface .bg-slate-950\\/80 {
+            background-color: ${activeTheme.cardAltHex} !important;
+          }
+          .theme-surface .border-slate-800, .theme-surface .border-slate-700, .theme-surface .border-slate-800\\/80 {
+            border-color: ${activeTheme.borderHex} !important;
+          }
+          ${
+            activeTheme.isLight
+              ? `
+          .theme-surface .text-white, .theme-surface .text-slate-100, .theme-surface .text-slate-200 {
+            color: ${activeTheme.textPrimaryHex} !important;
+          }
+          .theme-surface .text-slate-300, .theme-surface .text-slate-400, .theme-surface .text-slate-500 {
+            color: ${activeTheme.textSecondaryHex} !important;
+          }
+          .theme-surface .bg-slate-800, .theme-surface .bg-slate-800\\/60 {
+            background-color: ${activeTheme.cardAltHex} !important;
+          }
+          `
+              : ''
+          }
+        `}</style>
+      )}
+
+      {/* Centered Non-Interactive Background Emblem Watermark (Instinct / Mystic / Valor / Sylveon) */}
+      {showThemeWatermark && activeTheme.emblemType !== 'none' && (
+        <div
+          className="fixed inset-0 pointer-events-none flex items-center justify-center z-0 overflow-hidden"
+          style={{ opacity: activeTheme.watermarkAlpha }}
+          aria-hidden="true"
+        >
+          {activeTheme.emblemType === 'instinct' && (
+            <svg viewBox="0 0 240 240" className="w-[420px] h-[420px]">
+              <path fill="#FACC15" d="M120,8 L224,120 L120,232 L16,120 Z M120,24 L32,120 L120,216 L208,120 Z" />
+              <path fill="#F59E0B" d="M120,38 L196,120 L120,202 L44,120 Z M120,50 L56,120 L120,190 L184,120 Z" />
+              <path
+                fill="#FACC15"
+                d="M120,44 L132,78 L168,52 L152,92 L206,72 L168,114 L218,110 L166,138 L198,162 L148,154 L164,192 L128,166 L120,212 L112,166 L76,192 L92,154 L42,162 L74,138 L22,110 L72,114 L34,72 L88,92 L72,52 L108,78 Z"
+              />
+            </svg>
+          )}
+          {activeTheme.emblemType === 'mystic' && (
+            <svg viewBox="0 0 240 240" className="w-[420px] h-[420px]">
+              <path
+                fill="#3B82F6"
+                d="M120,10 L208,58 L208,162 L120,230 L32,162 L32,58 Z M120,26 L46,66 L46,154 L120,212 L194,154 L194,66 Z"
+              />
+              <path fill="#38BDF8" d="M120,36 L146,84 L120,132 L94,84 Z" />
+              <path
+                fill="#3B82F6"
+                d="M120,56 L134,82 L192,62 L164,112 L202,122 L152,144 L168,176 L132,160 L120,222 L108,160 L72,176 L88,144 L38,122 L76,112 L48,62 L106,82 Z"
+              />
+            </svg>
+          )}
+          {activeTheme.emblemType === 'valor' && (
+            <svg viewBox="0 0 240 240" className="w-[420px] h-[420px]">
+              <path
+                fill="#EF4444"
+                d="M120,12 C168,46 212,92 212,144 C212,190 172,226 120,232 C68,226 28,190 28,144 C28,92 72,46 120,12 Z M120,32 C82,62 46,100 46,144 C46,180 78,210 120,216 C162,210 194,180 194,144 C194,100 158,62 120,32 Z"
+              />
+              <path
+                fill="#F97316"
+                d="M120,42 L134,68 L156,52 L148,86 L198,64 L172,108 L206,102 L168,136 L192,158 L148,154 L162,188 L128,170 L120,214 L112,170 L78,188 L92,154 L48,158 L72,136 L34,102 L68,108 L42,64 L92,86 L84,52 L106,68 Z"
+              />
+            </svg>
+          )}
+          {activeTheme.emblemType === 'sylveon' && (
+            <svg viewBox="0 0 240 240" className="w-[420px] h-[420px]">
+              <path
+                fill="#EC4899"
+                d="M120,20 C175,20 220,65 220,120 C220,175 175,220 120,220 C65,220 20,175 20,120 C20,65 65,20 120,20 Z M120,32 C71,32 32,71 32,120 C32,169 71,208 120,208 C169,208 208,169 208,120 C208,71 169,32 120,32 Z"
+              />
+              <path
+                fill="#38BDF8"
+                d="M96,126 C76,154 48,176 26,198 L44,206 C66,186 90,164 108,138 Z M144,126 C164,154 192,176 214,198 L196,206 C174,186 150,164 132,138 Z"
+              />
+              <path
+                fill="#EC4899"
+                d="M104,132 C88,164 68,192 52,218 L70,222 C84,196 102,168 116,138 Z M136,132 C152,164 172,192 188,218 L170,222 C156,196 138,168 124,138 Z"
+              />
+              <path
+                fill="#EC4899"
+                d="M112,108 C84,72 42,66 30,92 C18,118 48,148 112,124 Z M128,108 C156,72 198,66 210,92 C222,118 192,148 128,124 Z"
+              />
+              <path
+                fill="#38BDF8"
+                d="M106,112 C86,88 56,84 48,100 C40,116 62,134 106,120 Z M134,112 C154,88 184,84 192,100 C200,116 178,134 134,120 Z"
+              />
+              <path
+                fill="#F472B6"
+                d="M120,96 C133,96 144,107 144,120 C144,133 133,144 120,144 C107,144 96,133 96,120 C96,107 107,96 120,96 Z"
+              />
+              <path
+                fill="#38BDF8"
+                d="M120,28 L126,46 L144,52 L126,58 L120,76 L114,58 L96,52 L114,46 Z M56,36 L60,48 L72,52 L60,56 L56,68 L52,56 L40,52 L52,48 Z M184,36 L188,48 L200,52 L188,56 L184,68 L180,56 L168,52 L180,48 Z"
+              />
+            </svg>
+          )}
+        </div>
+      )}
+
       {/* Top Application Navbar */}
-      <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50 px-4 py-3">
+      <header
+        className="border-b backdrop-blur sticky top-0 z-50 px-4 py-3 transition-colors"
+        style={{
+          backgroundColor: activeTheme.cardHex,
+          borderColor: activeTheme.borderHex
+        }}
+      >
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <img
               src={`${import.meta.env.BASE_URL}favicon.svg`}
               alt="SilphScope PvP Icon"
-              className="w-10 h-10 rounded-xl shadow-lg shadow-sky-500/20 border border-sky-500/30"
+              className="w-10 h-10 rounded-xl shadow-lg border"
+              style={{ borderColor: activeTheme.accentHex }}
             />
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="font-bold text-base md:text-lg tracking-tight text-white">SilphScope PvP</h1>
-                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20">
-                  v3.01 • Android Native Overlay
+                <h1 className="font-bold text-base md:text-lg tracking-tight" style={{ color: activeTheme.textPrimaryHex }}>
+                  SilphScope PvP
+                </h1>
+                <span
+                  className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded border"
+                  style={{
+                    color: activeTheme.accentHex,
+                    borderColor: activeTheme.accentHex,
+                    backgroundColor: `${activeTheme.accentHex}1A`
+                  }}
+                >
+                  v3.02 • Android Native Overlay
                 </span>
               </div>
-              <p className="text-xs text-slate-400 hidden sm:block">
+              <p className="text-xs hidden sm:block" style={{ color: activeTheme.textSecondaryHex }}>
                 Real-Time 3x3 Matchup Matrix, Lead Tracking, Interactive Replay &amp; Multi-Device Delta Sync for Pokémon GO PvP
               </p>
             </div>
@@ -2329,8 +2708,8 @@ export default function App() {
                         width: '286px',
                         transform: `scale(${(overlayScalePct / 78).toFixed(4)})`,
                         transformOrigin: 'top left',
-                        background: `rgba(10, 14, 22, ${((100 - overlayTransparencyPct) / 100).toFixed(3)})`,
-                        borderColor: `rgba(255, 255, 255, ${Math.max(0.05, ((100 - overlayTransparencyPct) / 100) * 0.55).toFixed(3)})`,
+                        background: `rgba(${activeTheme.overlayBgRgb}, ${((100 - overlayTransparencyPct) / 100).toFixed(3)})`,
+                        borderColor: `rgba(${activeTheme.overlayBorderRgb}, ${Math.max(0.08, ((100 - overlayTransparencyPct) / 100) * 0.65).toFixed(3)})`,
                         borderWidth: '1px',
                         borderStyle: 'solid',
                         backdropFilter: overlayTransparencyPct >= 96 ? 'none' : 'blur(3px)',
@@ -2339,7 +2718,13 @@ export default function App() {
                       }}
                     >
                       {/* Header row (Upper-left sword icon minimizes to bubble & pauses OCR) */}
-                      <div className="flex items-center justify-between pb-1 border-b border-white/15 gap-1">
+                      <div
+                        className="flex items-center justify-between pb-1 border-b gap-1 px-1 pt-0.5 rounded-t"
+                        style={{
+                          borderColor: `rgba(${activeTheme.overlayHeaderRgb}, 0.35)`,
+                          background: `linear-gradient(90deg, rgba(${activeTheme.overlayHeaderRgb}, 0.16) 0%, rgba(0,0,0,0) 100%)`
+                        }}
+                      >
                         <div className="font-extrabold text-[10.5px] text-amber-100 flex items-center gap-1 truncate min-w-0">
                           <button
                             type="button"
@@ -2347,7 +2732,11 @@ export default function App() {
                               e.stopPropagation();
                               setIsOverlayMinimized(true);
                             }}
-                            className="px-1 py-0.2 rounded bg-sky-500/20 hover:bg-sky-500/40 border border-sky-400/60 text-white text-[10px] leading-tight shrink-0 shadow-sm active:scale-90 transition"
+                            className="px-1 py-0.2 rounded text-white text-[10px] leading-tight shrink-0 shadow-sm active:scale-90 transition border"
+                            style={{
+                              backgroundColor: `rgba(${activeTheme.overlayHeaderRgb}, 0.28)`,
+                              borderColor: `rgba(${activeTheme.overlayHeaderRgb}, 0.75)`
+                            }}
                             title="Minimize overlay to floating app-icon bubble & pause OCR"
                           >
                             ⚔️
@@ -4308,7 +4697,7 @@ export default function App() {
                   <span>Overlay &amp; Database Settings</span>
                 </h2>
                 <p className="text-xs text-slate-400">
-                  Dedicated settings page matching the 3-page Android selector layout (Teams • Battle Log • Settings).
+                  Reorganized v3.02 layout: Theme, Overlay Size &amp; Background Transparency grouped at the top.
                 </p>
               </div>
               <div className="flex items-center gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-bold shrink-0">
@@ -4333,73 +4722,182 @@ export default function App() {
               </div>
             </div>
 
-            {/* PvPoke Live Database & 4-League Sync Card */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-3">
-              <div className="flex items-center justify-between gap-2">
+            {/* ===================================================================
+                CARD 1 (TOP): APP & OVERLAY THEME, SIZE & TRANSPARENCY
+               =================================================================== */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
                 <div>
-                  <span className="text-sm font-bold text-white block">
-                    PvPoke Live Database &amp; 4-League Rankings
+                  <span className="text-sm font-bold text-sky-400 block">
+                    🎨 App &amp; Overlay Theme, Size &amp; Transparency
                   </span>
-                  <span className="text-xs text-slate-400 font-mono">
-                    Last Updated: <strong className="text-emerald-400">{lastSyncedAt}</strong>
+                  <span className="text-xs text-slate-400">
+                    Themes the main app and subtly accents the floating HUD border &amp; header while keeping all tactical damage, shield, and timer colors untouched.
                   </span>
                 </div>
-                <button
-                  onClick={handleManualPvPokeSync}
-                  disabled={isSyncingPvPoke}
-                  className="px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold flex items-center gap-1.5 transition shrink-0 shadow-lg shadow-sky-600/20"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${isSyncingPvPoke ? 'animate-spin' : ''}`} />
-                  <span>{isSyncingPvPoke ? 'Syncing...' : 'Sync PvPoke'}</span>
-                </button>
-              </div>
-              <div className="grid grid-cols-5 gap-2 text-center text-xs font-mono">
-                <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
-                  <span className="text-slate-400 block text-[10px]">GameMaster</span>
-                  <strong className="text-white text-sm">{dbTelemetry.gmCount}</strong>
-                </div>
-                <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
-                  <span className="text-sky-400 block text-[10px]">GL (1500)</span>
-                  <strong className="text-white text-sm">{dbTelemetry.glCount}</strong>
-                </div>
-                <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
-                  <span className="text-amber-400 block text-[10px]">UL (2500)</span>
-                  <strong className="text-white text-sm">{dbTelemetry.ulCount}</strong>
-                </div>
-                <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
-                  <span className="text-purple-400 block text-[10px]">ML (10000)</span>
-                  <strong className="text-white text-sm">{dbTelemetry.mlCount}</strong>
-                </div>
-                <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
-                  <span className="text-emerald-400 block text-[10px]">Mega ML</span>
-                  <strong className="text-white text-sm">{dbTelemetry.megaCount}</strong>
+                {/* 5-Dot Live Theme Swatch Preview */}
+                <div className="flex items-center gap-1.5 shrink-0 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
+                  <span
+                    className="w-4 h-4 rounded-full border border-white/25"
+                    style={{ backgroundColor: activeTheme.bgHex }}
+                    title="App Background"
+                  />
+                  <span
+                    className="w-4 h-4 rounded-full border border-white/25"
+                    style={{ backgroundColor: activeTheme.cardHex }}
+                    title="Card Surface"
+                  />
+                  <span
+                    className="w-4 h-4 rounded-full border border-white/25"
+                    style={{ backgroundColor: activeTheme.accentHex }}
+                    title="Primary Accent"
+                  />
+                  <span
+                    className="w-4 h-4 rounded-full border border-white/25"
+                    style={{ backgroundColor: activeTheme.accentSecondaryHex }}
+                    title="Secondary Accent"
+                  />
+                  <span
+                    className="w-4 h-4 rounded-full border border-white/25"
+                    style={{ backgroundColor: activeTheme.textPrimaryHex }}
+                    title="Primary Text"
+                  />
                 </div>
               </div>
-            </div>
 
-            {/* Retroactive Battle Log Damage & Win Quality Reparse Card */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <span className="text-sm font-bold text-emerald-400 block">
-                    Reparse Completed Battles (Damage &amp; WAE)
+              {/* Theme Selector Dropdown + Quick Grid */}
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-white">
+                    Select Theme (Default, 2 AMOLED, 6 Pokémon GO Team Dark/Light, Sylveon Light)
+                  </label>
+                  <span className="text-[11px] font-mono font-bold" style={{ color: activeTheme.accentHex }}>
+                    {activeTheme.name}
                   </span>
-                  <span className="text-xs text-slate-400 block mt-0.5">
-                    {reparseBattlesStatus}
+                </div>
+                <select
+                  value={appThemeId}
+                  onChange={(e) => handleSetAppThemeId(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-bold text-white cursor-pointer"
+                >
+                  {WEB_APP_THEMES.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-slate-400 font-mono">{activeTheme.description}</p>
+              </div>
+
+              {/* Background Emblem Watermark Toggle */}
+              <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-950 border border-slate-800">
+                <div>
+                  <span className="text-xs font-bold text-white block">
+                    Show Background Emblem Watermark (Instinct / Mystic / Valor / Sylveon)
+                  </span>
+                  <span className="text-[11px] text-slate-400">
+                    Displays a subtle vector team crest or Sylveon fairy ribbon watermark behind the main app when a Team or Sylveon theme is active.
                   </span>
                 </div>
                 <button
                   type="button"
-                  onClick={() => handleReparseAllCompletedBattles(false)}
-                  className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 transition shrink-0 shadow-lg shadow-emerald-600/20"
+                  onClick={() => handleSetShowThemeWatermark(!showThemeWatermark)}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold border transition shrink-0 ${
+                    showThemeWatermark
+                      ? 'bg-sky-500/25 border-sky-400 text-sky-300'
+                      : 'bg-slate-900 border-slate-700 text-slate-400'
+                  }`}
                 >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                  <span>🔄 Reparse All</span>
+                  {showThemeWatermark ? 'Watermark ON' : 'Watermark OFF'}
                 </button>
+              </div>
+
+              {/* Overlay Size Slider (Grouped inside Card 1) */}
+              <div className="pt-2 border-t border-slate-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-bold text-white block">
+                      Overlay Size (% of Screen Width)
+                    </span>
+                    <span className="text-[11px] text-slate-400">
+                      Proportionally scales the floating overlay container, fonts, and move timing bars (50%–100%).
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => handleSetOverlayScalePct(78)}
+                    className="text-xs font-mono font-bold text-sky-400 hover:text-sky-300 transition"
+                  >
+                    {overlayScalePct === 78 ? '78% (Default)' : `${overlayScalePct}%`}
+                  </button>
+                </div>
+                <input
+                  type="range"
+                  min={50}
+                  max={100}
+                  step={2}
+                  value={overlayScalePct}
+                  onChange={(e) => handleSetOverlayScalePct(Number(e.target.value))}
+                  className="w-full accent-sky-400 cursor-pointer h-2 bg-slate-800 rounded-lg"
+                />
+                <div className="relative h-4 text-[10px] font-mono text-slate-400">
+                  <span className="absolute left-0">50%</span>
+                  <button
+                    type="button"
+                    onClick={() => handleSetOverlayScalePct(78)}
+                    style={{ left: '56%', transform: 'translateX(-50%)' }}
+                    className="absolute text-sky-400 hover:text-sky-300 font-bold transition"
+                  >
+                    ▲ 78% Default
+                  </button>
+                  <span className="absolute right-0">100%</span>
+                </div>
+              </div>
+
+              {/* Overlay Background Transparency Slider (Grouped inside Card 1) */}
+              <div className="pt-2 border-t border-slate-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-bold text-white block">
+                      Overlay Background Transparency
+                    </span>
+                    <span className="text-[11px] text-slate-400">
+                      Adjusts only the background panel opacity while keeping text, shield dots, and move bars 100% readable.
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => handleSetOverlayTransparencyPct(72)}
+                    className="text-xs font-mono font-bold text-sky-400 hover:text-sky-300 transition"
+                  >
+                    {overlayTransparencyPct === 72 ? '72% (Default)' : `${overlayTransparencyPct}%`}
+                  </button>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={2}
+                  value={overlayTransparencyPct}
+                  onChange={(e) => handleSetOverlayTransparencyPct(Number(e.target.value))}
+                  className="w-full accent-sky-400 cursor-pointer h-2 bg-slate-800 rounded-lg"
+                />
+                <div className="relative h-4 text-[10px] font-mono text-slate-400">
+                  <span className="absolute left-0">0% (Solid)</span>
+                  <button
+                    type="button"
+                    onClick={() => handleSetOverlayTransparencyPct(72)}
+                    style={{ left: '72%', transform: 'translateX(-50%)' }}
+                    className="absolute text-sky-400 hover:text-sky-300 font-bold transition"
+                  >
+                    ▲ 72% Default
+                  </button>
+                  <span className="absolute right-0">100% (Clear)</span>
+                </div>
               </div>
             </div>
 
-            {/* Opponent Move Count Basis & 4 Charged Moves Toggles */}
+            {/* ===================================================================
+                CARD 2: OVERLAY HUD BEHAVIOR & 5-TIER MATCHUP THRESHOLDS
+               =================================================================== */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-2.5">
                 <div className="flex items-center justify-between">
@@ -4503,89 +5001,110 @@ export default function App() {
               </div>
             </div>
 
-            {/* Overlay Size Slider */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-2.5">
-              <div className="flex items-center justify-between">
+            {/* 5-Tier 0s/1s/2s Matchup Rating Thresholds Card */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
-                  <span className="text-sm font-bold text-white block">
-                    Overlay Size (% of Screen Width)
-                  </span>
-                  <span className="text-xs text-slate-400">
-                    Proportionally scales the floating overlay container, fonts, and move timing bars.
-                  </span>
+                  <h3 className="text-sm font-bold text-sky-400 flex items-center gap-2">
+                    <Target className="w-4 h-4" />
+                    <span>🎯 5-Tier 0s/1s/2s Matchup Thresholds (SW, W, N, L, SL)</span>
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Configure rating cutoffs used to compute 0s/1s/2s matchup codes and lead classifications. Defaults shown in ().
+                  </p>
                 </div>
                 <button
-                  onClick={() => handleSetOverlayScalePct(78)}
-                  className="text-xs font-mono font-bold text-sky-400 hover:text-sky-300 transition"
+                  type="button"
+                  onClick={restoreDefaultTierThresholds}
+                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-bold transition shrink-0"
                 >
-                  {overlayScalePct === 78 ? '78% (Default)' : `${overlayScalePct}%`}
+                  ↺ Restore Defaults (620 / 530 / 470 / 380)
                 </button>
               </div>
-              <input
-                type="range"
-                min={50}
-                max={100}
-                step={2}
-                value={overlayScalePct}
-                onChange={(e) => handleSetOverlayScalePct(Number(e.target.value))}
-                className="w-full accent-sky-400 cursor-pointer h-2 bg-slate-800 rounded-lg"
-              />
-              <div className="relative h-4 text-[10px] font-mono text-slate-400">
-                <span className="absolute left-0">50%</span>
-                <button
-                  type="button"
-                  onClick={() => handleSetOverlayScalePct(78)}
-                  style={{ left: '56%', transform: 'translateX(-50%)' }}
-                  className="absolute text-sky-400 hover:text-sky-300 font-bold transition"
-                >
-                  ▲ 78% Default
-                </button>
-                <span className="absolute right-0">100%</span>
+
+              <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 font-mono text-xs text-slate-300 space-y-1">
+                <div>• <strong className="text-emerald-400">SW</strong> = Strong Win (rating &gt;= {tierThresholds.swMin}) <span className="text-slate-500">(Default: 620)</span></div>
+                <div>• <strong className="text-green-300">W</strong>  = Win ({tierThresholds.wMin} &lt;= rating &lt; {tierThresholds.swMin}) <span className="text-slate-500">(Default: 530 &lt;= rating &lt; 620)</span></div>
+                <div>• <strong className="text-slate-400">N</strong>  = Neutral / Grey ({tierThresholds.lMax} &lt; rating &lt; {tierThresholds.wMin}) <span className="text-slate-500">(Default: 470 &lt; rating &lt; 530)</span></div>
+                <div>• <strong className="text-rose-300">L</strong>  = Loss ({tierThresholds.slMax} &lt; rating &lt;= {tierThresholds.lMax}) <span className="text-slate-500">(Default: 380 &lt; rating &lt;= 470)</span></div>
+                <div>• <strong className="text-rose-500">SL</strong> = Strong Loss (rating &lt;= {tierThresholds.slMax}) <span className="text-slate-500">(Default: &lt;= 380)</span></div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-emerald-400 mb-1">
+                    SW Strong Win &gt;= (620)
+                  </label>
+                  <input
+                    type="number"
+                    value={tierThresholds.swMin}
+                    placeholder="(620)"
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      if (!Number.isNaN(val)) {
+                        updateTierThresholds({ ...tierThresholds, swMin: val });
+                      }
+                    }}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-green-300 mb-1">
+                    W Win &gt;= (530)
+                  </label>
+                  <input
+                    type="number"
+                    value={tierThresholds.wMin}
+                    placeholder="(530)"
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      if (!Number.isNaN(val)) {
+                        updateTierThresholds({ ...tierThresholds, wMin: val });
+                      }
+                    }}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-rose-300 mb-1">
+                    L Loss &lt;= (470)
+                  </label>
+                  <input
+                    type="number"
+                    value={tierThresholds.lMax}
+                    placeholder="(470)"
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      if (!Number.isNaN(val)) {
+                        updateTierThresholds({ ...tierThresholds, lMax: val });
+                      }
+                    }}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-rose-500 mb-1">
+                    SL Strong Loss &lt;= (380)
+                  </label>
+                  <input
+                    type="number"
+                    value={tierThresholds.slMax}
+                    placeholder="(380)"
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      if (!Number.isNaN(val)) {
+                        updateTierThresholds({ ...tierThresholds, slMax: val });
+                      }
+                    }}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono"
+                  />
+                </div>
               </div>
             </div>
 
-            {/* Overlay Background Transparency Slider */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-2.5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="text-sm font-bold text-white block">
-                    Overlay Background Transparency
-                  </span>
-                  <span className="text-xs text-slate-400">
-                    Adjusts only the background panel opacity while keeping text and move bars 100% readable.
-                  </span>
-                </div>
-                <button
-                  onClick={() => handleSetOverlayTransparencyPct(72)}
-                  className="text-xs font-mono font-bold text-sky-400 hover:text-sky-300 transition"
-                >
-                  {overlayTransparencyPct === 72 ? '72% (Default)' : `${overlayTransparencyPct}%`}
-                </button>
-              </div>
-              <input
-                type="range"
-                min={0}
-                max={100}
-                step={2}
-                value={overlayTransparencyPct}
-                onChange={(e) => handleSetOverlayTransparencyPct(Number(e.target.value))}
-                className="w-full accent-sky-400 cursor-pointer h-2 bg-slate-800 rounded-lg"
-              />
-              <div className="relative h-4 text-[10px] font-mono text-slate-400">
-                <span className="absolute left-0">0% (Solid)</span>
-                <button
-                  type="button"
-                  onClick={() => handleSetOverlayTransparencyPct(72)}
-                  style={{ left: '72%', transform: 'translateX(-50%)' }}
-                  className="absolute text-sky-400 hover:text-sky-300 font-bold transition"
-                >
-                  ▲ 72% Default
-                </button>
-                <span className="absolute right-0">100% (Clear)</span>
-              </div>
-            </div>
-
-            {/* Multi-Device Cloud & Delta Sync Card */}
+            {/* ===================================================================
+                CARD 3: MULTI-DEVICE CLOUD & DELTA SYNC
+               =================================================================== */}
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-3">
               <div className="flex items-center justify-between">
                 <div>
@@ -4732,7 +5251,7 @@ export default function App() {
                           'Content-Type': 'application/json'
                         },
                         body: JSON.stringify({
-                          description: 'SilphScope PvP v2.33 Multi-Device Delta Sync Vault',
+                          description: 'SilphScope PvP v3.02 Multi-Device Delta Sync Vault',
                           public: false,
                           files: {
                             'gbl_delta_sync_v2.json': { content: bundleStr }
@@ -4796,104 +5315,71 @@ export default function App() {
               </div>
             </div>
 
-            {/* 5-Tier 0s/1s/2s Matchup Rating Thresholds Card (Bottom of Settings) */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            {/* ===================================================================
+                CARD 4: PVPOKE DATABASE & RETROACTIVE REPARSE MAINTENANCE
+               =================================================================== */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-3">
+              <div className="flex items-center justify-between gap-2">
                 <div>
-                  <h3 className="text-sm font-bold text-sky-400 flex items-center gap-2">
-                    <Target className="w-4 h-4" />
-                    <span>🎯 5-Tier 0s/1s/2s Matchup Thresholds (SW, W, N, L, SL)</span>
-                  </h3>
-                  <p className="text-xs text-slate-400 mt-1">
-                    Configure rating cutoffs used to compute 0s/1s/2s matchup codes and lead classifications. Defaults shown in ().
-                  </p>
+                  <span className="text-sm font-bold text-white block">
+                    PvPoke Live Database &amp; 4-League Rankings
+                  </span>
+                  <span className="text-xs text-slate-400 font-mono">
+                    Last Updated: <strong className="text-emerald-400">{lastSyncedAt}</strong>
+                  </span>
+                </div>
+                <button
+                  onClick={handleManualPvPokeSync}
+                  disabled={isSyncingPvPoke}
+                  className="px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold flex items-center gap-1.5 transition shrink-0 shadow-lg shadow-sky-600/20"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isSyncingPvPoke ? 'animate-spin' : ''}`} />
+                  <span>{isSyncingPvPoke ? 'Syncing...' : 'Sync PvPoke'}</span>
+                </button>
+              </div>
+              <div className="grid grid-cols-5 gap-2 text-center text-xs font-mono">
+                <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
+                  <span className="text-slate-400 block text-[10px]">GameMaster</span>
+                  <strong className="text-white text-sm">{dbTelemetry.gmCount}</strong>
+                </div>
+                <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
+                  <span className="text-sky-400 block text-[10px]">GL (1500)</span>
+                  <strong className="text-white text-sm">{dbTelemetry.glCount}</strong>
+                </div>
+                <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
+                  <span className="text-amber-400 block text-[10px]">UL (2500)</span>
+                  <strong className="text-white text-sm">{dbTelemetry.ulCount}</strong>
+                </div>
+                <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
+                  <span className="text-purple-400 block text-[10px]">ML (10000)</span>
+                  <strong className="text-white text-sm">{dbTelemetry.mlCount}</strong>
+                </div>
+                <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
+                  <span className="text-emerald-400 block text-[10px]">Mega ML</span>
+                  <strong className="text-white text-sm">{dbTelemetry.megaCount}</strong>
+                </div>
+              </div>
+            </div>
+
+            {/* Retroactive Battle Log Damage & Win Quality Reparse Card */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <span className="text-sm font-bold text-emerald-400 block">
+                    Reparse Completed Battles (Damage &amp; WAE)
+                  </span>
+                  <span className="text-xs text-slate-400 block mt-0.5">
+                    {reparseBattlesStatus}
+                  </span>
                 </div>
                 <button
                   type="button"
-                  onClick={restoreDefaultTierThresholds}
-                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-bold transition shrink-0"
+                  onClick={() => handleReparseAllCompletedBattles(false)}
+                  className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 transition shrink-0 shadow-lg shadow-emerald-600/20"
                 >
-                  ↺ Restore Defaults (620 / 530 / 470 / 380)
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>🔄 Reparse All</span>
                 </button>
-              </div>
-
-              <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 font-mono text-xs text-slate-300 space-y-1">
-                <div>• <strong className="text-emerald-400">SW</strong> = Strong Win (rating &gt;= {tierThresholds.swMin}) <span className="text-slate-500">(Default: 620)</span></div>
-                <div>• <strong className="text-green-300">W</strong>  = Win ({tierThresholds.wMin} &lt;= rating &lt; {tierThresholds.swMin}) <span className="text-slate-500">(Default: 530 &lt;= rating &lt; 620)</span></div>
-                <div>• <strong className="text-slate-400">N</strong>  = Neutral / Grey ({tierThresholds.lMax} &lt; rating &lt; {tierThresholds.wMin}) <span className="text-slate-500">(Default: 470 &lt; rating &lt; 530)</span></div>
-                <div>• <strong className="text-rose-300">L</strong>  = Loss ({tierThresholds.slMax} &lt; rating &lt;= {tierThresholds.lMax}) <span className="text-slate-500">(Default: 380 &lt; rating &lt;= 470)</span></div>
-                <div>• <strong className="text-rose-500">SL</strong> = Strong Loss (rating &lt;= {tierThresholds.slMax}) <span className="text-slate-500">(Default: &lt;= 380)</span></div>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-emerald-400 mb-1">
-                    SW Strong Win &gt;= (620)
-                  </label>
-                  <input
-                    type="number"
-                    value={tierThresholds.swMin}
-                    placeholder="(620)"
-                    onChange={(e) => {
-                      const val = Number(e.target.value);
-                      if (!Number.isNaN(val)) {
-                        updateTierThresholds({ ...tierThresholds, swMin: val });
-                      }
-                    }}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-green-300 mb-1">
-                    W Win &gt;= (530)
-                  </label>
-                  <input
-                    type="number"
-                    value={tierThresholds.wMin}
-                    placeholder="(530)"
-                    onChange={(e) => {
-                      const val = Number(e.target.value);
-                      if (!Number.isNaN(val)) {
-                        updateTierThresholds({ ...tierThresholds, wMin: val });
-                      }
-                    }}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-rose-300 mb-1">
-                    L Loss &lt;= (470)
-                  </label>
-                  <input
-                    type="number"
-                    value={tierThresholds.lMax}
-                    placeholder="(470)"
-                    onChange={(e) => {
-                      const val = Number(e.target.value);
-                      if (!Number.isNaN(val)) {
-                        updateTierThresholds({ ...tierThresholds, lMax: val });
-                      }
-                    }}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-rose-500 mb-1">
-                    SL Strong Loss &lt;= (380)
-                  </label>
-                  <input
-                    type="number"
-                    value={tierThresholds.slMax}
-                    placeholder="(380)"
-                    onChange={(e) => {
-                      const val = Number(e.target.value);
-                      if (!Number.isNaN(val)) {
-                        updateTierThresholds({ ...tierThresholds, slMax: val });
-                      }
-                    }}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono"
-                  />
-                </div>
               </div>
             </div>
           </div>
@@ -6297,7 +6783,7 @@ export default function App() {
               <div>
                 <h2 className="text-lg font-bold text-white flex items-center gap-2">
                   <Info className="w-5 h-5 text-sky-400" />
-                  <span>📖 Complete Help, HUD Instructions, Tips &amp; Tactics Guide (v3.01)</span>
+                  <span>📖 Complete Help, HUD Instructions, Tips &amp; Tactics Guide (v3.02)</span>
                 </h2>
                 <p className="text-xs text-slate-400">
                   Everything you need to master the floating PvP overlay, 3x3 matchup &amp; shield matrix, bottom 3-column damage grid, 50s swap clocks, move pacing, Battle Log analytics, and Tasker automation.
@@ -7201,7 +7687,7 @@ export default function App() {
               <div className="flex items-center justify-between border-b border-slate-800 pb-3 shrink-0">
                 <div>
                   <h3 className="font-bold text-base text-white flex items-center gap-2">
-                    <span>🎯 Overlay HUD &amp; Battle Flow Guide (v3.01)</span>
+                    <span>🎯 Overlay HUD &amp; Battle Flow Guide (v3.02)</span>
                   </h3>
                   <p className="text-xs text-slate-400 mt-0.5">
                     How to interact with the floating overlay, read 3x3 damage % &amp; shield dots, track 50s swap clocks, and log battles
@@ -7334,8 +7820,14 @@ export default function App() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-slate-800/80 py-4 px-6 text-center text-xs text-slate-500">
-        SilphScope PvP v3.01 Overlay • Built with Kotlin, WindowManager TYPE_APPLICATION_OVERLAY, MediaProjection in-memory frame capture, and ML Kit Text Recognition.
+      <footer
+        className="border-t py-4 px-6 text-center text-xs relative z-10"
+        style={{
+          borderColor: activeTheme.borderHex,
+          color: activeTheme.textSecondaryHex
+        }}
+      >
+        SilphScope PvP v3.02 Overlay • Built with Kotlin, WindowManager TYPE_APPLICATION_OVERLAY, MediaProjection in-memory frame capture, and ML Kit Text Recognition.
       </footer>
     </div>
   );

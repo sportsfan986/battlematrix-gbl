@@ -107,12 +107,15 @@ class OverlayService : LifecycleService() {
         const val EXTRA_OPP_COUNT_MODE = "extra_opp_count_mode"
         const val EXTRA_OVERLAY_SCALE_PCT = "extra_overlay_scale_pct"
         const val EXTRA_OVERLAY_TRANSPARENCY_PCT = "extra_overlay_transparency_pct"
+        const val EXTRA_APP_THEME_ID = "extra_app_theme_id"
         const val EXTRA_ENABLE_4_CHARGED_MOVES = "extra_enable_4_charged_moves"
         const val EXTRA_DISABLE_BATTLE_TOASTS = "extra_disable_battle_toasts"
 
         const val PREFS_KEY_ENABLE_4_CHARGED_MOVES = "enable_4_charged_moves"
         const val PREFS_KEY_DISABLE_BATTLE_TOASTS = "disable_battle_toasts"
         const val PREFS_KEY_OVERLAY_TRANSPARENCY_PCT = "overlay_transparency_pct"
+        const val PREFS_KEY_APP_THEME_ID = "gbl_app_theme_id"
+        const val PREFS_KEY_SHOW_THEME_WATERMARK = "gbl_show_theme_watermark"
         const val PREFS_KEY_LAST_SYNC_TIMESTAMP = "last_sync_timestamp"
         const val PREFS_KEY_BATTLE_LOGS = "gbl_battle_logs_v1"
         const val PREFS_KEY_DELETED_LOG_IDS = "gbl_deleted_log_ids_v1"
@@ -3415,6 +3418,7 @@ class OverlayService : LifecycleService() {
     private var disableBattleToasts = false
     private var overlayScalePct = 78
     private var overlayTransparencyPct = 72
+    private var appThemeId = "slate"
     private var isOverlayMinimized = false
     private var cachedScreenBitmap: Bitmap? = null
     private val captureLock = Any()
@@ -3615,6 +3619,7 @@ class OverlayService : LifecycleService() {
         disableBattleToasts = prefs.getBoolean(PREFS_KEY_DISABLE_BATTLE_TOASTS, false)
         overlayScalePct = prefs.getInt("overlay_scale_pct", 78).coerceIn(50, 100)
         overlayTransparencyPct = prefs.getInt(PREFS_KEY_OVERLAY_TRANSPARENCY_PCT, 72).coerceIn(0, 100)
+        appThemeId = prefs.getString(PREFS_KEY_APP_THEME_ID, "slate") ?: "slate"
         syncTierThresholdsFromPrefs(prefs)
 
         val metrics = resources.displayMetrics
@@ -3980,6 +3985,18 @@ class OverlayService : LifecycleService() {
         }
     }
 
+    private fun applyOverlayTheme(themeId: String) {
+        appThemeId = themeId.ifBlank { "slate" }
+        Handler(Looper.getMainLooper()).post {
+            try {
+                overlayView?.evaluateJavascript(
+                    "if (window.setOverlayTheme) setOverlayTheme('$appThemeId');",
+                    null
+                )
+            } catch (_: Exception) {}
+        }
+    }
+
     private fun stopBattleOcrLoop() {
         battleLoopJob?.cancel()
         battleLoopJob = null
@@ -4070,6 +4087,11 @@ class OverlayService : LifecycleService() {
                     prefs.getInt(PREFS_KEY_OVERLAY_TRANSPARENCY_PCT, 72)
                 ) ?: prefs.getInt(PREFS_KEY_OVERLAY_TRANSPARENCY_PCT, 72)
                 applyOverlayTransparency(startTransparencyPct)
+
+                val startThemeId = intent?.getStringExtra(EXTRA_APP_THEME_ID)
+                    ?: prefs.getString(PREFS_KEY_APP_THEME_ID, "slate")
+                    ?: "slate"
+                applyOverlayTheme(startThemeId)
 
                 enable4ChargedMoves = if (intent?.hasExtra(EXTRA_ENABLE_4_CHARGED_MOVES) == true) {
                     intent.getBooleanExtra(EXTRA_ENABLE_4_CHARGED_MOVES, false)
@@ -4165,6 +4187,11 @@ class OverlayService : LifecycleService() {
                     prefs.getInt(PREFS_KEY_OVERLAY_TRANSPARENCY_PCT, overlayTransparencyPct)
                 ) ?: prefs.getInt(PREFS_KEY_OVERLAY_TRANSPARENCY_PCT, overlayTransparencyPct)
                 applyOverlayTransparency(updatedTransparencyPct)
+
+                val updatedThemeId = intent?.getStringExtra(EXTRA_APP_THEME_ID)
+                    ?: prefs.getString(PREFS_KEY_APP_THEME_ID, appThemeId)
+                    ?: appThemeId
+                applyOverlayTheme(updatedThemeId)
 
                 recalculateAndPushBattleData()
             }
@@ -7442,6 +7469,7 @@ class OverlayService : LifecycleService() {
             "oppCountMode" to oppCountMode,
             "enable4ChargedMoves" to enable4ChargedMoves,
             "overlayTransparencyPct" to overlayTransparencyPct,
+            "appThemeId" to appThemeId,
             "isOverlayMinimized" to isOverlayMinimized,
             "maxHorizonTurns" to maxHorizonTurns,
             "isOpponentShadow" to isOpponentShadow,
@@ -7755,6 +7783,7 @@ class OverlayService : LifecycleService() {
         fun onOverlayReady() {
             Handler(Looper.getMainLooper()).post {
                 applyOverlayTransparency(overlayTransparencyPct)
+                applyOverlayTheme(appThemeId)
                 loadInitialDataIntoOverlay()
             }
         }

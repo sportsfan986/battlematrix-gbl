@@ -8,6 +8,10 @@ import overlayHtmlContent from '../../app/src/main/assets/overlay.html?raw';
 import activityMainXmlContent from '../../app/src/main/res/layout/activity_main.xml?raw';
 import itemTeamPresetXmlContent from '../../app/src/main/res/layout/item_team_preset.xml?raw';
 import dialogCreatePresetXmlContent from '../../app/src/main/res/layout/dialog_create_preset.xml?raw';
+import bgEmblemInstinctXmlContent from '../../app/src/main/res/drawable/bg_emblem_instinct.xml?raw';
+import bgEmblemMysticXmlContent from '../../app/src/main/res/drawable/bg_emblem_mystic.xml?raw';
+import bgEmblemValorXmlContent from '../../app/src/main/res/drawable/bg_emblem_valor.xml?raw';
+import bgEmblemSylveonXmlContent from '../../app/src/main/res/drawable/bg_emblem_sylveon.xml?raw';
 
 export interface AndroidProjectFile {
   path: string;
@@ -43,7 +47,7 @@ export const ANDROID_FILES: AndroidProjectFile[] = [
     path: "app/src/main/java/com/gbl/overlay/MainActivity.kt",
     name: "MainActivity.kt",
     category: "kotlin",
-    description: "Manages permissions, local team & move presets (create/edit/delete), PvPoke sync, and overlay launch.",
+    description: "Manages permissions, local team & move presets, 10-theme customization engine, PvPoke sync, and overlay launch.",
     content: mainActivityContent
   },
   {
@@ -57,14 +61,14 @@ export const ANDROID_FILES: AndroidProjectFile[] = [
     path: "app/src/main/assets/overlay.html",
     name: "overlay.html (Assets)",
     category: "html",
-    description: "Ultra-transparent glass HUD with Reset Opp, Shadow/Form toggles, 3-letter damage rows, and static throw turn reminders.",
+    description: "Ultra-transparent glass HUD with theme accent tinting, Reset Opp, Shadow/Form toggles, 3-letter damage rows, and static throw turn reminders.",
     content: overlayHtmlContent
   },
   {
     path: "app/src/main/res/layout/activity_main.xml",
     name: "activity_main.xml",
     category: "layout",
-    description: "Main activity UI layout with service controls, PvPoke sync status, and team presets list.",
+    description: "Main activity UI layout with theme frame, emblem watermark, reorganized Settings page, and team presets list.",
     content: activityMainXmlContent
   },
   {
@@ -109,11 +113,21 @@ export async function downloadAndroidProjectZip(): Promise<Blob> {
         assets.file("overlay.html", overlayHtmlContent);
       }
 
-      const layout = main.folder("res")?.folder("layout");
-      if (layout) {
-        layout.file("activity_main.xml", activityMainXmlContent);
-        layout.file("item_team_preset.xml", itemTeamPresetXmlContent);
-        layout.file("dialog_create_preset.xml", dialogCreatePresetXmlContent);
+      const res = main.folder("res");
+      if (res) {
+        const layout = res.folder("layout");
+        if (layout) {
+          layout.file("activity_main.xml", activityMainXmlContent);
+          layout.file("item_team_preset.xml", itemTeamPresetXmlContent);
+          layout.file("dialog_create_preset.xml", dialogCreatePresetXmlContent);
+        }
+        const drawable = res.folder("drawable");
+        if (drawable) {
+          drawable.file("bg_emblem_instinct.xml", bgEmblemInstinctXmlContent);
+          drawable.file("bg_emblem_mystic.xml", bgEmblemMysticXmlContent);
+          drawable.file("bg_emblem_valor.xml", bgEmblemValorXmlContent);
+          drawable.file("bg_emblem_sylveon.xml", bgEmblemSylveonXmlContent);
+        }
       }
     }
   }

@@ -16,10 +16,14 @@
 
         :root {
             --panel-bg-alpha: 0.28;
-            --panel-border-alpha: 0.16;
+            --panel-border-alpha: 0.26;
             --subpanel-bg-alpha: 0.18;
             --row-bg-alpha: 0.42;
             --panel-blur: 3px;
+            --panel-bg-rgb: 10, 14, 22;
+            --panel-border-rgb: 56, 189, 248;
+            --header-accent-rgb: 56, 189, 248;
+            --header-accent-hex: #38bdf8;
         }
 
         body {
@@ -32,12 +36,12 @@
             height: auto;
         }
 
-        /* Ultra-Transparent High-Contrast Glass Container */
+        /* Ultra-Transparent High-Contrast Glass Container (Accented by Theme Border & Base Tint) */
         .glass-panel {
-            background: rgba(10, 14, 22, var(--panel-bg-alpha));
-            border: 1px solid rgba(255, 255, 255, var(--panel-border-alpha));
+            background: rgba(var(--panel-bg-rgb), var(--panel-bg-alpha));
+            border: 1px solid rgba(var(--panel-border-rgb), var(--panel-border-alpha));
             border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35), 0 0 6px rgba(var(--header-accent-rgb), 0.14);
             backdrop-filter: blur(var(--panel-blur));
             -webkit-backdrop-filter: blur(var(--panel-blur));
             padding: 5px 6px;
@@ -53,13 +57,13 @@
             align-items: center;
             justify-content: space-between;
             gap: 4px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+            border-bottom: 1px solid rgba(var(--header-accent-rgb), 0.32);
             padding-bottom: 3px;
         }
 
         .sword-minimize-btn {
-            background: rgba(56, 189, 248, 0.18);
-            border: 1px solid rgba(56, 189, 248, 0.5);
+            background: rgba(var(--header-accent-rgb), 0.20);
+            border: 1px solid rgba(var(--header-accent-rgb), 0.58);
             border-radius: 4px;
             padding: 0px 3.5px;
             font-size: 10.5px;
@@ -70,13 +74,13 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 0 4px rgba(56, 189, 248, 0.25);
+            box-shadow: 0 0 4px rgba(var(--header-accent-rgb), 0.28);
             transition: transform 0.1s ease, background 0.15s ease;
         }
 
         .sword-minimize-btn:active {
             transform: scale(0.9);
-            background: rgba(56, 189, 248, 0.4);
+            background: rgba(var(--header-accent-rgb), 0.42);
         }
 
         /* Minimized Floating App-Icon Bubble */
@@ -84,9 +88,9 @@
             width: 44px;
             height: 44px;
             border-radius: 50%;
-            background: radial-gradient(circle at 30% 30%, #162238, #0B111E 75%);
-            border: 2px solid #38bdf8;
-            box-shadow: 0 3px 12px rgba(0, 0, 0, 0.75), 0 0 8px rgba(56, 189, 248, 0.45);
+            background: radial-gradient(circle at 30% 30%, rgba(var(--panel-bg-rgb), 0.96), #050811 78%);
+            border: 2px solid var(--header-accent-hex);
+            box-shadow: 0 3px 12px rgba(0, 0, 0, 0.75), 0 0 8px rgba(var(--header-accent-rgb), 0.48);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -100,7 +104,7 @@
 
         .minimized-bubble:active {
             transform: scale(0.93);
-            border-color: #7dd3fc;
+            border-color: #ffffff;
         }
 
         .minimized-bubble svg {
@@ -1182,12 +1186,38 @@
                 const opacity = (100 - pct) / 100.0;
                 const root = document.documentElement;
                 root.style.setProperty("--panel-bg-alpha", opacity.toFixed(3));
-                root.style.setProperty("--panel-border-alpha", Math.max(0.05, opacity * 0.55).toFixed(3));
+                root.style.setProperty("--panel-border-alpha", Math.max(0.14, opacity * 0.65).toFixed(3));
                 root.style.setProperty("--subpanel-bg-alpha", (opacity * 0.65).toFixed(3));
                 root.style.setProperty("--row-bg-alpha", Math.min(0.92, opacity * 1.45).toFixed(3));
                 root.style.setProperty("--panel-blur", pct >= 96 ? "0px" : "3px");
             } catch (e) {}
         }
+
+        const OVERLAY_THEME_PRESETS = {
+            "slate":         { bgRgb: "10, 14, 22",  borderRgb: "56, 189, 248",  accentRgb: "56, 189, 248",  accentHex: "#38bdf8" },
+            "amoled_cyan":   { bgRgb: "0, 4, 10",    borderRgb: "0, 245, 212",   accentRgb: "0, 245, 212",   accentHex: "#00f5d4" },
+            "amoled_matrix": { bgRgb: "0, 8, 3",     borderRgb: "0, 255, 102",   accentRgb: "0, 255, 102",   accentHex: "#00ff66" },
+            "instinct_dark": { bgRgb: "18, 14, 4",   borderRgb: "250, 204, 21",  accentRgb: "250, 204, 21",  accentHex: "#facc15" },
+            "instinct_light":{ bgRgb: "22, 17, 5",   borderRgb: "250, 204, 21",  accentRgb: "250, 204, 21",  accentHex: "#facc15" },
+            "mystic_dark":   { bgRgb: "6, 14, 34",   borderRgb: "56, 189, 248",  accentRgb: "56, 189, 248",  accentHex: "#38bdf8" },
+            "mystic_light":  { bgRgb: "8, 18, 38",   borderRgb: "56, 189, 248",  accentRgb: "56, 189, 248",  accentHex: "#38bdf8" },
+            "valor_dark":    { bgRgb: "24, 7, 12",   borderRgb: "244, 63, 94",   accentRgb: "244, 63, 94",   accentHex: "#f43f5e" },
+            "valor_light":   { bgRgb: "26, 8, 14",   borderRgb: "251, 113, 133", accentRgb: "251, 113, 133", accentHex: "#fb7185" },
+            "sylveon_pink":  { bgRgb: "27, 11, 22",  borderRgb: "244, 114, 182", accentRgb: "244, 114, 182", accentHex: "#f472b6" }
+        };
+
+        window.setOverlayTheme = function(themeId) {
+            try {
+                const t = OVERLAY_THEME_PRESETS[themeId] || OVERLAY_THEME_PRESETS["slate"];
+                const root = document.documentElement;
+                root.style.setProperty("--panel-bg-rgb", t.bgRgb);
+                root.style.setProperty("--panel-border-rgb", t.borderRgb);
+                root.style.setProperty("--header-accent-rgb", t.accentRgb);
+                root.style.setProperty("--header-accent-hex", t.accentHex);
+                const myShortEl = document.getElementById("sky-my-short");
+                if (myShortEl) myShortEl.style.color = t.accentHex;
+            } catch (e) {}
+        };
 
         function setOverlayMinimizedState(minimized) {
             isMinimized = !!minimized;
@@ -1568,6 +1598,9 @@
                 }
                 if (data.overlayTransparencyPct !== undefined) {
                     setOverlayTransparencyPct(data.overlayTransparencyPct);
+                }
+                if (data.appThemeId) {
+                    window.setOverlayTheme(data.appThemeId);
                 }
                 if (data.isOverlayMinimized !== undefined && data.isOverlayMinimized !== isMinimized) {
                     setOverlayMinimizedState(data.isOverlayMinimized);

@@ -1,12 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/root_theme_frame"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fitsSystemWindows="true"
+    android:background="#0f172a">
+
+    <!-- Background Team Emblem / Sylveon Watermark (Shown for Team & Sylveon Themes) -->
+    <ImageView
+        android:id="@+id/iv_theme_watermark_bg"
+        android:layout_width="310dp"
+        android:layout_height="310dp"
+        android:layout_gravity="center"
+        android:alpha="0.11"
+        android:scaleType="fitCenter"
+        android:visibility="gone"
+        android:importantForAccessibility="no" />
+
+<LinearLayout
     android:id="@+id/root_main_layout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:fitsSystemWindows="true"
-    android:background="#0f172a"
+    android:background="#00000000"
     android:padding="14dp">
 
     <!-- Top Header Row with App Icon, Title & Support/Donate Link -->
@@ -31,6 +48,7 @@
             android:orientation="vertical">
 
             <TextView
+                android:id="@+id/tv_app_main_title"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="SilphScope PvP"
@@ -39,9 +57,10 @@
                 android:textColor="#f8fafc" />
 
             <TextView
+                android:id="@+id/tv_app_main_subtitle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Real-Time PvP Floating Overlay • v3.01"
+                android:text="Real-Time PvP Floating Overlay • v3.02"
                 android:textSize="11sp"
                 android:textColor="#94a3b8"
                 android:layout_marginTop="1dp" />
@@ -60,6 +79,7 @@
 
     <!-- Persistent Overlay Launch & Status Bar -->
     <LinearLayout
+        android:id="@+id/card_status_bar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
@@ -109,6 +129,7 @@
 
     <!-- 3-Page Navigation Switcher Bar (Teams | Battle Log | Settings) -->
     <LinearLayout
+        android:id="@+id/layout_nav_bar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
@@ -267,7 +288,7 @@
     </LinearLayout>
 
     <!-- ===================================================================
-         PAGE 2: OVERLAY & PVPOKE DATABASE SETTINGS
+         PAGE 2: OVERLAY & PVPOKE DATABASE SETTINGS (Reorganized: Theme/Size/Transparency First)
          =================================================================== -->
     <ScrollView
         android:id="@+id/page_settings"
@@ -277,6 +298,7 @@
         android:visibility="gone">
 
         <LinearLayout
+            android:id="@+id/layout_settings_container"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
@@ -286,108 +308,342 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Overlay &amp; Database Configuration"
+                android:text="App Theme, Overlay &amp; Database Settings"
                 android:textColor="#f8fafc"
                 android:textSize="15sp"
                 android:textStyle="bold"
                 android:layout_marginBottom="8dp" />
 
-            <!-- PvPoke Database & 4-League Sync Card -->
+            <!-- ===================================================================
+                 1. APP & OVERLAY THEME + SIZE & TRANSPARENCY GROUP (TOP OF SETTINGS)
+                 =================================================================== -->
             <LinearLayout
+                android:id="@+id/card_settings_theme_group"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:background="#0f172a"
                 android:padding="10dp">
 
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="🎨 1. App &amp; Overlay Theme, Size &amp; Transparency"
+                    android:textColor="#38bdf8"
+                    android:textSize="12.5sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Customize the main app theme and subtle overlay border/header accents. Tactical damage numbers, KO badges, shield matrix, and swap timer colors always remain untouched."
+                    android:textColor="#94a3b8"
+                    android:textSize="10sp"
+                    android:lineSpacingExtra="1.5dp"
+                    android:layout_marginTop="2dp"
+                    android:layout_marginBottom="8dp" />
+
+                <!-- Theme Selector Row -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
-                    android:gravity="center_vertical">
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="6dp">
 
                     <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Theme:"
+                        android:textColor="#e2e8f0"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:layout_marginEnd="8dp" />
+
+                    <Spinner
+                        android:id="@+id/spinner_app_theme"
+                        android:layout_width="0dp"
+                        android:layout_height="38dp"
+                        android:layout_weight="1"
+                        android:background="#1e293b"
+                        android:paddingHorizontal="8dp" />
+                </LinearLayout>
+
+                <!-- Theme Preview Swatches & Emblem Badge Card -->
+                <LinearLayout
+                    android:id="@+id/layout_theme_preview_box"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:background="#1e293b"
+                    android:padding="8dp"
+                    android:layout_marginBottom="6dp">
+
+                    <ImageView
+                        android:id="@+id/iv_theme_preview_emblem"
+                        android:layout_width="36dp"
+                        android:layout_height="36dp"
+                        android:scaleType="fitCenter"
+                        android:layout_marginEnd="8dp"
+                        android:visibility="gone"
+                        android:importantForAccessibility="no" />
+
+                    <TextView
+                        android:id="@+id/tv_theme_preview_desc"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="PvPoke Live Database &amp; 4 Leagues"
-                        android:textColor="#38bdf8"
-                        android:textSize="12sp"
-                        android:textStyle="bold" />
+                        android:text="SilphScope Slate (Default Dark) — Deep slate canvas with sky-cyan tactical accents."
+                        android:textColor="#cbd5e1"
+                        android:textSize="10sp"
+                        android:lineSpacingExtra="1.5dp"
+                        android:layout_marginEnd="8dp" />
 
-                    <Button
-                        android:id="@+id/btn_download_db"
+                    <!-- 4 Mini Color Swatches (App BG, Card Surface, Primary Accent, Overlay Border) -->
+                    <LinearLayout
                         android:layout_width="wrap_content"
-                        android:layout_height="36dp"
-                        android:backgroundTint="#334155"
-                        android:textColor="#ffffff"
-                        android:textSize="11sp"
-                        android:text="Sync PvPoke" />
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <View
+                            android:id="@+id/view_swatch_bg"
+                            android:layout_width="14dp"
+                            android:layout_height="14dp"
+                            android:background="#0f172a"
+                            android:layout_marginEnd="3dp" />
+
+                        <View
+                            android:id="@+id/view_swatch_surface"
+                            android:layout_width="14dp"
+                            android:layout_height="14dp"
+                            android:background="#1e293b"
+                            android:layout_marginEnd="3dp" />
+
+                        <View
+                            android:id="@+id/view_swatch_accent"
+                            android:layout_width="14dp"
+                            android:layout_height="14dp"
+                            android:background="#38bdf8"
+                            android:layout_marginEnd="3dp" />
+
+                        <View
+                            android:id="@+id/view_swatch_overlay"
+                            android:layout_width="14dp"
+                            android:layout_height="14dp"
+                            android:background="#2563eb" />
+                    </LinearLayout>
                 </LinearLayout>
 
-                <TextView
-                    android:id="@+id/text_db_status"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="PvPoke Database: Cached (Checking...)"
-                    android:textColor="#cbd5e1"
-                    android:textSize="11sp"
-                    android:lineSpacingExtra="2dp"
-                    android:layout_marginTop="4dp" />
-            </LinearLayout>
-
-            <!-- Retroactive Battle Log Damage & Win Quality Reparse Card -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:layout_marginTop="8dp"
-                android:background="#0f172a"
-                android:padding="10dp">
-
+                <!-- Background Emblem Watermark Toggle -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
-                    android:gravity="center_vertical">
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="8dp">
 
                     <LinearLayout
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:orientation="vertical"
-                        android:layout_marginEnd="8dp">
+                        android:orientation="vertical">
 
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Reparse Completed Battles (Damage &amp; WAE)"
-                            android:textColor="#34d399"
+                            android:text="Show Team / Sylveon Background Emblem"
+                            android:textColor="#e2e8f0"
+                            android:textSize="11.5sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Displays subtle Instinct ⚡, Mystic ❄️, Valor 🔥, or Sylveon 🎀 crest watermark in app"
+                            android:textColor="#94a3b8"
+                            android:textSize="10sp" />
+                    </LinearLayout>
+
+                    <Switch
+                        android:id="@+id/switch_show_theme_watermark"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:checked="true" />
+                </LinearLayout>
+
+                <!-- Overlay Screen Width Scale Slider (50% - 100%, Default 78%) -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingTop="6dp"
+                    android:paddingBottom="6dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Overlay Size (% of Screen Width)"
+                            android:textColor="#e2e8f0"
                             android:textSize="12sp"
                             android:textStyle="bold" />
 
                         <TextView
-                            android:id="@+id/text_reparse_battles_status"
+                            android:id="@+id/text_overlay_scale_value"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Re-evaluates all logged battles with latest 2.56x dual-type &amp; Shadow 1.2x damage + Win Quality (WAE) metrics"
-                            android:textColor="#94a3b8"
-                            android:textSize="10sp"
-                            android:layout_marginTop="2dp" />
+                            android:text="78% (Default)"
+                            android:textColor="#38bdf8"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
                     </LinearLayout>
 
-                    <Button
-                        android:id="@+id/btn_reparse_battles_settings"
+                    <SeekBar
+                        android:id="@+id/seekbar_overlay_scale"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:max="25"
+                        android:progress="14"
+                        android:progressTint="#38bdf8"
+                        android:thumbTint="#38bdf8" />
+
+                    <!-- Scale Bounds & Default Tick Marker (78% is 14/25 = 56% along 50%-100% track) -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingHorizontal="8dp">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="14"
+                            android:text="50%"
+                            android:textColor="#64748b"
+                            android:textSize="10sp" />
+
+                        <TextView
+                            android:id="@+id/text_overlay_scale_default_tick"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="▲ 78% Default"
+                            android:textColor="#38bdf8"
+                            android:textSize="10sp"
+                            android:textStyle="bold"
+                            android:paddingHorizontal="4dp" />
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="11"
+                            android:gravity="end"
+                            android:text="100%"
+                            android:textColor="#64748b"
+                            android:textSize="10sp" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <!-- Overlay Background Transparency Slider (0% - 100%, Default 72%) -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingTop="6dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Overlay Background Transparency"
+                            android:textColor="#e2e8f0"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/text_overlay_transparency_value"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="72% (Default)"
+                            android:textColor="#38bdf8"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <TextView
                         android:layout_width="wrap_content"
-                        android:layout_height="36dp"
-                        android:backgroundTint="#059669"
-                        android:textColor="#ffffff"
-                        android:textSize="11sp"
-                        android:textStyle="bold"
-                        android:text="🔄 Reparse All" />
+                        android:layout_height="wrap_content"
+                        android:text="Adjusts background glass only — text &amp; move bars stay 100% crisp"
+                        android:textColor="#94a3b8"
+                        android:textSize="10sp"
+                        android:layout_marginTop="1dp" />
+
+                    <SeekBar
+                        android:id="@+id/seekbar_overlay_transparency"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:max="50"
+                        android:progress="36"
+                        android:progressTint="#38bdf8"
+                        android:thumbTint="#38bdf8" />
+
+                    <!-- Transparency Bounds & Default Tick Marker (72% is 36/50 = 72% along 0%-100% track) -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingHorizontal="8dp">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="36"
+                            android:text="0% (Solid)"
+                            android:textColor="#64748b"
+                            android:textSize="10sp" />
+
+                        <TextView
+                            android:id="@+id/text_overlay_transparency_default_tick"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="▲ 72% Default"
+                            android:textColor="#38bdf8"
+                            android:textSize="10sp"
+                            android:textStyle="bold"
+                            android:paddingHorizontal="4dp" />
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="14"
+                            android:gravity="end"
+                            android:text="100% (Clear)"
+                            android:textColor="#64748b"
+                            android:textSize="10sp" />
+                    </LinearLayout>
                 </LinearLayout>
             </LinearLayout>
 
+            <!-- ===================================================================
+                 2. OVERLAY HUD BEHAVIOR & MATCHUP THRESHOLDS
+                 =================================================================== -->
             <!-- Opponent Fast Move Count Basis Setting -->
             <LinearLayout
                 android:layout_width="match_parent"
@@ -523,285 +779,12 @@
                     android:textColor="#ffffff" />
             </LinearLayout>
 
-            <!-- Overlay Screen Width Scale Slider (50% - 100%, Default 78%) -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:layout_marginTop="8dp"
-                android:background="#0f172a"
-                android:paddingHorizontal="10dp"
-                android:paddingVertical="8dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical">
-
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="Overlay Size (% of Screen Width)"
-                        android:textColor="#e2e8f0"
-                        android:textSize="12sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/text_overlay_scale_value"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="78% (Default)"
-                        android:textColor="#38bdf8"
-                        android:textSize="12sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-
-                <SeekBar
-                    android:id="@+id/seekbar_overlay_scale"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:max="25"
-                    android:progress="14"
-                    android:progressTint="#38bdf8"
-                    android:thumbTint="#38bdf8" />
-
-                <!-- Scale Bounds & Default Tick Marker (78% is 14/25 = 56% along 50%-100% track) -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:paddingHorizontal="8dp">
-
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="14"
-                        android:text="50%"
-                        android:textColor="#64748b"
-                        android:textSize="10sp" />
-
-                    <TextView
-                        android:id="@+id/text_overlay_scale_default_tick"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="▲ 78% Default"
-                        android:textColor="#38bdf8"
-                        android:textSize="10sp"
-                        android:textStyle="bold"
-                        android:paddingHorizontal="4dp" />
-
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="11"
-                        android:gravity="end"
-                        android:text="100%"
-                        android:textColor="#64748b"
-                        android:textSize="10sp" />
-                </LinearLayout>
-            </LinearLayout>
-
-            <!-- Overlay Background Transparency Slider (0% - 100%, Default 72%) -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:layout_marginTop="8dp"
-                android:background="#0f172a"
-                android:paddingHorizontal="10dp"
-                android:paddingVertical="8dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical">
-
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="Overlay Background Transparency"
-                        android:textColor="#e2e8f0"
-                        android:textSize="12sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/text_overlay_transparency_value"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="72% (Default)"
-                        android:textColor="#38bdf8"
-                        android:textSize="12sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Adjusts background glass only — text &amp; move bars stay 100% crisp"
-                    android:textColor="#94a3b8"
-                    android:textSize="10sp"
-                    android:layout_marginTop="1dp" />
-
-                <SeekBar
-                    android:id="@+id/seekbar_overlay_transparency"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:max="50"
-                    android:progress="36"
-                    android:progressTint="#38bdf8"
-                    android:thumbTint="#38bdf8" />
-
-                <!-- Transparency Bounds & Default Tick Marker (72% is 36/50 = 72% along 0%-100% track) -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:paddingHorizontal="8dp">
-
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="36"
-                        android:text="0% (Solid)"
-                        android:textColor="#64748b"
-                        android:textSize="10sp" />
-
-                    <TextView
-                        android:id="@+id/text_overlay_transparency_default_tick"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="▲ 72% Default"
-                        android:textColor="#38bdf8"
-                        android:textSize="10sp"
-                        android:textStyle="bold"
-                        android:paddingHorizontal="4dp" />
-
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="14"
-                        android:gravity="end"
-                        android:text="100% (Clear)"
-                        android:textColor="#64748b"
-                        android:textSize="10sp" />
-                </LinearLayout>
-            </LinearLayout>
-
-            <!-- Two-Device Cloud & Delta Reconciliation Sync Card -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:layout_marginTop="8dp"
-                android:background="#0f172a"
-                android:padding="10dp">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="☁️ Multi-Device Auto Delta Sync (Teams &amp; Battle Logs)"
-                    android:textColor="#38bdf8"
-                    android:textSize="12sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Sign in with your GitHub account once on each of your phones. Each user's logs sync privately to their own GitHub account automatically on app open &amp; after every battle."
-                    android:textColor="#94a3b8"
-                    android:textSize="10sp"
-                    android:layout_marginTop="2dp" />
-
-                <Button
-                    android:id="@+id/btn_github_login_settings"
-                    android:layout_width="match_parent"
-                    android:layout_height="38dp"
-                    android:layout_marginTop="6dp"
-                    android:text="🔑 Login with GitHub (Generate Sync Token)"
-                    android:textSize="11sp"
-                    android:textStyle="bold"
-                    android:backgroundTint="#10b981"
-                    android:textColor="#ffffff" />
-
-                <EditText
-                    android:id="@+id/edit_sync_github_token"
-                    android:layout_width="match_parent"
-                    android:layout_height="38dp"
-                    android:layout_marginTop="6dp"
-                    android:background="#1e293b"
-                    android:paddingHorizontal="8dp"
-                    android:hint="GitHub OAuth / Personal Access Token (Auto-filled on Login)"
-                    android:textColor="#f8fafc"
-                    android:textColorHint="#64748b"
-                    android:textSize="11sp"
-                    android:inputType="textPassword"
-                    android:singleLine="true" />
-
-                <EditText
-                    android:id="@+id/edit_sync_gist_id"
-                    android:layout_width="match_parent"
-                    android:layout_height="36dp"
-                    android:layout_marginTop="4dp"
-                    android:background="#1e293b"
-                    android:paddingHorizontal="8dp"
-                    android:hint="Optional Gist ID Override (Auto-discovered per user account)"
-                    android:textColor="#f8fafc"
-                    android:textColorHint="#64748b"
-                    android:textSize="11sp"
-                    android:singleLine="true" />
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:layout_marginTop="6dp">
-
-                    <Button
-                        android:id="@+id/btn_sync_devices_settings"
-                        android:layout_width="0dp"
-                        android:layout_height="36dp"
-                        android:layout_weight="1"
-                        android:text="☁️ Sync Devices Now"
-                        android:textSize="11sp"
-                        android:backgroundTint="#0284c7"
-                        android:textColor="#ffffff"
-                        android:layout_marginEnd="6dp" />
-
-                    <Button
-                        android:id="@+id/btn_sync_bundle_settings"
-                        android:layout_width="wrap_content"
-                        android:layout_height="36dp"
-                        android:text="📦 Sync Bundle"
-                        android:textSize="11sp"
-                        android:backgroundTint="#334155"
-                        android:textColor="#e2e8f0" />
-                </LinearLayout>
-
-                <TextView
-                    android:id="@+id/text_sync_status"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Sync Status: Not signed in (Local storage active)"
-                    android:textColor="#94a3b8"
-                    android:textSize="10sp"
-                    android:layout_marginTop="4dp" />
-            </LinearLayout>
-
             <!-- 5-Tier 0s/1s/2s Matchup Rating Thresholds Card (SW, W, N, L, SL) -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:layout_marginTop="8dp"
-                android:layout_marginBottom="8dp"
                 android:background="#0f172a"
                 android:padding="10dp">
 
@@ -988,11 +971,216 @@
                 </LinearLayout>
             </LinearLayout>
 
-            <!-- Tasker Automation Hooks Card -->
+            <!-- ===================================================================
+                 3. TWO-DEVICE CLOUD & DELTA RECONCILIATION SYNC CARD
+                 =================================================================== -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
+                android:layout_marginTop="8dp"
+                android:background="#0f172a"
+                android:padding="10dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="☁️ Multi-Device Auto Delta Sync (Teams &amp; Battle Logs)"
+                    android:textColor="#38bdf8"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Sign in with your GitHub account once on each of your phones. Each user's logs sync privately to their own GitHub account automatically on app open &amp; after every battle."
+                    android:textColor="#94a3b8"
+                    android:textSize="10sp"
+                    android:layout_marginTop="2dp" />
+
+                <Button
+                    android:id="@+id/btn_github_login_settings"
+                    android:layout_width="match_parent"
+                    android:layout_height="38dp"
+                    android:layout_marginTop="6dp"
+                    android:text="🔑 Login with GitHub (Generate Sync Token)"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:backgroundTint="#10b981"
+                    android:textColor="#ffffff" />
+
+                <EditText
+                    android:id="@+id/edit_sync_github_token"
+                    android:layout_width="match_parent"
+                    android:layout_height="38dp"
+                    android:layout_marginTop="6dp"
+                    android:background="#1e293b"
+                    android:paddingHorizontal="8dp"
+                    android:hint="GitHub OAuth / Personal Access Token (Auto-filled on Login)"
+                    android:textColor="#f8fafc"
+                    android:textColorHint="#64748b"
+                    android:textSize="11sp"
+                    android:inputType="textPassword"
+                    android:singleLine="true" />
+
+                <EditText
+                    android:id="@+id/edit_sync_gist_id"
+                    android:layout_width="match_parent"
+                    android:layout_height="36dp"
+                    android:layout_marginTop="4dp"
+                    android:background="#1e293b"
+                    android:paddingHorizontal="8dp"
+                    android:hint="Optional Gist ID Override (Auto-discovered per user account)"
+                    android:textColor="#f8fafc"
+                    android:textColorHint="#64748b"
+                    android:textSize="11sp"
+                    android:singleLine="true" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="6dp">
+
+                    <Button
+                        android:id="@+id/btn_sync_devices_settings"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:text="☁️ Sync Devices Now"
+                        android:textSize="11sp"
+                        android:backgroundTint="#0284c7"
+                        android:textColor="#ffffff"
+                        android:layout_marginEnd="6dp" />
+
+                    <Button
+                        android:id="@+id/btn_sync_bundle_settings"
+                        android:layout_width="wrap_content"
+                        android:layout_height="36dp"
+                        android:text="📦 Sync Bundle"
+                        android:textSize="11sp"
+                        android:backgroundTint="#334155"
+                        android:textColor="#e2e8f0" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/text_sync_status"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Sync Status: Not signed in (Local storage active)"
+                    android:textColor="#94a3b8"
+                    android:textSize="10sp"
+                    android:layout_marginTop="4dp" />
+            </LinearLayout>
+
+            <!-- ===================================================================
+                 4. PVPOKE DATABASE & BATTLE LOG REPARSE MAINTENANCE
+                 =================================================================== -->
+            <!-- PvPoke Database & 4-League Sync Card -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginTop="8dp"
+                android:background="#0f172a"
+                android:padding="10dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="PvPoke Live Database &amp; 4 Leagues"
+                        android:textColor="#38bdf8"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+
+                    <Button
+                        android:id="@+id/btn_download_db"
+                        android:layout_width="wrap_content"
+                        android:layout_height="36dp"
+                        android:backgroundTint="#334155"
+                        android:textColor="#ffffff"
+                        android:textSize="11sp"
+                        android:text="Sync PvPoke" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/text_db_status"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="PvPoke Database: Cached (Checking...)"
+                    android:textColor="#cbd5e1"
+                    android:textSize="11sp"
+                    android:lineSpacingExtra="2dp"
+                    android:layout_marginTop="4dp" />
+            </LinearLayout>
+
+            <!-- Retroactive Battle Log Damage & Win Quality Reparse Card -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginTop="8dp"
+                android:background="#0f172a"
+                android:padding="10dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical"
+                        android:layout_marginEnd="8dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Reparse Completed Battles (Damage &amp; WAE)"
+                            android:textColor="#34d399"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/text_reparse_battles_status"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Re-evaluates all logged battles with latest 2.56x dual-type &amp; Shadow 1.2x damage + Win Quality (WAE) metrics"
+                            android:textColor="#94a3b8"
+                            android:textSize="10sp"
+                            android:layout_marginTop="2dp" />
+                    </LinearLayout>
+
+                    <Button
+                        android:id="@+id/btn_reparse_battles_settings"
+                        android:layout_width="wrap_content"
+                        android:layout_height="36dp"
+                        android:backgroundTint="#059669"
+                        android:textColor="#ffffff"
+                        android:textSize="11sp"
+                        android:textStyle="bold"
+                        android:text="🔄 Reparse All" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- ===================================================================
+                 5. TASKER AUTOMATION HOOKS CARD
+                 =================================================================== -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginTop="8dp"
                 android:layout_marginBottom="8dp"
                 android:background="#0f172a"
                 android:padding="10dp">
@@ -1675,3 +1863,5 @@
     </ScrollView>
 
 </LinearLayout>
+</FrameLayout>
+

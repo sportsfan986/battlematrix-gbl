@@ -1,5 +1,29 @@
 # Changelog
 
+## v3.02
+**App & Overlay Theme Engine, Pokémon GO Team & Sylveon Emblem Watermarks, & Settings Reorganization**
+
+1. **10-Theme Collection (`MainActivity.kt`, `OverlayService.kt`, `overlay.html`, `activity_main.xml`, `src/App.tsx`)**
+   - **Default Dark**: **SilphScope Slate (Default)** — Deep tactical navy (`#080C14`) with Sky Cyan (`#38BDF8`) & Amber (`#F59E0B`) accents.
+   - **2 True AMOLED Black Themes (`#000000`)**:
+     - **AMOLED Cyber Cyan**: Pitch-black `#000000` canvas with Electric Cyan (`#00F0FF`) accents for zero OLED pixel draw.
+     - **AMOLED Matrix Phosphor**: Pitch-black `#000000` canvas with terminal phosphor Matrix Lime (`#00FF41`) accents.
+   - **6 Pokémon GO Team Themes (Dark & Light Pairs with Vector Emblem Watermarks)**:
+     - **Team Instinct Dark (Storm Gold)** & **Team Instinct Light (Spark Daylight)** with centered electric jagged diamond + Zapdos silhouette background watermark (`bg_emblem_instinct.xml`).
+     - **Team Mystic Dark (Blizzard Navy)** & **Team Mystic Light (Glacier Frost)** with centered hexagonal ice crystal crest + Articuno silhouette background watermark (`bg_emblem_mystic.xml`).
+     - **Team Valor Dark (Magma Crimson)** & **Team Valor Light (Phoenix Sun)** with centered fiery crest + Moltres rising phoenix silhouette background watermark (`bg_emblem_valor.xml`).
+   - **Sylveon Fairy Ribbon (Light)**: Soft pastel cream/blush background (`#FFF5F8`), rose-white cards (`#FFFFFF`), and vibrant Sylveon ribbon pink (`#EC4899`) + nymph sky-blue (`#38BDF8`) accents with a custom Sylveon bow, feeler ribbons, and 4-point fairy sparkles background watermark (`bg_emblem_sylveon.xml`).
+2. **Tactical-Safe Floating Overlay Accenting (`overlay.html`, `OverlayService.kt`)**
+   - Tints only the floating HUD base glass panel (`--panel-bg-rgb`), outer border (`--panel-border-rgb`), header strip (`--header-accent-rgb`), and minimize bubble while keeping 100% of tactical combat indicators untouched (5-tier matchup dots, 9-state shield matrix tags, move-type color dots, KO! badges, and 50s swap timers).
+3. **Settings Page Reorganization (`activity_main.xml`, `src/App.tsx`)**
+   - Reordered Settings into a logical 5-section hierarchy with **Card 1: App & Overlay Theme, Size & Transparency** at the very top (grouping Theme selector, 5-color swatch preview, Emblem Watermark toggle, Overlay Size slider, and Overlay Background Transparency slider together).
+
+## v3.01
+**In-App Overlay Quick Help Modal, Full Help Page, & Share Individual Output Format**
+
+1. **Share Individual Battle Line Format**: Updated single-day/individual share output lines to `W/L (L->F/N/U, M->F/N/U) opponent1 opponent2 opponent3`.
+2. **In-App Help Button & Dedicated Help Page**: Added `❓ Help` button in the top status bar and a comprehensive in-app Help & Tactics guide covering the 3x3 Shield Matrix, bottom 3-column battle damage percentages, dual 50s swap timers, and turn alignment.
+
 ## v2.93
 **Phase 3/4 of 3.00 release, use 2.3x builds until 3.00 released**
 
