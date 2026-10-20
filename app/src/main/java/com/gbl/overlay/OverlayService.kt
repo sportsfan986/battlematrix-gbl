@@ -2555,16 +2555,37 @@ class OverlayService : LifecycleService() {
             return ((rawDamage / defender.hp.toDouble()) * 100.0).roundToInt().coerceIn(5, 100)
         }
 
-        fun calculate1v1And2v2RatingsStatic(
+        val ALL_SHIELD_PERMUTATIONS: List<Triple<Int, Int, String>> = listOf(
+            Triple(0, 0, "0v0"),
+            Triple(0, 1, "0v1"),
+            Triple(0, 2, "0v2"),
+            Triple(1, 0, "1v0"),
+            Triple(1, 1, "1v1"),
+            Triple(1, 2, "1v2"),
+            Triple(2, 0, "2v0"),
+            Triple(2, 1, "2v1"),
+            Triple(2, 2, "2v2")
+        )
+
+        /**
+         * Phase 1: Evaluates discrete battle rating across all 9 shield permutations
+         * (s_user v s_opp in {0, 1, 2}^2): 0v0, 0v1, 0v2, 1v0, 1v1, 1v2, 2v0, 2v1, 2v2.
+         */
+        fun calculateMatchupRatingStatic(
             myName: String,
             oppName: String,
+            userShields: Int,
+            oppShields: Int,
             league: String,
             myFastMove: String? = null,
             myCharged1: String? = null,
             myCharged2: String? = null,
             myCp: Int? = null,
             myIvs: String? = null
-        ): Pair<Int, Int> {
+        ): Int {
+            val sUser = userShields.coerceIn(0, 2)
+            val sOpp = oppShields.coerceIn(0, 2)
+
             val myShadow = myName.trim().startsWith("Shadow ", ignoreCase = true) || myName.contains("(Shadow)", ignoreCase = true)
             val oppShadow = oppName.trim().startsWith("Shadow ", ignoreCase = true) || oppName.contains("(Shadow)", ignoreCase = true)
 
@@ -2593,9 +2614,111 @@ class OverlayService : LifecycleService() {
             val oppFastEff = getTypeEffectivenessStatic(oppFastType, myMeta.types)
 
             val shadowBulkDelta = (if (myShadow) -12 else 0) + (if (oppShadow) 12 else 0)
-            val rating1s = (500.0 + ((bestUserCharged + minUserCharged) * 0.5 - (bestOppCharged + minOppCharged) * 0.5) * 2.8 + (userFastEff - oppFastEff) * 120.0 + shadowBulkDelta).roundToInt().coerceIn(150, 850)
-            val rating2s = (500.0 + (minUserCharged - minOppCharged) * 2.0 + (userFastEff - oppFastEff) * 155.0 + shadowBulkDelta * 2).roundToInt().coerceIn(150, 850)
-            return rating1s to rating2s
+
+            fun chargedPressureAgainstShields(bestPct: Int, minPct: Int, defShields: Int): Double = when (defShields) {
+                0 -> bestPct * 1.7
+                1 -> ((bestPct + minPct) * 0.5) * 1.4
+                else -> minPct * 1.0
+            }
+
+            val userChargedImpact = chargedPressureAgainstShields(bestUserCharged, minUserCharged, sOpp)
+            val oppChargedImpact = chargedPressureAgainstShields(bestOppCharged, minOppCharged, sUser)
+            val chargedDelta = 2.0 * (userChargedImpact - oppChargedImpact)
+
+            val avgShields = (sUser + sOpp) * 0.5
+            val fastWeight = if (avgShields <= 1.0) {
+                95.0 + avgShields * 25.0
+            } else {
+                120.0 + (avgShields - 1.0) * 35.0
+            }
+            val fastDelta = (userFastEff - oppFastEff) * fastWeight
+
+            val shadowMultiplier = if (avgShields <= 1.0) 1.0 else avgShields
+            val effectiveShadowDelta = shadowBulkDelta * shadowMultiplier
+
+            val shieldDiff = (sUser - sOpp).toDouble()
+            val shieldAdvantageDelta = shieldDiff * (85.0 + 0.65 * ((bestOppCharged + bestUserCharged) * 0.5))
+
+            val totalDelta = chargedDelta + fastDelta + effectiveShadowDelta + shieldAdvantageDelta
+            val roundedDelta = if (totalDelta >= 0.0) totalDelta.roundToInt() else -((-totalDelta).roundToInt())
+            return (500 + roundedDelta).coerceIn(150, 850)
+        }
+
+        fun calculateAllShieldPermutationsStatic(
+            myName: String,
+            oppName: String,
+            league: String,
+            myFastMove: String? = null,
+            myCharged1: String? = null,
+            myCharged2: String? = null,
+            myCp: Int? = null,
+            myIvs: String? = null
+        ): Map<String, Int> {
+            return ALL_SHIELD_PERMUTATIONS.associate { (sUser, sOpp, code) ->
+                code to calculateMatchupRatingStatic(
+                    myName = myName,
+                    oppName = oppName,
+                    userShields = sUser,
+                    oppShields = sOpp,
+                    league = league,
+                    myFastMove = myFastMove,
+                    myCharged1 = myCharged1,
+                    myCharged2 = myCharged2,
+                    myCp = myCp,
+                    myIvs = myIvs
+                )
+            }
+        }
+
+        fun calculate1v1And2v2RatingsStatic(
+            myName: String,
+            oppName: String,
+            league: String,
+            myFastMove: String? = null,
+            myCharged1: String? = null,
+            myCharged2: String? = null,
+            myCp: Int? = null,
+            myIvs: String? = null
+        ): Pair<Int, Int> {
+            val r1v1 = calculateMatchupRatingStatic(
+                myName, oppName, 1, 1, league, myFastMove, myCharged1, myCharged2, myCp, myIvs
+            )
+            val r2v2 = calculateMatchupRatingStatic(
+                myName, oppName, 2, 2, league, myFastMove, myCharged1, myCharged2, myCp, myIvs
+            )
+            return r1v1 to r2v2
+        }
+
+        /**
+         * Computes the unweighted average 1v1 battle rating (R_bar) of a given Pokémon
+         * against the active league's top meta list.
+         */
+        fun computeMetaAverage1v1RatingStatic(
+            pokemonName: String,
+            league: String,
+            myFastMove: String? = null,
+            myCharged1: String? = null,
+            myCharged2: String? = null,
+            myCp: Int? = null,
+            myIvs: String? = null,
+            metaPool: List<String>? = null
+        ): Double {
+            val activeMetaPool = metaPool?.takeIf { it.isNotEmpty() } ?: getTopMetaPoolForLeagueStatic(league)
+            if (activeMetaPool.isEmpty()) return 500.0
+            return activeMetaPool.map { metaMon ->
+                calculateMatchupRatingStatic(
+                    myName = pokemonName,
+                    oppName = metaMon,
+                    userShields = 1,
+                    oppShields = 1,
+                    league = league,
+                    myFastMove = myFastMove,
+                    myCharged1 = myCharged1,
+                    myCharged2 = myCharged2,
+                    myCp = myCp,
+                    myIvs = myIvs
+                ).toDouble()
+            }.average()
         }
 
         fun calculateAutoLeadMatchupStatic(
@@ -2609,9 +2732,11 @@ class OverlayService : LifecycleService() {
             myIvs: String? = null
         ): String {
             if (myLead.isBlank() || oppLead.isBlank()) return "NEUTRAL"
-            val (rating1s, _) = calculate1v1And2v2RatingsStatic(
+            val rating1s = calculateMatchupRatingStatic(
                 myName = myLead,
                 oppName = oppLead,
+                userShields = 1,
+                oppShields = 1,
                 league = league,
                 myFastMove = myFastMove,
                 myCharged1 = myCharged1,
@@ -2644,31 +2769,37 @@ class OverlayService : LifecycleService() {
         }
 
         /**
-         * Mathematical Model & Calculation Pipeline for Battle Quality & Wins Above Expected (WAE):
-         * - Rule 1: If firstSwap (2nd opponent) is missing -> returns null (weight = 0).
-         *           If finalSeen (3rd opponent) is missing -> Meta-Average Prior with confidence weight w = 0.75.
-         *           If all 3 opponents are seen -> Standard evaluation with confidence weight w = 1.0.
-         * - Rule 2: S_lead = 0.50 * Rating_1v1(myLead, oppLead) + 0.50 * Rating_2v2(myLead, oppLead)
-         * - Rule 3: S_back = 0.70 * max(Score_A, Score_B) + 0.30 * min(Score_A, Score_B)
-         * - Rule 4: M = 0.40 * S_lead + 0.60 * S_back; P_win = 1 / (1 + exp(-0.006 * (M - 500)))
-         * - Rule 5: deltaQ = Result - P_win; weightedResidual = w * deltaQ
-         * - Rule 6: Badge categorization (Clutch Win, Skill Win, Expected Win, Blunder Loss, Tough Loss, Expected Loss)
+         * Phase 1: Blind Matchup Favorability (BMF / Pre-Match Expectation):
+         * - If oppTeam.firstSwap is null/missing -> returns { bmf = null, pPre = null, bmfPercentage = null, weight = 0.0 }
+         * - If oppTeam.finalSeen is null/missing (unrevealed 3rd) -> weight w = 0.75 + meta-average prior (R_bar_swap, R_bar_close)
+         * - If all 3 resolved -> weight w = 1.0
+         * - S_lead = 0.50 * Rating_1v1(lead, oppLead) + 0.50 * Rating_2v2(lead, oppLead)
+         * - S_back = 0.70 * max(Score_A, Score_B) + 0.30 * min(Score_A, Score_B)
+         * - M = 0.40 * S_lead + 0.60 * S_back
+         * - P_pre = 1 / (1 + exp(-0.006 * (M - 500)))
          */
-        fun calculateBattleQuality(
+        fun calculateBlindMatchupFavorabilityStatic(
             myTeam: List<String>,
             oppTeam: List<String>,
             league: String,
-            result: String = "WIN",
             myTeamSlots: List<TeamMember>? = null,
             metaPool: List<String>? = null
-        ): BattleQualityMetadata? {
+        ): BlindMatchupFavorabilityResult {
             val oppLead = oppTeam.getOrNull(0)?.trim().orEmpty()
             val oppSwap = oppTeam.getOrNull(1)?.trim().orEmpty()
             val oppClose = oppTeam.getOrNull(2)?.trim().orEmpty()
 
-            // 1. Incomplete Match Rules: If oppTeam.firstSwap is null/missing -> discard entirely (weight = 0)
             if (oppLead.isEmpty() || oppSwap.isEmpty()) {
-                return null
+                return BlindMatchupFavorabilityResult(
+                    bmf = null,
+                    pPre = null,
+                    bmfPercentage = null,
+                    weight = 0.0,
+                    sLead = null,
+                    sBack = null,
+                    compositeM = null,
+                    isUnrevealedThird = false
+                )
             }
 
             val fallbackMons = getTopMetaPoolForLeagueStatic(league).take(3)
@@ -2683,72 +2814,93 @@ class OverlayService : LifecycleService() {
             val unrevealedThird = oppClose.isEmpty()
             val weight = if (unrevealedThird) 0.75 else 1.0
 
-            // 2. Lead Score (S_lead): 50% 1v1 + 50% 2v2
             val (lead1v1, lead2v2) = calculate1v1And2v2RatingsStatic(
                 myLead, oppLead, league, slot0?.fastMove, slot0?.chargedMove1, slot0?.chargedMove2, slot0?.cp, slot0?.ivs
             )
             val sLead = 0.50 * lead1v1.toDouble() + 0.50 * lead2v2.toDouble()
 
-            // 3. Backline Score (S_back)
             val scoreA: Double
             val scoreB: Double
             if (!unrevealedThird) {
-                val rSwapVsOppSwap = calculate1v1And2v2RatingsStatic(
-                    mySwap, oppSwap, league, slot1?.fastMove, slot1?.chargedMove1, slot1?.chargedMove2, slot1?.cp, slot1?.ivs
-                ).first.toDouble()
-                val rCloseVsOppClose = calculate1v1And2v2RatingsStatic(
-                    myClose, oppClose, league, slot2?.fastMove, slot2?.chargedMove1, slot2?.chargedMove2, slot2?.cp, slot2?.ivs
-                ).first.toDouble()
-                val rSwapVsOppClose = calculate1v1And2v2RatingsStatic(
-                    mySwap, oppClose, league, slot1?.fastMove, slot1?.chargedMove1, slot1?.chargedMove2, slot1?.cp, slot1?.ivs
-                ).first.toDouble()
-                val rCloseVsOppSwap = calculate1v1And2v2RatingsStatic(
-                    myClose, oppSwap, league, slot2?.fastMove, slot2?.chargedMove1, slot2?.chargedMove2, slot2?.cp, slot2?.ivs
-                ).first.toDouble()
+                val rSwapVsOppSwap = calculateMatchupRatingStatic(
+                    mySwap, oppSwap, 1, 1, league, slot1?.fastMove, slot1?.chargedMove1, slot1?.chargedMove2, slot1?.cp, slot1?.ivs
+                ).toDouble()
+                val rCloseVsOppClose = calculateMatchupRatingStatic(
+                    myClose, oppClose, 1, 1, league, slot2?.fastMove, slot2?.chargedMove1, slot2?.chargedMove2, slot2?.cp, slot2?.ivs
+                ).toDouble()
+                val rSwapVsOppClose = calculateMatchupRatingStatic(
+                    mySwap, oppClose, 1, 1, league, slot1?.fastMove, slot1?.chargedMove1, slot1?.chargedMove2, slot1?.cp, slot1?.ivs
+                ).toDouble()
+                val rCloseVsOppSwap = calculateMatchupRatingStatic(
+                    myClose, oppSwap, 1, 1, league, slot2?.fastMove, slot2?.chargedMove1, slot2?.chargedMove2, slot2?.cp, slot2?.ivs
+                ).toDouble()
 
                 scoreA = (rSwapVsOppSwap + rCloseVsOppClose) / 2.0
                 scoreB = (rSwapVsOppClose + rCloseVsOppSwap) / 2.0
             } else {
-                val activeMetaPool = metaPool?.takeIf { it.isNotEmpty() } ?: getTopMetaPoolForLeagueStatic(league)
-                val rBarSwap = if (activeMetaPool.isNotEmpty()) {
-                    activeMetaPool.map { m ->
-                        calculate1v1And2v2RatingsStatic(
-                            mySwap, m, league, slot1?.fastMove, slot1?.chargedMove1, slot1?.chargedMove2, slot1?.cp, slot1?.ivs
-                        ).first.toDouble()
-                    }.average()
-                } else 500.0
-                val rBarClose = if (activeMetaPool.isNotEmpty()) {
-                    activeMetaPool.map { m ->
-                        calculate1v1And2v2RatingsStatic(
-                            myClose, m, league, slot2?.fastMove, slot2?.chargedMove1, slot2?.chargedMove2, slot2?.cp, slot2?.ivs
-                        ).first.toDouble()
-                    }.average()
-                } else 500.0
-
-                val rSwapVsOppSwap = calculate1v1And2v2RatingsStatic(
-                    mySwap, oppSwap, league, slot1?.fastMove, slot1?.chargedMove1, slot1?.chargedMove2, slot1?.cp, slot1?.ivs
-                ).first.toDouble()
-                val rCloseVsOppSwap = calculate1v1And2v2RatingsStatic(
-                    myClose, oppSwap, league, slot2?.fastMove, slot2?.chargedMove1, slot2?.chargedMove2, slot2?.cp, slot2?.ivs
-                ).first.toDouble()
+                val rBarSwap = computeMetaAverage1v1RatingStatic(
+                    mySwap, league, slot1?.fastMove, slot1?.chargedMove1, slot1?.chargedMove2, slot1?.cp, slot1?.ivs, metaPool
+                )
+                val rBarClose = computeMetaAverage1v1RatingStatic(
+                    myClose, league, slot2?.fastMove, slot2?.chargedMove1, slot2?.chargedMove2, slot2?.cp, slot2?.ivs, metaPool
+                )
+                val rSwapVsOppSwap = calculateMatchupRatingStatic(
+                    mySwap, oppSwap, 1, 1, league, slot1?.fastMove, slot1?.chargedMove1, slot1?.chargedMove2, slot1?.cp, slot1?.ivs
+                ).toDouble()
+                val rCloseVsOppSwap = calculateMatchupRatingStatic(
+                    myClose, oppSwap, 1, 1, league, slot2?.fastMove, slot2?.chargedMove1, slot2?.chargedMove2, slot2?.cp, slot2?.ivs
+                ).toDouble()
 
                 scoreA = (rSwapVsOppSwap + rBarClose) / 2.0
                 scoreB = (rCloseVsOppSwap + rBarSwap) / 2.0
             }
 
             val sBack = 0.70 * max(scoreA, scoreB) + 0.30 * min(scoreA, scoreB)
-
-            // 4. Composite Score & Expected Win Probability (P_win)
             val mScore = 0.40 * sLead + 0.60 * sBack
-            val pWin = 1.0 / (1.0 + kotlin.math.exp(-0.006 * (mScore - 500.0)))
+            val pPre = 1.0 / (1.0 + kotlin.math.exp(-0.006 * (mScore - 500.0)))
+            val roundedPPre = (pPre * 10000.0).roundToInt() / 10000.0
+            val bmfPct = (pPre * 1000.0).roundToInt() / 10.0
 
-            // 5. Residual Quality Delta (deltaQ)
+            return BlindMatchupFavorabilityResult(
+                bmf = roundedPPre,
+                pPre = roundedPPre,
+                bmfPercentage = bmfPct,
+                weight = weight,
+                sLead = (sLead * 10.0).roundToInt() / 10.0,
+                sBack = (sBack * 10.0).roundToInt() / 10.0,
+                compositeM = (mScore * 10.0).roundToInt() / 10.0,
+                isUnrevealedThird = unrevealedThird
+            )
+        }
+
+        fun calculateBattleQuality(
+            myTeam: List<String>,
+            oppTeam: List<String>,
+            league: String,
+            result: String = "WIN",
+            myTeamSlots: List<TeamMember>? = null,
+            metaPool: List<String>? = null
+        ): BattleQualityMetadata? {
+            val bmfRes = calculateBlindMatchupFavorabilityStatic(
+                myTeam = myTeam,
+                oppTeam = oppTeam,
+                league = league,
+                myTeamSlots = myTeamSlots,
+                metaPool = metaPool
+            )
+            val pPre = bmfRes.pPre ?: return null
+            val bmfPct = bmfRes.bmfPercentage ?: return null
+            val sLead = bmfRes.sLead ?: return null
+            val sBack = bmfRes.sBack ?: return null
+            val mScore = bmfRes.compositeM ?: return null
+            if (bmfRes.weight <= 0.0) return null
+
+            val pWin = pPre
             val isWin = result.equals("WIN", ignoreCase = true)
             val numericResult = if (isWin) 1.0 else 0.0
             val deltaQ = numericResult - pWin
-            val weightedResidual = weight * deltaQ
+            val weightedResidual = bmfRes.weight * deltaQ
 
-            // 6. Badge Categorization
             val (badgeLabel, badgeColorHex) = if (isWin) {
                 when {
                     pWin < 0.40 -> "Clutch Win" to "#22d3ee"
@@ -2764,17 +2916,19 @@ class OverlayService : LifecycleService() {
             }
 
             return BattleQualityMetadata(
-                pWin = (pWin * 10000.0).roundToInt() / 10000.0,
+                pPre = pPre,
+                bmfPercentage = bmfPct,
+                pWin = pWin,
                 expWinPct = (pWin * 100.0).roundToInt(),
                 deltaQ = (deltaQ * 10000.0).roundToInt() / 10000.0,
-                weight = weight,
+                weight = bmfRes.weight,
                 weightedResidual = (weightedResidual * 10000.0).roundToInt() / 10000.0,
                 badgeLabel = badgeLabel,
                 badgeColorHex = badgeColorHex,
-                unrevealedThird = unrevealedThird,
-                sLead = (sLead * 10.0).roundToInt() / 10.0,
-                sBack = (sBack * 10.0).roundToInt() / 10.0,
-                compositeScore = (mScore * 10.0).roundToInt() / 10.0
+                unrevealedThird = bmfRes.isUnrevealedThird,
+                sLead = sLead,
+                sBack = sBack,
+                compositeScore = mScore
             )
         }
 
@@ -2902,7 +3056,20 @@ class OverlayService : LifecycleService() {
     private var playerPostSwitchLowBallFrames: Int = 0
     private var oppPostSwitchLowBallFrames: Int = 0
 
+    data class BlindMatchupFavorabilityResult(
+        val bmf: Double?,
+        val pPre: Double?,
+        val bmfPercentage: Double?,
+        val weight: Double,
+        val sLead: Double?,
+        val sBack: Double?,
+        val compositeM: Double?,
+        val isUnrevealedThird: Boolean
+    )
+
     data class BattleQualityMetadata(
+        val pPre: Double = 0.5,
+        val bmfPercentage: Double = 50.0,
         val pWin: Double,
         val expWinPct: Int,
         val deltaQ: Double,

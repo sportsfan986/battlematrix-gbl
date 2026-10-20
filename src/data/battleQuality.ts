@@ -9,6 +9,35 @@ import {
   getTypeMultiplier
 } from './gblData';
 
+export type ShieldCount = 0 | 1 | 2;
+
+export type ShieldScenarioCode =
+  | '0v0'
+  | '0v1'
+  | '0v2'
+  | '1v0'
+  | '1v1'
+  | '1v2'
+  | '2v0'
+  | '2v1'
+  | '2v2';
+
+export const ALL_SHIELD_PERMUTATIONS: ReadonlyArray<{
+  userShields: ShieldCount;
+  oppShields: ShieldCount;
+  code: ShieldScenarioCode;
+}> = [
+  { userShields: 0, oppShields: 0, code: '0v0' },
+  { userShields: 0, oppShields: 1, code: '0v1' },
+  { userShields: 0, oppShields: 2, code: '0v2' },
+  { userShields: 1, oppShields: 0, code: '1v0' },
+  { userShields: 1, oppShields: 1, code: '1v1' },
+  { userShields: 1, oppShields: 2, code: '1v2' },
+  { userShields: 2, oppShields: 0, code: '2v0' },
+  { userShields: 2, oppShields: 1, code: '2v1' },
+  { userShields: 2, oppShields: 2, code: '2v2' }
+];
+
 export type BattleQualityBadgeLabel =
   | 'Clutch Win'
   | 'Skill Win'
@@ -17,10 +46,23 @@ export type BattleQualityBadgeLabel =
   | 'Tough Loss'
   | 'Expected Loss';
 
+export interface BlindMatchupFavorabilityResult {
+  bmf: number | null;
+  pPre: number | null;
+  bmfPercentage: number | null;
+  weight: number;
+  sLead: number | null;
+  sBack: number | null;
+  compositeM: number | null;
+  isUnrevealedThird: boolean;
+}
+
 export interface BattleQualityMetadata {
   sLead: number;
   sBack: number;
   compositeM: number;
+  pPre: number; // Pre-Match Expected Win Probability in [0, 1] (BMF)
+  bmfPercentage: number; // Pre-Match BMF in [0, 100]
   pWin: number; // Expected Win Probability in [0, 1]
   deltaQ: number; // Result (1 or 0) - pWin
   weight: number; // 1.0 (all 3 seen), 0.75 (unrevealed 3rd), or 0 (incomplete <2 seen)
@@ -40,7 +82,13 @@ export interface BattleQualityTeamInput {
 
 export type RatingsLookupDb =
   | Record<string, number>
-  | ((myMon: string, oppMon: string, shields: 1 | 2, league: string) => number);
+  | ((
+      myMon: string,
+      oppMon: string,
+      userShields: ShieldCount,
+      oppShieldsOrLeague?: ShieldCount | string,
+      league?: string
+    ) => number);
 
 export function normalizeLeagueKey(league?: string): string {
   const upper = (league || 'GREAT LEAGUE').toUpperCase();
@@ -75,29 +123,69 @@ function resolvePokemonStats(rawName: string, league: string): { stats: PokemonS
   return { stats: scaled, isShadow };
 }
 
+function clampShieldCount(s: number): ShieldCount {
+  if (s <= 0) return 0;
+  if (s >= 2) return 2;
+  return 1;
+}
+
 /**
- * Computes a PvPoke-calibrated 0–1000 matchup rating (500 = Neutral, >500 = Favorable, <500 = Negative)
- * for either the 1v1 or 2v2 shield scenario.
+ * Computes a PvPoke-calibrated 0–1000 battle rating (500 = Neutral, >500 = Favorable, <500 = Negative)
+ * across all 9 discrete shield permutations (s_user v s_opp in {0, 1, 2}^2):
+ *   0v0, 0v1, 0v2, 1v0, 1v1, 1v2, 2v0, 2v1, 2v2.
+ *
+ * Supports both:
+ * - Asymmetric signature: evaluatePvPokeMatchupRating(myMon, oppMon, userShields, oppShields, league, ratingsDb)
+ * - Symmetric signature:  evaluatePvPokeMatchupRating(myMon, oppMon, shields, league, ratingsDb)
  */
 export function evaluatePvPokeMatchupRating(
   myMonName: string,
   oppMonName: string,
-  shields: 1 | 2,
-  league: string = 'GREAT LEAGUE',
-  ratingsDb?: RatingsLookupDb
+  userShields: ShieldCount = 1,
+  oppShieldsOrLeague?: ShieldCount | string,
+  leagueOrRatingsDb?: string | RatingsLookupDb,
+  maybeRatingsDb?: RatingsLookupDb
 ): number {
-  const normLeague = normalizeLeagueKey(league);
+  const sUser: ShieldCount = clampShieldCount(Number(userShields));
+  let sOpp: ShieldCount = sUser;
+  let rawLeague: string | undefined = 'GREAT LEAGUE';
+  let ratingsDb: RatingsLookupDb | undefined;
+
+  if (typeof oppShieldsOrLeague === 'number') {
+    sOpp = clampShieldCount(oppShieldsOrLeague);
+    if (typeof leagueOrRatingsDb === 'string' || leagueOrRatingsDb === undefined) {
+      rawLeague = leagueOrRatingsDb;
+      ratingsDb = maybeRatingsDb;
+    } else {
+      ratingsDb = leagueOrRatingsDb;
+    }
+  } else {
+    rawLeague = oppShieldsOrLeague;
+    ratingsDb = leagueOrRatingsDb as RatingsLookupDb | undefined;
+  }
+
+  const normLeague = normalizeLeagueKey(rawLeague);
+  const scenarioCode = `${sUser}v${sOpp}` as ShieldScenarioCode;
 
   if (typeof ratingsDb === 'function') {
-    const custom = ratingsDb(myMonName, oppMonName, shields, normLeague);
+    const custom =
+      ratingsDb.length >= 5
+        ? ratingsDb(myMonName, oppMonName, sUser, sOpp, normLeague)
+        : ratingsDb(myMonName, oppMonName, sUser, normLeague);
     if (typeof custom === 'number' && !Number.isNaN(custom)) {
       return Math.max(100, Math.min(900, custom));
     }
   } else if (ratingsDb && typeof ratingsDb === 'object') {
-    const keyExact = `${normLeague}:${myMonName.toLowerCase()}:${oppMonName.toLowerCase()}:${shields}s`;
-    const keyShort = `${myMonName.toLowerCase()}:${oppMonName.toLowerCase()}:${shields}s`;
-    if (typeof ratingsDb[keyExact] === 'number') return ratingsDb[keyExact];
-    if (typeof ratingsDb[keyShort] === 'number') return ratingsDb[keyShort];
+    const keyAsymExact = `${normLeague}:${myMonName.toLowerCase()}:${oppMonName.toLowerCase()}:${scenarioCode}`;
+    const keyAsymShort = `${myMonName.toLowerCase()}:${oppMonName.toLowerCase()}:${scenarioCode}`;
+    if (typeof ratingsDb[keyAsymExact] === 'number') return ratingsDb[keyAsymExact];
+    if (typeof ratingsDb[keyAsymShort] === 'number') return ratingsDb[keyAsymShort];
+    if (sUser === sOpp) {
+      const keySymExact = `${normLeague}:${myMonName.toLowerCase()}:${oppMonName.toLowerCase()}:${sUser}s`;
+      const keySymShort = `${myMonName.toLowerCase()}:${oppMonName.toLowerCase()}:${sUser}s`;
+      if (typeof ratingsDb[keySymExact] === 'number') return ratingsDb[keySymExact];
+      if (typeof ratingsDb[keySymShort] === 'number') return ratingsDb[keySymShort];
+    }
   }
 
   const { stats: myStats, isShadow: isMyShadow } = resolvePokemonStats(myMonName, normLeague);
@@ -119,21 +207,101 @@ export function evaluatePvPokeMatchupRating(
   const oppFastEff = getTypeMultiplier(oppStats.defaultFastMove.type, myStats.types);
   const shadowBulkDelta = (isMyShadow ? -12 : 0) + (isOppShadow ? 12 : 0);
 
-  const rating =
-    shields === 1
-      ? Math.round(
-          500 +
-            ((bestUserCharged + minUserCharged) * 0.5 - (bestOppCharged + minOppCharged) * 0.5) * 2.8 +
-            (userFastEff - oppFastEff) * 120 +
-            shadowBulkDelta
-        )
-      : Math.round(
-          500 +
-            (minUserCharged - minOppCharged) * 2.0 +
-            (userFastEff - oppFastEff) * 155 +
-            shadowBulkDelta * 2
-        );
+  // Unblocked charged impact against opponent's available shields (sDef in {0, 1, 2})
+  const chargedPressureAgainstShields = (bestPct: number, minPct: number, defShields: ShieldCount): number => {
+    if (defShields === 0) return bestPct * 1.7;
+    if (defShields === 1) return ((bestPct + minPct) * 0.5) * 1.4;
+    return minPct * 1.0;
+  };
+
+  const userChargedImpact = chargedPressureAgainstShields(bestUserCharged, minUserCharged, sOpp);
+  const oppChargedImpact = chargedPressureAgainstShields(bestOppCharged, minOppCharged, sUser);
+  const chargedDelta = 2.0 * (userChargedImpact - oppChargedImpact);
+
+  const avgShields = (sUser + sOpp) * 0.5;
+  const fastWeight =
+    avgShields <= 1.0
+      ? 95.0 + avgShields * 25.0 // 0->95, 0.5->107.5, 1.0->120
+      : 120.0 + (avgShields - 1.0) * 35.0; // 1.0->120, 1.5->137.5, 2.0->155
+  const fastDelta = (userFastEff - oppFastEff) * fastWeight;
+
+  const shadowMultiplier = avgShields <= 1.0 ? 1.0 : avgShields;
+  const effectiveShadowDelta = shadowBulkDelta * shadowMultiplier;
+
+  // Direct shield advantage bonus when sUser != sOpp
+  const shieldDiff = sUser - sOpp;
+  const shieldAdvantageDelta =
+    shieldDiff * (85.0 + 0.65 * ((bestOppCharged + bestUserCharged) * 0.5));
+
+  const totalDelta = chargedDelta + fastDelta + effectiveShadowDelta + shieldAdvantageDelta;
+  const roundedDelta = totalDelta >= 0 ? Math.round(totalDelta) : -Math.round(-totalDelta);
+  const rating = 500 + roundedDelta;
   return Math.max(150, Math.min(850, rating));
+}
+
+/**
+ * Evaluates all 9 shield permutations (0v0, 0v1, 0v2, 1v0, 1v1, 1v2, 2v0, 2v1, 2v2)
+ * for a given pair of combatants.
+ */
+export function evaluateAllShieldPermutations(
+  myMonName: string,
+  oppMonName: string,
+  league: string = 'GREAT LEAGUE',
+  ratingsDb?: RatingsLookupDb
+): Record<ShieldScenarioCode, number> {
+  const result = {} as Record<ShieldScenarioCode, number>;
+  for (const perm of ALL_SHIELD_PERMUTATIONS) {
+    result[perm.code] = evaluatePvPokeMatchupRating(
+      myMonName,
+      oppMonName,
+      perm.userShields,
+      perm.oppShields,
+      league,
+      ratingsDb
+    );
+  }
+  return result;
+}
+
+/**
+ * Computes the unweighted average 1v1 battle rating (R_bar) of a given Pokémon
+ * against the active league's top meta list.
+ */
+export function computeMetaAverage1v1Rating(
+  pokemonName: string,
+  league: string = 'GREAT LEAGUE',
+  metaPool?: string[],
+  ratingsDb?: RatingsLookupDb
+): number {
+  const normLeague = normalizeLeagueKey(league);
+  const activeMetaPool =
+    metaPool && metaPool.length > 0
+      ? metaPool
+      : (PVPOKE_TOP_OPPONENTS[normLeague] || PVPOKE_TOP_OPPONENTS['GREAT LEAGUE'] || []).map((m) => m.name);
+
+  if (activeMetaPool.length === 0) return 500.0;
+  const sum = activeMetaPool.reduce(
+    (acc, metaMon) => acc + evaluatePvPokeMatchupRating(pokemonName, metaMon, 1, 1, normLeague, ratingsDb),
+    0
+  );
+  return sum / activeMetaPool.length;
+}
+
+/**
+ * Computes the unweighted average 1v1 battle ratings for the user's backline
+ * (R_bar_swap and R_bar_close) against the active league's top meta list.
+ */
+export function computeBacklineMetaAverages(
+  mySwap: string,
+  myClose: string,
+  league: string = 'GREAT LEAGUE',
+  metaPool?: string[],
+  ratingsDb?: RatingsLookupDb
+): { rBarSwap: number; rBarClose: number } {
+  return {
+    rBarSwap: computeMetaAverage1v1Rating(mySwap, league, metaPool, ratingsDb),
+    rBarClose: computeMetaAverage1v1Rating(myClose, league, metaPool, ratingsDb)
+  };
 }
 
 export function calculateAutoLeadMatchup(
@@ -142,7 +310,7 @@ export function calculateAutoLeadMatchup(
   league: string = 'GREAT LEAGUE'
 ): 'FAVORABLE' | 'NEUTRAL' | 'NEGATIVE' {
   if (!myLead?.trim() || !oppLead?.trim()) return 'NEUTRAL';
-  const r1s = evaluatePvPokeMatchupRating(myLead, oppLead, 1, league);
+  const r1s = evaluatePvPokeMatchupRating(myLead, oppLead, 1, 1, league);
   const thresholds = getStoredMatchupTierThresholds();
   if (r1s >= thresholds.wMin) return 'FAVORABLE';
   if (r1s <= thresholds.lMax) return 'NEGATIVE';
@@ -177,19 +345,33 @@ export function getBadgeCategorization(
 }
 
 /**
- * Core Mathematical Pipeline:
- * Evaluates Battle Quality & Wins Above Expected (WAE) for a logged GBL match.
+ * Phase 1: Blind Matchup Favorability (BMF / Pre-Match Expectation)
  *
- * Returns `null` if `oppTeam.firstSwap` is null/missing (incomplete match, weight = 0).
+ * Match Validity Rules:
+ * - If oppTeam.firstSwap is null or missing: Return { bmf: null, pPre: null, bmfPercentage: null, weight: 0.0 }
+ * - If oppTeam.finalSeen is null or missing (unrevealed 3rd): Set weight w = 0.75 and use meta-average ratings for the missing slot.
+ * - If all 3 Pokémon are resolved: Set weight w = 1.0.
+ *
+ * Lead Score (S_lead):
+ *   S_lead = 0.50 * Rating_1v1(lead, oppLead) + 0.50 * Rating_2v2(lead, oppLead)
+ *
+ * Backline Score (S_back):
+ *   - Known 3rd: Average the 1v1 ratings for Scenario A (swap vs oppSwap, close vs oppClose)
+ *     and Scenario B (swap vs oppClose, close vs oppSwap).
+ *   - Unrevealed 3rd: Average known swap pairing with the meta-average prior (R_bar_swap, R_bar_close) of the opposing slot.
+ *   - S_back = 0.70 * max(Score_A, Score_B) + 0.30 * min(Score_A, Score_B)
+ *
+ * Composite Score & Pre-Match Win Probability (P_pre):
+ *   M = 0.40 * S_lead + 0.60 * S_back
+ *   P_pre = 1 / (1 + exp(-0.006 * (M - 500)))
  */
-export function calculateBattleQuality(
+export function calculateBlindMatchupFavorability(
   myTeam: string[] | BattleQualityTeamInput,
   oppTeam: string[] | BattleQualityTeamInput,
   league: string = 'GREAT LEAGUE',
   ratingsDb?: RatingsLookupDb,
-  metaPool?: string[],
-  result: 'WIN' | 'LOSS' | number = 'WIN'
-): BattleQualityMetadata | null {
+  metaPool?: string[]
+): BlindMatchupFavorabilityResult {
   const normLeague = normalizeLeagueKey(league);
 
   const myLead = Array.isArray(myTeam) ? (myTeam[0] || '').trim() : (myTeam.lead || '').trim();
@@ -208,85 +390,123 @@ export function calculateBattleQuality(
     ? (oppTeam[2] || '').trim()
     : (oppTeam.finalSeen || oppTeam.close || '').trim();
 
-  // 1. Incomplete Match Rules:
-  // If oppTeam.firstSwap is null/missing (or lead missing): Discard from quality calculations entirely (weight = 0)
+  // Match Validity Rule 1: If oppTeam.firstSwap is null or missing -> return { bmf: null, weight: 0.0 }
   if (!myLead || !oppLead || !oppSwap) {
-    return null;
+    return {
+      bmf: null,
+      pPre: null,
+      bmfPercentage: null,
+      weight: 0.0,
+      sLead: null,
+      sBack: null,
+      compositeM: null,
+      isUnrevealedThird: false
+    };
   }
 
   const isUnrevealedThird = !oppClose;
   const weight = isUnrevealedThird ? 0.75 : 1.0;
 
-  // 2. Lead Score (S_lead):
-  // Blend 1v1 and 2v2 shield scenarios equally (50% / 50%)
-  const ratingLead1v1 = evaluatePvPokeMatchupRating(myLead, oppLead, 1, normLeague, ratingsDb);
-  const ratingLead2v2 = evaluatePvPokeMatchupRating(myLead, oppLead, 2, normLeague, ratingsDb);
+  // Lead Score (S_lead): 50% 1v1 + 50% 2v2
+  const ratingLead1v1 = evaluatePvPokeMatchupRating(myLead, oppLead, 1, 1, normLeague, ratingsDb);
+  const ratingLead2v2 = evaluatePvPokeMatchupRating(myLead, oppLead, 2, 2, normLeague, ratingsDb);
   const sLead = 0.5 * ratingLead1v1 + 0.5 * ratingLead2v2;
 
-  // 3. Backline Score (S_back):
+  // Backline Score (S_back):
   let scoreA: number;
   let scoreB: number;
 
   if (!isUnrevealedThird) {
-    // Case A: 3rd Opponent is Known (w = 1.0)
-    const rSwapVsOppSwap = evaluatePvPokeMatchupRating(mySwap, oppSwap, 1, normLeague, ratingsDb);
-    const rCloseVsOppClose = evaluatePvPokeMatchupRating(myClose, oppClose, 1, normLeague, ratingsDb);
-    const rSwapVsOppClose = evaluatePvPokeMatchupRating(mySwap, oppClose, 1, normLeague, ratingsDb);
-    const rCloseVsOppSwap = evaluatePvPokeMatchupRating(myClose, oppSwap, 1, normLeague, ratingsDb);
+    // Known 3rd (w = 1.0)
+    const rSwapVsOppSwap = evaluatePvPokeMatchupRating(mySwap, oppSwap, 1, 1, normLeague, ratingsDb);
+    const rCloseVsOppClose = evaluatePvPokeMatchupRating(myClose, oppClose, 1, 1, normLeague, ratingsDb);
+    const rSwapVsOppClose = evaluatePvPokeMatchupRating(mySwap, oppClose, 1, 1, normLeague, ratingsDb);
+    const rCloseVsOppSwap = evaluatePvPokeMatchupRating(myClose, oppSwap, 1, 1, normLeague, ratingsDb);
 
     scoreA = (rSwapVsOppSwap + rCloseVsOppClose) / 2.0;
     scoreB = (rSwapVsOppClose + rCloseVsOppSwap) / 2.0;
   } else {
-    // Case B: 3rd Opponent Unrevealed (w = 0.75) -> Meta-Average Prior
-    const activeMetaPool =
-      metaPool && metaPool.length > 0
-        ? metaPool
-        : (PVPOKE_TOP_OPPONENTS[normLeague] || PVPOKE_TOP_OPPONENTS['GREAT LEAGUE'] || []).map((m) => m.name);
-
-    const avgRatingAgainstMeta = (myMon: string): number => {
-      if (activeMetaPool.length === 0) return 500.0;
-      const sum = activeMetaPool.reduce(
-        (acc, metaMon) => acc + evaluatePvPokeMatchupRating(myMon, metaMon, 1, normLeague, ratingsDb),
-        0
-      );
-      return sum / activeMetaPool.length;
-    };
-
-    const rBarSwap = avgRatingAgainstMeta(mySwap);
-    const rBarClose = avgRatingAgainstMeta(myClose);
-    const rSwapVsOppSwap = evaluatePvPokeMatchupRating(mySwap, oppSwap, 1, normLeague, ratingsDb);
-    const rCloseVsOppSwap = evaluatePvPokeMatchupRating(myClose, oppSwap, 1, normLeague, ratingsDb);
+    // Unrevealed 3rd (w = 0.75) -> Meta-Average Prior
+    const { rBarSwap, rBarClose } = computeBacklineMetaAverages(
+      mySwap,
+      myClose,
+      normLeague,
+      metaPool,
+      ratingsDb
+    );
+    const rSwapVsOppSwap = evaluatePvPokeMatchupRating(mySwap, oppSwap, 1, 1, normLeague, ratingsDb);
+    const rCloseVsOppSwap = evaluatePvPokeMatchupRating(myClose, oppSwap, 1, 1, normLeague, ratingsDb);
 
     scoreA = (rSwapVsOppSwap + rBarClose) / 2.0;
     scoreB = (rCloseVsOppSwap + rBarSwap) / 2.0;
   }
 
-  // Optimal Backline Assignment: 70% max + 30% min
   const sBack = 0.7 * Math.max(scoreA, scoreB) + 0.3 * Math.min(scoreA, scoreB);
 
-  // 4. Composite Score & Expected Win Probability (P_win):
+  // Composite Score & Pre-Match Win Probability (P_pre):
   const compositeM = 0.4 * sLead + 0.6 * sBack;
-  const pWin = 1.0 / (1.0 + Math.exp(-0.006 * (compositeM - 500.0)));
-
-  // 5. Residual Quality Delta (Delta Q):
-  const numericResult = result === 'WIN' || result === 1 || result === 1.0 ? 1.0 : 0.0;
-  const deltaQ = numericResult - pWin;
-  const weightedResidual = weight * deltaQ;
-
-  // 6. Badge Categorization:
-  const { badgeLabel, badgeColor } = getBadgeCategorization(pWin, result);
+  const pPre = 1.0 / (1.0 + Math.exp(-0.006 * (compositeM - 500.0)));
 
   return {
+    bmf: Number(pPre.toFixed(4)),
+    pPre: Number(pPre.toFixed(4)),
+    bmfPercentage: Number((pPre * 100.0).toFixed(1)),
+    weight,
     sLead: Number(sLead.toFixed(2)),
     sBack: Number(sBack.toFixed(2)),
     compositeM: Number(compositeM.toFixed(2)),
-    pWin: Number(pWin.toFixed(4)),
+    isUnrevealedThird
+  };
+}
+
+/**
+ * Core Mathematical Pipeline:
+ * Evaluates Battle Quality & Wins Above Expected (WAE) for a logged GBL match,
+ * grounded on Phase 1 Blind Matchup Favorability (BMF / P_pre).
+ *
+ * Returns `null` if `oppTeam.firstSwap` is null/missing (incomplete match, weight = 0).
+ */
+export function calculateBattleQuality(
+  myTeam: string[] | BattleQualityTeamInput,
+  oppTeam: string[] | BattleQualityTeamInput,
+  league: string = 'GREAT LEAGUE',
+  ratingsDb?: RatingsLookupDb,
+  metaPool?: string[],
+  result: 'WIN' | 'LOSS' | number = 'WIN'
+): BattleQualityMetadata | null {
+  const bmfResult = calculateBlindMatchupFavorability(myTeam, oppTeam, league, ratingsDb, metaPool);
+  if (
+    bmfResult.bmf === null ||
+    bmfResult.pPre === null ||
+    bmfResult.bmfPercentage === null ||
+    bmfResult.sLead === null ||
+    bmfResult.sBack === null ||
+    bmfResult.compositeM === null ||
+    bmfResult.weight <= 0
+  ) {
+    return null;
+  }
+
+  const pWin = bmfResult.pPre;
+  const numericResult = result === 'WIN' || result === 1 || result === 1.0 ? 1.0 : 0.0;
+  const deltaQ = numericResult - pWin;
+  const weightedResidual = bmfResult.weight * deltaQ;
+
+  const { badgeLabel, badgeColor } = getBadgeCategorization(pWin, result);
+
+  return {
+    sLead: bmfResult.sLead,
+    sBack: bmfResult.sBack,
+    compositeM: bmfResult.compositeM,
+    pPre: bmfResult.pPre,
+    bmfPercentage: bmfResult.bmfPercentage,
+    pWin: bmfResult.pPre,
     deltaQ: Number(deltaQ.toFixed(4)),
-    weight,
+    weight: bmfResult.weight,
     weightedResidual: Number(weightedResidual.toFixed(4)),
     badgeLabel,
     badgeColor,
-    isUnrevealedThird
+    isUnrevealedThird: bmfResult.isUnrevealedThird
   };
 }
 

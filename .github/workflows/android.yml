@@ -125,6 +125,13 @@ jobs:
           body: |
             ## SilphScope PvP ${{ steps.version.outputs.tag }} — Public Android Release
             
+            > **Changelog:** Phase 1/4 of 3.00 release, use 2.3x builds until 3.00 released
+            
+            ### Phase 1 Highlights (v2.90)
+            - **Asymmetric 9-Shield Matrix (`0v0`, `0v1`, `0v2`, `1v0`, `1v1`, `1v2`, `2v0`, `2v1`, `2v2`)**: Discrete shield count evaluation for both combatants.
+            - **Meta-Average 1v1 Priors ($\bar{R}_{\text{swap}}$, $\bar{R}_{\text{close}}$)**: Unweighted 1v1 battle rating averages against the active league's top meta list.
+            - **Blind Matchup Favorability (BMF / $P_{\text{pre}}$)**: Pre-match expectation model with incomplete-match filtering ($w=0.0$), unrevealed-3rd meta priors ($w=0.75$), and full 3v3 evaluation ($w=1.0$).
+            
             ### Download & Install
             Download **`silphscope-pvp-${{ steps.version.outputs.tag }}.apk`** from the **Assets** section below and install on your Android device.
           files: |
