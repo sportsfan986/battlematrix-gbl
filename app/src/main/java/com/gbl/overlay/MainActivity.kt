@@ -27,6 +27,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
 import java.util.UUID
+import kotlin.math.roundToInt
 
 /**
  * Data model for a custom saved GBL Team Preset

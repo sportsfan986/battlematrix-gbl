@@ -2993,8 +2993,8 @@ class OverlayService : LifecycleService() {
                             val duration = evT - intervalStartT
                             val uSlot = resolveUserSlotOverrides(userActive)
                             val rVal = calculateMatchupRatingStatic(
-                                myMonName = userActive,
-                                oppMonName = oppActive,
+                                myName = userActive,
+                                oppName = oppActive,
                                 userShields = intervalUserShields,
                                 oppShields = intervalOppShields,
                                 league = league,
@@ -3071,8 +3071,8 @@ class OverlayService : LifecycleService() {
                     val duration = resolvedTotalDuration - intervalStartT
                     val uSlot = resolveUserSlotOverrides(userActive)
                     val rVal = calculateMatchupRatingStatic(
-                        myMonName = userActive,
-                        oppMonName = oppActive,
+                        myName = userActive,
+                        oppName = oppActive,
                         userShields = intervalUserShields,
                         oppShields = intervalOppShields,
                         league = league,
