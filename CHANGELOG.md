@@ -1,5 +1,36 @@
 # Changelog
 
+## v2.93
+**Phase 3/4 of 3.00 release, use 2.3x builds until 3.00 released**
+
+### Phase 3: Dashboard Grid, Performance Badges, & Historical Migration
+1. **5-Stat Responsive Header Summary Grid (`src/App.tsx`, `activity_main.xml`, `MainActivity.kt`)**
+   - Expanded the Battle Log dashboard summary row into a 5-stat responsive layout:
+     1. `RECORD (W - L)`: Total wins and losses.
+     2. `LEAD MATCHUPS`: Breakdown of Favorable / Neutral / Unfavorable leads.
+     3. `WIN RATE`: Win percentage.
+     4. `EXEC WAE`: Weighted average $\Delta Q_{\text{final}}$, formatted as a signed percentage `+XX.X%` (Green `#4ade80` if $\ge 0$, Red `#f43f5e` if $< 0$).
+     5. `MATCHUP LUCK`: Weighted average BMF ($P_{\text{pre}}$), formatted as an unsigned percentage `XX.X%` (Blue `#38bdf8` if $> 50\%$, Orange `#fb923c` if $< 50\%$).
+   - Updated daily section banners and plain-text summaries to append formatted strings for both `WAE` and `Luck`.
+2. **Battle Card Badges & Contextual Event Flags (`src/data/battleQuality.ts`, `OverlayService.kt`, `src/App.tsx`, `MainActivity.kt`)**
+   - **Primary Performance Badges (Derived from $P_{\text{pre}}$)**:
+     - `Clutch Win` (Cyan `#22d3ee`): Win with $P_{\text{pre}} < 0.40$
+     - `Skill Win` (Green `#4ade80`): Win with $0.40 \le P_{\text{pre}} \le 0.60$
+     - `Expected Win` (Slate `#94a3b8`): Win with $P_{\text{pre}} > 0.60$
+     - `Blunder Loss` (Rose Red `#f43f5e`): Loss with $P_{\text{pre}} > 0.60$
+     - `Tough Loss` (Orange `#fb923c`): Loss with $0.40 \le P_{\text{pre}} \le 0.60$
+     - `Expected Loss` (Slate `#94a3b8`): Loss with $P_{\text{pre}} < 0.40$
+   - **Contextual Event Flags (Pills)**:
+     - `⚠️ Double Shield Pocket`: Loss with 2 shields remaining.
+     - `⚠️ Shield in Pocket`: Loss with 1 shield remaining.
+     - `🧹 Clean Sweep`: Win with 0 user faints.
+     - `🛡️ Shield Advantage`: Win ending with user shields > opp shields.
+     - `⚡ 75% Conf`: Opponent 3rd Pokémon unrevealed.
+3. **Retroactive Data Migration (`migrateExistingBattleLogs` in `src/data/battleQuality.ts` & `MainActivity.kt`)**
+   - Processes existing logged battles in storage (`localStorage` and Android `SharedPreferences`):
+     - Marks battles with missing `oppTeam.firstSwap` as unranked (`bmfScore: null`, `execWae: null`).
+     - Evaluates BMF ($P_{\text{pre}}$), Dynamic Execution WAE ($\Delta Q_{\text{final}}$), and attaches applicable badges and contextual event flags when team data exists, persisting back to storage without data loss.
+
 ## v2.91
 **Phase 2/4 of 3.00 release, use 2.3x builds until 3.00 released**
 

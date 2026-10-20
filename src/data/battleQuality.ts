@@ -46,6 +46,13 @@ export type BattleQualityBadgeLabel =
   | 'Tough Loss'
   | 'Expected Loss';
 
+export type ContextualEventFlag =
+  | '⚠️ Double Shield Pocket'
+  | '⚠️ Shield in Pocket'
+  | '🧹 Clean Sweep'
+  | '🛡️ Shield Advantage'
+  | '⚡ 75% Conf';
+
 export type TimelineEventActor = 'user' | 'opp';
 
 export type TimelineEventType = 'SWAP' | 'SHIELD' | 'FAINT';
@@ -119,17 +126,21 @@ export interface BattleQualityMetadata {
   sLead: number;
   sBack: number;
   compositeM: number;
+  bmfScore: number; // Pre-Match Expected Win Probability P_pre in [0, 1]
   pPre: number; // Pre-Match Expected Win Probability in [0, 1] (BMF)
   bmfPercentage: number; // Pre-Match BMF in [0, 100]
   sActual?: number | null; // Phase 2: Time-weighted execution rating S_actual
   pExec?: number; // Phase 2: Dynamic Execution Win Probability in [0, 1]
-  execWae?: number; // Phase 2: Final Execution Residual Delta_Q_final
+  execWae: number; // Phase 2: Final Execution Residual Delta_Q_final
   pWin: number; // Expected Win Probability in [0, 1] (P_exec when timeline present, else P_pre)
   deltaQ: number; // Final Execution Residual Delta_Q_final
   weight: number; // 1.0 (all 3 seen), 0.75 (unrevealed 3rd), or 0 (incomplete <2 seen)
   weightedResidual: number; // weight * deltaQ
-  badgeLabel: BattleQualityBadgeLabel;
+  badgeLabel: BattleQualityBadgeLabel; // Phase 3: Primary Performance Badge derived from P_pre
   badgeColor: string; // Hex color (#22d3ee, #4ade80, #94a3b8, #f43f5e, #fb923c)
+  badges: BattleQualityBadgeLabel[];
+  contextualFlags: ContextualEventFlag[];
+  flags: ContextualEventFlag[];
   isUnrevealedThird: boolean;
   faintMarginScaled?: boolean;
   shieldPenaltyApplied?: number;
@@ -800,10 +811,60 @@ export function calculateDynamicExecutionWAE(
 }
 
 /**
+ * Phase 3: Contextual Event Flags (Pills)
+ * - `⚠️ Double Shield Pocket`: Loss with 2 shields remaining.
+ * - `⚠️ Shield in Pocket`: Loss with 1 shield remaining.
+ * - `🧹 Clean Sweep`: Win with 0 user faints.
+ * - `🛡️ Shield Advantage`: Win ending with user shields > opp shields.
+ * - `⚡ 75% Conf`: Opponent 3rd Pokémon unrevealed.
+ */
+export function computeContextualEventFlags(params: {
+  result: 'WIN' | 'LOSS' | string | number;
+  userShieldsRemaining?: number | null;
+  oppShieldsRemaining?: number | null;
+  userFaints?: number | null;
+  isUnrevealedThird?: boolean;
+}): ContextualEventFlag[] {
+  const isWin =
+    params.result === 'WIN' ||
+    (typeof params.result === 'string' && params.result.toUpperCase() === 'WIN') ||
+    params.result === 1 ||
+    params.result === 1.0;
+
+  const flags: ContextualEventFlag[] = [];
+
+  if (!isWin) {
+    if (params.userShieldsRemaining === 2) {
+      flags.push('⚠️ Double Shield Pocket');
+    } else if (params.userShieldsRemaining === 1) {
+      flags.push('⚠️ Shield in Pocket');
+    }
+  } else {
+    if (params.userFaints === 0) {
+      flags.push('🧹 Clean Sweep');
+    }
+    if (
+      typeof params.userShieldsRemaining === 'number' &&
+      typeof params.oppShieldsRemaining === 'number' &&
+      params.userShieldsRemaining > params.oppShieldsRemaining
+    ) {
+      flags.push('🛡️ Shield Advantage');
+    }
+  }
+
+  if (params.isUnrevealedThird) {
+    flags.push('⚡ 75% Conf');
+  }
+
+  return flags;
+}
+
+/**
  * Core Mathematical Pipeline:
  * Evaluates Battle Quality & Wins Above Expected (WAE) for a logged GBL match,
- * combining Phase 1 Blind Matchup Favorability (BMF / P_pre) and
- * Phase 2 Dynamic Execution WAE Engine (P_exec & Delta_Q_final).
+ * combining Phase 1 Blind Matchup Favorability (BMF / P_pre),
+ * Phase 2 Dynamic Execution WAE Engine (P_exec & Delta_Q_final), and
+ * Phase 3 Primary Performance Badges (derived from P_pre) & Contextual Event Flags.
  *
  * Returns `null` if `oppTeam.firstSwap` is null/missing (incomplete match, weight = 0).
  */
@@ -841,12 +902,28 @@ export function calculateBattleQuality(
   }
 
   const pWin = execRes.pExec;
-  const { badgeLabel, badgeColor } = getBadgeCategorization(pWin, result);
+  // Phase 3: Primary Performance Badges are derived from P_pre (BMF)
+  const { badgeLabel, badgeColor } = getBadgeCategorization(bmfResult.pPre, result);
+
+  const hasTimeline = Array.isArray(timelineEvents) && timelineEvents.length > 0;
+  const hasExplicitFaints = typeof execOptions?.userFaints === 'number';
+  const hasExplicitShields =
+    typeof execOptions?.userShieldsRemaining === 'number' ||
+    typeof execOptions?.oppShieldsRemaining === 'number';
+
+  const contextualFlags = computeContextualEventFlags({
+    result,
+    userShieldsRemaining: hasTimeline || hasExplicitShields ? execRes.userShieldsRemaining : null,
+    oppShieldsRemaining: hasTimeline || hasExplicitShields ? execRes.oppShieldsRemaining : null,
+    userFaints: hasTimeline || hasExplicitFaints ? execRes.userFaints : null,
+    isUnrevealedThird: bmfResult.isUnrevealedThird
+  });
 
   return {
     sLead: bmfResult.sLead,
     sBack: bmfResult.sBack,
     compositeM: bmfResult.compositeM,
+    bmfScore: bmfResult.pPre,
     pPre: bmfResult.pPre,
     bmfPercentage: bmfResult.bmfPercentage,
     sActual: execRes.sActual,
@@ -858,6 +935,9 @@ export function calculateBattleQuality(
     weightedResidual: execRes.weightedResidual,
     badgeLabel,
     badgeColor,
+    badges: [badgeLabel],
+    contextualFlags,
+    flags: contextualFlags,
     isUnrevealedThird: bmfResult.isUnrevealedThird,
     faintMarginScaled: execRes.faintMarginScaled,
     shieldPenaltyApplied: execRes.shieldPenaltyApplied,
@@ -897,7 +977,8 @@ export function resolveLogEntryQuality(
     const numericResult = entry.result === 'WIN' ? 1.0 : 0.0;
     const wasCachedWin = entry.quality.deltaQ >= 0;
     const isNowWin = numericResult === 1.0;
-    if (wasCachedWin !== isNowWin) {
+    const hasPhase3Flags = Array.isArray(entry.quality.contextualFlags);
+    if (wasCachedWin !== isNowWin || !hasPhase3Flags) {
       let myMonsForToggle = (entry.userPokemon || []).map((m) => m.trim()).filter(Boolean);
       if (myMonsForToggle.length < 3) {
         const matchedPreset = presets.find(
@@ -910,6 +991,7 @@ export function resolveLogEntryQuality(
         }
       }
       if (myMonsForToggle.length > 0 && (entry.opponents || []).length >= 2) {
+        const hasTimeline = Array.isArray(entry.timelineEvents) && entry.timelineEvents.length > 0;
         return calculateBattleQuality(
           myMonsForToggle,
           entry.opponents || [],
@@ -920,10 +1002,12 @@ export function resolveLogEntryQuality(
           entry.timelineEvents,
           {
             totalDurationSec: entry.battleDurationSec,
-            userFaints: entry.userFaints ?? entry.quality.userFaints,
-            oppFaints: entry.oppFaints ?? entry.quality.oppFaints,
-            userShieldsRemaining: entry.userShieldsRemaining ?? entry.quality.userShieldsRemaining,
-            oppShieldsRemaining: entry.oppShieldsRemaining ?? entry.quality.oppShieldsRemaining
+            userFaints: entry.userFaints ?? (hasTimeline ? entry.quality.userFaints : null),
+            oppFaints: entry.oppFaints ?? (hasTimeline ? entry.quality.oppFaints : null),
+            userShieldsRemaining:
+              entry.userShieldsRemaining ?? (hasTimeline ? entry.quality.userShieldsRemaining : null),
+            oppShieldsRemaining:
+              entry.oppShieldsRemaining ?? (hasTimeline ? entry.quality.oppShieldsRemaining : null)
           }
         );
       }
@@ -968,8 +1052,10 @@ export function resolveLogEntryQuality(
 }
 
 /**
- * Computes Aggregate Wins Above Expected (WAE) percentage across a filtered list of battle logs:
- *   Aggregate WAE = ( sum(w_i * Delta_Q_final,i) / sum(w_i) ) * 100%
+ * Computes Aggregate Execution WAE (`execWae`) and Aggregate Matchup Luck (`pPre` / BMF)
+ * across a filtered list of battle logs:
+ *   EXEC WAE     = ( sum(w_i * Delta_Q_final,i) / sum(w_i) ) * 100%  (signed +XX.X%)
+ *   MATCHUP LUCK = ( sum(w_i * P_pre,i) / sum(w_i) ) * 100%          (unsigned XX.X%)
  */
 export function calculateAggregateWAE(
   entries: Array<{
@@ -991,10 +1077,13 @@ export function calculateAggregateWAE(
 ): {
   waePct: number | null;
   formatted: string;
+  luckPct: number | null;
+  luckFormatted: string;
   totalWeight: number;
   rankedCount: number;
 } {
-  let weightedSum = 0.0;
+  let weightedWaeSum = 0.0;
+  let weightedLuckSum = 0.0;
   let totalWeight = 0.0;
   let rankedCount = 0;
 
@@ -1002,7 +1091,9 @@ export function calculateAggregateWAE(
     const q = resolveLogEntryQuality(entry, presets);
     if (!q || q.weight <= 0) continue;
     const delta = typeof q.execWae === 'number' ? q.execWae : q.deltaQ;
-    weightedSum += q.weight * delta;
+    const bmf = typeof q.pPre === 'number' ? q.pPre : q.pWin;
+    weightedWaeSum += q.weight * delta;
+    weightedLuckSum += q.weight * bmf;
     totalWeight += q.weight;
     rankedCount++;
   }
@@ -1011,23 +1102,54 @@ export function calculateAggregateWAE(
     return {
       waePct: null,
       formatted: '—%',
+      luckPct: null,
+      luckFormatted: '—%',
       totalWeight: 0,
       rankedCount: 0
     };
   }
 
-  const waePct = (weightedSum / totalWeight) * 100.0;
+  const waePct = (weightedWaeSum / totalWeight) * 100.0;
+  const luckPct = (weightedLuckSum / totalWeight) * 100.0;
   const sign = waePct >= 0 ? '+' : '';
   return {
     waePct,
     formatted: `${sign}${waePct.toFixed(1)}%`,
+    luckPct,
+    luckFormatted: `${luckPct.toFixed(1)}%`,
     totalWeight,
     rankedCount
   };
 }
 
 /**
- * One-time retroactive migration script/routine (`migrateExistingBattleLogs()`):
+ * Helper to compute Aggregate Matchup Luck (weighted average BMF / P_pre) directly.
+ */
+export function calculateAggregateMatchupLuck(
+  entries: Parameters<typeof calculateAggregateWAE>[0],
+  presets: TeamPreset[] = []
+): {
+  luckPct: number | null;
+  formatted: string;
+  totalWeight: number;
+  rankedCount: number;
+} {
+  const res = calculateAggregateWAE(entries, presets);
+  return {
+    luckPct: res.luckPct,
+    formatted: res.luckFormatted,
+    totalWeight: res.totalWeight,
+    rankedCount: res.rankedCount
+  };
+}
+
+/**
+ * Phase 3 Retroactive Data Migration (`migrateExistingBattleLogs()`):
+ * - Processes existing logged battles:
+ *   - If `oppTeam.firstSwap` is missing, marks as unranked (`bmfScore: null`, `execWae: null`, `quality: null`).
+ *   - If team data exists, calculates BMF ($P_{\text{pre}}$), Dynamic Execution WAE ($\Delta Q_{\text{final}}$),
+ *     and attaches applicable primary performance badges and contextual event flags.
+ *   - Persists updated records back to storage without data loss.
  */
 export function migrateExistingBattleLogs<
   T extends {
@@ -1038,29 +1160,68 @@ export function migrateExistingBattleLogs<
     userPokemon?: string[];
     opponents?: string[];
     result: 'WIN' | 'LOSS';
+    bmfScore?: number | null;
+    execWae?: number | null;
+    badges?: string[];
+    flags?: string[];
     quality?: BattleQualityMetadata | null;
     timelineEvents?: BattleTimelineEvent[] | null;
+    battleDurationSec?: number | null;
+    userFaints?: number | null;
+    oppFaints?: number | null;
+    userShieldsRemaining?: number | null;
+    oppShieldsRemaining?: number | null;
   }
 >(logs: T[], presets: TeamPreset[] = [], storageKey: string = 'gbl_battle_logs_v1'): { logs: T[]; didMigrate: boolean } {
   let didMigrate = false;
-  const migrated = logs.map((entry) => {
-    if (entry.quality !== undefined) {
+  const migrated = logs.map((entry): T => {
+    const opps = (entry.opponents || []).map((o) => o.trim()).filter(Boolean);
+    const isMissingFirstSwap = opps.length < 2;
+
+    const alreadyMigratedUnranked =
+      isMissingFirstSwap &&
+      entry.quality === null &&
+      entry.bmfScore === null &&
+      entry.execWae === null &&
+      Array.isArray(entry.badges) &&
+      Array.isArray(entry.flags);
+
+    const alreadyMigratedRanked =
+      !isMissingFirstSwap &&
+      entry.quality !== undefined &&
+      entry.quality !== null &&
+      typeof entry.bmfScore === 'number' &&
+      typeof entry.execWae === 'number' &&
+      Array.isArray(entry.badges) &&
+      Array.isArray(entry.flags) &&
+      Array.isArray(entry.quality.contextualFlags);
+
+    if (alreadyMigratedUnranked || alreadyMigratedRanked) {
       return entry;
     }
+
     didMigrate = true;
-    const opps = (entry.opponents || []).map((o) => o.trim()).filter(Boolean);
-    if (opps.length < 2) {
+    if (isMissingFirstSwap) {
       return {
         ...entry,
+        bmfScore: null,
+        execWae: null,
+        badges: [],
+        flags: [],
         quality: null
       };
     }
+
     const computedQuality = resolveLogEntryQuality(
       { ...entry, opponents: opps, quality: undefined },
       presets
     );
     return {
       ...entry,
+      bmfScore: computedQuality ? computedQuality.pPre : null,
+      execWae: computedQuality ? computedQuality.execWae : null,
+      badges: computedQuality ? [computedQuality.badgeLabel] : [],
+      flags: computedQuality ? computedQuality.contextualFlags : [],
       quality: computedQuality
     };
   });
@@ -1076,7 +1237,8 @@ export function migrateExistingBattleLogs<
 
 /**
  * Re-evaluates all completed battle logs from scratch using the latest damage multipliers
- * and recalculates both Lead Matchup (FAVORABLE / NEUTRAL / NEGATIVE) and Win Quality (WAE).
+ * and recalculates Lead Matchup (FAVORABLE / NEUTRAL / NEGATIVE), BMF (P_pre),
+ * Dynamic Execution WAE (Delta_Q_final), Primary Performance Badges, and Contextual Flags.
  */
 export function reparseAllCompletedBattleLogs<
   T extends {
@@ -1088,6 +1250,10 @@ export function reparseAllCompletedBattleLogs<
     opponents?: string[];
     result: 'WIN' | 'LOSS';
     leadMatchup?: 'FAVORABLE' | 'NEUTRAL' | 'NEGATIVE';
+    bmfScore?: number | null;
+    execWae?: number | null;
+    badges?: string[];
+    flags?: string[];
     quality?: BattleQualityMetadata | null;
     timelineEvents?: BattleTimelineEvent[] | null;
     battleDurationSec?: number | null;
@@ -1099,7 +1265,7 @@ export function reparseAllCompletedBattleLogs<
   }
 >(logs: T[], presets: TeamPreset[] = [], storageKey: string = 'gbl_battle_logs_v1'): T[] {
   const now = Date.now();
-  const reparsed = logs.map((entry) => {
+  const reparsed = logs.map((entry): T => {
     const matchedPreset = presets.find(
       (p) =>
         (entry.presetId && p.id === entry.presetId) ||
@@ -1127,6 +1293,10 @@ export function reparseAllCompletedBattleLogs<
       ...entry,
       userPokemon: myMons.length > 0 ? myMons : entry.userPokemon,
       leadMatchup: updatedLead,
+      bmfScore: freshQuality ? freshQuality.pPre : null,
+      execWae: freshQuality ? freshQuality.execWae : null,
+      badges: freshQuality ? [freshQuality.badgeLabel] : [],
+      flags: freshQuality ? freshQuality.contextualFlags : [],
       quality: freshQuality,
       updatedAt: now
     };

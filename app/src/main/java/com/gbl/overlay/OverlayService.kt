@@ -153,6 +153,10 @@ class OverlayService : LifecycleService() {
             val leadMatchup: String = "NEUTRAL",
             val result: String = "WIN",
             val deviceLabel: String = Build.MODEL ?: "Android",
+            val bmfScore: Double? = null,
+            val execWae: Double? = null,
+            val badges: List<String> = emptyList(),
+            val flags: List<String> = emptyList(),
             val quality: BattleQualityMetadata? = null,
             val qualityEvaluated: Boolean = false,
             val timelineEvents: List<BattleTimelineEvent> = emptyList(),
@@ -3156,6 +3160,38 @@ class OverlayService : LifecycleService() {
             )
         }
 
+        fun computeContextualEventFlagsStatic(
+            result: String,
+            userShieldsRemaining: Int?,
+            oppShieldsRemaining: Int?,
+            userFaints: Int?,
+            isUnrevealedThird: Boolean
+        ): List<String> {
+            val isWin = result.equals("WIN", ignoreCase = true)
+            val flags = mutableListOf<String>()
+
+            if (!isWin) {
+                if (userShieldsRemaining == 2) {
+                    flags.add("⚠️ Double Shield Pocket")
+                } else if (userShieldsRemaining == 1) {
+                    flags.add("⚠️ Shield in Pocket")
+                }
+            } else {
+                if (userFaints == 0) {
+                    flags.add("🧹 Clean Sweep")
+                }
+                if (userShieldsRemaining != null && oppShieldsRemaining != null && userShieldsRemaining > oppShieldsRemaining) {
+                    flags.add("🛡️ Shield Advantage")
+                }
+            }
+
+            if (isUnrevealedThird) {
+                flags.add("⚡ 75% Conf")
+            }
+
+            return flags
+        }
+
         fun calculateBattleQuality(
             myTeam: List<String>,
             oppTeam: List<String>,
@@ -3202,21 +3238,35 @@ class OverlayService : LifecycleService() {
             val pWin = execRes.pExec
             val isWin = result.equals("WIN", ignoreCase = true)
 
+            // Phase 3: Primary Performance Badges derived from P_pre (BMF)
             val (badgeLabel, badgeColorHex) = if (isWin) {
                 when {
-                    pWin < 0.40 -> "Clutch Win" to "#22d3ee"
-                    pWin <= 0.60 -> "Skill Win" to "#4ade80"
+                    pPre < 0.40 -> "Clutch Win" to "#22d3ee"
+                    pPre <= 0.60 -> "Skill Win" to "#4ade80"
                     else -> "Expected Win" to "#94a3b8"
                 }
             } else {
                 when {
-                    pWin > 0.60 -> "Blunder Loss" to "#f43f5e"
-                    pWin >= 0.40 -> "Tough Loss" to "#fb923c"
+                    pPre > 0.60 -> "Blunder Loss" to "#f43f5e"
+                    pPre >= 0.40 -> "Tough Loss" to "#fb923c"
                     else -> "Expected Loss" to "#94a3b8"
                 }
             }
 
+            val hasTimeline = !timelineEvents.isNullOrEmpty()
+            val hasExplicitFaints = explicitUserFaints != null
+            val hasExplicitShields = explicitUserShieldsRemaining != null || explicitOppShieldsRemaining != null
+
+            val contextualFlags = computeContextualEventFlagsStatic(
+                result = result,
+                userShieldsRemaining = if (hasTimeline || hasExplicitShields) execRes.userShieldsRemaining else null,
+                oppShieldsRemaining = if (hasTimeline || hasExplicitShields) execRes.oppShieldsRemaining else null,
+                userFaints = if (hasTimeline || hasExplicitFaints) execRes.userFaints else null,
+                isUnrevealedThird = bmfRes.isUnrevealedThird
+            )
+
             return BattleQualityMetadata(
+                bmfScore = pPre,
                 pPre = pPre,
                 bmfPercentage = bmfPct,
                 sActual = execRes.sActual,
@@ -3229,6 +3279,9 @@ class OverlayService : LifecycleService() {
                 weightedResidual = execRes.weightedResidual,
                 badgeLabel = badgeLabel,
                 badgeColorHex = badgeColorHex,
+                badges = listOf(badgeLabel),
+                contextualFlags = contextualFlags,
+                flags = contextualFlags,
                 unrevealedThird = bmfRes.isUnrevealedThird,
                 sLead = sLead,
                 sBack = sBack,
@@ -3243,13 +3296,15 @@ class OverlayService : LifecycleService() {
         }
 
         fun calculateAggregateWAEStatic(qualities: List<BattleQualityMetadata?>): AggregateWAEResult {
-            var weightedSum = 0.0
+            var weightedWaeSum = 0.0
+            var weightedLuckSum = 0.0
             var totalWeight = 0.0
             var rankedCount = 0
 
             for (q in qualities) {
                 if (q == null || q.weight <= 0.0) continue
-                weightedSum += q.weight * q.deltaQ
+                weightedWaeSum += q.weight * q.deltaQ
+                weightedLuckSum += q.weight * q.pPre
                 totalWeight += q.weight
                 rankedCount++
             }
@@ -3259,21 +3314,29 @@ class OverlayService : LifecycleService() {
                     waePct = 0.0,
                     formatted = "—%",
                     isPositive = true,
+                    luckPct = 50.0,
+                    luckFormatted = "—%",
                     rankedCount = 0,
                     totalWeight = 0.0
                 )
             }
 
-            val rawPct = (weightedSum / totalWeight) * 100.0
-            val rounded = (rawPct * 10.0).roundToInt() / 10.0
-            val isPositive = rounded >= 0.0
-            val sign = if (rounded >= 0.0) "+" else "-"
-            val formatted = String.format(java.util.Locale.US, "%s%.1f%%", sign, kotlin.math.abs(rounded))
+            val rawWaePct = (weightedWaeSum / totalWeight) * 100.0
+            val roundedWae = (rawWaePct * 10.0).roundToInt() / 10.0
+            val isPositive = roundedWae >= 0.0
+            val sign = if (roundedWae >= 0.0) "+" else "-"
+            val formatted = String.format(java.util.Locale.US, "%s%.1f%%", sign, kotlin.math.abs(roundedWae))
+
+            val rawLuckPct = (weightedLuckSum / totalWeight) * 100.0
+            val roundedLuck = (rawLuckPct * 10.0).roundToInt() / 10.0
+            val luckFormatted = String.format(java.util.Locale.US, "%.1f%%", roundedLuck)
 
             return AggregateWAEResult(
-                waePct = rounded,
+                waePct = roundedWae,
                 formatted = formatted,
                 isPositive = isPositive,
+                luckPct = roundedLuck,
+                luckFormatted = luckFormatted,
                 rankedCount = rankedCount,
                 totalWeight = totalWeight
             )
@@ -3450,6 +3513,7 @@ class OverlayService : LifecycleService() {
     )
 
     data class BattleQualityMetadata(
+        val bmfScore: Double = 0.5,
         val pPre: Double = 0.5,
         val bmfPercentage: Double = 50.0,
         val sActual: Double? = null,
@@ -3462,6 +3526,9 @@ class OverlayService : LifecycleService() {
         val weightedResidual: Double,
         val badgeLabel: String,
         val badgeColorHex: String,
+        val badges: List<String> = emptyList(),
+        val contextualFlags: List<String> = emptyList(),
+        val flags: List<String> = emptyList(),
         val unrevealedThird: Boolean,
         val sLead: Double,
         val sBack: Double,
@@ -3478,6 +3545,8 @@ class OverlayService : LifecycleService() {
         val waePct: Double,
         val formatted: String,
         val isPositive: Boolean,
+        val luckPct: Double = 50.0,
+        val luckFormatted: String = "—%",
         val rankedCount: Int,
         val totalWeight: Double
     )
@@ -5612,10 +5681,10 @@ class OverlayService : LifecycleService() {
             myTeamSlots = preset?.pokemon,
             timelineEvents = finalTimelineEvents.takeIf { it.isNotEmpty() },
             totalDurationSec = durationSec,
-            explicitUserFaints = if (finalTimelineEvents.isNotEmpty()) finalUserFaints else null,
-            explicitOppFaints = if (finalTimelineEvents.isNotEmpty()) finalOppFaints else null,
-            explicitUserShieldsRemaining = if (finalTimelineEvents.isNotEmpty()) endUserShields else null,
-            explicitOppShieldsRemaining = if (finalTimelineEvents.isNotEmpty()) endOppShields else null
+            explicitUserFaints = if (formattedOpponents.isNotEmpty()) finalUserFaints else null,
+            explicitOppFaints = if (formattedOpponents.isNotEmpty()) finalOppFaints else null,
+            explicitUserShieldsRemaining = if (formattedOpponents.isNotEmpty()) endUserShields else null,
+            explicitOppShieldsRemaining = if (formattedOpponents.isNotEmpty()) endOppShields else null
         )
 
         val nowMs = System.currentTimeMillis()
@@ -5631,6 +5700,10 @@ class OverlayService : LifecycleService() {
             leadMatchup = resolvedLead,
             result = normalizedResult,
             deviceLabel = prefs.getString(PREFS_KEY_DEVICE_LABEL, null)?.takeIf { it.isNotBlank() } ?: (Build.MODEL ?: "Android"),
+            bmfScore = quality?.pPre,
+            execWae = quality?.execWae,
+            badges = quality?.badges ?: emptyList(),
+            flags = quality?.contextualFlags ?: emptyList(),
             quality = quality,
             qualityEvaluated = true,
             timelineEvents = finalTimelineEvents,

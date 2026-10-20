@@ -61,6 +61,10 @@ data class BattleLogEntry(
     val leadMatchup: String = "NEUTRAL",
     val result: String = "WIN",
     val deviceLabel: String = Build.MODEL ?: "Android",
+    val bmfScore: Double? = null,
+    val execWae: Double? = null,
+    val badges: List<String> = emptyList(),
+    val flags: List<String> = emptyList(),
     val quality: OverlayService.BattleQualityMetadata? = null,
     val qualityEvaluated: Boolean = false,
     val timelineEvents: List<OverlayService.BattleTimelineEvent> = emptyList(),
@@ -140,6 +144,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var textBattleLogLeague: TextView
     private lateinit var textBattleLogWinrate: TextView
     private lateinit var textBattleLogWae: TextView
+    private lateinit var textBattleLogLuck: TextView
     private lateinit var btnLogManualBattle: Button
     private lateinit var btnSyncBattleLog: Button
     private lateinit var btnClearBattleLog: Button
@@ -350,6 +355,7 @@ class MainActivity : AppCompatActivity() {
         textBattleLogLeague = findViewById(R.id.text_battle_log_league)
         textBattleLogWinrate = findViewById(R.id.text_battle_log_winrate)
         textBattleLogWae = findViewById(R.id.text_battle_log_wae)
+        textBattleLogLuck = findViewById(R.id.text_battle_log_luck)
         btnLogManualBattle = findViewById(R.id.btn_log_manual_battle)
         btnSyncBattleLog = findViewById(R.id.btn_sync_battle_log)
         btnClearBattleLog = findViewById(R.id.btn_clear_battle_log)
@@ -1119,48 +1125,97 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Retroactive Data Migration Routine:
-     * Iterates through all historical matches in SharedPreferences.
-     * If a match lacks `quality` metadata (`!qualityEvaluated && quality == null`):
-     * - Checks if `firstSwap` (2nd opponent) exists. If missing, marks as `quality = null, qualityEvaluated = true`.
-     * - Looks up team compositions and league in existing ratings data.
-     * - Calculates P_win, badge label, deltaQ, and weight (1.0 or 0.75).
-     * - Persists the enriched schema back to storage so recalculation does not re-run on every render.
+     * Phase 3 Retroactive Data Migration Routine:
+     * Iterates through all historical matches in SharedPreferences (active + trash).
+     * - If `oppTeam.firstSwap` (2nd opponent) is missing, marks as unranked (`bmfScore = null`, `execWae = null`, `quality = null`).
+     * - If team data exists, calculates BMF (P_pre), Dynamic Execution WAE (Delta_Q_final),
+     *   and attaches applicable Primary Performance Badges and Contextual Event Flags.
+     * - Persists updated records back to storage without data loss.
      */
     private fun migrateExistingBattleLogs() {
         val reparseVer = prefs.getInt("damage_reparse_version", 0)
         if (reparseVer < 215) {
             reparseAllCompletedBattles(silent = true)
-            prefs.edit().putInt("damage_reparse_version", 215).apply()
+            prefs.edit()
+                .putInt("damage_reparse_version", 293)
+                .putInt("phase3_migration_version", 293)
+                .apply()
             return
         }
-        val raw = prefs.getString(PREFS_KEY_BATTLE_LOGS, null) ?: return
-        try {
-            val type = object : TypeToken<List<BattleLogEntry>>() {}.type
-            val parsed: List<BattleLogEntry> = gson.fromJson<List<BattleLogEntry>>(raw, type) ?: return
-            if (parsed.isEmpty()) return
 
-            val presets = loadPresets()
-            var didMutate = false
-            val migrated = parsed.map { entry ->
-                if (entry.qualityEvaluated || entry.quality != null) {
-                    entry
-                } else {
-                    didMutate = true
-                    val computed = resolveEntryQuality(entry, presets, forceRecalculate = true)
-                    entry.copy(quality = computed, qualityEvaluated = true)
+        val phase3Migrated = prefs.getInt("phase3_migration_version", 0) >= 293
+        val presets = loadPresets()
+
+        fun migrateEntryList(rawJson: String?): Pair<List<BattleLogEntry>?, Boolean> {
+            if (rawJson.isNullOrBlank()) return null to false
+            return try {
+                val type = object : TypeToken<List<BattleLogEntry>>() {}.type
+                val parsed: List<BattleLogEntry> = gson.fromJson<List<BattleLogEntry>>(rawJson, type) ?: return null to false
+                if (parsed.isEmpty()) return parsed to false
+
+                var didMutate = false
+                val migrated = parsed.map { entry ->
+                    val firstSwap = entry.opponents.getOrNull(1)?.trim().orEmpty()
+                    val isMissingFirstSwap = firstSwap.isEmpty()
+
+                    val alreadyValidUnranked =
+                        phase3Migrated && isMissingFirstSwap && entry.qualityEvaluated && entry.quality == null && entry.bmfScore == null && entry.execWae == null
+                    val alreadyValidRanked =
+                        phase3Migrated && !isMissingFirstSwap && entry.quality != null && entry.bmfScore != null && entry.execWae != null
+
+                    if (alreadyValidUnranked || alreadyValidRanked) {
+                        entry
+                    } else {
+                        didMutate = true
+                        if (isMissingFirstSwap) {
+                            entry.copy(
+                                bmfScore = null,
+                                execWae = null,
+                                badges = emptyList(),
+                                flags = emptyList(),
+                                quality = null,
+                                qualityEvaluated = true
+                            )
+                        } else {
+                            val computed = resolveEntryQuality(entry, presets, forceRecalculate = true)
+                            entry.copy(
+                                bmfScore = computed?.pPre,
+                                execWae = computed?.execWae,
+                                badges = computed?.badges ?: if (computed != null) listOf(computed.badgeLabel) else emptyList(),
+                                flags = computed?.contextualFlags ?: emptyList(),
+                                quality = computed,
+                                qualityEvaluated = true
+                            )
+                        }
+                    }
                 }
+                migrated to didMutate
+            } catch (_: Exception) {
+                null to false
             }
-            if (didMutate) {
-                prefs.edit().putString(PREFS_KEY_BATTLE_LOGS, gson.toJson(migrated)).apply()
-            }
-        } catch (_: Exception) {}
+        }
+
+        val (migratedActive, activeMutated) = migrateEntryList(prefs.getString(PREFS_KEY_BATTLE_LOGS, null))
+        val (migratedTrash, trashMutated) = migrateEntryList(prefs.getString(PREFS_KEY_DELETED_BATTLES_TRASH, null))
+
+        val editor = prefs.edit()
+        if (activeMutated && migratedActive != null) {
+            editor.putString(PREFS_KEY_BATTLE_LOGS, gson.toJson(migratedActive))
+        }
+        if (trashMutated && migratedTrash != null) {
+            editor.putString(PREFS_KEY_DELETED_BATTLES_TRASH, gson.toJson(migratedTrash))
+        }
+        if (!phase3Migrated || activeMutated || trashMutated) {
+            editor.putInt("phase3_migration_version", 293)
+            editor.apply()
+        }
     }
 
     /**
      * Re-evaluates all completed battles (and trash battles) from scratch using the latest
      * damage multipliers (2.56x dual-type effectiveness, 1.2x Shadow attack, half-level CPM stats)
-     * and recalculates both Lead Matchup (Favorable/Neutral/Negative) and Win Quality (WAE).
+     * and recalculates Lead Matchup (Favorable/Neutral/Negative), BMF (P_pre),
+     * Dynamic Execution WAE (Delta_Q_final), Primary Performance Badges, and Contextual Flags.
      */
     private fun reparseAllCompletedBattles(silent: Boolean) {
         try {
@@ -1212,6 +1267,10 @@ class MainActivity : AppCompatActivity() {
             return entry.copy(
                 userPokemon = if (entry.userPokemon.isEmpty() && myMons.isNotEmpty()) myMons else entry.userPokemon,
                 leadMatchup = updatedLead,
+                bmfScore = freshQuality?.pPre,
+                execWae = freshQuality?.execWae,
+                badges = freshQuality?.badges ?: if (freshQuality != null) listOf(freshQuality.badgeLabel) else emptyList(),
+                flags = freshQuality?.contextualFlags ?: emptyList(),
                 quality = freshQuality,
                 qualityEvaluated = true,
                 updatedAt = nowMs
@@ -1233,7 +1292,7 @@ class MainActivity : AppCompatActivity() {
         val aggWae = OverlayService.calculateAggregateWAEStatic(reparsedActive.map { it.quality })
         if (::textReparseBattlesStatus.isInitialized) {
             val timeFmt = java.text.SimpleDateFormat("h:mm a", java.util.Locale.US).format(java.util.Date(nowMs))
-            textReparseBattlesStatus.text = "✅ Reparsed ${reparsedActive.size} battle(s) at $timeFmt • Ranked: ${aggWae.rankedCount} • Overall WAE: ${aggWae.formatted}"
+            textReparseBattlesStatus.text = "✅ Reparsed ${reparsedActive.size} battle(s) at $timeFmt • Ranked: ${aggWae.rankedCount} • Exec WAE: ${aggWae.formatted} • Luck: ${aggWae.luckFormatted}"
         }
 
         renderBattleLogPage()
@@ -1242,7 +1301,7 @@ class MainActivity : AppCompatActivity() {
         if (!silent) {
             Toast.makeText(
                 this,
-                "✅ Reparsed ${reparsedActive.size} completed battle(s) with latest damage & WAE (${aggWae.formatted})!",
+                "✅ Reparsed ${reparsedActive.size} completed battle(s) (Exec WAE: ${aggWae.formatted} • Luck: ${aggWae.luckFormatted})!",
                 Toast.LENGTH_LONG
             ).show()
             triggerTwoDeviceCloudSync(silent = true)
@@ -1285,10 +1344,10 @@ class MainActivity : AppCompatActivity() {
             myTeamSlots = serviceSlots,
             timelineEvents = entry.timelineEvents.takeIf { it.isNotEmpty() },
             totalDurationSec = entry.battleDurationSec,
-            explicitUserFaints = if (hasTimeline) (entry.userFaints ?: entry.quality?.userFaints) else null,
-            explicitOppFaints = if (hasTimeline) (entry.oppFaints ?: entry.quality?.oppFaints) else null,
-            explicitUserShieldsRemaining = if (hasTimeline) (entry.userShieldsRemaining ?: entry.quality?.userShieldsRemaining) else null,
-            explicitOppShieldsRemaining = if (hasTimeline) (entry.oppShieldsRemaining ?: entry.quality?.oppShieldsRemaining) else null
+            explicitUserFaints = entry.userFaints ?: (if (hasTimeline) entry.quality?.userFaints else null),
+            explicitOppFaints = entry.oppFaints ?: (if (hasTimeline) entry.quality?.oppFaints else null),
+            explicitUserShieldsRemaining = entry.userShieldsRemaining ?: (if (hasTimeline) entry.quality?.userShieldsRemaining else null),
+            explicitOppShieldsRemaining = entry.oppShieldsRemaining ?: (if (hasTimeline) entry.quality?.oppShieldsRemaining else null)
         )
     }
 
@@ -1849,7 +1908,7 @@ class MainActivity : AppCompatActivity() {
         sb.append("SilphScope PvP Battle Log — $leagueTitle\n")
         sb.append("Team: $teamTitle\n")
         sb.append("Range: $rangeLabel\n")
-        sb.append("Overall Record: ${wins}W - ${losses}L ($winPct%) • Leads: $favCount Fav / $neuCount Neu / $negCount Neg • Quality (WAE): ${aggWae.formatted}\n")
+        sb.append("Overall Record: ${wins}W - ${losses}L ($winPct%) • Leads: $favCount Fav / $neuCount Neu / $negCount Neg • WAE: ${aggWae.formatted} • Luck: ${aggWae.luckFormatted}\n")
 
         if (filtered.isEmpty()) {
             sb.append("\nNo battles logged in this timeframe.\n")
@@ -1875,7 +1934,7 @@ class MainActivity : AppCompatActivity() {
                 val dNeg = teamDayEntries.count { it.leadMatchup.equals("NEGATIVE", ignoreCase = true) }
                 val dWae = OverlayService.calculateAggregateWAEStatic(teamDayEntries.map { resolveEntryQuality(it, presets) })
 
-                sb.append("\n=== $dayStr - ${teamInfo.teamName} ${teamInfo.monsBracket} Daily Record: ${dWins}W - ${dLosses}L ($dPct%) [Leads: $dFav Fav, $dNeu Neu, $dNeg Neg] • WAE: ${dWae.formatted} ===\n")
+                sb.append("\n=== $dayStr - ${teamInfo.teamName} ${teamInfo.monsBracket} Daily Record: ${dWins}W - ${dLosses}L ($dPct%) [Leads: $dFav Fav, $dNeu Neu, $dNeg Neg] • WAE: ${dWae.formatted} • Luck: ${dWae.luckFormatted} ===\n")
                 for (entry in teamDayEntries.sortedByDescending { it.timestampMs }) {
                     val wl = if (entry.result.equals("WIN", ignoreCase = true)) "W" else "L"
                     val leadTag = when (entry.leadMatchup.uppercase()) {
@@ -2046,10 +2105,21 @@ class MainActivity : AppCompatActivity() {
         textBattleLogWae.setTextColor(
             when {
                 aggWae.rankedCount == 0 -> 0xFF94A3B8.toInt()
-                aggWae.isPositive -> 0xFF4ADE80.toInt()
+                aggWae.waePct >= 0.0 -> 0xFF4ADE80.toInt()
                 else -> 0xFFF43F5E.toInt()
             }
         )
+        if (::textBattleLogLuck.isInitialized) {
+            textBattleLogLuck.text = aggWae.luckFormatted
+            textBattleLogLuck.setTextColor(
+                when {
+                    aggWae.rankedCount == 0 -> 0xFF94A3B8.toInt()
+                    aggWae.luckPct > 50.0 -> 0xFF38BDF8.toInt()
+                    aggWae.luckPct < 50.0 -> 0xFFFB923C.toInt()
+                    else -> 0xFF94A3B8.toInt()
+                }
+            )
+        }
 
         battleLogContainer.removeAllViews()
         val density = resources.displayMetrics.density
@@ -2097,7 +2167,7 @@ class MainActivity : AppCompatActivity() {
             val dayWae = OverlayService.calculateAggregateWAEStatic(dayEntries.map { resolveEntryQuality(it, presets) })
 
             val dayHeader = TextView(this).apply {
-                text = "📅 $dayStr — Daily Record: ${dWins}W - ${dLosses}L ($dPct%) • Leads: $dFav Fav / $dNeu Neu / $dNeg Neg • WAE: ${dayWae.formatted}"
+                text = "📅 $dayStr — Daily Record: ${dWins}W - ${dLosses}L ($dPct%) • Leads: $dFav Fav / $dNeu Neu / $dNeg Neg • WAE: ${dayWae.formatted} • Luck: ${dayWae.luckFormatted}"
                 setTextColor(0xFF38BDF8.toInt())
                 textSize = 11f
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
@@ -2190,15 +2260,19 @@ class MainActivity : AppCompatActivity() {
                     setTypeface(typeface, android.graphics.Typeface.BOLD)
                 }
 
-                // Battle Quality (WAE) Badge Row directly below the Pokémon lineup
+                // Phase 3: Primary Performance Badge (derived from P_pre) & Contextual Event Flags (Pills) Container
                 val entryQuality = resolveEntryQuality(entry, presets)
                 val qualityRow = LinearLayout(this).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    gravity = android.view.Gravity.CENTER_VERTICAL
+                    orientation = LinearLayout.VERTICAL
                     setPadding(0, (5 * density).toInt(), 0, (2 * density).toInt())
                 }
 
                 if (entryQuality != null) {
+                    val primaryBadgeRow = LinearLayout(this).apply {
+                        orientation = LinearLayout.HORIZONTAL
+                        gravity = android.view.Gravity.CENTER_VERTICAL
+                    }
+
                     val badgeTextColor = when (entryQuality.badgeLabel) {
                         "Clutch Win" -> 0xFF22D3EE.toInt()
                         "Skill Win" -> 0xFF4ADE80.toInt()
@@ -2213,11 +2287,13 @@ class MainActivity : AppCompatActivity() {
                         "Tough Loss" -> 0x26FB923C
                         else -> 0x2E64748B
                     }
-                    val dqSign = if (entryQuality.deltaQ >= 0.0) "+" else "-"
-                    val dqStr = String.format(java.util.Locale.US, "%s%.2f", dqSign, kotlin.math.abs(entryQuality.deltaQ))
+                    val bmfPctInt = (entryQuality.pPre * 100.0).roundToInt()
+                    val waePctVal = entryQuality.deltaQ * 100.0
+                    val dqSign = if (waePctVal >= 0.0) "+" else "-"
+                    val dqStr = String.format(java.util.Locale.US, "%s%.1f%%", dqSign, kotlin.math.abs(waePctVal))
 
                     val badgeTv = TextView(this).apply {
-                        text = "${entryQuality.badgeLabel} • Exp Win: ${entryQuality.expWinPct}% • ΔQ: $dqStr"
+                        text = "${entryQuality.badgeLabel} • BMF: ${bmfPctInt}% • WAE: $dqStr"
                         setTextColor(badgeTextColor)
                         setBackgroundColor(badgeBgColor)
                         textSize = 10.5f
@@ -2226,26 +2302,43 @@ class MainActivity : AppCompatActivity() {
                         val pV = (3 * density).toInt()
                         setPadding(pH, pV, pH, pV)
                     }
-                    qualityRow.addView(badgeTv)
+                    primaryBadgeRow.addView(badgeTv)
+                    qualityRow.addView(primaryBadgeRow)
 
-                    if (entryQuality.unrevealedThird) {
-                        val confTv = TextView(this).apply {
-                            text = "(⚡ 75% Conf)"
-                            setTextColor(0xFFFCD34D.toInt())
-                            setBackgroundColor(0x26F59E0B)
-                            textSize = 10f
-                            setTypeface(typeface, android.graphics.Typeface.BOLD)
-                            val pH = (6 * density).toInt()
-                            val pV = (3 * density).toInt()
-                            setPadding(pH, pV, pH, pV)
-                            layoutParams = LinearLayout.LayoutParams(
-                                LinearLayout.LayoutParams.WRAP_CONTENT,
-                                LinearLayout.LayoutParams.WRAP_CONTENT
-                            ).apply {
-                                marginStart = (6 * density).toInt()
-                            }
+                    val flagsList = entryQuality.contextualFlags.ifEmpty { entry.flags }
+                    if (flagsList.isNotEmpty()) {
+                        val flagsRow = LinearLayout(this).apply {
+                            orientation = LinearLayout.HORIZONTAL
+                            gravity = android.view.Gravity.CENTER_VERTICAL
+                            setPadding(0, (4 * density).toInt(), 0, 0)
                         }
-                        qualityRow.addView(confTv)
+                        for (flag in flagsList) {
+                            val (flagTextColor, flagBgColor) = when {
+                                flag.contains("Double Shield Pocket") -> 0xFFFDA4AF.toInt() to 0x26F43F5E
+                                flag.contains("Shield in Pocket") -> 0xFFFCD34D.toInt() to 0x26F59E0B
+                                flag.contains("Clean Sweep") -> 0xFF6EE7B7.toInt() to 0x2610B981
+                                flag.contains("Shield Advantage") -> 0xFF7DD3FC.toInt() to 0x2638BDF8
+                                else -> 0xFFFCD34D.toInt() to 0x26F59E0B
+                            }
+                            val pillTv = TextView(this).apply {
+                                text = flag
+                                setTextColor(flagTextColor)
+                                setBackgroundColor(flagBgColor)
+                                textSize = 9.5f
+                                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                                val pH = (6 * density).toInt()
+                                val pV = (2.5f * density).toInt()
+                                setPadding(pH, pV, pH, pV)
+                                layoutParams = LinearLayout.LayoutParams(
+                                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                                    LinearLayout.LayoutParams.WRAP_CONTENT
+                                ).apply {
+                                    marginEnd = (5 * density).toInt()
+                                }
+                            }
+                            flagsRow.addView(pillTv)
+                        }
+                        qualityRow.addView(flagsRow)
                     }
                 } else {
                     val unrankedTv = TextView(this).apply {
@@ -2459,7 +2552,13 @@ class MainActivity : AppCompatActivity() {
                     oppTeam = opps,
                     league = chosenLeague,
                     result = chosenResult,
-                    myTeamSlots = serviceSlots
+                    myTeamSlots = serviceSlots,
+                    timelineEvents = existing?.timelineEvents?.takeIf { it.isNotEmpty() },
+                    totalDurationSec = existing?.battleDurationSec,
+                    explicitUserFaints = existing?.userFaints,
+                    explicitOppFaints = existing?.oppFaints,
+                    explicitUserShieldsRemaining = existing?.userShieldsRemaining,
+                    explicitOppShieldsRemaining = existing?.oppShieldsRemaining
                 )
                 val updatedEntry = BattleLogEntry(
                     id = existing?.id ?: "log-$nowMs-${(100..999).random()}",
@@ -2473,8 +2572,18 @@ class MainActivity : AppCompatActivity() {
                     leadMatchup = leadsArr.getOrElse(spinnerLead.selectedItemPosition) { "NEUTRAL" },
                     result = chosenResult,
                     deviceLabel = existing?.deviceLabel ?: (Build.MODEL ?: "Android"),
+                    bmfScore = computedQuality?.pPre,
+                    execWae = computedQuality?.execWae,
+                    badges = computedQuality?.badges ?: if (computedQuality != null) listOf(computedQuality.badgeLabel) else emptyList(),
+                    flags = computedQuality?.contextualFlags ?: emptyList(),
                     quality = computedQuality,
-                    qualityEvaluated = true
+                    qualityEvaluated = true,
+                    timelineEvents = existing?.timelineEvents ?: emptyList(),
+                    battleDurationSec = existing?.battleDurationSec,
+                    userFaints = existing?.userFaints,
+                    oppFaints = existing?.oppFaints,
+                    userShieldsRemaining = existing?.userShieldsRemaining,
+                    oppShieldsRemaining = existing?.oppShieldsRemaining
                 )
 
                 val all = loadBattleLogs().toMutableList()

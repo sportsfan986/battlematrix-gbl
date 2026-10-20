@@ -139,6 +139,10 @@ export interface WebBattleLogEntry {
   opponents: string[];
   result: 'WIN' | 'LOSS';
   leadMatchup: 'FAVORABLE' | 'NEUTRAL' | 'NEGATIVE';
+  bmfScore?: number | null;
+  execWae?: number | null;
+  badges?: string[];
+  flags?: string[];
   quality?: BattleQualityMetadata | null;
   timelineEvents?: BattleTimelineEvent[];
   battleDurationSec?: number;
@@ -631,16 +635,16 @@ export default function App() {
     const agg = calculateAggregateWAE(reparsedActive, presets);
     const timeStr = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
     setReparseBattlesStatus(
-      `✅ Reparsed ${reparsedActive.length} completed battle(s) at ${timeStr} • Ranked: ${agg.rankedCount} • Overall WAE: ${agg.formatted}`
+      `✅ Reparsed ${reparsedActive.length} completed battle(s) at ${timeStr} • Ranked: ${agg.rankedCount} • Exec WAE: ${agg.formatted} • Luck: ${agg.luckFormatted}`
     );
     if (!silent) {
       try {
-        localStorage.setItem('gbl_damage_reparse_version', '215');
+        localStorage.setItem('gbl_damage_reparse_version', '293');
       } catch {}
     }
   };
 
-  // Retroactive migration & v2.15 damage/WAE reparse for historical battle logs
+  // Phase 3: Retroactive migration & v2.93 BMF / Exec WAE / Badges & Contextual Flags migration
   useEffect(() => {
     let reparseVer = 0;
     try {
@@ -649,7 +653,7 @@ export default function App() {
     if (reparseVer < 215) {
       handleReparseAllCompletedBattles(true);
       try {
-        localStorage.setItem('gbl_damage_reparse_version', '215');
+        localStorage.setItem('gbl_damage_reparse_version', '293');
       } catch {}
       return;
     }
@@ -1399,7 +1403,7 @@ export default function App() {
       undefined,
       result,
       eventsToLog.length > 0 ? eventsToLog : undefined,
-      eventsToLog.length > 0
+      oppsToLog.length > 0
         ? {
             totalDurationSec: durationSec,
             userFaints: userFaintsCount,
@@ -1419,6 +1423,10 @@ export default function App() {
       opponents: oppsToLog,
       result,
       leadMatchup: currentLeadMatchup,
+      bmfScore: qualityMeta ? qualityMeta.pPre : null,
+      execWae: qualityMeta ? qualityMeta.execWae : null,
+      badges: qualityMeta ? [qualityMeta.badgeLabel] : [],
+      flags: qualityMeta ? qualityMeta.contextualFlags : [],
       quality: qualityMeta,
       timelineEvents: eventsToLog,
       battleDurationSec: durationSec,
@@ -1907,7 +1915,7 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <h1 className="font-bold text-base md:text-lg tracking-tight text-white">SilphScope PvP</h1>
                 <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20">
-                  v2.33 • Android Native Overlay
+                  v2.93 • Android Native Overlay
                 </span>
               </div>
               <p className="text-xs text-slate-400 hidden sm:block">
@@ -5006,7 +5014,7 @@ export default function App() {
               `SilphScope PvP Battle Log — ${leagueHeader}`,
               `Team: ${teamName}`,
               `Range: ${rangeTitle}`,
-              `Overall Record: ${w}W - ${l}L (${pct}%) • Leads: ${fv} Fav / ${nu} Neu / ${ng} Neg • Quality (WAE): ${waeInfo.formatted}`
+              `Overall Record: ${w}W - ${l}L (${pct}%) • Leads: ${fv} Fav / ${nu} Neu / ${ng} Neg • WAE: ${waeInfo.formatted} • Luck: ${waeInfo.luckFormatted}`
             ];
             if (list.length === 0) {
               lines.push('', 'No battles logged in this timeframe.');
@@ -5061,7 +5069,7 @@ export default function App() {
                 const dwae = calculateAggregateWAE(teamItems, presets);
                 lines.push(
                   '',
-                  `=== ${dayStr} - ${tInfo.teamName} ${tInfo.monsBracket} Daily Record: ${dw}W - ${dl}L (${dpct}%) [Leads: ${dfv} Fav, ${dnu} Neu, ${dng} Neg] • WAE: ${dwae.formatted} ===`
+                  `=== ${dayStr} - ${tInfo.teamName} ${tInfo.monsBracket} Daily Record: ${dw}W - ${dl}L (${dpct}%) [Leads: ${dfv} Fav, ${dnu} Neu, ${dng} Neg] • WAE: ${dwae.formatted} • Luck: ${dwae.luckFormatted} ===`
                 );
                 [...teamItems]
                   .sort((a, b) => b.timestampMs - a.timestampMs)
@@ -5221,11 +5229,11 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Summary Metrics Row (4 Cards: Record, Lead Matchups, Win Rate, Quality WAE) */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {/* Summary Metrics Row (5-Stat Responsive Grid: Record, Lead Matchups, Win Rate, Exec WAE, Matchup Luck) */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 text-center shadow-xl">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                    RECORD
+                    RECORD (W - L)
                   </span>
                   <strong className="text-base sm:text-lg font-extrabold text-white">
                     {wins}W - {losses}L ({total})
@@ -5247,18 +5255,40 @@ export default function App() {
                 </div>
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 text-center shadow-xl">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                    QUALITY (WAE)
+                    EXEC WAE
                   </span>
                   <strong
-                    className={`text-base sm:text-lg font-extrabold ${
-                      aggregateWae.waePct === null
-                        ? 'text-slate-400'
-                        : aggregateWae.waePct >= 0
-                        ? 'text-emerald-400'
-                        : 'text-rose-400'
-                    }`}
+                    style={{
+                      color:
+                        aggregateWae.waePct === null
+                          ? '#94a3b8'
+                          : aggregateWae.waePct >= 0
+                          ? '#4ade80'
+                          : '#f43f5e'
+                    }}
+                    className="text-base sm:text-lg font-extrabold"
                   >
                     {aggregateWae.formatted}
+                  </strong>
+                </div>
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 text-center shadow-xl col-span-2 sm:col-span-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                    MATCHUP LUCK
+                  </span>
+                  <strong
+                    style={{
+                      color:
+                        aggregateWae.luckPct === null
+                          ? '#94a3b8'
+                          : aggregateWae.luckPct > 50
+                          ? '#38bdf8'
+                          : aggregateWae.luckPct < 50
+                          ? '#fb923c'
+                          : '#94a3b8'
+                    }}
+                    className="text-base sm:text-lg font-extrabold"
+                  >
+                    {aggregateWae.luckFormatted}
                   </strong>
                 </div>
               </div>
@@ -5301,15 +5331,31 @@ export default function App() {
                             <span>
                               📅 {dayGroup.dayLabel} — Daily Record: {dWins}W - {dLosses}L ({dPct}%) • Leads: {dFav} Fav / {dNeu} Neu / {dNeg} Neg • WAE:{' '}
                               <span
-                                className={
-                                  dWae.waePct === null
-                                    ? 'text-slate-400'
-                                    : dWae.waePct >= 0
-                                    ? 'text-emerald-400'
-                                    : 'text-rose-400'
-                                }
+                                style={{
+                                  color:
+                                    dWae.waePct === null
+                                      ? '#94a3b8'
+                                      : dWae.waePct >= 0
+                                      ? '#4ade80'
+                                      : '#f43f5e'
+                                }}
                               >
                                 {dWae.formatted}
+                              </span>
+                              {' '}• Luck:{' '}
+                              <span
+                                style={{
+                                  color:
+                                    dWae.luckPct === null
+                                      ? '#94a3b8'
+                                      : dWae.luckPct > 50
+                                      ? '#38bdf8'
+                                      : dWae.luckPct < 50
+                                      ? '#fb923c'
+                                      : '#94a3b8'
+                                }}
+                              >
+                                {dWae.luckFormatted}
                               </span>
                             </span>
                           </div>
@@ -5323,9 +5369,15 @@ export default function App() {
                                 ? 'Neg'
                                 : 'Neu';
                             const quality = resolveLogEntryQuality(entry, presets);
-                            const expWinPct = quality ? Math.round(quality.pWin * 100) : null;
-                            const deltaQSign = quality && quality.deltaQ >= 0 ? '+' : '';
-                            const deltaQText = quality ? `${deltaQSign}${quality.deltaQ.toFixed(2)}` : null;
+                            const bmfPct = quality ? Math.round(quality.pPre * 100) : null;
+                            const execWaeVal = quality
+                              ? typeof quality.execWae === 'number'
+                                ? quality.execWae
+                                : quality.deltaQ
+                              : null;
+                            const deltaQSign = execWaeVal !== null && execWaeVal >= 0 ? '+' : '';
+                            const deltaQText =
+                              execWaeVal !== null ? `${deltaQSign}${(execWaeVal * 100).toFixed(1)}%` : null;
 
                             const getBadgeStyle = (label?: string): { bg: string; text: string; border: string } => {
                               switch (label) {
@@ -5362,7 +5414,24 @@ export default function App() {
                               }
                             };
 
+                            const getContextualFlagClass = (flag: string): string => {
+                              if (flag.includes('Double Shield Pocket')) {
+                                return 'bg-rose-500/15 text-rose-300 border-rose-400/40';
+                              }
+                              if (flag.includes('Shield in Pocket')) {
+                                return 'bg-amber-500/15 text-amber-300 border-amber-400/40';
+                              }
+                              if (flag.includes('Clean Sweep')) {
+                                return 'bg-emerald-500/15 text-emerald-300 border-emerald-400/40';
+                              }
+                              if (flag.includes('Shield Advantage')) {
+                                return 'bg-sky-500/15 text-sky-300 border-sky-400/40';
+                              }
+                              return 'bg-amber-500/15 text-amber-300 border-amber-400/40';
+                            };
+
                             const badgeStyle = getBadgeStyle(quality?.badgeLabel);
+                            const contextualFlags: string[] = quality?.contextualFlags || entry.flags || [];
 
                             return (
                               <div
@@ -5434,8 +5503,8 @@ export default function App() {
                                     </strong>
                                   </div>
 
-                                  {/* Battle Quality & WAE Badge Row directly below the Pokémon lineup */}
-                                  <div className="pt-0.5 flex items-center gap-2 flex-wrap">
+                                  {/* Phase 3: Primary Performance Badge & Contextual Event Flags (Pills) Container */}
+                                  <div className="pt-0.5 flex items-center gap-1.5 flex-wrap">
                                     {quality ? (
                                       <>
                                         <span
@@ -5448,18 +5517,18 @@ export default function App() {
                                         >
                                           <span>{quality.badgeLabel}</span>
                                           <span>•</span>
-                                          <span>Exp Win: {expWinPct}%</span>
+                                          <span>BMF: {bmfPct}%</span>
                                           <span>•</span>
-                                          <span>ΔQ: {deltaQText}</span>
+                                          <span>WAE: {deltaQText}</span>
                                         </span>
-                                        {quality.isUnrevealedThird && (
+                                        {contextualFlags.map((flag) => (
                                           <span
-                                            className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-400/40"
-                                            title="3rd opponent slot was unrevealed: evaluated with Meta-Average Prior at 75% confidence weight (w = 0.75)"
+                                            key={flag}
+                                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${getContextualFlagClass(flag)}`}
                                           >
-                                            (⚡ 75% Conf)
+                                            {flag}
                                           </span>
-                                        )}
+                                        ))}
                                       </>
                                     ) : (
                                       <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-900 text-slate-500 border border-slate-800">
@@ -5667,7 +5736,15 @@ export default function App() {
                           );
                           const updated = battleLogs.map((b) =>
                             b.id === editingLogEntry.id
-                              ? { ...editingLogEntry, quality: recomputedQuality, updatedAt: Date.now() }
+                              ? {
+                                  ...editingLogEntry,
+                                  bmfScore: recomputedQuality ? recomputedQuality.pPre : null,
+                                  execWae: recomputedQuality ? recomputedQuality.execWae : null,
+                                  badges: recomputedQuality ? [recomputedQuality.badgeLabel] : [],
+                                  flags: recomputedQuality ? recomputedQuality.contextualFlags : [],
+                                  quality: recomputedQuality,
+                                  updatedAt: Date.now()
+                                }
                               : b
                           );
                           saveBattleLogsToStorage(updated);
