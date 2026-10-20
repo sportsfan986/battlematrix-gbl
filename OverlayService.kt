@@ -28,10 +28,16 @@ import android.os.Looper
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.WindowManager
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
+import android.text.TextUtils
+import android.util.TypedValue
+import android.view.View
 import android.webkit.JavascriptInterface
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.TextView
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.LifecycleService
@@ -3346,6 +3352,14 @@ class OverlayService : LifecycleService() {
     private lateinit var windowManager: WindowManager
     private var overlayView: WebView? = null
     private lateinit var layoutParams: WindowManager.LayoutParams
+    private var statusToastView: TextView? = null
+    private var statusToastParams: WindowManager.LayoutParams? = null
+    private val mainToastHandler = Handler(Looper.getMainLooper())
+    private val hideStatusToastRunnable = Runnable {
+        try {
+            statusToastView?.visibility = View.GONE
+        } catch (_: Exception) {}
+    }
     private lateinit var prefs: SharedPreferences
     private val gson = Gson()
 
@@ -3619,8 +3633,84 @@ class OverlayService : LifecycleService() {
 
     private fun showBattleToast(message: String, duration: Int = Toast.LENGTH_SHORT) {
         if (disableBattleToasts) return
-        Handler(Looper.getMainLooper()).post {
-            Toast.makeText(this, message, duration).show()
+        showStatusBarToast(message, duration)
+    }
+
+    private fun showStatusBarToast(message: String, duration: Int = Toast.LENGTH_SHORT) {
+        mainToastHandler.post {
+            try {
+                val density = resources.displayMetrics.density
+                val borderColor = when {
+                    message.contains("💀") -> Color.parseColor("#F43F5E")
+                    message.contains("🛡️") -> Color.parseColor("#FBBF24")
+                    message.contains("✓") -> Color.parseColor("#4ADE80")
+                    else -> Color.parseColor("#38BDF8")
+                }
+
+                if (statusToastView == null) {
+                    val tv = TextView(this).apply {
+                        setTextColor(Color.parseColor("#F8FAFC"))
+                        setTextSize(TypedValue.COMPLEX_UNIT_SP, 11.5f)
+                        typeface = Typeface.create("sans-serif-condensed", Typeface.BOLD)
+                        isSingleLine = true
+                        ellipsize = TextUtils.TruncateAt.END
+                        maxWidth = (screenWidth * 0.92f).toInt()
+                        setPadding(
+                            (10 * density).toInt(),
+                            (2.5f * density).toInt(),
+                            (10 * density).toInt(),
+                            (2.5f * density).toInt()
+                        )
+                        gravity = Gravity.CENTER_VERTICAL
+                    }
+                    val params = WindowManager.LayoutParams().apply {
+                        type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                        } else {
+                            @Suppress("DEPRECATION")
+                            WindowManager.LayoutParams.TYPE_PHONE
+                        }
+                        flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                                WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
+                        format = PixelFormat.TRANSLUCENT
+                        gravity = Gravity.TOP or Gravity.START
+                        x = (6 * density).toInt()
+                        y = (2 * density).toInt()
+                        width = WindowManager.LayoutParams.WRAP_CONTENT
+                        height = WindowManager.LayoutParams.WRAP_CONTENT
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                            layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+                        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                            layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+                        }
+                    }
+                    windowManager.addView(tv, params)
+                    statusToastView = tv
+                    statusToastParams = params
+                }
+
+                statusToastView?.apply {
+                    background = GradientDrawable().apply {
+                        shape = GradientDrawable.RECTANGLE
+                        cornerRadius = 999f
+                        setColor(Color.parseColor("#EB0F172A"))
+                        setStroke(max(1, (1.2f * density).toInt()), borderColor)
+                    }
+                    text = message
+                    visibility = View.VISIBLE
+                }
+
+                mainToastHandler.removeCallbacks(hideStatusToastRunnable)
+                val delayMs = if (duration == Toast.LENGTH_LONG) 2800L else 1900L
+                mainToastHandler.postDelayed(hideStatusToastRunnable, delayMs)
+            } catch (_: Exception) {
+                val toast = Toast.makeText(this, message, duration)
+                toast.setGravity(Gravity.TOP or Gravity.START, 16, 4)
+                toast.show()
+            }
         }
     }
 
@@ -3901,7 +3991,7 @@ class OverlayService : LifecycleService() {
         }
         overlayView?.evaluateJavascript("if (window.setOverlayMinimizedState) setOverlayMinimizedState(true);", null)
         startForegroundNotification()
-        Toast.makeText(this, "Overlay minimized (OCR paused). Tap bubble to resume.", Toast.LENGTH_SHORT).show()
+        showStatusBarToast("Overlay minimized (OCR paused). Tap bubble to resume.", Toast.LENGTH_SHORT)
     }
 
     private fun restoreOverlayFromBubble() {
@@ -3924,7 +4014,7 @@ class OverlayService : LifecycleService() {
         }
         recalculateAndPushBattleData()
         startForegroundNotification()
-        Toast.makeText(this, "⚔️ Overlay restored & OCR resumed", Toast.LENGTH_SHORT).show()
+        showStatusBarToast("⚔️ Overlay restored & OCR resumed", Toast.LENGTH_SHORT)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -4261,6 +4351,11 @@ class OverlayService : LifecycleService() {
                     (oyMax + oh + 28).coerceAtMost(h).toFloat(),
                     maskPaint
                 )
+            }
+            if (statusToastView?.visibility == View.VISIBLE) {
+                val screenCanvas = Canvas(screen)
+                val maskPaint = Paint().apply { color = Color.BLACK; style = Paint.Style.FILL }
+                screenCanvas.drawRect(0f, 0f, w.toFloat(), (h * 0.036f).coerceAtMost(h * 0.055f), maskPaint)
             }
         } catch (_: Exception) {}
 
@@ -7452,6 +7547,14 @@ class OverlayService : LifecycleService() {
             cachedScreenBitmap?.recycle()
             cachedScreenBitmap = null
         } catch (_: Exception) {}
+
+        mainToastHandler.removeCallbacks(hideStatusToastRunnable)
+        if (statusToastView != null) {
+            try {
+                windowManager.removeView(statusToastView)
+            } catch (_: Exception) {}
+            statusToastView = null
+        }
 
         if (overlayView != null) {
             try {
