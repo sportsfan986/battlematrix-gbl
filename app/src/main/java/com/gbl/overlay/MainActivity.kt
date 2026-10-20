@@ -552,6 +552,19 @@ class MainActivity : AppCompatActivity() {
             ).show()
         }
 
+        findViewById<android.view.View>(R.id.card_battle_log_wae)?.setOnClickListener {
+            showHelpAndMetricGuideDialog("wae")
+        }
+        findViewById<android.view.View>(R.id.btn_info_exec_wae)?.setOnClickListener {
+            showHelpAndMetricGuideDialog("wae")
+        }
+        findViewById<android.view.View>(R.id.card_battle_log_luck)?.setOnClickListener {
+            showHelpAndMetricGuideDialog("luck")
+        }
+        findViewById<android.view.View>(R.id.btn_info_matchup_luck)?.setOnClickListener {
+            showHelpAndMetricGuideDialog("luck")
+        }
+
         val savedScalePct = prefs.getInt(PREFS_KEY_OVERLAY_SCALE_PCT, DEFAULT_OVERLAY_SCALE_PCT).coerceIn(50, 100)
         seekbarOverlayScale.progress = scalePctToProgress(savedScalePct)
         updateOverlayScaleUi(progressToScalePct(seekbarOverlayScale.progress))
@@ -2231,17 +2244,23 @@ class MainActivity : AppCompatActivity() {
                 for (entry in teamDayEntries.sortedByDescending { it.timestampMs }) {
                     val wl = if (entry.result.equals("WIN", ignoreCase = true)) "W" else "L"
                     val leadTag = when (entry.leadMatchup.uppercase()) {
-                        "FAVORABLE" -> "Fav"
-                        "NEGATIVE" -> "Neg"
-                        else -> "Neu"
+                        "FAVORABLE" -> "F"
+                        "NEGATIVE", "UNFAVORABLE" -> "U"
+                        else -> "N"
                     }
                     val q = resolveEntryQuality(entry, presets)
-                    val matchWinTag = if (q != null) "${q.expWinPct}%" else "—%"
+                    val matchPPre = q?.pPre ?: q?.pWin
+                    val matchTag = when {
+                        matchPPre == null -> "N"
+                        matchPPre > 0.60 -> "F"
+                        matchPPre < 0.40 -> "U"
+                        else -> "N"
+                    }
                     val oppList = entry.opponents
                         .map { formatExportPokemonName(it.trim()) }
                         .filter { it.isNotEmpty() }
                     val oppStr = if (oppList.isEmpty()) "Unknown" else oppList.joinToString(" ")
-                    sb.append("$wl (Lead:$leadTag Match:$matchWinTag): $oppStr\n")
+                    sb.append("$wl (L->$leadTag, M->$matchTag) $oppStr\n")
                 }
             }
         }
@@ -2327,6 +2346,128 @@ class MainActivity : AppCompatActivity() {
             "Restored default 5-Tier Thresholds (620 / 530 / 470 / 380)",
             Toast.LENGTH_SHORT
         ).show()
+    }
+
+    private fun showHelpAndMetricGuideDialog(initialTopic: String = "wae") {
+        val density = resources.displayMetrics.density
+        val pad = (14 * density).toInt()
+        val scroll = ScrollView(this)
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, pad, pad, pad)
+            setBackgroundColor(0xFF0F172A.toInt())
+        }
+        scroll.addView(root)
+
+        fun addSectionCard(
+            title: String,
+            accentColor: Int,
+            bodyText: String,
+            isHighlighted: Boolean
+        ): LinearLayout {
+            val card = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setBackgroundColor(if (isHighlighted) 0xFF1E293B.toInt() else 0xFF131C31.toInt())
+                val cPad = (11 * density).toInt()
+                setPadding(cPad, cPad, cPad, cPad)
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    bottomMargin = (10 * density).toInt()
+                }
+            }
+            val titleTv = TextView(this).apply {
+                text = title
+                textSize = 13f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(accentColor)
+            }
+            val bodyTv = TextView(this).apply {
+                text = bodyText
+                textSize = 11.5f
+                setTextColor(0xFFE2E8F0.toInt())
+                setLineSpacing(4f, 1.05f)
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    topMargin = (5 * density).toInt()
+                }
+            }
+            card.addView(titleTv)
+            card.addView(bodyTv)
+            root.addView(card)
+            return card
+        }
+
+        val waeCard = addSectionCard(
+            title = "1. Execution WAE (Wins Above Expected)",
+            accentColor = 0xFF4ADE80.toInt(),
+            bodyText =
+                "Isolates your micro-execution skill (energy farming, fast move denial / sneak prevention, sacrificial catch management, CMP timing, and shield discipline) from blind matchmaking RNG.\n\n" +
+                "• Timeline Duration Weighting: Partitions the match into head-to-head intervals k bounded by swap and faint timestamps. Each interval is evaluated in the 9-state Asymmetric Shield Matrix (0v0 through 2v2) using live shields remaining (R_k = Rating_{s_user v s_opp}) and weighted by fractional duration τ_k = Δt_k / t_total:\n" +
+                "  S_actual = Σ (τ_k · R_k)\n" +
+                "  P_exec = 1 / (1 + e^(-0.006 · (S_actual - 500)))\n\n" +
+                "• Execution Residual (ΔQ): Compares actual outcome (Win = 1.0, Loss = 0.0) against P_exec:\n" +
+                "  ΔQ_base = Result - P_exec\n" +
+                "• Faint Margin Scaling: Wins with a ≥ 2 Pokémon faint margin scale ΔQ × 1.10.\n" +
+                "• Shield-in-Pocket Penalty: Losses with unused shields apply -0.15 × userShieldsRemaining.\n" +
+                "• Aggregate EXEC WAE: Confidence-weighted average of ΔQ_final across filtered battles (+XX.X% means outperforming expected matchups).",
+            isHighlighted = initialTopic == "wae"
+        )
+
+        val luckCard = addSectionCard(
+            title = "2. Matchup Luck (Blind Matchup Favorability — BMF)",
+            accentColor = 0xFF38BDF8.toInt(),
+            bodyText =
+                "Tracks whether matchmaking is handing you favorable team alignments (>50%) or hard-counter RPS lineups (<50%) before micro-execution occurs.\n\n" +
+                "• Lead Score (S_lead): Equal 50/50 blend of 1v1 and 2v2 lead ratings:\n" +
+                "  S_lead = 0.50 · R_1v1 + 0.50 · R_2v2\n" +
+                "• Backline Score (S_back): Evaluates both backline pairings (Score_A & Score_B) and weights optimal switch alignment 70/30:\n" +
+                "  S_back = 0.70 · max(Score_A, Score_B) + 0.30 · min(Score_A, Score_B)\n" +
+                "• Composite Score (M) & Pre-Match Win Prob (P_pre / BMF):\n" +
+                "  M = 0.40 · S_lead + 0.60 · S_back\n" +
+                "  BMF (P_pre) = 1 / (1 + e^(-0.006 · (M - 500)))\n\n" +
+                "• Unrevealed Pokémon Handling:\n" +
+                "  - < 2 Opponents Seen (Early Forfeit): Weight w = 0.00 (excluded from ranked WAE/Luck).\n" +
+                "  - 2 Opponents Seen (Unrevealed 3rd Closer): Weight w = 0.75 using the active league's Meta-Average 1v1 Prior (⚡ 75% Conf).\n" +
+                "  - All 3 Opponents Seen: Full 3v3 evaluation at weight w = 1.00.",
+            isHighlighted = initialTopic == "luck"
+        )
+
+        addSectionCard(
+            title = "3. Badge Glossary (6 Primary Badges & Event Pills)",
+            accentColor = 0xFFFBBF24.toInt(),
+            bodyText =
+                "Primary Performance Badges (classified from Pre-Match BMF P_pre & Match Outcome):\n" +
+                "• Clutch Win (Cyan #22D3EE) — WIN with P_pre < 40%: Overcame a heavily unfavorable team alignment via superior catches, energy lead, or shield baiting.\n" +
+                "• Skill Win (Green #4ADE80) — WIN with 40% ≤ P_pre ≤ 60%: Out-executed the opponent in an even/neutral 3v3 matchup.\n" +
+                "• Expected Win (Slate #94A3B8) — WIN with P_pre > 60%: Cleanly converted a favorable team advantage into a victory.\n" +
+                "• Blunder Loss (Rose #F43F5E) — LOSS with P_pre > 60%: Dropped a favorable matchup where your lineup held >60% win equity.\n" +
+                "• Tough Loss (Orange #FB923C) — LOSS with 40% ≤ P_pre ≤ 60%: Narrow defeat in a competitive 50/50 matchup.\n" +
+                "• Expected Loss (Slate #94A3B8) — LOSS with P_pre < 40%: Hard-countered team alignment (<40% win equity); minimal penalty to WAE.\n\n" +
+                "Contextual Event Flags (Pills):\n" +
+                "• ⚠️ Double Shield Pocket: Loss finished with 2 unused shields remaining (-0.30 ΔQ penalty).\n" +
+                "• ⚠️ Shield in Pocket: Loss finished with 1 unused shield remaining (-0.15 ΔQ penalty).\n" +
+                "• 🧹 Clean Sweep: Win achieved with 0 user faints (all 3 Pokémon surviving).\n" +
+                "• 🛡️ Shield Advantage: Win achieved while ending with more shields remaining than the opponent.\n" +
+                "• ⚡ 75% Conf: Opponent's 3rd Pokémon was never revealed; evaluated at 0.75 confidence weight using the league meta-average prior.",
+            isHighlighted = initialTopic == "badges"
+        )
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("📖 Help & Metric Guide (v3.00)")
+            .setView(scroll)
+            .setPositiveButton("Got It", null)
+            .create()
+        dialog.show()
+
+        if (initialTopic == "luck") {
+            scroll.post { scroll.smoothScrollTo(0, luckCard.top) }
+        } else if (initialTopic == "wae") {
+            scroll.post { scroll.smoothScrollTo(0, waeCard.top) }
+        }
     }
 
     private fun showExportFormatAndTimeframeDialog(isShareIntent: Boolean) {

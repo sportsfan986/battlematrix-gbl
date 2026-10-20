@@ -1,4 +1,4 @@
-# SilphScope PvP — Real-Time 3x3 Matchup Matrix, Damage Calculations, Turn Pacing HUD & Battle Log Overlay for Pokémon GO PvP (v2.13)
+# SilphScope PvP — Real-Time 3x3 Matchup Matrix, Damage Calculations, Turn Pacing HUD & Battle Log Overlay for Pokémon GO PvP (v3.00)
 
 [![Live Web Simulator](https://img.shields.io/badge/🌐%20Live%20Web%20Simulator-Try%20in%20Browser-0284c7?style=for-the-badge&logo=googlechrome&logoColor=white)](https://sportsfan986.github.io/silphscope-pvp/)
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Support%20the%20Project-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/sportsfan986)
@@ -37,45 +37,79 @@ Experience **SilphScope PvP** instantly in your web browser — completely free,
 
 ---
 
-## 📊 Battle Quality & Wins Above Expected (WAE) System
+## Advanced Analytics & Quality Metrics (v3.00)
 
-Raw win rate in GO Battle League is heavily influenced by matchmaking alignment and blind 3v3 team-composition luck (RPS). **Wins Above Expected (WAE)** isolates **micro-execution skill** (shield management, energy farming, sacrificial catches, CMP timing, and optimal backline alignment) from team-composition counter-luck by comparing your actual match outcome ($\text{Result} \in \{0.0, 1.0\}$) against the mathematical **Expected Win Probability ($P_{\text{win}}$)** of the 3v3 lineup.
+Raw win rate in GO Battle League is heavily influenced by matchmaking alignment and blind 3v3 team-composition luck (RPS). **SilphScope PvP v3.00** separates **Matchup Luck (Blind Matchup Favorability — BMF)** from **Dynamic Execution WAE (Wins Above Expected)** so you can track both matchmaking favorability and your in-battle micro-execution skill (energy farming, fast move denial, sacrificial catches, shield discipline, and CMP timing).
 
-### 1. Mathematical Formula & Weighting Constants
+### 1. Asymmetric Shield Matrix Evaluation ($0\text{v}0$ through $2\text{v}2$)
 
-Whenever a battle is logged (or retroactively migrated via `migrateExistingBattleLogs()`), `calculateBattleQuality(myTeam, oppTeam, league, ratingsDb, metaPool)` evaluates the matchup on PvPoke's 500-centered rating scale:
+For any active head-to-head pairing $(\text{userActive}, \text{oppActive})$, `evaluatePvPokeMatchupRating(myMon, oppMon, sUser, sOpp, league)` computes a PvPoke-calibrated $0\text{–}1000$ battle rating ($500 = \text{Neutral}$, $>500 = \text{Favorable}$, $<500 = \text{Negative}$) across all **9 discrete shield permutations** $(s_{\text{user}}, s_{\text{opp}}) \in \{0, 1, 2\}^2$:
+
+$$\mathcal{S} = \{0\text{v}0,\; 0\text{v}1,\; 0\text{v}2,\; 1\text{v}0,\; 1\text{v}1,\; 1\text{v}2,\; 2\text{v}0,\; 2\text{v}1,\; 2\text{v}2\}$$
+
+Each state models unblocked charged-move pressure against the defender's remaining shields ($s_{\text{def}} \in \{0, 1, 2\}$), fast-move effectiveness weighted by average shield depth, Shadow bulk adjustments, and a direct asymmetric shield-advantage delta when $s_{\text{user}} \neq s_{\text{opp}}$.
+
+### 2. Blind Matchup Favorability ($M = 0.40 \cdot S_{\text{lead}} + 0.60 \cdot S_{\text{back}}$)
+
+**Blind Matchup Favorability (BMF / $P_{\text{pre}}$)** measures pre-match 3v3 lineup favorability before any swaps, catches, or baits occur:
 
 - **Lead Score ($S_{\text{lead}}$ — $50/50$ $1\text{v}1$ & $2\text{v}2$ Split)**:
-  Blends the $1\text{v}1$ and $2\text{v}2$ shield scenarios equally to prevent bait-tree distortions and reflect standard lead gameplay:
+  Blends the symmetric $1\text{v}1$ and $2\text{v}2$ shield scenarios equally to prevent bait-tree distortions and reflect standard lead gameplay:
   $$S_{\text{lead}} = 0.50 \cdot \text{Rating}_{1\text{v}1}(\text{myLead}, \text{oppLead}) + 0.50 \cdot \text{Rating}_{2\text{v}2}(\text{myLead}, \text{oppLead})$$
 - **Backline Score ($S_{\text{back}}$ — $70/30$ Optimal Alignment Weighting)**:
-  Evaluates the two possible backline pairings ($\text{Score}_A$ and $\text{Score}_B$) and weights the stronger alignment at $70\%$ and the weaker alignment at $30\%$:
+  Evaluates the two possible $1\text{v}1$ backline pairings ($\text{Score}_A$ and $\text{Score}_B$) and weights the stronger alignment at $70\%$ and the weaker alignment at $30\%$:
   $$S_{\text{back}} = 0.70 \cdot \max(\text{Score}_A, \text{Score}_B) + 0.30 \cdot \min(\text{Score}_A, \text{Score}_B)$$
-- **Composite Score ($M$ — $40/60$ Lead/Backline Weighting) & Logistic Win Probability ($k = 0.006$)**:
-  $$M = 0.40 \cdot S_{\text{lead}} + 0.60 \cdot S_{\text{back}}, \qquad P_{\text{win}} = \frac{1}{1 + e^{-0.006 \cdot (M - 500)}}$$
-- **Residual Quality Delta ($\Delta Q$) & Aggregate WAE**:
-  $$\Delta Q = \text{Result} - P_{\text{win}}, \qquad \text{Aggregate WAE} = \frac{\sum_{i \in \text{Filtered}} w_i \cdot (\text{Result}_i - P_{\text{win}, i})}{\sum_{i \in \text{Filtered}} w_i} \times 100\%$$
+- **Composite Score ($M$) & Logistic Pre-Match Win Probability ($P_{\text{pre}}$ / Matchup Luck)**:
+  $$M = 0.40 \cdot S_{\text{lead}} + 0.60 \cdot S_{\text{back}}, \qquad P_{\text{pre}} = \frac{1}{1 + e^{-0.006 \cdot (M - 500)}}$$
+- **Aggregate Matchup Luck**:
+  $$\text{Matchup Luck} = \frac{\sum_{i \in \text{Filtered}} w_i \cdot P_{\text{pre}, i}}{\sum_{i \in \text{Filtered}} w_i} \times 100\%$$
 
-### 2. Incomplete Match Rules & Unrevealed Pokémon Handling
+### 3. Dynamic Execution WAE with Timeline Duration Weighting ($\sum \tau_k \cdot R_k$)
+
+When a match has recorded timeline events (`SWAP`, `SHIELD`, `FAINT`), `calculateDynamicExecutionWAE` partitions the battle into active head-to-head intervals $k$ bounded by swap and faint timestamps:
+
+- **Duration-Weighted Execution Rating ($S_{\text{actual}}$)**:
+  For each interval $k$ with duration $\Delta t_k$ and fractional weight $\tau_k = \frac{\Delta t_k}{t_{\text{total}}}$, the engine resolves the asymmetric shield rating $R_k = \text{Rating}_{s_{\text{user},k}\text{v}s_{\text{opp},k}}(\text{userActive}_k, \text{oppActive}_k)$ using the live shield counts at that moment:
+  $$S_{\text{actual}} = \sum_{k} \tau_k \cdot R_k, \qquad P_{\text{exec}} = \frac{1}{1 + e^{-0.006 \cdot (S_{\text{actual}} - 500)}}$$
+  *(If timeline events are absent, such as manual or legacy entries, $P_{\text{exec}}$ gracefully falls back to $P_{\text{pre}}$.)*
+- **Base Execution Residual ($\Delta Q_{\text{base}}$)**:
+  $$\Delta Q_{\text{base}} = \text{Result} - P_{\text{exec}}, \qquad \text{Result} \in \{0.0, 1.0\}$$
+- **Faint Margin Scaling ($\times 1.10$)**:
+  If $\text{Result} = 1.0$ and $(\text{oppFaints} - \text{userFaints}) \ge 2$, positive execution credit is scaled by $1.10\times$:
+  $$\Delta Q_{\text{scaled}} = 1.10 \cdot \Delta Q_{\text{base}}$$
+- **Shield-in-Pocket Penalty ($-0.15$ per unused shield)**:
+  If $\text{Result} = 0.0$ and $\text{userShieldsRemaining} > 0$, unspent defensive resources are penalized:
+  $$\Delta Q_{\text{final}} = \Delta Q_{\text{scaled}} - 0.15 \cdot \text{userShieldsRemaining}$$
+- **Aggregate Execution WAE**:
+  $$\text{EXEC WAE} = \frac{\sum_{i \in \text{Filtered}} w_i \cdot \Delta Q_{\text{final}, i}}{\sum_{i \in \text{Filtered}} w_i} \times 100\%$$
+
+### 4. Handling of Unrevealed Pokémon (Early Forfeits & Sweeps)
 
 | Opponent Lineup Seen | Confidence Weight ($w$) | Evaluation Behavior |
 | :--- | :---: | :--- |
-| **Missing 2nd Slot (`firstSwap` null/missing)** | $w = 0.00$ | **Dropped / Unranked (`quality: null`)**: Turn-1 top-left quits or incomplete scans where the opponent's switch was never revealed are excluded from WAE calculations. |
-| **Unrevealed 3rd Slot (`finalSeen` null/missing)** | $w = 0.75$ | **Meta-Average Prior (`⚡ 75% Conf`)**: Pre-calculates the average $1\text{v}1$ ratings of `mySwap` ($\bar{R}_{\text{swap}}$) and `myClose` ($\bar{R}_{\text{close}}$) against the active league's top meta pool to estimate the unrevealed closer at $75\%$ confidence weight. |
+| **Missing 2nd Slot (`firstSwap` null/missing)** | $w = 0.00$ | **Dropped / Unranked (`quality: null`)**: Early forfeits or incomplete scans where the opponent's switch was never revealed are excluded from ranked `EXEC WAE` and `MATCHUP LUCK`. |
+| **Unrevealed 3rd Slot (`finalSeen` null/missing)** | $w = 0.75$ | **75% Confidence Meta-Prior (`⚡ 75% Conf`)**: Substitutes the unweighted average $1\text{v}1$ ratings of `mySwap` ($\bar{R}_{\text{swap}}$) and `myClose` ($\bar{R}_{\text{close}}$) against the active league's top meta pool: $\text{Score}_A = \frac{R_{1\text{v}1}(\text{mySwap}, \text{oppSwap}) + \bar{R}_{\text{close}}}{2}$, $\text{Score}_B = \frac{R_{1\text{v}1}(\text{myClose}, \text{oppSwap}) + \bar{R}_{\text{swap}}}{2}$. |
 | **All 3 Opponents Revealed** | $w = 1.00$ | **Full 3v3 Evaluation**: Exact pairwise $1\text{v}1$ backline matrix evaluation at $100\%$ confidence weight. |
 
-### 3. The 6 Battle Quality Badge Classifications
+### 5. Badge Glossary (6 Primary Performance Badges & 5 Contextual Event Pills)
 
-Each ranked battle card displays `[Badge Label] • Exp Win: XX% • ΔQ: [+/-X.XX]` directly below the Pokémon lineup:
+Primary performance badges are derived from Pre-Match BMF ($P_{\text{pre}}$) and the match outcome, accompanied by contextual timeline/end-state pills:
 
-| Outcome | Expected Win ($P_{\text{win}}$) | Badge Classification | Color Hex | Tactical Meaning |
+| Outcome | Pre-Match BMF ($P_{\text{pre}}$) | Primary Badge | Color Hex | Tactical Meaning |
 | :---: | :---: | :--- | :---: | :--- |
-| **WIN** | $P_{\text{win}} < 0.40$ | **`Clutch Win`** | Cyan `#22d3ee` | Flipped a heavily unfavorable team comp via superior micro-execution (catches, energy lead, or shield baiting). |
-| **WIN** | $0.40 \le P_{\text{win}} \le 0.60$ | **`Skill Win`** | Bright Green `#4ade80` | Outplayed the opponent in an even/neutral 3v3 matchup. |
-| **WIN** | $P_{\text{win}} > 0.60$ | **`Expected Win`** | Muted Slate `#94a3b8` | Cleanly converted a favorable team-composition advantage into a win. |
-| **LOSS** | $P_{\text{win}} > 0.60$ | **`Blunder Loss`** | Rose Red `#f43f5e` | Dropped a favorable matchup where your team had >60% expected win equity. |
-| **LOSS** | $0.40 \le P_{\text{win}} \le 0.60$ | **`Tough Loss`** | Orange `#fb923c` | Narrow loss in a competitive 50/50 matchup. |
-| **LOSS** | $P_{\text{win}} < 0.40$ | **`Expected Loss`** | Muted Slate `#94a3b8` | Hard-countered team composition (<40% win equity); minimal negative impact on WAE. |
+| **WIN** | $P_{\text{pre}} < 0.40$ | **`Clutch Win`** | Cyan `#22d3ee` | Flipped a heavily unfavorable team alignment via superior micro-execution (catches, energy lead, or shield baiting). |
+| **WIN** | $0.40 \le P_{\text{pre}} \le 0.60$ | **`Skill Win`** | Bright Green `#4ade80` | Out-executed the opponent in an even/neutral 3v3 matchup. |
+| **WIN** | $P_{\text{pre}} > 0.60$ | **`Expected Win`** | Muted Slate `#94a3b8` | Cleanly converted a favorable team-composition advantage into a win. |
+| **LOSS** | $P_{\text{pre}} > 0.60$ | **`Blunder Loss`** | Rose Red `#f43f5e` | Dropped a favorable matchup where your 3v3 lineup had $>60\%$ pre-match win equity. |
+| **LOSS** | $0.40 \le P_{\text{pre}} \le 0.60$ | **`Tough Loss`** | Orange `#fb923c` | Narrow loss in a competitive 50/50 matchup. |
+| **LOSS** | $P_{\text{pre}} < 0.40$ | **`Expected Loss`** | Muted Slate `#94a3b8` | Hard-countered team composition ($<40\%$ win equity); minimal negative impact on WAE. |
+
+**Contextual Event Pills**:
+- **`⚠️ Double Shield Pocket`**: Loss with 2 unused shields remaining ($-0.30$ $\Delta Q$ penalty).
+- **`⚠️ Shield in Pocket`**: Loss with 1 unused shield remaining ($-0.15$ $\Delta Q$ penalty).
+- **`🧹 Clean Sweep`**: Win achieved with 0 user faints (all 3 Pokémon surviving).
+- **`🛡️ Shield Advantage`**: Win ending with more shields remaining than the opponent.
+- **`⚡ 75% Conf`**: Opponent's 3rd Pokémon was unrevealed; evaluated at $w = 0.75$ confidence weight using the league meta-average prior.
 
 ---
 
@@ -93,34 +127,34 @@ If **SilphScope PvP** helps you count fast moves, win CMP ties, and climb Elo in
 
 ---
 
-## 📥 Download & Install Native Android APK (v2.13)
+## 📥 Download & Install Native Android APK (v3.00)
 
 1. Visit the **[Official GitHub Releases Page](https://github.com/sportsfan986/silphscope-pvp/releases)**.
-2. Download **`silphscope-pvp-v2.13.apk`** directly to your Android device.
+2. Download **`silphscope-pvp-v3.00.apk`** directly to your Android device.
 3. Tap the downloaded APK file to install (grant *"Install unknown apps"* permission if prompted).
 4. Launch **SilphScope PvP**:
    - Select, reorder, or customize your **GBL Team Presets**, set **Opponent Move Count Basis** (`My Fasts` vs. `Their Fasts`), and adjust **Overlay Size** (`50%–100%` screen width slider) and **Background Transparency**.
    - Grant **"Display over other apps"** (Floating Window permission) and **Screen Capture** permission (used strictly in-memory for 1 Hz ML Kit OCR).
-   - Tap **"Start Battle Overlay"** and launch Pokémon GO!
+   - Tap **"Start Battle Overlay"** (or trigger via Tasker intent hooks) and launch Pokémon GO!
 
 ---
 
-## ✨ Key Features in v2.13
+## ✨ What's New in v3.00 (Consolidating All v2.9x Releases)
 
-- **Accurate Dual-Type Effectiveness & League CP Stat Scaling Engine**:
-  - Synchronizes official dual-types and raw base stats from `gamemaster.json` across all species, computes reference CP directly from stored stat vectors to prevent HP/Defense inflation in Great and Ultra Leagues, prioritizes live PvPoke move powers/energies, and persists Shadow (+20% ATK / -16.7% DEF) modifiers across OCR ticks.
-- **Start Battle / Stop Battle Toggle with Post-Stop Logging**:
-  - Pressing `⚔️ Start Battle` immediately clears the opponent list and empties the 3x3 matrix for a fresh match while switching the button to `🛑 Stop Battle`. When the match concludes, pressing `🛑 Stop Battle` pauses OCR scanning, switches the button back to `⚔️ Start Battle`, and opens the `🏆 Win` / `💀 Loss` / `✕ Skip` logging bar.
-- **Battle Quality & Wins Above Expected (WAE) System**:
-  - Computes Expected Win Probability ($P_{\text{win}}$), Residual Quality Delta ($\Delta Q$), and 6 performance badges (`Clutch Win`, `Skill Win`, `Expected Win`, `Blunder Loss`, `Tough Loss`, `Expected Loss`) with automatic retroactive migration (`migrateExistingBattleLogs()`) and filter-linked `QUALITY (WAE)` summary cards and daily group headers.
-- **Battle Menu OCR Guard (`BATTLE` & `PARTY` Filter)**:
-  - Blocks menu header tokens (`battle`, `party`, `battles`, `parties`) from fuzzy-matching Pokémon names (such as `Paras`) and automatically pauses OCR scanning when on the Pokémon GO Battle Menu screen.
-- **Trash Bin Modal + Quick Undo Toast for Deleted Battles & Teams**:
-  - Soft-deletes battle logs and team presets into a persistent Trash Bin with an instant `↩ UNDO` banner and one-tap individual or bulk restoration.
-- **Streamlined Summary & Go Battle Log Sharing**:
-  - Share or copy overall/daily summaries with `W/L(ExpectedWin%) MyTeamName vs. Opponent1,Opponent2,Opponent3` match rows, or export in Go Battle Log format.
-- **Multi-Device GitHub Cloud Delta Sync (OAuth Device Flow)**:
-  - Sign in directly on Android or Web via GitHub's native Device Flow (`github.com/login/device`) to automatically synchronize team presets and battle logs across multiple phones using conflict-free union + Last-Write-Wins (LWW) + tombstone delta reconciliation.
+- **Phase 1 (v2.90) — Asymmetric 9-Shield Matrix & Blind Matchup Favorability (BMF)**:
+  - Evaluates all 9 discrete shield permutations ($0\text{v}0$ through $2\text{v}2$) for any matchup pair and computes Pre-Match Blind Matchup Favorability ($M = 0.40 \cdot S_{\text{lead}} + 0.60 \cdot S_{\text{back}}$, $P_{\text{pre}}$) with automatic handling of early forfeits ($w = 0.00$) and unrevealed 3rd closers ($w = 0.75$ Meta-Average Prior).
+- **Phase 2 (v2.91) — Battle Timeline Tracking & Dynamic Execution WAE Engine**:
+  - Records timestamped `SWAP`, `SHIELD`, and `FAINT` events during live overlay battles, partitions matches into head-to-head intervals weighted by fractional duration ($\sum \tau_k \cdot R_k$), and applies Faint Margin Scaling ($\times 1.10$) and Shield-in-Pocket Penalties ($-0.15 \times s_{\text{rem}}$).
+- **Phase 3 (v2.93) — 5-Stat Analytics Dashboard, Performance Badges, Event Pills & Historical Migration**:
+  - Upgrades the Battle Log dashboard to a 5-stat grid (`RECORD`, `LEAD MATCHUPS`, `WIN RATE`, `EXEC WAE`, `MATCHUP LUCK`), adds the 6 Primary Performance Badges + 5 Contextual Event Pills (`⚠️ Double Shield Pocket`, `⚠️ Shield in Pocket`, `🧹 Clean Sweep`, `🛡️ Shield Advantage`, `⚡ 75% Conf`), Interactive Battle Recap / Timeline Replay, and automatic retroactive migration of existing battle logs.
+- **v2.94–v2.96 — Faint Detection, Top Statusbar Toasts & Battle Recap Stability**:
+  - Reliable opponent faint detection, preserved swap clock timers on faint swap-ins, dedicated toast alerts for shields and faint swaps rendered in the top statusbar/clock strip (away from charged move buttons), and crash-free Battle Recap replay dialogs.
+- **v2.97–v3.00 — Standardized Go Battle Log Export Formatting, Share Row Format & Tasker Automation Hooks**:
+  - Standardized Pokémon name formatting in **Copy GBL** and **Share / Copy Summary** outputs (`basename_form`, `_` for spaces/hyphens, trailing `S` for Shadows such as `ninetales_alolanS` and `laprasS`, and `_MEGA` / `_MEGA_X` / `_MEGA_Y` / `_PRIMAL` suffixes such as `charizard_MEGA_Y`) while keeping in-app display names unchanged.
+  - Updated Share / Copy Summary individual battle output lines to `W/L (L->F/N/U, M->F/N/U) opponent1 opponent2 opponent3`.
+  - Added headless Tasker intent hooks (`com.gbl.overlay.ACTION_START_OVERLAY`, `com.gbl.overlay.ACTION_STOP_OVERLAY`, `com.gbl.overlay.ACTION_TOGGLE_OVERLAY`, and `com.gbl.overlay.ACTION_OPEN_BATTLE_LOG` / `BattleLogActivity`) to start/stop the overlay without switching apps or launch directly to the Battle Log page.
+- **Phase 4 (v3.00) — In-App `Help & Metric Guide` Modal & Complete Mathematical Documentation**:
+  - Added interactive `(i)` info buttons next to `EXEC WAE` and `MATCHUP LUCK` on both Android and Web to open the **Help & Metric Guide**, documenting Execution WAE, Matchup Luck (BMF), and the full Badge & Event Pill Glossary.
 
 ---
 
@@ -130,8 +164,8 @@ Every push to `main` triggers `.github/workflows/android.yml` (builds signed rel
 
 To increment the version for future releases:
 ```bash
-./scripts/bump_version.sh        # increments sub-version by +0.01 (e.g. v2.12 -> v2.13)
-./scripts/bump_version.sh v2.13  # sets an explicit version
+./scripts/bump_version.sh        # increments sub-version by +0.01 (e.g. v3.00 -> v3.01)
+./scripts/bump_version.sh v3.00  # sets an explicit version
 ```
 
 ---

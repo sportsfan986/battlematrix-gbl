@@ -123,21 +123,26 @@ jobs:
           tag_name: ${{ steps.version.outputs.tag }}
           name: "SilphScope PvP ${{ steps.version.outputs.tag }}"
           body: |
-            ## SilphScope PvP ${{ steps.version.outputs.tag }} — Public Android Release
+            ## SilphScope PvP ${{ steps.version.outputs.tag }} — Official v3.00 Release (Consolidating All v2.9x Milestones)
             
-            > **Release Note:** update pokemon name formatting in output to be standardized with go battle log
-            
-            ### Highlights (v2.97)
-            - **Go Battle Log Standardized Export Formatting (Copy & Share)**:
-              - Replaces spaces and hyphens in Pokémon names with `_` (`Ho-Oh` -> `ho_oh`, `Tapu Fini` -> `tapu_fini`).
-              - Formats regional & form variants as `basename_form` / `basename_region` (`Kanto Ninetales` -> `ninetales_kanto`, `Altered Giratine` / `Giratina (Altered)` -> `giratina_altered`).
-              - Formats Shadow Pokémon with a trailing uppercase `S` after any form suffix (`Shadow Alolan NInetales` -> `ninetales_alolanS`, `Shadow Lapras` -> `laprasS`).
-              - Formats Mega & Primal Pokémon with trailing uppercase `_MEGA` (`_MEGA_X` / `_MEGA_Y`) or `_PRIMAL` (`Mega Charizard Y` -> `charizard_MEGA_Y`).
-              - Keeps in-app Battle Log & Team Builder display names unchanged.
-            - **Tasker Automation Hooks (No App Switching)**:
-              - Start Overlay headlessly (`com.gbl.overlay.ACTION_START_OVERLAY` / `com.gbl.overlay.START` via `TaskerOverlayActivity` or `TaskerBroadcastReceiver`).
-              - Stop Overlay in background (`com.gbl.overlay.ACTION_STOP_OVERLAY` / `com.gbl.overlay.STOP`).
-              - Launch straight to Battle Log page (`com.gbl.overlay.ACTION_OPEN_BATTLE_LOG` / `BattleLogActivity`).
+            ### Highlights in v3.00 & All 2.9x Releases (`v2.90` – `v3.00`)
+            - **Phase 1 (v2.90) — Asymmetric 9-Shield Matrix & Blind Matchup Favorability (BMF)**:
+              - Evaluates all 9 discrete shield permutations (`0v0`, `0v1`, `0v2`, `1v0`, `1v1`, `1v2`, `2v0`, `2v1`, `2v2`) for any head-to-head matchup.
+              - Computes Pre-Match Blind Matchup Favorability ($M = 0.40 \cdot S_{\text{lead}} + 0.60 \cdot S_{\text{back}}$, $P_{\text{pre}}$) with automatic handling of early forfeits ($w = 0.00$ dropped when $<2$ opponents seen) and unrevealed 3rd closers ($w = 0.75$ Meta-Average 1v1 Prior `⚡ 75% Conf`).
+            - **Phase 2 (v2.91) — Battle Timeline Tracking & Dynamic Execution WAE Engine**:
+              - Records timestamped `SWAP`, `SHIELD`, and `FAINT` timeline events during live overlay battles.
+              - Partitions battles into head-to-head intervals weighted by fractional duration ($S_{\text{actual}} = \sum \tau_k \cdot R_k$), applies **Faint Margin Scaling** ($\times 1.10$ on wins with $\ge 2$ faint margin), and applies **Shield-in-Pocket Penalties** ($-0.15 \times \text{userShieldsRemaining}$ on losses).
+            - **Phase 3 (v2.93) — 5-Stat Analytics Dashboard, Performance Badges, Event Pills & Historical Migration**:
+              - Upgraded the Battle Log summary to a 5-stat grid (`RECORD`, `LEAD MATCHUPS`, `WIN RATE`, `EXEC WAE`, `MATCHUP LUCK`).
+              - Added the **6 Primary Performance Badges** (`Clutch Win`, `Skill Win`, `Expected Win`, `Blunder Loss`, `Tough Loss`, `Expected Loss`) and **5 Contextual Event Pills** (`⚠️ Double Shield Pocket`, `⚠️ Shield in Pocket`, `🧹 Clean Sweep`, `🛡️ Shield Advantage`, `⚡ 75% Conf`), Interactive Battle Recap / Timeline Replay, and automatic retroactive migration of existing battle logs.
+            - **v2.94–v2.96 — Faint Detection, Top Statusbar Toasts & Battle Recap Stability**:
+              - Reliable opponent faint detection, preserved swap clock timers on faint swap-ins, dedicated toast alerts for shields and faint swaps rendered in the top statusbar/clock strip (away from charged move buttons), and crash-free Battle Recap replay dialogs.
+            - **v2.97–v3.00 — Standardized Go Battle Log Export Formatting, Share Line Format & Tasker Automation Hooks**:
+              - Standardized Pokémon names in **Copy GBL** and **Share / Copy Summary** outputs (`basename_form`, `_` for spaces/hyphens, trailing `S` for Shadows such as `ninetales_alolanS` and `laprasS`, and `_MEGA` / `_MEGA_X` / `_MEGA_Y` / `_PRIMAL` suffixes such as `charizard_MEGA_Y`) while keeping in-app display names unchanged.
+              - Updated Share individual battle output rows to `W/L (L->F/N/U, M->F/N/U) opponent1 opponent2 opponent3`.
+              - Added headless Tasker intent hooks (`com.gbl.overlay.ACTION_START_OVERLAY`, `com.gbl.overlay.ACTION_STOP_OVERLAY`, `com.gbl.overlay.ACTION_TOGGLE_OVERLAY`, and `com.gbl.overlay.ACTION_OPEN_BATTLE_LOG` / `BattleLogActivity`) to start/stop the overlay without switching apps or launch straight to the Battle Log page.
+            - **Phase 4 (v3.00) — In-App `Help & Metric Guide` Modal & Complete Mathematical Documentation**:
+              - Added interactive `(i)` info buttons next to `EXEC WAE` and `MATCHUP LUCK` on both Android and Web to open the **Help & Metric Guide**, plus full mathematical documentation in `README.md`.
             
             ### Download & Install
             Download **`silphscope-pvp-${{ steps.version.outputs.tag }}.apk`** from the **Assets** section below and install on your Android device.

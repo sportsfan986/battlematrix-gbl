@@ -41,7 +41,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Real-Time PvP Floating Overlay • v2.97"
+                android:text="Real-Time PvP Floating Overlay • v3.00"
                 android:textSize="11sp"
                 android:textColor="#94a3b8"
                 android:layout_marginTop="1dp" />
@@ -1323,22 +1323,44 @@
             </LinearLayout>
 
             <LinearLayout
+                android:id="@+id/card_battle_log_wae"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_weight="0.82"
+                android:layout_weight="0.85"
                 android:orientation="vertical"
                 android:background="#1e293b"
                 android:padding="5dp"
+                android:clickable="true"
+                android:focusable="true"
                 android:layout_marginEnd="3dp">
 
-                <TextView
-                    android:layout_width="wrap_content"
+                <LinearLayout
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:singleLine="true"
-                    android:text="EXEC WAE"
-                    android:textColor="#94a3b8"
-                    android:textSize="7.5sp"
-                    android:textStyle="bold" />
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:singleLine="true"
+                        android:text="EXEC WAE"
+                        android:textColor="#94a3b8"
+                        android:textSize="7.5sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/btn_info_exec_wae"
+                        android:layout_width="14dp"
+                        android:layout_height="14dp"
+                        android:gravity="center"
+                        android:text="i"
+                        android:textColor="#38bdf8"
+                        android:textSize="8.5sp"
+                        android:textStyle="bold"
+                        android:background="#0f172a" />
+                </LinearLayout>
 
                 <TextView
                     android:id="@+id/text_battle_log_wae"
@@ -1353,21 +1375,43 @@
             </LinearLayout>
 
             <LinearLayout
+                android:id="@+id/card_battle_log_luck"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_weight="0.88"
+                android:layout_weight="0.92"
                 android:orientation="vertical"
                 android:background="#1e293b"
+                android:clickable="true"
+                android:focusable="true"
                 android:padding="5dp">
 
-                <TextView
-                    android:layout_width="wrap_content"
+                <LinearLayout
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:singleLine="true"
-                    android:text="MATCHUP LUCK"
-                    android:textColor="#94a3b8"
-                    android:textSize="7.5sp"
-                    android:textStyle="bold" />
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:singleLine="true"
+                        android:text="MATCHUP LUCK"
+                        android:textColor="#94a3b8"
+                        android:textSize="7.5sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/btn_info_matchup_luck"
+                        android:layout_width="14dp"
+                        android:layout_height="14dp"
+                        android:gravity="center"
+                        android:text="i"
+                        android:textColor="#38bdf8"
+                        android:textSize="8.5sp"
+                        android:textStyle="bold"
+                        android:background="#0f172a" />
+                </LinearLayout>
 
                 <TextView
                     android:id="@+id/text_battle_log_luck"

@@ -434,6 +434,8 @@ export default function App() {
   const [replayUserIdx, setReplayUserIdx] = useState<number>(0);
   const [replayOppIdx, setReplayOppIdx] = useState<number>(0);
   const [replayOppShadow, setReplayOppShadow] = useState<boolean>(false);
+  const [showHelpMetricGuideModal, setShowHelpMetricGuideModal] = useState<boolean>(false);
+  const [helpMetricGuideTopic, setHelpMetricGuideTopic] = useState<'wae' | 'bmf' | 'badges'>('wae');
 
   // Two-Device Cloud & Delta Sync States
   const [githubGistToken, setGithubGistToken] = useState<string>(() => localStorage.getItem('gbl_sync_github_token') || '');
@@ -1888,7 +1890,7 @@ export default function App() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'SilphScope_PvP_v2.33_Android_Project.zip';
+      a.download = 'SilphScope_PvP_v3.00_Android_Project.zip';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -1915,7 +1917,7 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <h1 className="font-bold text-base md:text-lg tracking-tight text-white">SilphScope PvP</h1>
                 <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20">
-                  v2.97 • Android Native Overlay
+                  v3.00 • Android Native Overlay
                 </span>
               </div>
               <p className="text-xs text-slate-400 hidden sm:block">
@@ -5212,14 +5214,16 @@ export default function App() {
                   .forEach((b) => {
                     const wl = b.result === 'WIN' ? 'W' : 'L';
                     const leadTag =
-                      b.leadMatchup === 'FAVORABLE' ? 'Fav' : b.leadMatchup === 'NEGATIVE' ? 'Neg' : 'Neu';
+                      b.leadMatchup === 'FAVORABLE' ? 'F' : b.leadMatchup === 'NEGATIVE' ? 'U' : 'N';
                     const q = resolveLogEntryQuality(b, presets);
-                    const matchWinTag = q ? `${Math.round(q.pWin * 100)}%` : '—%';
+                    const matchPPre = q ? (typeof q.pPre === 'number' ? q.pPre : q.pWin) : null;
+                    const matchTag =
+                      matchPPre === null ? 'N' : matchPPre > 0.6 ? 'F' : matchPPre < 0.4 ? 'U' : 'N';
                     const oppList = (b.opponents || [])
                       .map((o) => formatExportPokemonName(o.trim()))
                       .filter(Boolean);
                     const oppStr = oppList.length > 0 ? oppList.join(' ') : 'Unknown';
-                    lines.push(`${wl} (Lead:${leadTag} Match:${matchWinTag}): ${oppStr}`);
+                    lines.push(`${wl} (L->${leadTag}, M->${matchTag}) ${oppStr}`);
                   });
               });
             });
@@ -5349,6 +5353,17 @@ export default function App() {
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
+                      onClick={() => {
+                        setHelpMetricGuideTopic('wae');
+                        setShowHelpMetricGuideModal(true);
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-sky-300 text-xs font-bold flex items-center gap-1.5 transition"
+                    >
+                      <Info className="w-3.5 h-3.5 text-sky-400" />
+                      <span>Help &amp; Metric Guide</span>
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => setShowBattlesTrashModal(true)}
                       className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 text-xs font-bold transition"
                     >
@@ -5373,7 +5388,7 @@ export default function App() {
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
                     RECORD (W - L)
                   </span>
-                  <strong className="text-base sm:text-lg font-extrabold text-white">
+                  <strong className="text-base sm:text-lg font-extrabold text-white tabular-nums">
                     {wins}W - {losses}L ({total})
                   </strong>
                 </div>
@@ -5381,7 +5396,7 @@ export default function App() {
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
                     LEAD MATCHUPS
                   </span>
-                  <strong className="text-xs sm:text-sm font-extrabold text-sky-400">
+                  <strong className="text-xs sm:text-sm font-extrabold text-sky-400 tabular-nums">
                     {favCount} Fav • {neuCount} Neu • {negCount} Neg
                   </strong>
                 </div>
@@ -5389,12 +5404,26 @@ export default function App() {
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
                     WIN RATE
                   </span>
-                  <strong className="text-base sm:text-lg font-extrabold text-amber-400">{winRate}%</strong>
+                  <strong className="text-base sm:text-lg font-extrabold text-amber-400 tabular-nums">{winRate}%</strong>
                 </div>
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 text-center shadow-xl">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                    EXEC WAE
-                  </span>
+                  <div className="flex items-center justify-center gap-1.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                      EXEC WAE
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setHelpMetricGuideTopic('wae');
+                        setShowHelpMetricGuideModal(true);
+                      }}
+                      title="Open Help & Metric Guide: Execution WAE"
+                      aria-label="Open Help & Metric Guide: Execution WAE"
+                      className="w-4 h-4 rounded-full bg-slate-800 hover:bg-sky-500/20 border border-slate-700 hover:border-sky-400/50 text-sky-400 inline-flex items-center justify-center text-[10px] font-bold transition"
+                    >
+                      i
+                    </button>
+                  </div>
                   <strong
                     style={{
                       color:
@@ -5404,15 +5433,29 @@ export default function App() {
                           ? '#4ade80'
                           : '#f43f5e'
                     }}
-                    className="text-base sm:text-lg font-extrabold"
+                    className="text-base sm:text-lg font-extrabold tabular-nums"
                   >
                     {aggregateWae.formatted}
                   </strong>
                 </div>
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 text-center shadow-xl col-span-2 sm:col-span-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                    MATCHUP LUCK
-                  </span>
+                  <div className="flex items-center justify-center gap-1.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                      MATCHUP LUCK
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setHelpMetricGuideTopic('bmf');
+                        setShowHelpMetricGuideModal(true);
+                      }}
+                      title="Open Help & Metric Guide: Matchup Luck (BMF)"
+                      aria-label="Open Help & Metric Guide: Matchup Luck (BMF)"
+                      className="w-4 h-4 rounded-full bg-slate-800 hover:bg-sky-500/20 border border-slate-700 hover:border-sky-400/50 text-sky-400 inline-flex items-center justify-center text-[10px] font-bold transition"
+                    >
+                      i
+                    </button>
+                  </div>
                   <strong
                     style={{
                       color:
@@ -5424,7 +5467,7 @@ export default function App() {
                           ? '#fb923c'
                           : '#94a3b8'
                     }}
-                    className="text-base sm:text-lg font-extrabold"
+                    className="text-base sm:text-lg font-extrabold tabular-nums"
                   >
                     {aggregateWae.luckFormatted}
                   </strong>
@@ -6608,11 +6651,257 @@ export default function App() {
           </div>
         )}
 
+        {/* Help & Metric Guide Modal (v3.00 Documentation Modal) */}
+        {showHelpMetricGuideModal && (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-3xl w-full p-5 sm:p-6 shadow-2xl space-y-4 max-h-[88vh] flex flex-col">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3 shrink-0">
+                <div>
+                  <h3 className="font-bold text-base text-white flex items-center gap-2">
+                    <Info className="w-4 h-4 text-sky-400" />
+                    <span>Help &amp; Metric Guide (v3.00 Analytics Reference)</span>
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    How SilphScope PvP separates micro-execution skill from matchmaking alignment RNG
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowHelpMetricGuideModal(false)}
+                  className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-bold transition"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Section Filter Tabs inside Modal */}
+              <div className="flex items-center gap-1.5 p-1 bg-slate-950 rounded-xl border border-slate-800 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setHelpMetricGuideTopic('wae')}
+                  className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap ${
+                    helpMetricGuideTopic === 'wae'
+                      ? 'bg-emerald-600/20 text-emerald-300 border border-emerald-500/40'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  1. Execution WAE
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setHelpMetricGuideTopic('bmf')}
+                  className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap ${
+                    helpMetricGuideTopic === 'bmf'
+                      ? 'bg-sky-600/20 text-sky-300 border border-sky-500/40'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  2. Matchup Luck (BMF)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setHelpMetricGuideTopic('badges')}
+                  className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap ${
+                    helpMetricGuideTopic === 'badges'
+                      ? 'bg-amber-600/20 text-amber-300 border border-amber-500/40'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  3. Badge Glossary
+                </button>
+              </div>
+
+              <div className="overflow-y-auto space-y-4 pr-1 text-xs leading-relaxed text-slate-300">
+                {/* SECTION 1: EXECUTION WAE */}
+                <div
+                  className={`p-4 rounded-xl border space-y-2.5 ${
+                    helpMetricGuideTopic === 'wae'
+                      ? 'bg-slate-950 border-emerald-500/40'
+                      : 'bg-slate-950/60 border-slate-800'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <h4 className="font-bold text-sm text-emerald-400">
+                      1. Execution WAE (Wins Above Expected)
+                    </h4>
+                    <span className="font-mono text-[11px] text-slate-400">
+                      Aggregate: Σ(w_i · ΔQ_final,i) / Σ(w_i)
+                    </span>
+                  </div>
+                  <p>
+                    <strong>Execution WAE</strong> isolates your in-battle micro-execution — <strong>energy farming</strong>,{' '}
+                    <strong>fast move denial (sneak prevention)</strong>, <strong>sacrificial catch management</strong>,{' '}
+                    <strong>CMP timing</strong>, and <strong>shield discipline</strong> — from blind 3v3 team-composition RNG.
+                  </p>
+                  <div className="p-3 rounded-lg bg-slate-900 border border-slate-800 font-mono text-[11px] text-slate-200 space-y-1">
+                    <div>
+                      <span className="text-emerald-400 font-bold">Timeline Duration Weighting:</span> S_actual = Σ (τ_k · R_k) where τ_k = Δt_k / t_total
+                    </div>
+                    <div>
+                      <span className="text-sky-400 font-bold">Asymmetric 9-Shield Matrix:</span> R_k = Rating_&#123;s_user v s_opp&#125;(userActive, oppActive) ∈ &#123;0v0 .. 2v2&#125;
+                    </div>
+                    <div>
+                      <span className="text-amber-300 font-bold">Execution Win Probability:</span> P_exec = 1 / (1 + e^(-0.006 · (S_actual - 500)))
+                    </div>
+                    <div>
+                      <span className="text-purple-300 font-bold">Base Residual &amp; Modifiers:</span> ΔQ_base = Result - P_exec (Win = 1.0, Loss = 0.0)
+                    </div>
+                  </div>
+                  <ul className="list-disc list-inside space-y-1 text-slate-300">
+                    <li>
+                      <strong>Faint Margin Scaling (×1.10):</strong> When you win with a <code>≥ 2</code> Pokémon faint margin (e.g., 2-0 or 3-0 sweep), positive execution credit is scaled by <code>1.10×</code>.
+                    </li>
+                    <li>
+                      <strong>Shield-in-Pocket Penalty (-0.15 per unused shield):</strong> Losing a match while holding 1 or 2 unused shields applies <code>ΔQ_final = ΔQ_base - 0.15 × userShieldsRemaining</code> to penalize unspent defensive resources.
+                    </li>
+                    <li>
+                      <strong>Interpretation:</strong> A positive <code>EXEC WAE</code> (e.g., <code>+8.4%</code>) means your micro-decisions are converting more wins than the active on-field alignments and shield states predict.
+                    </li>
+                  </ul>
+                </div>
+
+                {/* SECTION 2: MATCHUP LUCK (BMF) */}
+                <div
+                  className={`p-4 rounded-xl border space-y-2.5 ${
+                    helpMetricGuideTopic === 'bmf'
+                      ? 'bg-slate-950 border-sky-500/40'
+                      : 'bg-slate-950/60 border-slate-800'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <h4 className="font-bold text-sm text-sky-400">
+                      2. Matchup Luck (Blind Matchup Favorability — BMF)
+                    </h4>
+                    <span className="font-mono text-[11px] text-slate-400">
+                      M = 0.40 · S_lead + 0.60 · S_back
+                    </span>
+                  </div>
+                  <p>
+                    <strong>Matchup Luck (BMF / P_pre)</strong> measures whether matchmaking is handing you favorable team alignments (<code>&gt;50%</code>) or hard-counter RPS lineups (<code>&lt;50%</code>) purely from the 3v3 rosters before any swaps, catches, or baits occur.
+                  </p>
+                  <div className="p-3 rounded-lg bg-slate-900 border border-slate-800 font-mono text-[11px] text-slate-200 space-y-1">
+                    <div>
+                      <span className="text-sky-400 font-bold">Lead Score (50/50 1v1 &amp; 2v2):</span> S_lead = 0.50 · R_1v1(lead) + 0.50 · R_2v2(lead)
+                    </div>
+                    <div>
+                      <span className="text-emerald-400 font-bold">Backline Score (70/30 Optimal Alignment):</span> S_back = 0.70 · max(Score_A, Score_B) + 0.30 · min(Score_A, Score_B)
+                    </div>
+                    <div>
+                      <span className="text-amber-300 font-bold">Composite &amp; Logistic BMF:</span> M = 0.40 · S_lead + 0.60 · S_back  ⇒  P_pre = 1 / (1 + e^(-0.006 · (M - 500)))
+                    </div>
+                  </div>
+                  <ul className="list-disc list-inside space-y-1 text-slate-300">
+                    <li>
+                      <strong>Early Forfeits (&lt;2 Opponents Revealed, w = 0.00):</strong> Matches where the opponent&apos;s first switch is never revealed are dropped from ranked WAE and Matchup Luck calculations.
+                    </li>
+                    <li>
+                      <strong>Unrevealed 3rd Closer (2 Opponents Revealed, w = 0.75):</strong> When an opponent forfeits or gets swept before revealing their 3rd Pokémon, SilphScope substitutes the active league&apos;s <strong>Meta-Average 1v1 Prior</strong> (<code>R̄_swap</code>, <code>R̄_close</code>) at <code>75%</code> confidence weight (tagged <code>⚡ 75% Conf</code>).
+                    </li>
+                    <li>
+                      <strong>Full 3v3 Revealed (w = 1.00):</strong> Exact pairwise 1v1 backline matrix evaluation at <code>100%</code> confidence weight.
+                    </li>
+                  </ul>
+                </div>
+
+                {/* SECTION 3: BADGE GLOSSARY */}
+                <div
+                  className={`p-4 rounded-xl border space-y-3 ${
+                    helpMetricGuideTopic === 'badges'
+                      ? 'bg-slate-950 border-amber-500/40'
+                      : 'bg-slate-950/60 border-slate-800'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <h4 className="font-bold text-sm text-amber-400">
+                      3. Badge Glossary (6 Primary Badges &amp; 5 Contextual Event Pills)
+                    </h4>
+                    <span className="font-mono text-[11px] text-slate-400">
+                      Derived from Pre-Match BMF (P_pre) &amp; Timeline
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+                      <div className="font-bold text-cyan-400">Clutch Win • WIN (P_pre &lt; 40%)</div>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Flipped a heavily unfavorable team alignment (&lt;40% pre-match win equity) through superior catches, energy management, or shield baiting.
+                      </p>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+                      <div className="font-bold text-emerald-400">Skill Win • WIN (40% ≤ P_pre ≤ 60%)</div>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Out-executed the opponent in a balanced, neutral 3v3 matchup.
+                      </p>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+                      <div className="font-bold text-slate-300">Expected Win • WIN (P_pre &gt; 60%)</div>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Cleanly converted a favorable team-composition advantage into a win without throwing alignment.
+                      </p>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+                      <div className="font-bold text-rose-400">Blunder Loss • LOSS (P_pre &gt; 60%)</div>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Dropped a favorable matchup where your 3v3 lineup held over 60% expected win equity.
+                      </p>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+                      <div className="font-bold text-orange-400">Tough Loss • LOSS (40% ≤ P_pre ≤ 60%)</div>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Narrow defeat in a competitive 50/50 matchup decided by micro-timing or CMP.
+                      </p>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+                      <div className="font-bold text-slate-400">Expected Loss • LOSS (P_pre &lt; 40%)</div>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Hard-countered team alignment (&lt;40% win equity); carries minimal negative impact on WAE.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="pt-1 border-t border-slate-800 space-y-1.5">
+                    <div className="font-bold text-xs text-slate-200">
+                      Contextual Event Flags (Timeline &amp; End-State Pills):
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[11px]">
+                      <div className="p-2 rounded bg-slate-900 border border-slate-800">
+                        <span className="font-bold text-rose-300">⚠️ Double Shield Pocket:</span> Loss finished with 2 unused shields remaining (<code>-0.30</code> ΔQ penalty).
+                      </div>
+                      <div className="p-2 rounded bg-slate-900 border border-slate-800">
+                        <span className="font-bold text-amber-300">⚠️ Shield in Pocket:</span> Loss finished with 1 unused shield remaining (<code>-0.15</code> ΔQ penalty).
+                      </div>
+                      <div className="p-2 rounded bg-slate-900 border border-slate-800">
+                        <span className="font-bold text-emerald-300">🧹 Clean Sweep:</span> Win achieved with <code>0</code> user faints (all 3 Pokémon surviving).
+                      </div>
+                      <div className="p-2 rounded bg-slate-900 border border-slate-800">
+                        <span className="font-bold text-sky-300">🛡️ Shield Advantage:</span> Win achieved while ending with more shields remaining than the opponent.
+                      </div>
+                      <div className="p-2 rounded bg-slate-900 border border-slate-800 sm:col-span-2">
+                        <span className="font-bold text-purple-300">⚡ 75% Conf:</span> Opponent&apos;s 3rd Pokémon was unrevealed; evaluated at <code>w = 0.75</code> confidence weight using the league&apos;s Meta-Average 1v1 Prior.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end items-center pt-2 border-t border-slate-800 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowHelpMetricGuideModal(false)}
+                  className="px-4 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold transition"
+                >
+                  Got It
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
       </main>
 
       {/* Footer */}
       <footer className="border-t border-slate-800/80 py-4 px-6 text-center text-xs text-slate-500">
-        SilphScope PvP v2.33 Overlay • Built with Kotlin, WindowManager TYPE_APPLICATION_OVERLAY, MediaProjection in-memory frame capture, and ML Kit Text Recognition.
+        SilphScope PvP v3.00 Overlay • Built with Kotlin, WindowManager TYPE_APPLICATION_OVERLAY, MediaProjection in-memory frame capture, and ML Kit Text Recognition.
       </footer>
     </div>
   );
