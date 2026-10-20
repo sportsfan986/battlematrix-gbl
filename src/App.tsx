@@ -1915,7 +1915,7 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <h1 className="font-bold text-base md:text-lg tracking-tight text-white">SilphScope PvP</h1>
                 <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20">
-                  v2.96 • Android Native Overlay
+                  v2.97 • Android Native Overlay
                 </span>
               </div>
               <p className="text-xs text-slate-400 hidden sm:block">
@@ -4924,6 +4924,137 @@ export default function App() {
             }
           });
 
+          const formatExportPokemonName = (rawName: string): string => {
+            let working = (rawName || '').trim();
+            if (!working) return '';
+            if (/^(unknown|waiting\.\.\.)$/i.test(working)) return working;
+
+            let isShadow = false;
+            let megaPrimalSuffix = '';
+
+            const parenShadowRegex = /\(\s*shadow\s*\)/gi;
+            if (parenShadowRegex.test(working)) {
+              isShadow = true;
+              working = working.replace(parenShadowRegex, ' ').trim();
+            }
+
+            const leadingShadowRegex = /^shadow[\s_-]+(?!rider\b)/i;
+            if (leadingShadowRegex.test(working)) {
+              isShadow = true;
+              working = working.replace(leadingShadowRegex, '').trim();
+            }
+
+            const trailingShadowRegex = /[\s_-]+shadow$/i;
+            if (trailingShadowRegex.test(working)) {
+              isShadow = true;
+              working = working.replace(trailingShadowRegex, '').trim();
+            }
+
+            if (
+              working.length > 1 &&
+              working.endsWith('S') &&
+              /[a-z]/.test(working.slice(0, -1)) &&
+              !/_MEGA_S$/i.test(working)
+            ) {
+              isShadow = true;
+              working = working.slice(0, -1).trim();
+            }
+
+            const parenForms: string[] = [];
+            const parenRegex = /\(([^)]+)\)/g;
+            let match: RegExpExecArray | null;
+            while ((match = parenRegex.exec(working)) !== null) {
+              const inside = match[1].trim();
+              if (!inside || /^(base|shadow)$/i.test(inside)) continue;
+              const megaParenMatch = inside.match(/^mega(?:[\s_-]+([xy]))?$/i);
+              if (megaParenMatch) {
+                megaPrimalSuffix = megaParenMatch[1] ? `_MEGA_${megaParenMatch[1].toUpperCase()}` : '_MEGA';
+              } else if (/^primal$/i.test(inside)) {
+                megaPrimalSuffix = '_PRIMAL';
+              } else if (/^[xy]$/i.test(inside) && /^mega[\s_-]+/i.test(working)) {
+                megaPrimalSuffix = `_MEGA_${inside.toUpperCase()}`;
+              } else {
+                parenForms.push(inside);
+              }
+            }
+            let basePart = working.replace(parenRegex, ' ').replace(/\s+/g, ' ').trim();
+            let formPart = parenForms.join('_');
+
+            const trailingMegaPrimalMatch = basePart.match(/^(.+?)[\s_-]+(mega(?:[\s_-]+[xy])?|primal)$/i);
+            if (trailingMegaPrimalMatch) {
+              basePart = trailingMegaPrimalMatch[1].trim();
+              const mpRaw = trailingMegaPrimalMatch[2].trim();
+              if (/^primal$/i.test(mpRaw)) {
+                megaPrimalSuffix = '_PRIMAL';
+              } else {
+                const xy = mpRaw.match(/([xy])$/i);
+                megaPrimalSuffix = xy ? `_MEGA_${xy[1].toUpperCase()}` : '_MEGA';
+              }
+            }
+
+            const prefixFormRegex =
+              /^(dusk[\s_-]+mane|dawn[\s_-]+wings|single[\s_-]+strike|rapid[\s_-]+strike|crowned[\s_-]+sword|crowned[\s_-]+shield|ice[\s_-]+rider|shadow[\s_-]+rider|galarian[\s_-]+standard|galarian[\s_-]+zen|paldean[\s_-]+combat|paldean[\s_-]+blaze|paldean[\s_-]+aqua|blue[\s_-]+striped|red[\s_-]+striped|white[\s_-]+striped|east[\s_-]+sea|west[\s_-]+sea|full[\s_-]+belly|pom[\s_-]+pom|kanto|kantonian|alolan|alola|galarian|galar|hisuian|hisui|paldean|paldea|unovan|unova|johto|hoenn|sinnoh|kalos|altered|origin|origine|therian|incarnate|crowned|hero|black|white|single|rapid|mega|primal|defense|attack|speed|normal|aria|pirouette|complete|unbound|confined|resolute|ordinary|sky|land|bloodmoon|armored|apex|wash|heat|frost|mow|fan|sunny|rainy|snowy|plant|trash|burn|chill|douse|shock|midnight|midday|dusk|baile|pau|pa'u|sensu|zen|standard|combat|blaze|aqua|hangry)[\s_-]+(.+)$/i;
+            const prefixMatch = basePart.match(prefixFormRegex);
+            if (prefixMatch) {
+              const extractedPrefix = prefixMatch[1].trim();
+              let remainingBase = prefixMatch[2].trim();
+              if (/^mega$/i.test(extractedPrefix)) {
+                const megaXYMatch = remainingBase.match(/^(.+?)[\s_-]+([xy])$/i);
+                if (megaXYMatch) {
+                  remainingBase = megaXYMatch[1].trim();
+                  megaPrimalSuffix = `_MEGA_${megaXYMatch[2].toUpperCase()}`;
+                } else if (!megaPrimalSuffix) {
+                  megaPrimalSuffix = '_MEGA';
+                }
+                basePart = remainingBase;
+              } else if (/^primal$/i.test(extractedPrefix)) {
+                megaPrimalSuffix = '_PRIMAL';
+                basePart = remainingBase;
+              } else {
+                basePart = remainingBase;
+                formPart = formPart ? `${extractedPrefix}_${formPart}` : extractedPrefix;
+              }
+            } else {
+              const sandyMatch = basePart.match(/^(sandy)[\s_-]+(wormadam.*)$/i);
+              if (sandyMatch) {
+                const extractedPrefix = sandyMatch[1].trim();
+                basePart = sandyMatch[2].trim();
+                formPart = formPart ? `${extractedPrefix}_${formPart}` : extractedPrefix;
+              }
+            }
+
+            if (megaPrimalSuffix) {
+              isShadow = false;
+            }
+
+            let normBase = basePart
+              .toLowerCase()
+              .replace(/[\s-]+/g, '_')
+              .replace(/_+/g, '_')
+              .replace(/^_+|_+$/g, '');
+
+            if (normBase === 'giratine') normBase = 'giratina';
+            else if (normBase.startsWith('giratine_')) normBase = 'giratina_' + normBase.slice('giratine_'.length);
+            if (normBase === 'ninetails') normBase = 'ninetales';
+            else if (normBase.startsWith('ninetails_')) normBase = 'ninetales_' + normBase.slice('ninetails_'.length);
+
+            const normForm = formPart
+              .toLowerCase()
+              .replace(/[\s-]+/g, '_')
+              .replace(/_+/g, '_')
+              .replace(/^_+|_+$/g, '');
+
+            const combined =
+              normForm && normForm !== 'base' && !normBase.endsWith(`_${normForm}`)
+                ? `${normBase}_${normForm}`
+                : normBase;
+
+            if (megaPrimalSuffix) {
+              return `${combined}${megaPrimalSuffix}`;
+            }
+            return isShadow ? `${combined}S` : combined;
+          };
+
           const resolveUserTeamInfo = (entry: WebBattleLogEntry) => {
             const matchedPreset = presets.find(
               (p) =>
@@ -4933,7 +5064,8 @@ export default function App() {
             const tName = (entry.userTeamName || '').trim() || matchedPreset?.name || 'My Team';
             const directMons = (entry.userPokemon || []).map((m) => m.trim()).filter(Boolean);
             const presetMons = (matchedPreset?.pokemon || []).map((p) => p.name.trim()).filter(Boolean);
-            const mons = directMons.length > 0 ? directMons : presetMons.length > 0 ? presetMons : [tName];
+            const rawMons = directMons.length > 0 ? directMons : presetMons.length > 0 ? presetMons : [tName];
+            const mons = rawMons.map((m) => formatExportPokemonName(m));
             const monsBracket = `[${mons.join(' ')}]`;
             const groupKey = `${tName.toLowerCase()}||${mons.join(' ').toLowerCase()}`;
             return { teamName: tName, mons, monsBracket, groupKey };
@@ -4948,7 +5080,9 @@ export default function App() {
                 logFilterTeamId !== 'ALL TEAMS'
                   ? presets.find((p) => p.id === logFilterTeamId)
                   : presets.find((p) => p.isSelected) || presets[0];
-              const fallbackMons = (chosenPreset?.pokemon || []).map((p) => p.name.trim()).filter(Boolean);
+              const fallbackMons = (chosenPreset?.pokemon || [])
+                .map((p) => formatExportPokemonName(p.name.trim()))
+                .filter(Boolean);
               return fallbackMons.length > 0 ? `[${fallbackMons.join(' ')}]` : '[My Team]';
             }
 
@@ -4973,7 +5107,9 @@ export default function App() {
               .map(([monsBracket, entries]) => {
                 const sortedEntries = [...entries].sort((a, b) => b.timestampMs - a.timestampMs);
                 const rows = sortedEntries.map((entry) => {
-                  const oppList = (entry.opponents || []).map((o) => o.trim()).filter(Boolean);
+                  const oppList = (entry.opponents || [])
+                    .map((o) => formatExportPokemonName(o.trim()))
+                    .filter(Boolean);
                   const oppStr = oppList.length > 0 ? oppList.join(' ') : 'Unknown';
                   const wl = entry.result === 'WIN' ? 'W' : 'L';
                   return `${oppStr} ${wl}`;
@@ -5079,7 +5215,9 @@ export default function App() {
                       b.leadMatchup === 'FAVORABLE' ? 'Fav' : b.leadMatchup === 'NEGATIVE' ? 'Neg' : 'Neu';
                     const q = resolveLogEntryQuality(b, presets);
                     const matchWinTag = q ? `${Math.round(q.pWin * 100)}%` : '—%';
-                    const oppList = (b.opponents || []).map((o) => o.trim()).filter(Boolean);
+                    const oppList = (b.opponents || [])
+                      .map((o) => formatExportPokemonName(o.trim()))
+                      .filter(Boolean);
                     const oppStr = oppList.length > 0 ? oppList.join(' ') : 'Unknown';
                     lines.push(`${wl} (Lead:${leadTag} Match:${matchWinTag}): ${oppStr}`);
                   });

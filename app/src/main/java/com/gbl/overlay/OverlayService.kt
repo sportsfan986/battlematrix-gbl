@@ -84,14 +84,26 @@ class OverlayService : LifecycleService() {
     companion object {
         const val ACTION_START_OVERLAY = "com.gbl.overlay.ACTION_START_OVERLAY"
         const val ACTION_STOP_OVERLAY = "com.gbl.overlay.ACTION_STOP_OVERLAY"
+        const val ACTION_TOGGLE_OVERLAY = "com.gbl.overlay.ACTION_TOGGLE_OVERLAY"
+        const val ACTION_MINIMIZE_OVERLAY = "com.gbl.overlay.ACTION_MINIMIZE_OVERLAY"
+        const val ACTION_RESTORE_OVERLAY = "com.gbl.overlay.ACTION_RESTORE_OVERLAY"
+        const val ACTION_OPEN_BATTLE_LOG = "com.gbl.overlay.ACTION_OPEN_BATTLE_LOG"
+        const val ACTION_SHORT_START = "com.gbl.overlay.START"
+        const val ACTION_SHORT_STOP = "com.gbl.overlay.STOP"
+        const val ACTION_SHORT_TOGGLE = "com.gbl.overlay.TOGGLE"
+        const val ACTION_SHORT_BATTLE_LOG = "com.gbl.overlay.BATTLE_LOG"
         const val ACTION_TOGGLE_LAYOUT = "com.gbl.overlay.ACTION_TOGGLE_LAYOUT"
         const val ACTION_UPDATE_PRESET = "com.gbl.overlay.ACTION_UPDATE_PRESET"
         const val ACTION_UPDATE_SETTINGS = "com.gbl.overlay.ACTION_UPDATE_SETTINGS"
         const val ACTION_START_BATTLE = "com.gbl.overlay.ACTION_START_BATTLE"
 
+        @Volatile var isInstanceRunning: Boolean = false
+        @Volatile var hasActiveMediaProjection: Boolean = false
+
         const val EXTRA_RESULT_CODE = "extra_result_code"
         const val EXTRA_RESULT_DATA = "extra_result_data"
         const val EXTRA_PRESET_JSON = "extra_preset_json"
+        const val EXTRA_TEAM_NAME = "team"
         const val EXTRA_OPP_COUNT_MODE = "extra_opp_count_mode"
         const val EXTRA_OVERLAY_SCALE_PCT = "extra_overlay_scale_pct"
         const val EXTRA_OVERLAY_TRANSPARENCY_PCT = "extra_overlay_transparency_pct"
@@ -3594,6 +3606,7 @@ class OverlayService : LifecycleService() {
 
     override fun onCreate() {
         super.onCreate()
+        isInstanceRunning = true
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         mediaProjectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         prefs = getSharedPreferences("gbl_overlay_prefs", Context.MODE_PRIVATE)
@@ -4022,9 +4035,23 @@ class OverlayService : LifecycleService() {
         val action = intent?.action ?: ACTION_START_OVERLAY
 
         when (action) {
-            ACTION_START_OVERLAY -> {
+            ACTION_START_OVERLAY, ACTION_SHORT_START -> {
+                isInstanceRunning = true
+                if (isOverlayMinimized) {
+                    restoreOverlayFromBubble()
+                }
                 isOverlayMinimized = false
-                startForegroundNotification()
+
+                val resultCode = intent?.getIntExtra(EXTRA_RESULT_CODE, 0) ?: 0
+                val resultData = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    intent?.getParcelableExtra(EXTRA_RESULT_DATA, Intent::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    intent?.getParcelableExtra(EXTRA_RESULT_DATA)
+                }
+                val canUseProjectionFgs = (resultCode != 0 && resultData != null) || mediaProjection != null
+                startForegroundNotification(canUseProjectionFgs)
+
                 intent?.getStringExtra(EXTRA_OPP_COUNT_MODE)?.let { mode ->
                     if (mode == "opp_fasts" || mode == "my_fasts") {
                         oppCountMode = mode
@@ -4057,6 +4084,21 @@ class OverlayService : LifecycleService() {
                 }
                 overlayView?.evaluateJavascript("if (window.setDisableBattleToasts) setDisableBattleToasts($disableBattleToasts);", null)
 
+                val requestedTeamName = intent?.getStringExtra(EXTRA_TEAM_NAME)
+                    ?: intent?.getStringExtra("preset")
+                if (!requestedTeamName.isNullOrBlank()) {
+                    val allPresets = loadPresets()
+                    val matched = allPresets.find {
+                        it.name.equals(requestedTeamName.trim(), ignoreCase = true) ||
+                            it.id.equals(requestedTeamName.trim(), ignoreCase = true)
+                    }
+                    if (matched != null && matched.pokemon.isNotEmpty()) {
+                        currentPreset = matched
+                        activeUserPokemonName = matched.pokemon.first().name
+                        prefs.edit().putString("gbl_selected_preset_id", matched.id).apply()
+                    }
+                }
+
                 intent?.getStringExtra(EXTRA_PRESET_JSON)?.let { presetJson ->
                     try {
                         val incoming = gson.fromJson(presetJson, TeamPreset::class.java)
@@ -4065,13 +4107,6 @@ class OverlayService : LifecycleService() {
                             activeUserPokemonName = incoming.pokemon.first().name
                         }
                     } catch (_: Exception) {}
-                }
-                val resultCode = intent?.getIntExtra(EXTRA_RESULT_CODE, 0) ?: 0
-                val resultData = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    intent?.getParcelableExtra(EXTRA_RESULT_DATA, Intent::class.java)
-                } else {
-                    @Suppress("DEPRECATION")
-                    intent?.getParcelableExtra(EXTRA_RESULT_DATA)
                 }
 
                 if (!areAllFourLeaguesLoaded() || DYNAMIC_POKEMON_DATABASE.isEmpty()) {
@@ -4135,13 +4170,28 @@ class OverlayService : LifecycleService() {
             }
             ACTION_START_BATTLE -> startNewBattle()
             ACTION_TOGGLE_LAYOUT -> toggleLayoutMode()
-            ACTION_STOP_OVERLAY -> stopSelf()
+            ACTION_MINIMIZE_OVERLAY -> minimizeOverlayToBubble()
+            ACTION_RESTORE_OVERLAY -> restoreOverlayFromBubble()
+            ACTION_TOGGLE_OVERLAY, ACTION_SHORT_TOGGLE -> {
+                if (isOverlayMinimized) {
+                    restoreOverlayFromBubble()
+                } else {
+                    isInstanceRunning = false
+                    hasActiveMediaProjection = false
+                    stopSelf()
+                }
+            }
+            ACTION_STOP_OVERLAY, ACTION_SHORT_STOP -> {
+                isInstanceRunning = false
+                hasActiveMediaProjection = false
+                stopSelf()
+            }
         }
 
         return START_STICKY
     }
 
-    private fun startForegroundNotification() {
+    private fun startForegroundNotification(hasMediaProjectionToken: Boolean = (mediaProjection != null)) {
         val notificationIntent = Intent(this, OverlayService::class.java).apply {
             action = ACTION_STOP_OVERLAY
         }
@@ -4165,7 +4215,23 @@ class OverlayService : LifecycleService() {
             .build()
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
+            try {
+                if (hasMediaProjectionToken) {
+                    startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
+                } else if (Build.VERSION.SDK_INT >= 34) {
+                    startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+                } else {
+                    startForeground(NOTIFICATION_ID, notification)
+                }
+            } catch (_: Exception) {
+                try {
+                    if (Build.VERSION.SDK_INT >= 34) {
+                        startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+                    } else {
+                        startForeground(NOTIFICATION_ID, notification)
+                    }
+                } catch (_: Exception) {}
+            }
         } else {
             startForeground(NOTIFICATION_ID, notification)
         }
@@ -4223,11 +4289,13 @@ class OverlayService : LifecycleService() {
             mediaProjection?.stop()
 
             mediaProjection = mediaProjectionManager?.getMediaProjection(resultCode, data)
+            hasActiveMediaProjection = mediaProjection != null
 
             // CRITICAL FOR ANDROID 14+ (API 34+): Must register callback before createVirtualDisplay
             mediaProjection?.registerCallback(object : MediaProjection.Callback() {
                 override fun onStop() {
                     super.onStop()
+                    hasActiveMediaProjection = false
                     virtualDisplay?.release()
                     virtualDisplay = null
                 }
@@ -7536,6 +7604,8 @@ class OverlayService : LifecycleService() {
 
     override fun onDestroy() {
         super.onDestroy()
+        isInstanceRunning = false
+        hasActiveMediaProjection = false
         battleLoopJob?.cancel()
 
         try {

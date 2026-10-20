@@ -125,12 +125,19 @@ jobs:
           body: |
             ## SilphScope PvP ${{ steps.version.outputs.tag }} — Public Android Release
             
-            > **Changelog:** Phase 3/4 of 3.00 release, use 2.3x builds until 3.00 released
+            > **Release Note:** update pokemon name formatting in output to be standardized with go battle log
             
-            ### Phase 3 Highlights (v2.93)
-            - **5-Stat Header Summary Grid & Daily Section Banners**: Expanded top Battle Log summary row into `RECORD (W - L)`, `LEAD MATCHUPS`, `WIN RATE`, `EXEC WAE` (`+XX.X%`, Green `#4ade80` / Red `#f43f5e`), and `MATCHUP LUCK` (`XX.X%`, Blue `#38bdf8` / Orange `#fb923c`), and appended formatted `WAE` and `Luck` metrics to daily section banners.
-            - **Battle Card Badges & Contextual Event Flags**: Added Primary Performance Badges derived from $P_{\text{pre}}$ (`Clutch Win`, `Skill Win`, `Expected Win`, `Blunder Loss`, `Tough Loss`, `Expected Loss`) and Contextual Event Flag pills (`⚠️ Double Shield Pocket`, `⚠️ Shield in Pocket`, `🧹 Clean Sweep`, `🛡️ Shield Advantage`, `⚡ 75% Conf`).
-            - **Retroactive Data Migration**: One-time migration routine that marks battles missing `oppTeam.firstSwap` as unranked (`bmfScore: null`, `execWae: null`) and enriches valid matches with BMF ($P_{\text{pre}}$), Dynamic Execution WAE ($\Delta Q_{\text{final}}$), badges, and flags without data loss.
+            ### Highlights (v2.97)
+            - **Go Battle Log Standardized Export Formatting (Copy & Share)**:
+              - Replaces spaces and hyphens in Pokémon names with `_` (`Ho-Oh` -> `ho_oh`, `Tapu Fini` -> `tapu_fini`).
+              - Formats regional & form variants as `basename_form` / `basename_region` (`Kanto Ninetales` -> `ninetales_kanto`, `Altered Giratine` / `Giratina (Altered)` -> `giratina_altered`).
+              - Formats Shadow Pokémon with a trailing uppercase `S` after any form suffix (`Shadow Alolan NInetales` -> `ninetales_alolanS`, `Shadow Lapras` -> `laprasS`).
+              - Formats Mega & Primal Pokémon with trailing uppercase `_MEGA` (`_MEGA_X` / `_MEGA_Y`) or `_PRIMAL` (`Mega Charizard Y` -> `charizard_MEGA_Y`).
+              - Keeps in-app Battle Log & Team Builder display names unchanged.
+            - **Tasker Automation Hooks (No App Switching)**:
+              - Start Overlay headlessly (`com.gbl.overlay.ACTION_START_OVERLAY` / `com.gbl.overlay.START` via `TaskerOverlayActivity` or `TaskerBroadcastReceiver`).
+              - Stop Overlay in background (`com.gbl.overlay.ACTION_STOP_OVERLAY` / `com.gbl.overlay.STOP`).
+              - Launch straight to Battle Log page (`com.gbl.overlay.ACTION_OPEN_BATTLE_LOG` / `BattleLogActivity`).
             
             ### Download & Install
             Download **`silphscope-pvp-${{ steps.version.outputs.tag }}.apk`** from the **Assets** section below and install on your Android device.

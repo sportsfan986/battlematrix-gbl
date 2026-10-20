@@ -1,6 +1,7 @@
 package com.gbl.overlay
 
 import android.app.Activity
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
@@ -253,11 +254,20 @@ class MainActivity : AppCompatActivity() {
         renderBattleLogPage()
         checkGamemasterCache()
         fetchSeasonsFromScrapedDuck()
+        syncOverlayRunningUiState()
+        handleIncomingNavigationAndTaskerIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIncomingNavigationAndTaskerIntent(intent)
     }
 
     override fun onResume() {
         super.onResume()
         if (::prefs.isInitialized) {
+            syncOverlayRunningUiState()
             migrateExistingBattleLogs()
             setupBattleLogFilters()
             renderBattleLogPage()
@@ -265,6 +275,79 @@ class MainActivity : AppCompatActivity() {
             checkPendingGitHubDeviceLoginOnResume()
             // Automatically pull & reconcile deltas from the other device on every app open / resume
             triggerTwoDeviceCloudSync(silent = true)
+        }
+    }
+
+    private fun syncOverlayRunningUiState() {
+        isOverlayRunning = OverlayService.isInstanceRunning
+        if (::btnToggleOverlay.isInitialized && ::statusText.isInitialized) {
+            if (isOverlayRunning) {
+                btnToggleOverlay.text = "Stop Battle Overlay"
+                statusText.text = "Status: Overlay Active (Option 1 Sky Trench loaded)"
+            } else {
+                btnToggleOverlay.text = "Start Battle Overlay"
+                statusText.text = "Status: Idle"
+            }
+        }
+    }
+
+    private fun handleIncomingNavigationAndTaskerIntent(incoming: Intent?) {
+        if (incoming == null) return
+        val act = incoming.action.orEmpty()
+        val compClass = incoming.component?.className.orEmpty()
+        val pageExtra = (incoming.getStringExtra("page") ?: incoming.getStringExtra("tab")).orEmpty().trim()
+        val cmdExtra = (incoming.getStringExtra("cmd") ?: incoming.getStringExtra("command")).orEmpty().trim()
+        val openLogBool = incoming.getBooleanExtra("open_battle_log", false) ||
+            incoming.getBooleanExtra("battle_log", false)
+        val dataUri = incoming.data
+
+        val shouldOpenBattleLog =
+            compClass.endsWith("BattleLogActivity", ignoreCase = true) ||
+                act.equals(OverlayService.ACTION_OPEN_BATTLE_LOG, ignoreCase = true) ||
+                act.equals(OverlayService.ACTION_SHORT_BATTLE_LOG, ignoreCase = true) ||
+                act.equals("com.gbl.overlay.OPEN_BATTLE_LOG", ignoreCase = true) ||
+                pageExtra.equals("battle_log", ignoreCase = true) ||
+                pageExtra.equals("battlelog", ignoreCase = true) ||
+                pageExtra.equals("log", ignoreCase = true) ||
+                cmdExtra.equals("battle_log", ignoreCase = true) ||
+                openLogBool ||
+                dataUri?.host.equals("battle_log", ignoreCase = true) ||
+                dataUri?.path?.contains("battle_log", ignoreCase = true) == true
+
+        if (shouldOpenBattleLog) {
+            switchMainPage("battle_log")
+            return
+        }
+
+        if (pageExtra.equals("settings", ignoreCase = true)) {
+            switchMainPage("settings")
+            return
+        }
+
+        if (act.equals(OverlayService.ACTION_STOP_OVERLAY, ignoreCase = true) ||
+            act.equals(OverlayService.ACTION_SHORT_STOP, ignoreCase = true) ||
+            cmdExtra.equals("stop", ignoreCase = true)
+        ) {
+            stopOverlayService()
+            if (incoming.getBooleanExtra("background", true)) {
+                finish()
+            }
+            return
+        }
+
+        if (act.equals(OverlayService.ACTION_START_OVERLAY, ignoreCase = true) ||
+            act.equals(OverlayService.ACTION_SHORT_START, ignoreCase = true) ||
+            cmdExtra.equals("start", ignoreCase = true)
+        ) {
+            val taskerIntent = Intent(this, TaskerOverlayActivity::class.java).apply {
+                action = OverlayService.ACTION_START_OVERLAY
+                incoming.extras?.let { putExtras(it) }
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NO_ANIMATION)
+            }
+            startActivity(taskerIntent)
+            if (incoming.getBooleanExtra("background", true)) {
+                finish()
+            }
         }
     }
 
@@ -422,6 +505,51 @@ class MainActivity : AppCompatActivity() {
         }
         btnRestoreTierThresholds.setOnClickListener {
             restoreDefaultTierThresholds()
+        }
+
+        findViewById<Button>(R.id.btn_copy_tasker_start)?.setOnClickListener {
+            val cm = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            cm.setPrimaryClip(
+                android.content.ClipData.newPlainText(
+                    "Tasker Start Overlay",
+                    OverlayService.ACTION_START_OVERLAY
+                )
+            )
+            Toast.makeText(
+                this,
+                "Copied Tasker Start Action: ${OverlayService.ACTION_START_OVERLAY} (Package: com.gbl.overlay)",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+
+        findViewById<Button>(R.id.btn_copy_tasker_stop)?.setOnClickListener {
+            val cm = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            cm.setPrimaryClip(
+                android.content.ClipData.newPlainText(
+                    "Tasker Stop Overlay",
+                    OverlayService.ACTION_STOP_OVERLAY
+                )
+            )
+            Toast.makeText(
+                this,
+                "Copied Tasker Stop Action: ${OverlayService.ACTION_STOP_OVERLAY} (Package: com.gbl.overlay)",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+
+        findViewById<Button>(R.id.btn_copy_tasker_battle_log)?.setOnClickListener {
+            val cm = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            cm.setPrimaryClip(
+                android.content.ClipData.newPlainText(
+                    "Tasker Open Battle Log",
+                    OverlayService.ACTION_OPEN_BATTLE_LOG
+                )
+            )
+            Toast.makeText(
+                this,
+                "Copied Tasker Battle Log Action: ${OverlayService.ACTION_OPEN_BATTLE_LOG} (Package: com.gbl.overlay)",
+                Toast.LENGTH_SHORT
+            ).show()
         }
 
         val savedScalePct = prefs.getInt(PREFS_KEY_OVERLAY_SCALE_PCT, DEFAULT_OVERLAY_SCALE_PCT).coerceIn(50, 100)
@@ -1817,6 +1945,159 @@ class MainActivity : AppCompatActivity() {
         val groupKey: String
     )
 
+    /**
+     * Standardized Go Battle Log Export Name Formatter (used exclusively for Copy & Share output, not in-app log naming):
+     * 1. Replaces spaces and hyphens in Pokémon names with '_'
+     * 2. Formats form/region variants as basename_form / basename_region (e.g. ninetales_kanto, giratina_altered)
+     * 3. Shadow Pokémon names end in uppercase 'S' after any form suffix and do not start with 'Shadow' (e.g. ninetales_alolanS, laprasS)
+     * 4. Mega and Primal Pokémon end with uppercase '_MEGA' (or '_MEGA_X' / '_MEGA_Y') or '_PRIMAL' (e.g. charizard_MEGA_Y)
+     * 5. All Pokémon names are entirely lowercase besides the ending 'S' for Shadow variants or '_MEGA' / '_PRIMAL' suffixes
+     */
+    private fun formatExportPokemonName(rawName: String): String {
+        var working = rawName.trim()
+        if (working.isEmpty()) return ""
+        if (working.equals("Unknown", ignoreCase = true) || working.equals("Waiting...", ignoreCase = true)) {
+            return working
+        }
+
+        var isShadow = false
+        var megaPrimalSuffix = ""
+
+        val parenShadowRegex = Regex("\\(\\s*shadow\\s*\\)", RegexOption.IGNORE_CASE)
+        if (parenShadowRegex.containsMatchIn(working)) {
+            isShadow = true
+            working = working.replace(parenShadowRegex, " ").trim()
+        }
+
+        val leadingShadowRegex = Regex("^shadow[\\s_-]+(?!rider\\b)", RegexOption.IGNORE_CASE)
+        if (leadingShadowRegex.containsMatchIn(working)) {
+            isShadow = true
+            working = working.replace(leadingShadowRegex, "").trim()
+        }
+
+        val trailingShadowRegex = Regex("[\\s_-]+shadow$", RegexOption.IGNORE_CASE)
+        if (trailingShadowRegex.containsMatchIn(working)) {
+            isShadow = true
+            working = working.replace(trailingShadowRegex, "").trim()
+        }
+
+        if (working.length > 1 &&
+            working.endsWith("S") &&
+            working.dropLast(1).any { it.isLowerCase() } &&
+            !working.endsWith("_MEGA_S", ignoreCase = true)
+        ) {
+            isShadow = true
+            working = working.dropLast(1).trim()
+        }
+
+        val parenForms = mutableListOf<String>()
+        val parenRegex = Regex("\\(([^)]+)\\)")
+        parenRegex.findAll(working).forEach { match ->
+            val inside = match.groupValues[1].trim()
+            if (inside.isNotEmpty() && !inside.equals("base", ignoreCase = true) && !inside.equals("shadow", ignoreCase = true)) {
+                val megaParenMatch = Regex("^mega(?:[\\s_-]+([xy]))?$", RegexOption.IGNORE_CASE).find(inside)
+                when {
+                    megaParenMatch != null -> {
+                        val xy = megaParenMatch.groupValues[1]
+                        megaPrimalSuffix = if (xy.isNotEmpty()) "_MEGA_${xy.uppercase()}" else "_MEGA"
+                    }
+                    inside.equals("primal", ignoreCase = true) -> {
+                        megaPrimalSuffix = "_PRIMAL"
+                    }
+                    (inside.equals("x", ignoreCase = true) || inside.equals("y", ignoreCase = true)) &&
+                        working.startsWith("mega", ignoreCase = true) -> {
+                        megaPrimalSuffix = "_MEGA_${inside.uppercase()}"
+                    }
+                    else -> {
+                        parenForms.add(inside)
+                    }
+                }
+            }
+        }
+        var basePart = working.replace(parenRegex, " ").replace(Regex("\\s+"), " ").trim()
+        var formPart = parenForms.joinToString("_")
+
+        val trailingMegaPrimalMatch = Regex("^(.+?)[\\s_-]+(mega(?:[\\s_-]+[xy])?|primal)$", RegexOption.IGNORE_CASE).find(basePart)
+        if (trailingMegaPrimalMatch != null) {
+            basePart = trailingMegaPrimalMatch.groupValues[1].trim()
+            val mpRaw = trailingMegaPrimalMatch.groupValues[2].trim()
+            megaPrimalSuffix = if (mpRaw.equals("primal", ignoreCase = true)) {
+                "_PRIMAL"
+            } else {
+                val xyMatch = Regex("([xy])$", RegexOption.IGNORE_CASE).find(mpRaw)
+                if (xyMatch != null) "_MEGA_${xyMatch.groupValues[1].uppercase()}" else "_MEGA"
+            }
+        }
+
+        val prefixFormRegex = Regex(
+            "^(dusk[\\s_-]+mane|dawn[\\s_-]+wings|single[\\s_-]+strike|rapid[\\s_-]+strike|crowned[\\s_-]+sword|crowned[\\s_-]+shield|ice[\\s_-]+rider|shadow[\\s_-]+rider|galarian[\\s_-]+standard|galarian[\\s_-]+zen|paldean[\\s_-]+combat|paldean[\\s_-]+blaze|paldean[\\s_-]+aqua|blue[\\s_-]+striped|red[\\s_-]+striped|white[\\s_-]+striped|east[\\s_-]+sea|west[\\s_-]+sea|full[\\s_-]+belly|pom[\\s_-]+pom|kanto|kantonian|alolan|alola|galarian|galar|hisuian|hisui|paldean|paldea|unovan|unova|johto|hoenn|sinnoh|kalos|altered|origin|origine|therian|incarnate|crowned|hero|black|white|single|rapid|mega|primal|defense|attack|speed|normal|aria|pirouette|complete|unbound|confined|resolute|ordinary|sky|land|bloodmoon|armored|apex|wash|heat|frost|mow|fan|sunny|rainy|snowy|plant|trash|burn|chill|douse|shock|midnight|midday|dusk|baile|pau|pa'u|sensu|zen|standard|combat|blaze|aqua|hangry)[\\s_-]+(.+)$",
+            RegexOption.IGNORE_CASE
+        )
+        val prefixMatch = prefixFormRegex.find(basePart)
+        if (prefixMatch != null) {
+            val extractedPrefix = prefixMatch.groupValues[1].trim()
+            var remainingBase = prefixMatch.groupValues[2].trim()
+            when {
+                extractedPrefix.equals("mega", ignoreCase = true) -> {
+                    val megaXYMatch = Regex("^(.+?)[\\s_-]+([xy])$", RegexOption.IGNORE_CASE).find(remainingBase)
+                    if (megaXYMatch != null) {
+                        remainingBase = megaXYMatch.groupValues[1].trim()
+                        megaPrimalSuffix = "_MEGA_${megaXYMatch.groupValues[2].uppercase()}"
+                    } else if (megaPrimalSuffix.isEmpty()) {
+                        megaPrimalSuffix = "_MEGA"
+                    }
+                    basePart = remainingBase
+                }
+                extractedPrefix.equals("primal", ignoreCase = true) -> {
+                    megaPrimalSuffix = "_PRIMAL"
+                    basePart = remainingBase
+                }
+                else -> {
+                    basePart = remainingBase
+                    formPart = if (formPart.isEmpty()) extractedPrefix else "${extractedPrefix}_$formPart"
+                }
+            }
+        } else {
+            val sandyMatch = Regex("^(sandy)[\\s_-]+(wormadam.*)$", RegexOption.IGNORE_CASE).find(basePart)
+            if (sandyMatch != null) {
+                val extractedPrefix = sandyMatch.groupValues[1].trim()
+                basePart = sandyMatch.groupValues[2].trim()
+                formPart = if (formPart.isEmpty()) extractedPrefix else "${extractedPrefix}_$formPart"
+            }
+        }
+
+        if (megaPrimalSuffix.isNotEmpty()) {
+            isShadow = false
+        }
+
+        var normBase = basePart.lowercase()
+            .replace(Regex("[\\s-]+"), "_")
+            .replace(Regex("_+"), "_")
+            .trim('_')
+
+        if (normBase == "giratine") normBase = "giratina"
+        else if (normBase.startsWith("giratine_")) normBase = "giratina_" + normBase.removePrefix("giratine_")
+        if (normBase == "ninetails") normBase = "ninetales"
+        else if (normBase.startsWith("ninetails_")) normBase = "ninetales_" + normBase.removePrefix("ninetails_")
+
+        val normForm = formPart.lowercase()
+            .replace(Regex("[\\s-]+"), "_")
+            .replace(Regex("_+"), "_")
+            .trim('_')
+
+        val combined = if (normForm.isNotEmpty() && normForm != "base" && !normBase.endsWith("_$normForm")) {
+            "${normBase}_${normForm}"
+        } else {
+            normBase
+        }
+
+        return when {
+            megaPrimalSuffix.isNotEmpty() -> "$combined$megaPrimalSuffix"
+            isShadow -> "${combined}S"
+            else -> combined
+        }
+    }
+
     private fun resolveUserTeamInfo(entry: BattleLogEntry, presets: List<TeamPreset>): ResolvedUserTeamInfo {
         val matchedPreset = presets.find {
             (entry.presetId.isNotBlank() && it.id == entry.presetId) ||
@@ -1826,9 +2107,9 @@ class MainActivity : AppCompatActivity() {
         val directMons = entry.userPokemon.map { it.trim() }.filter { it.isNotEmpty() }
         val presetMons = matchedPreset?.pokemon?.map { it.name.trim() }?.filter { it.isNotEmpty() }.orEmpty()
         val mons = when {
-            directMons.isNotEmpty() -> directMons
-            presetMons.isNotEmpty() -> presetMons
-            else -> listOf(teamName)
+            directMons.isNotEmpty() -> directMons.map { formatExportPokemonName(it) }
+            presetMons.isNotEmpty() -> presetMons.map { formatExportPokemonName(it) }
+            else -> listOf(formatExportPokemonName(teamName))
         }
         val monsBracket = "[${mons.joinToString(" ")}]"
         val groupKey = "${teamName.lowercase()}||${mons.joinToString(" ").lowercase()}"
@@ -1856,7 +2137,10 @@ class MainActivity : AppCompatActivity() {
             } else {
                 presets.find { it.isSelected } ?: presets.firstOrNull()
             }
-            val fallbackMons = selectedPreset?.pokemon?.map { it.name.trim() }?.filter { it.isNotEmpty() }.orEmpty()
+            val fallbackMons = selectedPreset?.pokemon
+                ?.map { formatExportPokemonName(it.name.trim()) }
+                ?.filter { it.isNotEmpty() }
+                .orEmpty()
             return if (fallbackMons.isNotEmpty()) "[${fallbackMons.joinToString(" ")}]" else "[My Team]"
         }
 
@@ -1869,7 +2153,9 @@ class MainActivity : AppCompatActivity() {
             val sb = StringBuilder()
             sb.append(monsBracket).append("\n")
             for (entry in teamEntries.sortedByDescending { it.timestampMs }) {
-                val oppList = entry.opponents.map { it.trim() }.filter { it.isNotEmpty() }
+                val oppList = entry.opponents
+                    .map { formatExportPokemonName(it.trim()) }
+                    .filter { it.isNotEmpty() }
                 val oppStr = if (oppList.isEmpty()) "Unknown" else oppList.joinToString(" ")
                 val wl = if (entry.result.equals("WIN", ignoreCase = true)) "W" else "L"
                 sb.append("$oppStr $wl\n")
@@ -1951,7 +2237,9 @@ class MainActivity : AppCompatActivity() {
                     }
                     val q = resolveEntryQuality(entry, presets)
                     val matchWinTag = if (q != null) "${q.expWinPct}%" else "—%"
-                    val oppList = entry.opponents.map { it.trim() }.filter { it.isNotEmpty() }
+                    val oppList = entry.opponents
+                        .map { formatExportPokemonName(it.trim()) }
+                        .filter { it.isNotEmpty() }
                     val oppStr = if (oppList.isEmpty()) "Unknown" else oppList.joinToString(" ")
                     sb.append("$wl (Lead:$leadTag Match:$matchWinTag): $oppStr\n")
                 }
@@ -3676,6 +3964,271 @@ class MainActivity : AppCompatActivity() {
                     dbStatusText.text = "Database Sync Failed: ${e.localizedMessage}\n${formatDbAndLeagueStatusText()}"
                     btnDownloadDb.isEnabled = true
                     Toast.makeText(this@MainActivity, "Sync error: ${e.message}", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Headless Translucent Activity for Tasker Automation:
+ * Starts or stops the floating PvP overlay over the current foreground app (e.g., Pokémon GO)
+ * without opening MainActivity or leaving the game.
+ */
+class TaskerOverlayActivity : Activity() {
+
+    private var requestedTeamExtra: String? = null
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        @Suppress("DEPRECATION")
+        overridePendingTransition(0, 0)
+        handleTaskerIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleTaskerIntent(intent)
+    }
+
+    private fun handleTaskerIntent(incoming: Intent?) {
+        val act = incoming?.action.orEmpty()
+        val cmd = (incoming?.getStringExtra("cmd") ?: incoming?.getStringExtra("command")).orEmpty().trim()
+        requestedTeamExtra = incoming?.getStringExtra(OverlayService.EXTRA_TEAM_NAME)
+            ?: incoming?.getStringExtra("preset")
+
+        val isStop = act.equals(OverlayService.ACTION_STOP_OVERLAY, ignoreCase = true) ||
+            act.equals(OverlayService.ACTION_SHORT_STOP, ignoreCase = true) ||
+            cmd.equals("stop", ignoreCase = true)
+
+        val isToggle = act.equals(OverlayService.ACTION_TOGGLE_OVERLAY, ignoreCase = true) ||
+            act.equals(OverlayService.ACTION_SHORT_TOGGLE, ignoreCase = true) ||
+            cmd.equals("toggle", ignoreCase = true)
+
+        val isMinimize = act.equals(OverlayService.ACTION_MINIMIZE_OVERLAY, ignoreCase = true) ||
+            cmd.equals("minimize", ignoreCase = true)
+
+        val isRestore = act.equals(OverlayService.ACTION_RESTORE_OVERLAY, ignoreCase = true) ||
+            cmd.equals("restore", ignoreCase = true)
+
+        val isOpenBattleLog = act.equals(OverlayService.ACTION_OPEN_BATTLE_LOG, ignoreCase = true) ||
+            act.equals(OverlayService.ACTION_SHORT_BATTLE_LOG, ignoreCase = true) ||
+            cmd.equals("battle_log", ignoreCase = true)
+
+        when {
+            isOpenBattleLog -> {
+                val mainIntent = Intent(this, MainActivity::class.java).apply {
+                    action = OverlayService.ACTION_OPEN_BATTLE_LOG
+                    putExtra("page", "battle_log")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                }
+                startActivity(mainIntent)
+                finishQuietly()
+            }
+            isStop || (isToggle && OverlayService.isInstanceRunning) -> {
+                val stopIntent = Intent(this, OverlayService::class.java).apply {
+                    action = OverlayService.ACTION_STOP_OVERLAY
+                }
+                try {
+                    startService(stopIntent)
+                } catch (_: Exception) {
+                    stopService(Intent(this, OverlayService::class.java))
+                }
+                finishQuietly()
+            }
+            isMinimize -> {
+                if (OverlayService.isInstanceRunning) {
+                    val minIntent = Intent(this, OverlayService::class.java).apply {
+                        action = OverlayService.ACTION_MINIMIZE_OVERLAY
+                    }
+                    startService(minIntent)
+                }
+                finishQuietly()
+            }
+            isRestore -> {
+                if (OverlayService.isInstanceRunning) {
+                    val resIntent = Intent(this, OverlayService::class.java).apply {
+                        action = OverlayService.ACTION_RESTORE_OVERLAY
+                    }
+                    startService(resIntent)
+                }
+                finishQuietly()
+            }
+            else -> {
+                // Default / ACTION_START_OVERLAY
+                if (!Settings.canDrawOverlays(this)) {
+                    val permIntent = Intent(
+                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:$packageName")
+                    ).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    Toast.makeText(this, "Grant 'Display over other apps' permission for SilphScope PvP", Toast.LENGTH_LONG).show()
+                    startActivity(permIntent)
+                    finishQuietly()
+                    return
+                }
+
+                val manualMode = incoming?.getBooleanExtra("manual_mode", false) == true
+                if ((OverlayService.isInstanceRunning && OverlayService.hasActiveMediaProjection) || manualMode) {
+                    startOverlayServiceWithResult(0, null)
+                    finishQuietly()
+                    return
+                }
+
+                val projMgr = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as? MediaProjectionManager
+                if (projMgr != null) {
+                    try {
+                        @Suppress("DEPRECATION")
+                        startActivityForResult(projMgr.createScreenCaptureIntent(), REQ_TASKER_MEDIA_PROJECTION)
+                    } catch (_: Exception) {
+                        startOverlayServiceWithResult(0, null)
+                        finishQuietly()
+                    }
+                } else {
+                    startOverlayServiceWithResult(0, null)
+                    finishQuietly()
+                }
+            }
+        }
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQ_TASKER_MEDIA_PROJECTION) {
+            if (resultCode == RESULT_OK && data != null) {
+                startOverlayServiceWithResult(resultCode, data)
+            } else {
+                startOverlayServiceWithResult(0, null)
+            }
+            finishQuietly()
+        }
+    }
+
+    private fun startOverlayServiceWithResult(resultCode: Int, data: Intent?) {
+        val prefs = getSharedPreferences("gbl_overlay_prefs", Context.MODE_PRIVATE)
+        val serviceIntent = Intent(this, OverlayService::class.java).apply {
+            action = OverlayService.ACTION_START_OVERLAY
+            putExtra(OverlayService.EXTRA_RESULT_CODE, resultCode)
+            if (data != null) {
+                putExtra(OverlayService.EXTRA_RESULT_DATA, data)
+            }
+            if (!requestedTeamExtra.isNullOrBlank()) {
+                putExtra(OverlayService.EXTRA_TEAM_NAME, requestedTeamExtra)
+            }
+            putExtra(OverlayService.EXTRA_OPP_COUNT_MODE, prefs.getString("opp_count_mode", "my_fasts") ?: "my_fasts")
+            putExtra(OverlayService.EXTRA_ENABLE_4_CHARGED_MOVES, prefs.getBoolean(OverlayService.PREFS_KEY_ENABLE_4_CHARGED_MOVES, false))
+            putExtra(OverlayService.EXTRA_DISABLE_BATTLE_TOASTS, prefs.getBoolean(OverlayService.PREFS_KEY_DISABLE_BATTLE_TOASTS, false))
+            putExtra(OverlayService.EXTRA_OVERLAY_SCALE_PCT, prefs.getInt("overlay_scale_pct", 78))
+            putExtra(OverlayService.EXTRA_OVERLAY_TRANSPARENCY_PCT, prefs.getInt(OverlayService.PREFS_KEY_OVERLAY_TRANSPARENCY_PCT, 72))
+        }
+        try {
+            ContextCompat.startForegroundService(this, serviceIntent)
+        } catch (_: Exception) {
+            try {
+                startService(serviceIntent)
+            } catch (_: Exception) {}
+        }
+    }
+
+    private fun finishQuietly() {
+        finish()
+        @Suppress("DEPRECATION")
+        overridePendingTransition(0, 0)
+    }
+
+    companion object {
+        private const val REQ_TASKER_MEDIA_PROJECTION = 9401
+    }
+}
+
+/**
+ * BroadcastReceiver for Tasker Send Intent (Target: Broadcast Receiver):
+ * Supports starting, stopping, toggling, minimizing, or restoring the overlay and launching the Battle Log page.
+ */
+class TaskerBroadcastReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent?) {
+        val act = intent?.action.orEmpty()
+        val cmd = (intent?.getStringExtra("cmd") ?: intent?.getStringExtra("command")).orEmpty().trim()
+
+        val isStop = act.equals(OverlayService.ACTION_STOP_OVERLAY, ignoreCase = true) ||
+            act.equals(OverlayService.ACTION_SHORT_STOP, ignoreCase = true) ||
+            cmd.equals("stop", ignoreCase = true)
+
+        val isToggle = act.equals(OverlayService.ACTION_TOGGLE_OVERLAY, ignoreCase = true) ||
+            act.equals(OverlayService.ACTION_SHORT_TOGGLE, ignoreCase = true) ||
+            cmd.equals("toggle", ignoreCase = true)
+
+        val isMinimize = act.equals(OverlayService.ACTION_MINIMIZE_OVERLAY, ignoreCase = true) ||
+            cmd.equals("minimize", ignoreCase = true)
+
+        val isRestore = act.equals(OverlayService.ACTION_RESTORE_OVERLAY, ignoreCase = true) ||
+            cmd.equals("restore", ignoreCase = true)
+
+        val isOpenBattleLog = act.equals(OverlayService.ACTION_OPEN_BATTLE_LOG, ignoreCase = true) ||
+            act.equals(OverlayService.ACTION_SHORT_BATTLE_LOG, ignoreCase = true) ||
+            cmd.equals("battle_log", ignoreCase = true)
+
+        when {
+            isOpenBattleLog -> {
+                val mainIntent = Intent(context, MainActivity::class.java).apply {
+                    action = OverlayService.ACTION_OPEN_BATTLE_LOG
+                    putExtra("page", "battle_log")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                }
+                context.startActivity(mainIntent)
+            }
+            isStop || (isToggle && OverlayService.isInstanceRunning) -> {
+                if (OverlayService.isInstanceRunning) {
+                    val stopIntent = Intent(context, OverlayService::class.java).apply {
+                        action = OverlayService.ACTION_STOP_OVERLAY
+                    }
+                    try {
+                        context.startService(stopIntent)
+                    } catch (_: Exception) {
+                        context.stopService(Intent(context, OverlayService::class.java))
+                    }
+                } else {
+                    context.stopService(Intent(context, OverlayService::class.java))
+                }
+            }
+            isMinimize -> {
+                if (OverlayService.isInstanceRunning) {
+                    context.startService(Intent(context, OverlayService::class.java).apply {
+                        action = OverlayService.ACTION_MINIMIZE_OVERLAY
+                    })
+                }
+            }
+            isRestore -> {
+                if (OverlayService.isInstanceRunning) {
+                    context.startService(Intent(context, OverlayService::class.java).apply {
+                        action = OverlayService.ACTION_RESTORE_OVERLAY
+                    })
+                }
+            }
+            else -> {
+                val manualMode = intent?.getBooleanExtra("manual_mode", false) == true
+                if ((OverlayService.isInstanceRunning && OverlayService.hasActiveMediaProjection) || manualMode) {
+                    val prefs = context.getSharedPreferences("gbl_overlay_prefs", Context.MODE_PRIVATE)
+                    val srvIntent = Intent(context, OverlayService::class.java).apply {
+                        action = OverlayService.ACTION_START_OVERLAY
+                        intent?.getStringExtra(OverlayService.EXTRA_TEAM_NAME)?.let { putExtra(OverlayService.EXTRA_TEAM_NAME, it) }
+                        putExtra(OverlayService.EXTRA_OPP_COUNT_MODE, prefs.getString("opp_count_mode", "my_fasts") ?: "my_fasts")
+                        putExtra(OverlayService.EXTRA_ENABLE_4_CHARGED_MOVES, prefs.getBoolean(OverlayService.PREFS_KEY_ENABLE_4_CHARGED_MOVES, false))
+                        putExtra(OverlayService.EXTRA_DISABLE_BATTLE_TOASTS, prefs.getBoolean(OverlayService.PREFS_KEY_DISABLE_BATTLE_TOASTS, false))
+                        putExtra(OverlayService.EXTRA_OVERLAY_SCALE_PCT, prefs.getInt("overlay_scale_pct", 78))
+                        putExtra(OverlayService.EXTRA_OVERLAY_TRANSPARENCY_PCT, prefs.getInt(OverlayService.PREFS_KEY_OVERLAY_TRANSPARENCY_PCT, 72))
+                    }
+                    ContextCompat.startForegroundService(context, srvIntent)
+                } else {
+                    val actIntent = Intent(context, TaskerOverlayActivity::class.java).apply {
+                        action = OverlayService.ACTION_START_OVERLAY
+                        intent?.extras?.let { putExtras(it) }
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NO_ANIMATION)
+                    }
+                    context.startActivity(actIntent)
                 }
             }
         }
