@@ -154,7 +154,13 @@ class OverlayService : LifecycleService() {
             val result: String = "WIN",
             val deviceLabel: String = Build.MODEL ?: "Android",
             val quality: BattleQualityMetadata? = null,
-            val qualityEvaluated: Boolean = false
+            val qualityEvaluated: Boolean = false,
+            val timelineEvents: List<BattleTimelineEvent> = emptyList(),
+            val battleDurationSec: Double? = null,
+            val userFaints: Int? = null,
+            val oppFaints: Int? = null,
+            val userShieldsRemaining: Int? = null,
+            val oppShieldsRemaining: Int? = null
         )
 
         data class SyncTeamSlot(
@@ -2873,13 +2879,296 @@ class OverlayService : LifecycleService() {
             )
         }
 
+        /**
+         * Phase 2: Dynamic Execution WAE Engine
+         *
+         * - If event timeline data is absent (e.g., manual entries or legacy matches), sets P_exec = P_pre.
+         * - If timeline events exist:
+         *   - Partitions the battle duration into active head-to-head intervals k bounded by swap and faint timestamps.
+         *   - For each interval, resolves the active pairing's asymmetric shield rating
+         *     R_k = Rating_{s_user v s_opp}(userActive, oppActive) using discrete shield counts at that timestamp.
+         *   - Weights each interval by its fractional duration tau_k = Delta_t_k / t_total:
+         *       S_actual = sum(tau_k * R_k)
+         *       P_exec = 1 / (1 + exp(-0.006 * (S_actual - 500)))
+         * - Execution Residual (Delta Q):
+         *   - Base: Delta Q = Result - P_exec (Result in {0.0, 1.0}).
+         *   - Faint Margin Scaling: If Result == 1 and (oppFaints - userFaints) >= 2, scale Delta Q * 1.10.
+         *   - Shield in Pocket Penalty: If Result == 0 and userShieldsRemaining > 0:
+         *       Delta Q_final = Delta Q - (0.15 * userShieldsRemaining)
+         * - Returns { execWae: Delta_Q_final, weightedResidual: Delta_Q_final * weight }.
+         */
+        fun calculateDynamicExecutionWAEStatic(
+            myTeam: List<String>,
+            oppTeam: List<String>,
+            league: String,
+            result: String = "WIN",
+            timelineEvents: List<BattleTimelineEvent>? = null,
+            totalDurationSec: Double? = null,
+            explicitUserFaints: Int? = null,
+            explicitOppFaints: Int? = null,
+            explicitUserShieldsRemaining: Int? = null,
+            explicitOppShieldsRemaining: Int? = null,
+            myTeamSlots: List<TeamMember>? = null,
+            metaPool: List<String>? = null
+        ): DynamicExecutionWAEResult? {
+            val bmfRes = calculateBlindMatchupFavorabilityStatic(
+                myTeam = myTeam,
+                oppTeam = oppTeam,
+                league = league,
+                myTeamSlots = myTeamSlots,
+                metaPool = metaPool
+            )
+            val pPre = bmfRes.pPre ?: return null
+            val weight = bmfRes.weight
+            if (weight <= 0.0) return null
+
+            val fallbackMons = getTopMetaPoolForLeagueStatic(league).take(3)
+            val myLead = myTeam.getOrNull(0)?.trim()?.takeIf { it.isNotEmpty() } ?: fallbackMons.getOrElse(0) { "Azumarill" }
+            val mySwap = myTeam.getOrNull(1)?.trim()?.takeIf { it.isNotEmpty() } ?: fallbackMons.getOrElse(1) { "Clodsire" }
+            val myClose = myTeam.getOrNull(2)?.trim()?.takeIf { it.isNotEmpty() } ?: fallbackMons.getOrElse(2) { "Feraligatr" }
+            val myRoster = listOf(myLead, mySwap, myClose).filter { it.isNotEmpty() }
+
+            val oppLead = oppTeam.getOrNull(0)?.trim().orEmpty()
+            val oppSwap = oppTeam.getOrNull(1)?.trim().orEmpty()
+            val oppClose = oppTeam.getOrNull(2)?.trim().orEmpty()
+            val oppRoster = listOf(oppLead, oppSwap, oppClose).filter { it.isNotEmpty() }
+
+            fun resolveUserSlotOverrides(monName: String): TeamMember? {
+                val base = FormResolver.extractBaseSpecies(monName)
+                return myTeamSlots?.find {
+                    it.name.equals(monName, ignoreCase = true) ||
+                        FormResolver.extractBaseSpecies(it.name).equals(base, ignoreCase = true)
+                }
+            }
+
+            val hasTimeline = !timelineEvents.isNullOrEmpty()
+            val rawIntervals = mutableListOf<ExecutionIntervalSegment>()
+
+            var sActual: Double? = null
+            var pExec = pPre
+
+            var derivedUserFaints = 0
+            var derivedOppFaints = 0
+            var runningUserShields = 2
+            var runningOppShields = 2
+
+            if (hasTimeline && timelineEvents != null) {
+                val sortedEvents = timelineEvents.sortedBy { max(0.0, it.t) }
+
+                var userActive = myLead
+                var oppActive = oppLead
+                var intervalStartT = 0.0
+                var intervalUserShields = 2
+                var intervalOppShields = 2
+
+                val userFaintedNames = mutableSetOf<String>()
+                val oppFaintedNames = mutableSetOf<String>()
+
+                for (ev in sortedEvents) {
+                    val evT = max(0.0, ev.t)
+                    val evType = ev.type.uppercase()
+                    val evActor = ev.actor.lowercase()
+
+                    if (evType == "SHIELD") {
+                        runningUserShields = ev.userShieldsRemaining.coerceIn(0, 2)
+                        runningOppShields = ev.oppShieldsRemaining.coerceIn(0, 2)
+                        val activeMon = (ev.activePokemon ?: ev.pokemonShielded)?.trim().orEmpty()
+                        if (activeMon.isNotEmpty()) {
+                            if (evActor == "user") userActive = activeMon
+                            else if (evActor == "opp") oppActive = activeMon
+                        }
+                        if (kotlin.math.abs(evT - intervalStartT) < 1e-6) {
+                            intervalUserShields = runningUserShields
+                            intervalOppShields = runningOppShields
+                        }
+                        continue
+                    }
+
+                    if (evType == "SWAP" || evType == "FAINT") {
+                        if (evT > intervalStartT) {
+                            val duration = evT - intervalStartT
+                            val uSlot = resolveUserSlotOverrides(userActive)
+                            val rVal = calculateMatchupRatingStatic(
+                                myMonName = userActive,
+                                oppMonName = oppActive,
+                                userShields = intervalUserShields,
+                                oppShields = intervalOppShields,
+                                league = league,
+                                myFastMove = uSlot?.fastMove,
+                                myCharged1 = uSlot?.chargedMove1,
+                                myCharged2 = uSlot?.chargedMove2,
+                                myCp = uSlot?.cp,
+                                myIvs = uSlot?.ivs
+                            ).toDouble()
+                            rawIntervals.add(
+                                ExecutionIntervalSegment(
+                                    tStart = intervalStartT,
+                                    tEnd = evT,
+                                    duration = duration,
+                                    tau = 0.0,
+                                    userActive = userActive,
+                                    oppActive = oppActive,
+                                    userShields = intervalUserShields,
+                                    oppShields = intervalOppShields,
+                                    rating = rVal
+                                )
+                            )
+                        }
+
+                        runningUserShields = ev.userShieldsRemaining.coerceIn(0, 2)
+                        runningOppShields = ev.oppShieldsRemaining.coerceIn(0, 2)
+
+                        if (evType == "FAINT") {
+                            if (evActor == "user") {
+                                derivedUserFaints++
+                                val faintedMon = (ev.pokemonFainted ?: ev.pokemonOut ?: userActive).trim()
+                                if (faintedMon.isNotEmpty()) userFaintedNames.add(faintedMon.lowercase())
+                                val explicitIn = ev.pokemonIn?.trim().orEmpty()
+                                if (explicitIn.isNotEmpty()) {
+                                    userActive = explicitIn
+                                } else {
+                                    val replacement = myRoster.find { !userFaintedNames.contains(it.lowercase()) }
+                                    if (replacement != null) userActive = replacement
+                                }
+                            } else {
+                                derivedOppFaints++
+                                val faintedMon = (ev.pokemonFainted ?: ev.pokemonOut ?: oppActive).trim()
+                                if (faintedMon.isNotEmpty()) oppFaintedNames.add(faintedMon.lowercase())
+                                val explicitIn = ev.pokemonIn?.trim().orEmpty()
+                                if (explicitIn.isNotEmpty()) {
+                                    oppActive = explicitIn
+                                } else {
+                                    val replacement = oppRoster.find { !oppFaintedNames.contains(it.lowercase()) }
+                                    if (replacement != null) oppActive = replacement
+                                }
+                            }
+                        } else if (evType == "SWAP") {
+                            val nextMon = ev.pokemonIn?.trim().orEmpty()
+                            if (nextMon.isNotEmpty()) {
+                                if (evActor == "user") userActive = nextMon
+                                else oppActive = nextMon
+                            }
+                        }
+
+                        intervalStartT = evT
+                        intervalUserShields = runningUserShields
+                        intervalOppShields = runningOppShields
+                    }
+                }
+
+                val maxEventT = sortedEvents.maxOfOrNull { max(0.0, it.t) } ?: 0.0
+                val resolvedTotalDuration = if (totalDurationSec != null && totalDurationSec > maxEventT) {
+                    totalDurationSec
+                } else {
+                    maxEventT
+                }
+
+                if (resolvedTotalDuration > intervalStartT) {
+                    val duration = resolvedTotalDuration - intervalStartT
+                    val uSlot = resolveUserSlotOverrides(userActive)
+                    val rVal = calculateMatchupRatingStatic(
+                        myMonName = userActive,
+                        oppMonName = oppActive,
+                        userShields = intervalUserShields,
+                        oppShields = intervalOppShields,
+                        league = league,
+                        myFastMove = uSlot?.fastMove,
+                        myCharged1 = uSlot?.chargedMove1,
+                        myCharged2 = uSlot?.chargedMove2,
+                        myCp = uSlot?.cp,
+                        myIvs = uSlot?.ivs
+                    ).toDouble()
+                    rawIntervals.add(
+                        ExecutionIntervalSegment(
+                            tStart = intervalStartT,
+                            tEnd = resolvedTotalDuration,
+                            duration = duration,
+                            tau = 0.0,
+                            userActive = userActive,
+                            oppActive = oppActive,
+                            userShields = intervalUserShields,
+                            oppShields = intervalOppShields,
+                            rating = rVal
+                        )
+                    )
+                }
+
+                val totalPartitionDuration = rawIntervals.sumOf { it.duration }
+                if (totalPartitionDuration > 0.0 && rawIntervals.isNotEmpty()) {
+                    val computedSActual = rawIntervals.sumOf { iv ->
+                        val tau = iv.duration / totalPartitionDuration
+                        tau * iv.rating
+                    }
+                    sActual = (computedSActual * 100.0).roundToInt() / 100.0
+                    pExec = 1.0 / (1.0 + kotlin.math.exp(-0.006 * (computedSActual - 500.0)))
+                }
+            }
+
+            val totalPartitionDuration = rawIntervals.sumOf { it.duration }
+            val finalIntervals = rawIntervals.map { iv ->
+                iv.copy(tau = if (totalPartitionDuration > 0.0) iv.duration / totalPartitionDuration else 0.0)
+            }
+
+            val userFaints = (explicitUserFaints ?: derivedUserFaints).coerceIn(0, 3)
+            val oppFaints = (explicitOppFaints ?: derivedOppFaints).coerceIn(0, 3)
+            val userShieldsRemaining = (explicitUserShieldsRemaining ?: if (hasTimeline) runningUserShields else 0).coerceIn(0, 2)
+            val oppShieldsRemaining = (explicitOppShieldsRemaining ?: if (hasTimeline) runningOppShields else 0).coerceIn(0, 2)
+
+            val isWin = result.equals("WIN", ignoreCase = true)
+            val numericResult = if (isWin) 1.0 else 0.0
+            val deltaQBase = numericResult - pExec
+            var deltaQFinal = deltaQBase
+            var faintMarginScaled = false
+            var shieldPenalty = 0.0
+
+            // Faint Margin Scaling: If Result == 1 and (oppFaints - userFaints) >= 2, scale Delta Q * 1.10
+            if (isWin && (oppFaints - userFaints) >= 2) {
+                deltaQFinal *= 1.10
+                faintMarginScaled = true
+            }
+
+            // Shield in Pocket Penalty: If Result == 0 and userShieldsRemaining > 0: Delta Q_final = Delta Q - (0.15 * userShieldsRemaining)
+            if (!isWin && userShieldsRemaining > 0) {
+                shieldPenalty = 0.15 * userShieldsRemaining
+                deltaQFinal -= shieldPenalty
+            }
+
+            val roundedPExec = (pExec * 10000.0).roundToInt() / 10000.0
+            val roundedExecWae = (deltaQFinal * 10000.0).roundToInt() / 10000.0
+            val roundedWeightedResidual = ((deltaQFinal * weight) * 10000.0).roundToInt() / 10000.0
+
+            return DynamicExecutionWAEResult(
+                execWae = roundedExecWae,
+                weightedResidual = roundedWeightedResidual,
+                pExec = roundedPExec,
+                pPre = pPre,
+                sActual = sActual,
+                deltaQBase = (deltaQBase * 10000.0).roundToInt() / 10000.0,
+                deltaQFinal = roundedExecWae,
+                weight = weight,
+                faintMarginScaled = faintMarginScaled,
+                shieldPenaltyApplied = (shieldPenalty * 10000.0).roundToInt() / 10000.0,
+                userFaints = userFaints,
+                oppFaints = oppFaints,
+                userShieldsRemaining = userShieldsRemaining,
+                oppShieldsRemaining = oppShieldsRemaining,
+                intervals = finalIntervals
+            )
+        }
+
         fun calculateBattleQuality(
             myTeam: List<String>,
             oppTeam: List<String>,
             league: String,
             result: String = "WIN",
             myTeamSlots: List<TeamMember>? = null,
-            metaPool: List<String>? = null
+            metaPool: List<String>? = null,
+            timelineEvents: List<BattleTimelineEvent>? = null,
+            totalDurationSec: Double? = null,
+            explicitUserFaints: Int? = null,
+            explicitOppFaints: Int? = null,
+            explicitUserShieldsRemaining: Int? = null,
+            explicitOppShieldsRemaining: Int? = null
         ): BattleQualityMetadata? {
             val bmfRes = calculateBlindMatchupFavorabilityStatic(
                 myTeam = myTeam,
@@ -2895,11 +3184,23 @@ class OverlayService : LifecycleService() {
             val mScore = bmfRes.compositeM ?: return null
             if (bmfRes.weight <= 0.0) return null
 
-            val pWin = pPre
+            val execRes = calculateDynamicExecutionWAEStatic(
+                myTeam = myTeam,
+                oppTeam = oppTeam,
+                league = league,
+                result = result,
+                timelineEvents = timelineEvents,
+                totalDurationSec = totalDurationSec,
+                explicitUserFaints = explicitUserFaints,
+                explicitOppFaints = explicitOppFaints,
+                explicitUserShieldsRemaining = explicitUserShieldsRemaining,
+                explicitOppShieldsRemaining = explicitOppShieldsRemaining,
+                myTeamSlots = myTeamSlots,
+                metaPool = metaPool
+            ) ?: return null
+
+            val pWin = execRes.pExec
             val isWin = result.equals("WIN", ignoreCase = true)
-            val numericResult = if (isWin) 1.0 else 0.0
-            val deltaQ = numericResult - pWin
-            val weightedResidual = bmfRes.weight * deltaQ
 
             val (badgeLabel, badgeColorHex) = if (isWin) {
                 when {
@@ -2918,17 +3219,26 @@ class OverlayService : LifecycleService() {
             return BattleQualityMetadata(
                 pPre = pPre,
                 bmfPercentage = bmfPct,
+                sActual = execRes.sActual,
+                pExec = execRes.pExec,
+                execWae = execRes.execWae,
                 pWin = pWin,
                 expWinPct = (pWin * 100.0).roundToInt(),
-                deltaQ = (deltaQ * 10000.0).roundToInt() / 10000.0,
+                deltaQ = execRes.execWae,
                 weight = bmfRes.weight,
-                weightedResidual = (weightedResidual * 10000.0).roundToInt() / 10000.0,
+                weightedResidual = execRes.weightedResidual,
                 badgeLabel = badgeLabel,
                 badgeColorHex = badgeColorHex,
                 unrevealedThird = bmfRes.isUnrevealedThird,
                 sLead = sLead,
                 sBack = sBack,
-                compositeScore = mScore
+                compositeScore = mScore,
+                faintMarginScaled = execRes.faintMarginScaled,
+                shieldPenaltyApplied = execRes.shieldPenaltyApplied,
+                userFaints = execRes.userFaints,
+                oppFaints = execRes.oppFaints,
+                userShieldsRemaining = execRes.userShieldsRemaining,
+                oppShieldsRemaining = execRes.oppShieldsRemaining
             )
         }
 
@@ -3056,6 +3366,78 @@ class OverlayService : LifecycleService() {
     private var playerPostSwitchLowBallFrames: Int = 0
     private var oppPostSwitchLowBallFrames: Int = 0
 
+    // Phase 2: Battle Clock Synchronization (t0) & Live Timeline Event Logger
+    private var battleClockAnchorMs: Long = 0L
+    private val battleTimelineEvents = mutableListOf<BattleTimelineEvent>()
+    private var lastClearedTimelineEventsSnapshot: List<BattleTimelineEvent> = emptyList()
+    private var lastClearedBattleDurationSec: Double? = null
+    private var lastClearedUserFaints: Int = 0
+    private var lastClearedOppFaints: Int = 0
+    private var lastClearedUserShieldsRemaining: Int = 2
+    private var lastClearedOppShieldsRemaining: Int = 2
+
+    private fun getElapsedBattleSeconds(eventTimeMs: Long = System.currentTimeMillis()): Double {
+        if (battleClockAnchorMs <= 0L) return 0.0
+        val diffMs = (eventTimeMs - battleClockAnchorMs).coerceAtLeast(0L)
+        return ((diffMs / 1000.0) * 100.0).roundToInt() / 100.0
+    }
+
+    private fun formatOpponentNameWithShadow(rawName: String): String {
+        val trimmed = rawName.trim()
+        if (trimmed.isEmpty() || trimmed.equals("Waiting...", ignoreCase = true)) return trimmed
+        val baseKey = FormResolver.extractBaseSpecies(trimmed).lowercase()
+        val isShad = manualShadowOverrides[baseKey] ?: trimmed.contains("Shadow", ignoreCase = true)
+        return if (isShad && !trimmed.startsWith("Shadow ", ignoreCase = true)) {
+            "Shadow $trimmed"
+        } else {
+            trimmed
+        }
+    }
+
+    data class BattleTimelineEvent(
+        val type: String, // "SWAP" | "SHIELD" | "FAINT"
+        val actor: String, // "user" | "opp"
+        val t: Double, // Relative elapsed seconds (Date.now() - t0) / 1000
+        val pokemonIn: String? = null,
+        val pokemonOut: String? = null,
+        val pokemonFainted: String? = null,
+        val shieldNumber: Int? = null, // 1 or 2
+        val activePokemon: String? = null,
+        val pokemonShielded: String? = null,
+        val userShieldsRemaining: Int = 2,
+        val oppShieldsRemaining: Int = 2
+    )
+
+    data class ExecutionIntervalSegment(
+        val tStart: Double,
+        val tEnd: Double,
+        val duration: Double,
+        val tau: Double,
+        val userActive: String,
+        val oppActive: String,
+        val userShields: Int,
+        val oppShields: Int,
+        val rating: Double
+    )
+
+    data class DynamicExecutionWAEResult(
+        val execWae: Double,
+        val weightedResidual: Double,
+        val pExec: Double,
+        val pPre: Double,
+        val sActual: Double?,
+        val deltaQBase: Double,
+        val deltaQFinal: Double,
+        val weight: Double,
+        val faintMarginScaled: Boolean,
+        val shieldPenaltyApplied: Double,
+        val userFaints: Int,
+        val oppFaints: Int,
+        val userShieldsRemaining: Int,
+        val oppShieldsRemaining: Int,
+        val intervals: List<ExecutionIntervalSegment>
+    )
+
     data class BlindMatchupFavorabilityResult(
         val bmf: Double?,
         val pPre: Double?,
@@ -3070,6 +3452,9 @@ class OverlayService : LifecycleService() {
     data class BattleQualityMetadata(
         val pPre: Double = 0.5,
         val bmfPercentage: Double = 50.0,
+        val sActual: Double? = null,
+        val pExec: Double = 0.5,
+        val execWae: Double = 0.0,
         val pWin: Double,
         val expWinPct: Int,
         val deltaQ: Double,
@@ -3080,7 +3465,13 @@ class OverlayService : LifecycleService() {
         val unrevealedThird: Boolean,
         val sLead: Double,
         val sBack: Double,
-        val compositeScore: Double
+        val compositeScore: Double,
+        val faintMarginScaled: Boolean = false,
+        val shieldPenaltyApplied: Double = 0.0,
+        val userFaints: Int = 0,
+        val oppFaints: Int = 0,
+        val userShieldsRemaining: Int = 2,
+        val oppShieldsRemaining: Int = 2
     )
 
     data class AggregateWAEResult(
@@ -4454,6 +4845,9 @@ class OverlayService : LifecycleService() {
             if (System.currentTimeMillis() - lastBattleResetTimeMs < 600L) return
             val speciesChanged = isWaitingForOpponent || !newBaseSpecies.equals(activeOpponentSpecies, ignoreCase = true)
             if (speciesChanged) {
+                val prevOppFormattedName = if (!isWaitingForOpponent && activeOpponentName != "Waiting...") {
+                    formatOpponentNameWithShadow(activeOpponentName)
+                } else ""
                 val prevOppSlotIdx = if (!isWaitingForOpponent && detectedOpponents.isNotEmpty()) {
                     val base = FormResolver.extractBaseSpecies(activeOpponentName).lowercase()
                     detectedOpponents.indexOfFirst { FormResolver.extractBaseSpecies(it).equals(base, ignoreCase = true) }.coerceAtLeast(0)
@@ -4463,6 +4857,8 @@ class OverlayService : LifecycleService() {
                 isWaitingForOpponent = false
                 isBattleActive = true
                 lastClearedOpponentsSnapshot = emptyList()
+                lastClearedTimelineEventsSnapshot = emptyList()
+                lastClearedBattleDurationSec = null
                 activeOpponentSpecies = newBaseSpecies
                 availableOpponentForms = FormResolver.getVariantsForSpecies(newBaseSpecies, activeLeague)
                 currentFormIndex = availableOpponentForms.indexOfFirst { it.name == matched.name }.coerceAtLeast(0)
@@ -4479,6 +4875,7 @@ class OverlayService : LifecycleService() {
 
                 // 1-per-species deduplication on opponent team (maintaining fixed 1st/2nd/3rd seen order)
                 upsertDetectedOpponentBySpecies(matched.name, newBaseSpecies)
+                val newOppFormattedName = formatOpponentNameWithShadow(matched.name)
 
                 val newOppSlotIdx = detectedOpponents.indexOfFirst {
                     FormResolver.extractBaseSpecies(it).equals(newBaseSpecies, ignoreCase = true)
@@ -4490,6 +4887,10 @@ class OverlayService : LifecycleService() {
                 }
 
                 if (wasWaitingForOpponent) {
+                    // Phase 2 Clock Anchor: Initialize t_0 = 0.00s at the exact millisecond the opponent's lead Pokémon is recognized
+                    battleClockAnchorMs = System.currentTimeMillis()
+                    battleTimelineEvents.clear()
+
                     // Turn 1 Lead Spawn: all 3 Pokémon are alive, swap clock is 0s Ready
                     oppPokeballCount = 3
                     oppFaintedSlots.fill(false)
@@ -4498,6 +4899,7 @@ class OverlayService : LifecycleService() {
                     oppPostSwitchLowBallFrames = 0
                 } else {
                     val swapStartMs = getInterpolatedSwapStartTimeMs()
+                    val elapsedSec = getElapsedBattleSeconds(swapStartMs)
                     val isFaintReplacement = sampledOppBalls in 1..2 &&
                         sampledOppBalls < oppPokeballCount &&
                         (prevOppSlotIdx !in 0..2 || !oppFaintedSlots[prevOppSlotIdx])
@@ -4521,6 +4923,18 @@ class OverlayService : LifecycleService() {
                                 if (idx != newOppSlotIdx) oppFaintedSlots[idx] = true
                             }
                         }
+                        battleTimelineEvents.add(
+                            BattleTimelineEvent(
+                                type = "FAINT",
+                                actor = "opp",
+                                t = elapsedSec,
+                                pokemonFainted = prevOppFormattedName.ifEmpty { null },
+                                pokemonIn = newOppFormattedName,
+                                pokemonOut = prevOppFormattedName.ifEmpty { null },
+                                userShieldsRemaining = playerShieldsRemaining,
+                                oppShieldsRemaining = oppShieldsRemaining
+                            )
+                        )
                     } else {
                         // True Tactical Swap (or HUD still sliding in on switch frame):
                         // 1. Reset Swap Clock to 50s (will roll back if HUD reveals fainted ball on next frame).
@@ -4536,6 +4950,17 @@ class OverlayService : LifecycleService() {
                             oppFaintedSlots[prevOppSlotIdx] = false
                         }
                         oppSwapEndTimeMs = swapStartMs + 50000L
+                        battleTimelineEvents.add(
+                            BattleTimelineEvent(
+                                type = "SWAP",
+                                actor = "opp",
+                                t = elapsedSec,
+                                pokemonIn = newOppFormattedName,
+                                pokemonOut = prevOppFormattedName.ifEmpty { null },
+                                userShieldsRemaining = playerShieldsRemaining,
+                                oppShieldsRemaining = oppShieldsRemaining
+                            )
+                        )
                     }
                     isOppTurnOne = false
                 }
@@ -4586,8 +5011,10 @@ class OverlayService : LifecycleService() {
             return
         }
 
+        val prevPlayerPokemon = activeUserPokemonName ?: preset.pokemon.firstOrNull()?.name ?: ""
         val prevSlotIdx = preset.pokemon.indexOfFirst { it.name.equals(activeUserPokemonName, ignoreCase = true) }.let { if (it >= 0) it else 0 }
         val swapStartMs = getInterpolatedSwapStartTimeMs()
+        val elapsedSec = getElapsedBattleSeconds(swapStartMs)
         val isFaintReplacement = sampledPlayerBalls in 1..2 &&
             sampledPlayerBalls < playerPokeballCount &&
             !playerFaintedSlots[prevSlotIdx]
@@ -4611,6 +5038,18 @@ class OverlayService : LifecycleService() {
                     if (idx != newSlotIdx) playerFaintedSlots[idx] = true
                 }
             }
+            battleTimelineEvents.add(
+                BattleTimelineEvent(
+                    type = "FAINT",
+                    actor = "user",
+                    t = elapsedSec,
+                    pokemonFainted = prevPlayerPokemon.ifEmpty { null },
+                    pokemonIn = newSlotName,
+                    pokemonOut = prevPlayerPokemon.ifEmpty { null },
+                    userShieldsRemaining = playerShieldsRemaining,
+                    oppShieldsRemaining = oppShieldsRemaining
+                )
+            )
         } else {
             // True Tactical Swap (or HUD still sliding in on switch frame):
             // 1. Reset Swap Clock to 50s (will roll back if HUD reveals fainted ball on next frame).
@@ -4626,6 +5065,17 @@ class OverlayService : LifecycleService() {
                 playerFaintedSlots[prevSlotIdx] = false
             }
             playerSwapEndTimeMs = swapStartMs + 50000L
+            battleTimelineEvents.add(
+                BattleTimelineEvent(
+                    type = "SWAP",
+                    actor = "user",
+                    t = elapsedSec,
+                    pokemonIn = newSlotName,
+                    pokemonOut = prevPlayerPokemon.ifEmpty { null },
+                    userShieldsRemaining = playerShieldsRemaining,
+                    oppShieldsRemaining = oppShieldsRemaining
+                )
+            )
         }
         isPlayerTurnOne = false
 
@@ -4664,12 +5114,49 @@ class OverlayService : LifecycleService() {
             changed = true
         }
 
+        val frameTimeMs = currentFrameTimestampMs.takeIf { it > 0L } ?: System.currentTimeMillis()
+        val eventT = getElapsedBattleSeconds(frameTimeMs)
+
         // Shield count transitions (Species Changed = NO -> update shields only, never touch life/swap clocks)
         if (sampledPlayerShields in 0..1 && sampledPlayerShields < playerShieldsRemaining) {
+            val prevShields = playerShieldsRemaining
+            val activeUserMon = activeUserPokemonName ?: preset?.pokemon?.firstOrNull()?.name ?: ""
+            for (sRem in (prevShields - 1) downTo sampledPlayerShields) {
+                val shieldNum = (2 - sRem).coerceIn(1, 2)
+                battleTimelineEvents.add(
+                    BattleTimelineEvent(
+                        type = "SHIELD",
+                        actor = "user",
+                        t = eventT,
+                        shieldNumber = shieldNum,
+                        activePokemon = activeUserMon.ifEmpty { null },
+                        pokemonShielded = activeUserMon.ifEmpty { null },
+                        userShieldsRemaining = sRem,
+                        oppShieldsRemaining = oppShieldsRemaining
+                    )
+                )
+            }
             playerShieldsRemaining = sampledPlayerShields
             changed = true
         }
         if (sampledOppShields in 0..1 && sampledOppShields < oppShieldsRemaining) {
+            val prevShields = oppShieldsRemaining
+            val activeOppMon = formatOpponentNameWithShadow(activeOpponentName)
+            for (sRem in (prevShields - 1) downTo sampledOppShields) {
+                val shieldNum = (2 - sRem).coerceIn(1, 2)
+                battleTimelineEvents.add(
+                    BattleTimelineEvent(
+                        type = "SHIELD",
+                        actor = "opp",
+                        t = eventT,
+                        shieldNumber = shieldNum,
+                        activePokemon = activeOppMon.ifEmpty { null },
+                        pokemonShielded = activeOppMon.ifEmpty { null },
+                        userShieldsRemaining = playerShieldsRemaining,
+                        oppShieldsRemaining = sRem
+                    )
+                )
+            }
             oppShieldsRemaining = sampledOppShields
             changed = true
         }
@@ -4679,6 +5166,11 @@ class OverlayService : LifecycleService() {
             if (lastPlayerSwitchWasFaint && (currentFrameTimestampMs - lastPlayerSwitchFrameMs) in 1..6500L) {
                 playerSwapEndTimeMs = lastPlayerSwitchTimeMs + 50000L
                 lastPlayerSwitchWasFaint = false
+                val lastIdx = battleTimelineEvents.indexOfLast { it.actor == "user" && it.type == "FAINT" }
+                if (lastIdx >= 0) {
+                    val ev = battleTimelineEvents[lastIdx]
+                    battleTimelineEvents[lastIdx] = ev.copy(type = "SWAP", pokemonFainted = null)
+                }
                 changed = true
             }
             playerPostSwitchLowBallFrames = 0
@@ -4701,6 +5193,12 @@ class OverlayService : LifecycleService() {
                 playerPokeballCount = sampledPlayerBalls
                 playerSwapEndTimeMs = playerSwapEndTimeBeforeSwitch
                 lastPlayerSwitchWasFaint = true
+                val lastIdx = battleTimelineEvents.indexOfLast { it.actor == "user" && it.type == "SWAP" }
+                if (lastIdx >= 0) {
+                    val ev = battleTimelineEvents[lastIdx]
+                    val faintedName = ev.pokemonOut ?: preset?.pokemon?.getOrNull(lastPlayerPrevSlotIdx)?.name
+                    battleTimelineEvents[lastIdx] = ev.copy(type = "FAINT", pokemonFainted = faintedName)
+                }
                 changed = true
             }
             if (sampledPlayerBalls == 1 && activeUserIdx in 0..2) {
@@ -4728,6 +5226,11 @@ class OverlayService : LifecycleService() {
             if (lastOppSwitchWasFaint && (currentFrameTimestampMs - lastOppSwitchFrameMs) in 1..6500L) {
                 oppSwapEndTimeMs = lastOppSwitchTimeMs + 50000L
                 lastOppSwitchWasFaint = false
+                val lastIdx = battleTimelineEvents.indexOfLast { it.actor == "opp" && it.type == "FAINT" }
+                if (lastIdx >= 0) {
+                    val ev = battleTimelineEvents[lastIdx]
+                    battleTimelineEvents[lastIdx] = ev.copy(type = "SWAP", pokemonFainted = null)
+                }
                 changed = true
             }
             oppPostSwitchLowBallFrames = 0
@@ -4750,6 +5253,12 @@ class OverlayService : LifecycleService() {
                 oppPokeballCount = sampledOppBalls
                 oppSwapEndTimeMs = oppSwapEndTimeBeforeSwitch
                 lastOppSwitchWasFaint = true
+                val lastIdx = battleTimelineEvents.indexOfLast { it.actor == "opp" && it.type == "SWAP" }
+                if (lastIdx >= 0) {
+                    val ev = battleTimelineEvents[lastIdx]
+                    val faintedName = ev.pokemonOut ?: detectedOpponents.getOrNull(lastOppPrevSlotIdx)?.let { formatOpponentNameWithShadow(it) }
+                    battleTimelineEvents[lastIdx] = ev.copy(type = "FAINT", pokemonFainted = faintedName)
+                }
                 changed = true
             }
             if (sampledOppBalls == 1 && activeOppIdx in 0..2) {
@@ -4890,15 +5399,15 @@ class OverlayService : LifecycleService() {
         // the battle log still records the opponents from the battle that just ended.
         if (detectedOpponents.isNotEmpty()) {
             lastClearedOpponentsSnapshot = detectedOpponents.take(3).map { oppName ->
-                val baseKey = FormResolver.extractBaseSpecies(oppName).lowercase()
-                val isShad = manualShadowOverrides[baseKey] ?: oppName.contains("Shadow", ignoreCase = true)
-                if (isShad && !oppName.startsWith("Shadow ", ignoreCase = true)) {
-                    "Shadow $oppName"
-                } else {
-                    oppName
-                }
+                formatOpponentNameWithShadow(oppName)
             }
             lastClearedLeadMatchupSnapshot = currentLeadMatchup
+            lastClearedTimelineEventsSnapshot = battleTimelineEvents.toList()
+            lastClearedBattleDurationSec = getElapsedBattleSeconds()
+            lastClearedUserFaints = playerFaintedSlots.count { it }
+            lastClearedOppFaints = oppFaintedSlots.count { it }
+            lastClearedUserShieldsRemaining = playerShieldsRemaining
+            lastClearedOppShieldsRemaining = oppShieldsRemaining
         }
 
         battleResetEpoch++
@@ -4928,6 +5437,10 @@ class OverlayService : LifecycleService() {
         availableOpponentForms = emptyList()
         currentFormIndex = 0
         activeUserPokemonName = currentPreset?.pokemon?.firstOrNull()?.name ?: activeUserPokemonName
+
+        // Phase 2: Reset Clock Anchor (t_0) & Timeline Event Logger
+        battleClockAnchorMs = 0L
+        battleTimelineEvents.clear()
 
         // v2.34: Reset Swap Clocks, Shields, Pokéball Faint state & post-switch verification state
         playerSwapEndTimeMs = 0L
@@ -4977,15 +5490,15 @@ class OverlayService : LifecycleService() {
     fun stopCurrentBattle() {
         if (detectedOpponents.isNotEmpty()) {
             lastClearedOpponentsSnapshot = detectedOpponents.take(3).map { oppName ->
-                val baseKey = FormResolver.extractBaseSpecies(oppName).lowercase()
-                val isShad = manualShadowOverrides[baseKey] ?: oppName.contains("Shadow", ignoreCase = true)
-                if (isShad && !oppName.startsWith("Shadow ", ignoreCase = true)) {
-                    "Shadow $oppName"
-                } else {
-                    oppName
-                }
+                formatOpponentNameWithShadow(oppName)
             }
             lastClearedLeadMatchupSnapshot = currentLeadMatchup
+            lastClearedTimelineEventsSnapshot = battleTimelineEvents.toList()
+            lastClearedBattleDurationSec = getElapsedBattleSeconds()
+            lastClearedUserFaints = playerFaintedSlots.count { it }
+            lastClearedOppFaints = oppFaintedSlots.count { it }
+            lastClearedUserShieldsRemaining = playerShieldsRemaining
+            lastClearedOppShieldsRemaining = oppShieldsRemaining
         }
         isBattleActive = false
         stopBattleOcrLoop()
@@ -4995,6 +5508,7 @@ class OverlayService : LifecycleService() {
 
     fun logBattleResultFromOverlay(result: String, leadOverride: String?) {
         val normalizedResult = if (result.equals("LOSS", ignoreCase = true)) "LOSS" else "WIN"
+        val isWin = normalizedResult == "WIN"
         val fallbackLead = if (detectedOpponents.isNotEmpty()) currentLeadMatchup else lastClearedLeadMatchupSnapshot
         val resolvedLead = (leadOverride?.takeIf { it.isNotBlank() } ?: fallbackLead).uppercase()
         currentLeadMatchup = resolvedLead
@@ -5005,18 +5519,89 @@ class OverlayService : LifecycleService() {
         val presetId = preset?.id ?: ""
         val userMons = preset?.pokemon?.map { it.name } ?: emptyList()
 
-        val formattedOpponents = if (detectedOpponents.isNotEmpty()) {
+        val hasLiveOpponents = detectedOpponents.isNotEmpty()
+        val formattedOpponents = if (hasLiveOpponents) {
             detectedOpponents.take(3).map { oppName ->
-                val baseKey = FormResolver.extractBaseSpecies(oppName).lowercase()
-                val isShad = manualShadowOverrides[baseKey] ?: oppName.contains("Shadow", ignoreCase = true)
-                if (isShad && !oppName.startsWith("Shadow ", ignoreCase = true)) {
-                    "Shadow $oppName"
-                } else {
-                    oppName
-                }
+                formatOpponentNameWithShadow(oppName)
             }
         } else {
             lastClearedOpponentsSnapshot
+        }
+
+        val finalTimelineEvents = (if (hasLiveOpponents || battleTimelineEvents.isNotEmpty()) {
+            battleTimelineEvents.toList()
+        } else {
+            lastClearedTimelineEventsSnapshot
+        }).toMutableList()
+
+        val durationSec = if (battleClockAnchorMs > 0L) {
+            getElapsedBattleSeconds()
+        } else {
+            lastClearedBattleDurationSec
+        }
+
+        val endUserShields = if (hasLiveOpponents) playerShieldsRemaining else lastClearedUserShieldsRemaining
+        val endOppShields = if (hasLiveOpponents) oppShieldsRemaining else lastClearedOppShieldsRemaining
+
+        val slotUserFaints = if (hasLiveOpponents) playerFaintedSlots.count { it } else lastClearedUserFaints
+        val slotOppFaints = if (hasLiveOpponents) oppFaintedSlots.count { it } else lastClearedOppFaints
+
+        val timelineUserFaints = finalTimelineEvents.count { it.type.equals("FAINT", ignoreCase = true) && it.actor.equals("user", ignoreCase = true) }
+        val timelineOppFaints = finalTimelineEvents.count { it.type.equals("FAINT", ignoreCase = true) && it.actor.equals("opp", ignoreCase = true) }
+
+        val resolvedUserFaints = max(slotUserFaints, timelineUserFaints).coerceIn(0, 3)
+        val resolvedOppFaints = max(slotOppFaints, timelineOppFaints).coerceIn(0, 3)
+
+        // If timeline tracking was active, record the match-ending knockout at t_total if not already logged
+        val finalUserFaints: Int
+        val finalOppFaints: Int
+        if (finalTimelineEvents.isNotEmpty() || (durationSec != null && durationSec > 0.0)) {
+            val endT = durationSec ?: (finalTimelineEvents.maxOfOrNull { it.t } ?: 0.0)
+            if (isWin && resolvedOppFaints < 3) {
+                val activeOppMon = if (activeOpponentName != "Waiting...") {
+                    formatOpponentNameWithShadow(activeOpponentName)
+                } else {
+                    formattedOpponents.lastOrNull().orEmpty()
+                }
+                if (activeOppMon.isNotEmpty()) {
+                    finalTimelineEvents.add(
+                        BattleTimelineEvent(
+                            type = "FAINT",
+                            actor = "opp",
+                            t = endT,
+                            pokemonFainted = activeOppMon,
+                            pokemonOut = activeOppMon,
+                            userShieldsRemaining = endUserShields,
+                            oppShieldsRemaining = endOppShields
+                        )
+                    )
+                }
+                finalOppFaints = (resolvedOppFaints + 1).coerceIn(1, 3)
+                finalUserFaints = resolvedUserFaints
+            } else if (!isWin && resolvedUserFaints < 3) {
+                val activeUserMon = activeUserPokemonName ?: userMons.firstOrNull().orEmpty()
+                if (activeUserMon.isNotEmpty()) {
+                    finalTimelineEvents.add(
+                        BattleTimelineEvent(
+                            type = "FAINT",
+                            actor = "user",
+                            t = endT,
+                            pokemonFainted = activeUserMon,
+                            pokemonOut = activeUserMon,
+                            userShieldsRemaining = endUserShields,
+                            oppShieldsRemaining = endOppShields
+                        )
+                    )
+                }
+                finalUserFaints = (resolvedUserFaints + 1).coerceIn(1, 3)
+                finalOppFaints = resolvedOppFaints
+            } else {
+                finalUserFaints = resolvedUserFaints
+                finalOppFaints = resolvedOppFaints
+            }
+        } else {
+            finalUserFaints = resolvedUserFaints
+            finalOppFaints = resolvedOppFaints
         }
 
         val quality = calculateBattleQuality(
@@ -5024,7 +5609,13 @@ class OverlayService : LifecycleService() {
             oppTeam = formattedOpponents,
             league = league,
             result = normalizedResult,
-            myTeamSlots = preset?.pokemon
+            myTeamSlots = preset?.pokemon,
+            timelineEvents = finalTimelineEvents.takeIf { it.isNotEmpty() },
+            totalDurationSec = durationSec,
+            explicitUserFaints = if (finalTimelineEvents.isNotEmpty()) finalUserFaints else null,
+            explicitOppFaints = if (finalTimelineEvents.isNotEmpty()) finalOppFaints else null,
+            explicitUserShieldsRemaining = if (finalTimelineEvents.isNotEmpty()) endUserShields else null,
+            explicitOppShieldsRemaining = if (finalTimelineEvents.isNotEmpty()) endOppShields else null
         )
 
         val nowMs = System.currentTimeMillis()
@@ -5041,7 +5632,13 @@ class OverlayService : LifecycleService() {
             result = normalizedResult,
             deviceLabel = prefs.getString(PREFS_KEY_DEVICE_LABEL, null)?.takeIf { it.isNotBlank() } ?: (Build.MODEL ?: "Android"),
             quality = quality,
-            qualityEvaluated = true
+            qualityEvaluated = true,
+            timelineEvents = finalTimelineEvents,
+            battleDurationSec = durationSec,
+            userFaints = finalUserFaints,
+            oppFaints = finalOppFaints,
+            userShieldsRemaining = endUserShields,
+            oppShieldsRemaining = endOppShields
         )
 
         val logsType = object : TypeToken<List<SyncBattleLogRecord>>() {}.type
@@ -5054,9 +5651,13 @@ class OverlayService : LifecycleService() {
         existingLogs.add(0, newEntry)
         prefs.edit().putString(PREFS_KEY_BATTLE_LOGS, gson.toJson(existingLogs)).apply()
 
-        // Ensure opponent list is cleared for the next battle after logging
+        // Ensure opponent list and timeline state are cleared for the next battle after logging
         lastClearedOpponentsSnapshot = emptyList()
         lastClearedLeadMatchupSnapshot = "NEUTRAL"
+        lastClearedTimelineEventsSnapshot = emptyList()
+        lastClearedBattleDurationSec = null
+        battleClockAnchorMs = 0L
+        battleTimelineEvents.clear()
         battleResetEpoch++
         lastBattleResetTimeMs = System.currentTimeMillis()
         detectedOpponents.clear()
@@ -5128,6 +5729,9 @@ class OverlayService : LifecycleService() {
         val matched = getPokemonMeta(pokemonName)
         val newBaseSpecies = matched.baseSpecies.lowercase()
         val prevBase = activeOpponentSpecies
+        val prevOppFormatted = if (!isWaitingForOpponent && activeOpponentName != "Waiting...") {
+            formatOpponentNameWithShadow(activeOpponentName)
+        } else ""
         val prevOppSlotIdx = if (!isWaitingForOpponent && detectedOpponents.isNotEmpty()) {
             detectedOpponents.indexOfFirst { FormResolver.extractBaseSpecies(it).equals(prevBase, ignoreCase = true) }.coerceAtLeast(0)
         } else -1
@@ -5144,6 +5748,7 @@ class OverlayService : LifecycleService() {
         }
         isOpponentShadow = manualShadowOverrides[newBaseSpecies] ?: pokemonName.contains("Shadow", ignoreCase = true)
         upsertDetectedOpponentBySpecies(matched.name, newBaseSpecies)
+        val newOppFormatted = formatOpponentNameWithShadow(matched.name)
 
         val newOppSlotIdx = detectedOpponents.indexOfFirst {
             FormResolver.extractBaseSpecies(it).equals(newBaseSpecies, ignoreCase = true)
@@ -5152,9 +5757,38 @@ class OverlayService : LifecycleService() {
             oppFaintedSlots[newOppSlotIdx] = false
             oppPokeballCount = (3 - oppFaintedSlots.count { it }).coerceIn(1, 3)
         }
-        if (!wasWaiting && !newBaseSpecies.equals(prevBase, ignoreCase = true)) {
+        if (wasWaiting) {
+            battleClockAnchorMs = System.currentTimeMillis()
+            battleTimelineEvents.clear()
+        } else if (!newBaseSpecies.equals(prevBase, ignoreCase = true)) {
+            val nowMs = System.currentTimeMillis()
+            val elapsedSec = getElapsedBattleSeconds(nowMs)
             if (prevOppSlotIdx !in 0..2 || !oppFaintedSlots[prevOppSlotIdx]) {
-                oppSwapEndTimeMs = System.currentTimeMillis() + 50000L
+                oppSwapEndTimeMs = nowMs + 50000L
+                battleTimelineEvents.add(
+                    BattleTimelineEvent(
+                        type = "SWAP",
+                        actor = "opp",
+                        t = elapsedSec,
+                        pokemonIn = newOppFormatted,
+                        pokemonOut = prevOppFormatted.ifEmpty { null },
+                        userShieldsRemaining = playerShieldsRemaining,
+                        oppShieldsRemaining = oppShieldsRemaining
+                    )
+                )
+            } else {
+                battleTimelineEvents.add(
+                    BattleTimelineEvent(
+                        type = "FAINT",
+                        actor = "opp",
+                        t = elapsedSec,
+                        pokemonFainted = prevOppFormatted.ifEmpty { null },
+                        pokemonIn = newOppFormatted,
+                        pokemonOut = prevOppFormatted.ifEmpty { null },
+                        userShieldsRemaining = playerShieldsRemaining,
+                        oppShieldsRemaining = oppShieldsRemaining
+                    )
+                )
             }
         }
 
@@ -5175,8 +5809,34 @@ class OverlayService : LifecycleService() {
             playerPokeballCount = (3 - playerFaintedSlots.count { it }).coerceIn(1, 3)
         }
         if (!isWaitingForOpponent && !pokemonName.equals(prevName, ignoreCase = true)) {
+            val nowMs = System.currentTimeMillis()
+            val elapsedSec = getElapsedBattleSeconds(nowMs)
             if (prevIdx !in 0..2 || !playerFaintedSlots[prevIdx]) {
-                playerSwapEndTimeMs = System.currentTimeMillis() + 50000L
+                playerSwapEndTimeMs = nowMs + 50000L
+                battleTimelineEvents.add(
+                    BattleTimelineEvent(
+                        type = "SWAP",
+                        actor = "user",
+                        t = elapsedSec,
+                        pokemonIn = pokemonName,
+                        pokemonOut = prevName,
+                        userShieldsRemaining = playerShieldsRemaining,
+                        oppShieldsRemaining = oppShieldsRemaining
+                    )
+                )
+            } else {
+                battleTimelineEvents.add(
+                    BattleTimelineEvent(
+                        type = "FAINT",
+                        actor = "user",
+                        t = elapsedSec,
+                        pokemonFainted = prevName,
+                        pokemonIn = pokemonName,
+                        pokemonOut = prevName,
+                        userShieldsRemaining = playerShieldsRemaining,
+                        oppShieldsRemaining = oppShieldsRemaining
+                    )
+                )
             }
         }
 

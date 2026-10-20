@@ -58,6 +58,7 @@ import {
 } from './data/gblData';
 import {
   BattleQualityMetadata,
+  BattleTimelineEvent,
   calculateBattleQuality,
   calculateAggregateWAE,
   migrateExistingBattleLogs,
@@ -139,6 +140,12 @@ export interface WebBattleLogEntry {
   result: 'WIN' | 'LOSS';
   leadMatchup: 'FAVORABLE' | 'NEUTRAL' | 'NEGATIVE';
   quality?: BattleQualityMetadata | null;
+  timelineEvents?: BattleTimelineEvent[];
+  battleDurationSec?: number;
+  userFaints?: number;
+  oppFaints?: number;
+  userShieldsRemaining?: number;
+  oppShieldsRemaining?: number;
   deviceId?: string;
   updatedAt?: number;
 }
@@ -677,6 +684,17 @@ export default function App() {
   const [isPlayerTurnOne, setIsPlayerTurnOne] = useState<boolean>(true);
   const [isOppTurnOne, setIsOppTurnOne] = useState<boolean>(true);
   const [nowMs, setNowMs] = useState<number>(() => Date.now());
+  // Phase 2: Clock Synchronization (t_0) & Live Timeline Event Logger
+  const [battleClockAnchorMs, setBattleClockAnchorMs] = useState<number>(() => Date.now());
+  const [battleTimelineEvents, setBattleTimelineEvents] = useState<BattleTimelineEvent[]>([]);
+  const [lastClearedTimelineEvents, setLastClearedTimelineEvents] = useState<BattleTimelineEvent[]>([]);
+  const [lastClearedBattleDurationSec, setLastClearedBattleDurationSec] = useState<number | undefined>(undefined);
+
+  const getRelativeBattleSeconds = (anchorOverrideMs?: number) => {
+    const t0 = anchorOverrideMs ?? battleClockAnchorMs;
+    if (!t0 || t0 <= 0) return 0.0;
+    return Number((Math.max(0, Date.now() - t0) / 1000.0).toFixed(2));
+  };
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -866,6 +884,8 @@ export default function App() {
   // Actions for Overlay: Start Battle (clears opponents & matrix immediately, activates 1 Hz OCR, switches button to Stop Battle)
   const handleStartBattle = () => {
     setLastClearedOpponents([]);
+    setLastClearedTimelineEvents([]);
+    setLastClearedBattleDurationSec(undefined);
     setScannedOpponents([]);
     setActiveOpponentSlotIndex(0);
     setIsWaitingOpponent(true);
@@ -879,6 +899,9 @@ export default function App() {
     setOppTurnsElapsed(0);
     setUserEnergy(0);
     setOppEnergy(0);
+    // Phase 2: Reset clock anchor (initialized when opponent lead is recognized) & timeline events
+    setBattleClockAnchorMs(0);
+    setBattleTimelineEvents([]);
     // v2.33: Reset swap timers, shields, and Pokéball faint state to initial (0s Ready, 3 balls, 2 shields)
     setPlayerSwapEndTimeMs(0);
     setOppSwapEndTimeMs(0);
@@ -898,6 +921,8 @@ export default function App() {
     if (!isWaitingOpponent && scannedOpponents.length > 0) {
       setLastClearedOpponents([...scannedOpponents]);
       setLastClearedLeadMatchup(currentLeadMatchup);
+      setLastClearedTimelineEvents([...battleTimelineEvents]);
+      setLastClearedBattleDurationSec(getRelativeBattleSeconds());
     }
     setIsBattleActive(false);
     setShowStartBattleMenu(true);
@@ -908,6 +933,8 @@ export default function App() {
     setShowStartBattleMenu(false);
     setIsBattleActive(false);
     setLastClearedOpponents([]);
+    setLastClearedTimelineEvents([]);
+    setLastClearedBattleDurationSec(undefined);
     setScannedOpponents([]);
     setActiveOpponentSlotIndex(0);
     setIsWaitingOpponent(true);
@@ -918,6 +945,8 @@ export default function App() {
     setOppTurnsElapsed(0);
     setUserEnergy(0);
     setOppEnergy(0);
+    setBattleClockAnchorMs(0);
+    setBattleTimelineEvents([]);
     setPlayerSwapEndTimeMs(0);
     setOppSwapEndTimeMs(0);
     setPlayerPokeballCount(3);
@@ -944,14 +973,47 @@ export default function App() {
     setOppEnergy(0);
 
     // State Machine:
-    // Turn 1 lead spawn (wasWaiting) starts at 0s Ready.
+    // Turn 1 lead spawn (wasWaiting) starts at 0s Ready and initializes Clock Anchor t_0 = 0.00s.
     // Subsequent True Tactical Swap (!wasWaiting && species changed && prior slot not fainted) resets to 50s.
     if (wasWaiting) {
+      setBattleClockAnchorMs(Date.now());
+      setBattleTimelineEvents([]);
       setOppSwapEndTimeMs(0);
       setOppPokeballCount(3);
       setOppFaintedSlots([false, false, false]);
-    } else if (targetBase !== prevBase && !oppFaintedSlots[activeOpponentSlotIndex]) {
-      setOppSwapEndTimeMs(Date.now() + 50000);
+    } else if (targetBase !== prevBase) {
+      const prevOppMon = scannedOpponents[activeOpponentSlotIndex] || activeOpponentKey;
+      const isFaintSwitch = !!oppFaintedSlots[activeOpponentSlotIndex];
+      const relT = getRelativeBattleSeconds();
+      if (!isFaintSwitch) {
+        setOppSwapEndTimeMs(Date.now() + 50000);
+        setBattleTimelineEvents((prevEv) => [
+          ...prevEv,
+          {
+            type: 'SWAP',
+            actor: 'opp',
+            t: relT,
+            pokemonIn: name,
+            pokemonOut: prevOppMon,
+            userShieldsRemaining: userShields,
+            oppShieldsRemaining: oppShields
+          }
+        ]);
+      } else {
+        setBattleTimelineEvents((prevEv) => [
+          ...prevEv,
+          {
+            type: 'FAINT',
+            actor: 'opp',
+            t: relT,
+            pokemonFainted: prevOppMon,
+            pokemonIn: name,
+            pokemonOut: prevOppMon,
+            userShieldsRemaining: userShields,
+            oppShieldsRemaining: oppShields
+          }
+        ]);
+      }
     }
     setIsOppTurnOne(false);
 
@@ -1001,8 +1063,39 @@ export default function App() {
     }
     if (slotIdx === activeUserSlotIndex) return;
     const isPrevFainted = !!playerFaintedSlots[activeUserSlotIndex];
-    if (!isWaitingOpponent && !isPrevFainted) {
-      setPlayerSwapEndTimeMs(Date.now() + 50000);
+    const prevUserMon = activePreset?.pokemon[activeUserSlotIndex]?.name || '';
+    const nextUserMon = activePreset?.pokemon[slotIdx]?.name || '';
+    if (!isWaitingOpponent) {
+      const relT = getRelativeBattleSeconds();
+      if (!isPrevFainted) {
+        setPlayerSwapEndTimeMs(Date.now() + 50000);
+        setBattleTimelineEvents((prevEv) => [
+          ...prevEv,
+          {
+            type: 'SWAP',
+            actor: 'user',
+            t: relT,
+            pokemonIn: nextUserMon,
+            pokemonOut: prevUserMon,
+            userShieldsRemaining: userShields,
+            oppShieldsRemaining: oppShields
+          }
+        ]);
+      } else {
+        setBattleTimelineEvents((prevEv) => [
+          ...prevEv,
+          {
+            type: 'FAINT',
+            actor: 'user',
+            t: relT,
+            pokemonFainted: prevUserMon,
+            pokemonIn: nextUserMon,
+            pokemonOut: prevUserMon,
+            userShieldsRemaining: userShields,
+            oppShieldsRemaining: oppShields
+          }
+        ]);
+      }
     }
     setIsPlayerTurnOne(false);
     setActiveUserSlotIndex(slotIdx);
@@ -1011,6 +1104,8 @@ export default function App() {
   const handleSimulatePlayerSwap = () => {
     const liveNext = [1, 2].map((offset) => (activeUserSlotIndex + offset) % 3).find((idx) => !playerFaintedSlots[idx]);
     const nextSlot = liveNext !== undefined ? liveNext : (activeUserSlotIndex + 1) % 3;
+    const prevUserMon = activePreset?.pokemon[activeUserSlotIndex]?.name || 'Lead';
+    const nextUserMon = activePreset?.pokemon[nextSlot]?.name || 'Swap';
     setPlayerFaintedSlots((prev) => {
       if (!prev[nextSlot] && !prev[activeUserSlotIndex]) return prev;
       const next = [...prev];
@@ -1019,10 +1114,25 @@ export default function App() {
       setPlayerPokeballCount(Math.max(1, 3 - next.filter(Boolean).length));
       return next;
     });
+    if (!isWaitingOpponent) {
+      const relT = getRelativeBattleSeconds();
+      setBattleTimelineEvents((prevEv) => [
+        ...prevEv,
+        {
+          type: 'SWAP',
+          actor: 'user',
+          t: relT,
+          pokemonIn: nextUserMon,
+          pokemonOut: prevUserMon,
+          userShieldsRemaining: userShields,
+          oppShieldsRemaining: oppShields
+        }
+      ]);
+    }
     setPlayerSwapEndTimeMs(Date.now() + 50000);
     setIsPlayerTurnOne(false);
     setActiveUserSlotIndex(nextSlot);
-    setStartBattleToast(`Player Tactical Swap -> ${activePreset?.pokemon[nextSlot]?.name || 'Lead'} (50s timer)`);
+    setStartBattleToast(`Player Tactical Swap -> ${nextUserMon} (50s timer)`);
     setTimeout(() => setStartBattleToast(null), 1800);
   };
 
@@ -1033,6 +1143,8 @@ export default function App() {
         .map((offset) => (activeOpponentSlotIndex + offset) % len)
         .find((idx) => !oppFaintedSlots[idx]);
       const nextSlot = liveNext !== undefined ? liveNext : (activeOpponentSlotIndex + 1) % len;
+      const prevOppMon = scannedOpponents[activeOpponentSlotIndex] || activeOpponentKey;
+      const nextOppMon = scannedOpponents[nextSlot];
       setOppFaintedSlots((prev) => {
         if (!prev[nextSlot] && !prev[activeOpponentSlotIndex]) return prev;
         const next = [...prev];
@@ -1041,8 +1153,23 @@ export default function App() {
         setOppPokeballCount(Math.max(1, 3 - next.filter(Boolean).length));
         return next;
       });
+      if (!isWaitingOpponent) {
+        const relT = getRelativeBattleSeconds();
+        setBattleTimelineEvents((prevEv) => [
+          ...prevEv,
+          {
+            type: 'SWAP',
+            actor: 'opp',
+            t: relT,
+            pokemonIn: nextOppMon,
+            pokemonOut: prevOppMon,
+            userShieldsRemaining: userShields,
+            oppShieldsRemaining: oppShields
+          }
+        ]);
+      }
       setActiveOpponentSlotIndex(nextSlot);
-      setActiveOpponentKey(scannedOpponents[nextSlot]);
+      setActiveOpponentKey(nextOppMon);
     }
     setOppSwapEndTimeMs(Date.now() + 50000);
     setIsOppTurnOne(false);
@@ -1051,6 +1178,7 @@ export default function App() {
   };
 
   const handleSimulatePlayerFaint = () => {
+    const faintedMon = activePreset?.pokemon[activeUserSlotIndex]?.name || 'Lead';
     setPlayerFaintedSlots((prev) => {
       const updated = [...prev];
       updated[activeUserSlotIndex] = true;
@@ -1058,8 +1186,25 @@ export default function App() {
     });
     setPlayerPokeballCount((prev) => Math.max(0, prev - 1));
     const nextLiveIdx = [0, 1, 2].find((idx) => idx !== activeUserSlotIndex && !playerFaintedSlots[idx]);
+    const nextMon = nextLiveIdx !== undefined ? activePreset?.pokemon[nextLiveIdx]?.name || null : null;
     if (nextLiveIdx !== undefined) {
       setActiveUserSlotIndex(nextLiveIdx);
+    }
+    if (!isWaitingOpponent) {
+      const relT = getRelativeBattleSeconds();
+      setBattleTimelineEvents((prevEv) => [
+        ...prevEv,
+        {
+          type: 'FAINT',
+          actor: 'user',
+          t: relT,
+          pokemonFainted: faintedMon,
+          pokemonIn: nextMon,
+          pokemonOut: faintedMon,
+          userShieldsRemaining: userShields,
+          oppShieldsRemaining: oppShields
+        }
+      ]);
     }
     // Faint Replacement: Do NOT reset swap clock (preserve existing timer)
     setStartBattleToast(`Player Faint Replacement (-1 Pokéball, Timer Preserved)`);
@@ -1067,6 +1212,7 @@ export default function App() {
   };
 
   const handleSimulateOpponentFaint = () => {
+    const faintedOpp = scannedOpponents[activeOpponentSlotIndex] || activeOpponentKey;
     setOppFaintedSlots((prev) => {
       const updated = [...prev];
       updated[activeOpponentSlotIndex] = true;
@@ -1074,9 +1220,26 @@ export default function App() {
     });
     setOppPokeballCount((prev) => Math.max(0, prev - 1));
     const nextLiveIdx = scannedOpponents.findIndex((_, idx) => idx !== activeOpponentSlotIndex && !oppFaintedSlots[idx]);
+    const nextOpp = nextLiveIdx >= 0 ? scannedOpponents[nextLiveIdx] : null;
     if (nextLiveIdx >= 0) {
       setActiveOpponentSlotIndex(nextLiveIdx);
       setActiveOpponentKey(scannedOpponents[nextLiveIdx]);
+    }
+    if (!isWaitingOpponent) {
+      const relT = getRelativeBattleSeconds();
+      setBattleTimelineEvents((prevEv) => [
+        ...prevEv,
+        {
+          type: 'FAINT',
+          actor: 'opp',
+          t: relT,
+          pokemonFainted: faintedOpp,
+          pokemonIn: nextOpp,
+          pokemonOut: faintedOpp,
+          userShieldsRemaining: userShields,
+          oppShieldsRemaining: oppShields
+        }
+      ]);
     }
     // Faint Replacement: Do NOT reset swap clock (preserve existing timer)
     setStartBattleToast(`Opponent Faint Replacement (-1 Pokéball, Timer Preserved)`);
@@ -1085,19 +1248,59 @@ export default function App() {
 
   const handleUsePlayerShield = () => {
     // Species Changed = NO: Shield Used updates shield state, NEVER alters life or swap clocks
-    setUserShields((prev) => Math.max(0, prev - 1));
-    setStartBattleToast(`🛡️ Player Shield Used (${Math.max(0, userShields - 1)} left)`);
+    const nextShields = Math.max(0, userShields - 1);
+    const shieldNum = userShields >= 2 ? 1 : 2;
+    const activeMon = activePreset?.pokemon[activeUserSlotIndex]?.name || 'Lead';
+    if (!isWaitingOpponent && userShields > 0) {
+      const relT = getRelativeBattleSeconds();
+      setBattleTimelineEvents((prevEv) => [
+        ...prevEv,
+        {
+          type: 'SHIELD',
+          actor: 'user',
+          t: relT,
+          shieldNumber: shieldNum,
+          activePokemon: activeMon,
+          pokemonShielded: activeMon,
+          userShieldsRemaining: nextShields,
+          oppShieldsRemaining: oppShields
+        }
+      ]);
+    }
+    setUserShields(nextShields);
+    setStartBattleToast(`🛡️ Player Shield Used (${nextShields} left)`);
     setTimeout(() => setStartBattleToast(null), 1800);
   };
 
   const handleUseOpponentShield = () => {
     // Species Changed = NO: Shield Used updates shield state, NEVER alters life or swap clocks
-    setOppShields((prev) => Math.max(0, prev - 1));
-    setStartBattleToast(`🛡️ Opponent Shield Used (${Math.max(0, oppShields - 1)} left)`);
+    const nextShields = Math.max(0, oppShields - 1);
+    const shieldNum = oppShields >= 2 ? 1 : 2;
+    const activeOppMon = scannedOpponents[activeOpponentSlotIndex] || activeOpponentKey;
+    if (!isWaitingOpponent && oppShields > 0) {
+      const relT = getRelativeBattleSeconds();
+      setBattleTimelineEvents((prevEv) => [
+        ...prevEv,
+        {
+          type: 'SHIELD',
+          actor: 'opp',
+          t: relT,
+          shieldNumber: shieldNum,
+          activePokemon: activeOppMon,
+          pokemonShielded: activeOppMon,
+          userShieldsRemaining: userShields,
+          oppShieldsRemaining: nextShields
+        }
+      ]);
+    }
+    setOppShields(nextShields);
+    setStartBattleToast(`🛡️ Opponent Shield Used (${nextShields} left)`);
     setTimeout(() => setStartBattleToast(null), 1800);
   };
 
   const handleResetTimersAndBalls = () => {
+    setBattleClockAnchorMs(Date.now());
+    setBattleTimelineEvents([]);
     setPlayerSwapEndTimeMs(0);
     setOppSwapEndTimeMs(0);
     setPlayerPokeballCount(3);
@@ -1108,7 +1311,7 @@ export default function App() {
     setOppFaintedSlots([false, false, false]);
     setIsPlayerTurnOne(true);
     setIsOppTurnOne(true);
-    setStartBattleToast(`Match Reset (3 Balls, 2 Shields, 0s Ready)`);
+    setStartBattleToast(`Match Reset (3 Balls, 2 Shields, t_0 = 0.00s)`);
     setTimeout(() => setStartBattleToast(null), 1800);
   };
 
@@ -1173,6 +1376,20 @@ export default function App() {
     const oppsToLog = (!isWaitingOpponent && scannedOpponents.length > 0)
       ? [...scannedOpponents]
       : [...lastClearedOpponents];
+    const eventsToLog = (!isWaitingOpponent && battleTimelineEvents.length > 0)
+      ? [...battleTimelineEvents]
+      : [...lastClearedTimelineEvents];
+    const durationSec = (!isWaitingOpponent && battleClockAnchorMs > 0)
+      ? getRelativeBattleSeconds()
+      : lastClearedBattleDurationSec;
+    const userFaintsCount = Math.max(
+      playerFaintedSlots.filter(Boolean).length,
+      eventsToLog.filter((e) => e.type === 'FAINT' && e.actor === 'user').length
+    );
+    const oppFaintsCount = Math.max(
+      oppFaintedSlots.filter(Boolean).length,
+      eventsToLog.filter((e) => e.type === 'FAINT' && e.actor === 'opp').length
+    );
     const userMons = activePreset.pokemon.map((p) => p.name);
     const qualityMeta = calculateBattleQuality(
       userMons,
@@ -1180,7 +1397,17 @@ export default function App() {
       activePreset.league,
       undefined,
       undefined,
-      result
+      result,
+      eventsToLog.length > 0 ? eventsToLog : undefined,
+      eventsToLog.length > 0
+        ? {
+            totalDurationSec: durationSec,
+            userFaints: userFaintsCount,
+            oppFaints: oppFaintsCount,
+            userShieldsRemaining: userShields,
+            oppShieldsRemaining: oppShields
+          }
+        : undefined
     );
     const newEntry: WebBattleLogEntry = {
       id: `log-${now}-${Math.random().toString(36).slice(2, 7)}`,
@@ -1193,11 +1420,19 @@ export default function App() {
       result,
       leadMatchup: currentLeadMatchup,
       quality: qualityMeta,
+      timelineEvents: eventsToLog,
+      battleDurationSec: durationSec,
+      userFaints: userFaintsCount,
+      oppFaints: oppFaintsCount,
+      userShieldsRemaining: userShields,
+      oppShieldsRemaining: oppShields,
       deviceId,
       updatedAt: now
     };
     saveBattleLogsToStorage([newEntry, ...battleLogs]);
     setLastClearedOpponents([]);
+    setLastClearedTimelineEvents([]);
+    setLastClearedBattleDurationSec(undefined);
     setLastClearedLeadMatchup('NEUTRAL');
     if (!disableBattleToasts) {
       setStartBattleToast(result === 'WIN' ? '🏆 Win Logged!' : '💀 Loss Logged!');

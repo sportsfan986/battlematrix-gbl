@@ -62,7 +62,13 @@ data class BattleLogEntry(
     val result: String = "WIN",
     val deviceLabel: String = Build.MODEL ?: "Android",
     val quality: OverlayService.BattleQualityMetadata? = null,
-    val qualityEvaluated: Boolean = false
+    val qualityEvaluated: Boolean = false,
+    val timelineEvents: List<OverlayService.BattleTimelineEvent> = emptyList(),
+    val battleDurationSec: Double? = null,
+    val userFaints: Int? = null,
+    val oppFaints: Int? = null,
+    val userShieldsRemaining: Int? = null,
+    val oppShieldsRemaining: Int? = null
 )
 
 data class GblSeasonInfo(
@@ -1270,12 +1276,19 @@ class MainActivity : AppCompatActivity() {
         val serviceSlots = matchedPreset?.pokemon?.map {
             OverlayService.TeamMember(it.name, it.cp, it.fastMove, it.chargedMove1, it.chargedMove2, it.ivs)
         }
+        val hasTimeline = entry.timelineEvents.isNotEmpty()
         return OverlayService.calculateBattleQuality(
             myTeam = myMons,
             oppTeam = entry.opponents,
             league = entry.league,
             result = entry.result,
-            myTeamSlots = serviceSlots
+            myTeamSlots = serviceSlots,
+            timelineEvents = entry.timelineEvents.takeIf { it.isNotEmpty() },
+            totalDurationSec = entry.battleDurationSec,
+            explicitUserFaints = if (hasTimeline) (entry.userFaints ?: entry.quality?.userFaints) else null,
+            explicitOppFaints = if (hasTimeline) (entry.oppFaints ?: entry.quality?.oppFaints) else null,
+            explicitUserShieldsRemaining = if (hasTimeline) (entry.userShieldsRemaining ?: entry.quality?.userShieldsRemaining) else null,
+            explicitOppShieldsRemaining = if (hasTimeline) (entry.oppShieldsRemaining ?: entry.quality?.oppShieldsRemaining) else null
         )
     }
 

@@ -46,6 +46,64 @@ export type BattleQualityBadgeLabel =
   | 'Tough Loss'
   | 'Expected Loss';
 
+export type TimelineEventActor = 'user' | 'opp';
+
+export type TimelineEventType = 'SWAP' | 'SHIELD' | 'FAINT';
+
+export interface BattleTimelineEvent {
+  type: TimelineEventType;
+  actor: TimelineEventActor;
+  t: number; // Relative elapsed seconds (Date.now() - t0) / 1000
+  pokemonIn?: string | null;
+  pokemonOut?: string | null;
+  pokemonFainted?: string | null;
+  shieldNumber?: 1 | 2 | number | null;
+  activePokemon?: string | null;
+  pokemonShielded?: string | null;
+  userShieldsRemaining: number;
+  oppShieldsRemaining: number;
+}
+
+export interface ExecutionIntervalSegment {
+  tStart: number;
+  tEnd: number;
+  duration: number;
+  tau: number;
+  userActive: string;
+  oppActive: string;
+  userShields: ShieldCount;
+  oppShields: ShieldCount;
+  rating: number;
+}
+
+export interface DynamicExecutionWAEOptions {
+  totalDurationSec?: number | null;
+  userFaints?: number | null;
+  oppFaints?: number | null;
+  userShieldsRemaining?: number | null;
+  oppShieldsRemaining?: number | null;
+  ratingsDb?: RatingsLookupDb;
+  metaPool?: string[];
+}
+
+export interface DynamicExecutionWAEResult {
+  execWae: number;
+  weightedResidual: number;
+  pExec: number;
+  pPre: number;
+  sActual: number | null;
+  deltaQBase: number;
+  deltaQFinal: number;
+  weight: number;
+  faintMarginScaled: boolean;
+  shieldPenaltyApplied: number;
+  userFaints: number;
+  oppFaints: number;
+  userShieldsRemaining: number;
+  oppShieldsRemaining: number;
+  intervals: ExecutionIntervalSegment[];
+}
+
 export interface BlindMatchupFavorabilityResult {
   bmf: number | null;
   pPre: number | null;
@@ -63,13 +121,22 @@ export interface BattleQualityMetadata {
   compositeM: number;
   pPre: number; // Pre-Match Expected Win Probability in [0, 1] (BMF)
   bmfPercentage: number; // Pre-Match BMF in [0, 100]
-  pWin: number; // Expected Win Probability in [0, 1]
-  deltaQ: number; // Result (1 or 0) - pWin
+  sActual?: number | null; // Phase 2: Time-weighted execution rating S_actual
+  pExec?: number; // Phase 2: Dynamic Execution Win Probability in [0, 1]
+  execWae?: number; // Phase 2: Final Execution Residual Delta_Q_final
+  pWin: number; // Expected Win Probability in [0, 1] (P_exec when timeline present, else P_pre)
+  deltaQ: number; // Final Execution Residual Delta_Q_final
   weight: number; // 1.0 (all 3 seen), 0.75 (unrevealed 3rd), or 0 (incomplete <2 seen)
   weightedResidual: number; // weight * deltaQ
   badgeLabel: BattleQualityBadgeLabel;
   badgeColor: string; // Hex color (#22d3ee, #4ade80, #94a3b8, #f43f5e, #fb923c)
   isUnrevealedThird: boolean;
+  faintMarginScaled?: boolean;
+  shieldPenaltyApplied?: number;
+  userFaints?: number;
+  oppFaints?: number;
+  userShieldsRemaining?: number;
+  oppShieldsRemaining?: number;
 }
 
 export interface BattleQualityTeamInput {
@@ -344,26 +411,25 @@ export function getBadgeCategorization(
   }
 }
 
+function extractTeamTriplet(team: string[] | BattleQualityTeamInput): {
+  lead: string;
+  swap: string;
+  close: string;
+} {
+  if (Array.isArray(team)) {
+    const lead = (team[0] || '').trim();
+    const swap = (team[1] || '').trim();
+    const close = (team[2] || '').trim();
+    return { lead, swap, close };
+  }
+  const lead = (team.lead || '').trim();
+  const swap = (team.firstSwap || team.swap || '').trim();
+  const close = (team.finalSeen || team.close || '').trim();
+  return { lead, swap, close };
+}
+
 /**
  * Phase 1: Blind Matchup Favorability (BMF / Pre-Match Expectation)
- *
- * Match Validity Rules:
- * - If oppTeam.firstSwap is null or missing: Return { bmf: null, pPre: null, bmfPercentage: null, weight: 0.0 }
- * - If oppTeam.finalSeen is null or missing (unrevealed 3rd): Set weight w = 0.75 and use meta-average ratings for the missing slot.
- * - If all 3 Pokémon are resolved: Set weight w = 1.0.
- *
- * Lead Score (S_lead):
- *   S_lead = 0.50 * Rating_1v1(lead, oppLead) + 0.50 * Rating_2v2(lead, oppLead)
- *
- * Backline Score (S_back):
- *   - Known 3rd: Average the 1v1 ratings for Scenario A (swap vs oppSwap, close vs oppClose)
- *     and Scenario B (swap vs oppClose, close vs oppSwap).
- *   - Unrevealed 3rd: Average known swap pairing with the meta-average prior (R_bar_swap, R_bar_close) of the opposing slot.
- *   - S_back = 0.70 * max(Score_A, Score_B) + 0.30 * min(Score_A, Score_B)
- *
- * Composite Score & Pre-Match Win Probability (P_pre):
- *   M = 0.40 * S_lead + 0.60 * S_back
- *   P_pre = 1 / (1 + exp(-0.006 * (M - 500)))
  */
 export function calculateBlindMatchupFavorability(
   myTeam: string[] | BattleQualityTeamInput,
@@ -374,21 +440,15 @@ export function calculateBlindMatchupFavorability(
 ): BlindMatchupFavorabilityResult {
   const normLeague = normalizeLeagueKey(league);
 
-  const myLead = Array.isArray(myTeam) ? (myTeam[0] || '').trim() : (myTeam.lead || '').trim();
-  const mySwap = Array.isArray(myTeam)
-    ? (myTeam[1] || myTeam[0] || '').trim()
-    : (myTeam.swap || myTeam.firstSwap || myTeam.lead || '').trim();
-  const myClose = Array.isArray(myTeam)
-    ? (myTeam[2] || myTeam[1] || myTeam[0] || '').trim()
-    : (myTeam.close || myTeam.finalSeen || mySwap || '').trim();
+  const myParsed = extractTeamTriplet(myTeam);
+  const myLead = myParsed.lead;
+  const mySwap = myParsed.swap || myLead;
+  const myClose = myParsed.close || mySwap || myLead;
 
-  const oppLead = Array.isArray(oppTeam) ? (oppTeam[0] || '').trim() : (oppTeam.lead || '').trim();
-  const oppSwap = Array.isArray(oppTeam)
-    ? (oppTeam[1] || '').trim()
-    : (oppTeam.firstSwap || oppTeam.swap || '').trim();
-  const oppClose = Array.isArray(oppTeam)
-    ? (oppTeam[2] || '').trim()
-    : (oppTeam.finalSeen || oppTeam.close || '').trim();
+  const oppParsed = extractTeamTriplet(oppTeam);
+  const oppLead = oppParsed.lead;
+  const oppSwap = oppParsed.swap;
+  const oppClose = oppParsed.close;
 
   // Match Validity Rule 1: If oppTeam.firstSwap is null or missing -> return { bmf: null, weight: 0.0 }
   if (!myLead || !oppLead || !oppSwap) {
@@ -460,9 +520,290 @@ export function calculateBlindMatchupFavorability(
 }
 
 /**
+ * Phase 2: Dynamic Execution WAE Engine
+ *
+ * - If event timeline data is absent (e.g., manual entries or legacy matches), sets P_exec = P_pre.
+ * - If timeline events exist:
+ *   - Partitions the battle duration into active head-to-head intervals k bounded by swap and faint timestamps.
+ *   - For each interval, resolves the active pairing's asymmetric shield rating
+ *     R_k = Rating_{s_user v s_opp}(userActive, oppActive) using discrete shield counts at that timestamp.
+ *   - Weights each interval by its fractional duration tau_k = Delta_t_k / t_total:
+ *       S_actual = sum(tau_k * R_k)
+ *       P_exec = 1 / (1 + exp(-0.006 * (S_actual - 500)))
+ * - Execution Residual (Delta Q):
+ *   - Base: Delta Q = Result - P_exec (Result in {0.0, 1.0}).
+ *   - Faint Margin Scaling: If Result == 1 and (oppFaints - userFaints) >= 2, scale Delta Q * 1.10.
+ *   - Shield in Pocket Penalty: If Result == 0 and userShieldsRemaining > 0:
+ *       Delta Q_final = Delta Q - (0.15 * userShieldsRemaining)
+ * - Returns { execWae: Delta_Q_final, weightedResidual: Delta_Q_final * weight, ... }.
+ */
+export function calculateDynamicExecutionWAE(
+  myTeam: string[] | BattleQualityTeamInput,
+  oppTeam: string[] | BattleQualityTeamInput,
+  league: string = 'GREAT LEAGUE',
+  result: 'WIN' | 'LOSS' | number = 'WIN',
+  timelineEvents?: BattleTimelineEvent[] | null,
+  options?: DynamicExecutionWAEOptions
+): DynamicExecutionWAEResult | null {
+  const normLeague = normalizeLeagueKey(league);
+  const ratingsDb = options?.ratingsDb;
+  const metaPool = options?.metaPool;
+
+  const bmfResult = calculateBlindMatchupFavorability(myTeam, oppTeam, normLeague, ratingsDb, metaPool);
+  if (bmfResult.pPre === null || bmfResult.weight <= 0) {
+    return null;
+  }
+
+  const pPre = bmfResult.pPre;
+  const weight = bmfResult.weight;
+
+  const myParsed = extractTeamTriplet(myTeam);
+  const myLead = myParsed.lead;
+  const mySwap = myParsed.swap || myLead;
+  const myClose = myParsed.close || mySwap || myLead;
+  const myRoster = [myLead, mySwap, myClose].filter(Boolean);
+
+  const oppParsed = extractTeamTriplet(oppTeam);
+  const oppLead = oppParsed.lead;
+  const oppSwap = oppParsed.swap;
+  const oppClose = oppParsed.close;
+  const oppRoster = [oppLead, oppSwap, oppClose].filter(Boolean);
+
+  const hasTimeline = Array.isArray(timelineEvents) && timelineEvents.length > 0;
+  const rawIntervals: Array<Omit<ExecutionIntervalSegment, 'tau'>> = [];
+
+  let sActual: number | null = null;
+  let pExec = pPre;
+
+  let derivedUserFaints = 0;
+  let derivedOppFaints = 0;
+  let runningUserShields: ShieldCount = 2;
+  let runningOppShields: ShieldCount = 2;
+
+  if (hasTimeline && timelineEvents) {
+    const sortedEvents = [...timelineEvents].sort((a, b) => Math.max(0, a.t) - Math.max(0, b.t));
+
+    let userActive = myLead;
+    let oppActive = oppLead;
+    let intervalStartT = 0.0;
+    let intervalUserShields: ShieldCount = 2;
+    let intervalOppShields: ShieldCount = 2;
+
+    const userFaintedNames = new Set<string>();
+    const oppFaintedNames = new Set<string>();
+
+    for (const ev of sortedEvents) {
+      const evT = Math.max(0, Number(ev.t) || 0);
+
+      if (ev.type === 'SHIELD') {
+        if (typeof ev.userShieldsRemaining === 'number') {
+          runningUserShields = clampShieldCount(ev.userShieldsRemaining);
+        } else if (ev.actor === 'user') {
+          runningUserShields = clampShieldCount(runningUserShields - 1);
+        }
+        if (typeof ev.oppShieldsRemaining === 'number') {
+          runningOppShields = clampShieldCount(ev.oppShieldsRemaining);
+        } else if (ev.actor === 'opp') {
+          runningOppShields = clampShieldCount(runningOppShields - 1);
+        }
+
+        const activeMon = (ev.activePokemon || ev.pokemonShielded || '').trim();
+        if (activeMon) {
+          if (ev.actor === 'user') userActive = activeMon;
+          else if (ev.actor === 'opp') oppActive = activeMon;
+        }
+
+        if (Math.abs(evT - intervalStartT) < 1e-6) {
+          intervalUserShields = runningUserShields;
+          intervalOppShields = runningOppShields;
+        }
+        continue;
+      }
+
+      if (ev.type === 'SWAP' || ev.type === 'FAINT') {
+        // Close active head-to-head interval [intervalStartT, evT] if duration > 0
+        if (evT > intervalStartT) {
+          const duration = evT - intervalStartT;
+          const rating = evaluatePvPokeMatchupRating(
+            userActive,
+            oppActive,
+            intervalUserShields,
+            intervalOppShields,
+            normLeague,
+            ratingsDb
+          );
+          rawIntervals.push({
+            tStart: intervalStartT,
+            tEnd: evT,
+            duration,
+            userActive,
+            oppActive,
+            userShields: intervalUserShields,
+            oppShields: intervalOppShields,
+            rating
+          });
+        }
+
+        if (typeof ev.userShieldsRemaining === 'number') {
+          runningUserShields = clampShieldCount(ev.userShieldsRemaining);
+        }
+        if (typeof ev.oppShieldsRemaining === 'number') {
+          runningOppShields = clampShieldCount(ev.oppShieldsRemaining);
+        }
+
+        if (ev.type === 'FAINT') {
+          if (ev.actor === 'user') {
+            derivedUserFaints++;
+            const faintedMon = (ev.pokemonFainted || ev.pokemonOut || userActive).trim();
+            if (faintedMon) userFaintedNames.add(faintedMon.toLowerCase());
+            const explicitIn = (ev.pokemonIn || '').trim();
+            if (explicitIn) {
+              userActive = explicitIn;
+            } else {
+              const replacement = myRoster.find((m) => !userFaintedNames.has(m.toLowerCase()));
+              if (replacement) userActive = replacement;
+            }
+          } else {
+            derivedOppFaints++;
+            const faintedMon = (ev.pokemonFainted || ev.pokemonOut || oppActive).trim();
+            if (faintedMon) oppFaintedNames.add(faintedMon.toLowerCase());
+            const explicitIn = (ev.pokemonIn || '').trim();
+            if (explicitIn) {
+              oppActive = explicitIn;
+            } else {
+              const replacement = oppRoster.find((m) => !oppFaintedNames.has(m.toLowerCase()));
+              if (replacement) oppActive = replacement;
+            }
+          }
+        } else if (ev.type === 'SWAP') {
+          if (ev.actor === 'user') {
+            const nextMon = (ev.pokemonIn || '').trim();
+            if (nextMon) userActive = nextMon;
+          } else {
+            const nextMon = (ev.pokemonIn || '').trim();
+            if (nextMon) oppActive = nextMon;
+          }
+        }
+
+        intervalStartT = evT;
+        intervalUserShields = runningUserShields;
+        intervalOppShields = runningOppShields;
+      }
+    }
+
+    const maxEventT = sortedEvents.reduce((maxT, e) => Math.max(maxT, Math.max(0, Number(e.t) || 0)), 0);
+    const totalDurationSec =
+      typeof options?.totalDurationSec === 'number' && options.totalDurationSec > maxEventT
+        ? options.totalDurationSec
+        : maxEventT;
+
+    if (totalDurationSec > intervalStartT) {
+      const duration = totalDurationSec - intervalStartT;
+      const rating = evaluatePvPokeMatchupRating(
+        userActive,
+        oppActive,
+        intervalUserShields,
+        intervalOppShields,
+        normLeague,
+        ratingsDb
+      );
+      rawIntervals.push({
+        tStart: intervalStartT,
+        tEnd: totalDurationSec,
+        duration,
+        userActive,
+        oppActive,
+        userShields: intervalUserShields,
+        oppShields: intervalOppShields,
+        rating
+      });
+    }
+
+    const totalPartitionDuration = rawIntervals.reduce((acc, iv) => acc + iv.duration, 0);
+    if (totalPartitionDuration > 0 && rawIntervals.length > 0) {
+      sActual = rawIntervals.reduce((acc, iv) => {
+        const tau = iv.duration / totalPartitionDuration;
+        return acc + tau * iv.rating;
+      }, 0);
+      pExec = 1.0 / (1.0 + Math.exp(-0.006 * (sActual - 500.0)));
+    }
+  }
+
+  const totalPartitionDuration = rawIntervals.reduce((acc, iv) => acc + iv.duration, 0);
+  const intervals: ExecutionIntervalSegment[] = rawIntervals.map((iv) => ({
+    ...iv,
+    tau: totalPartitionDuration > 0 ? iv.duration / totalPartitionDuration : 0
+  }));
+
+  const userFaints =
+    typeof options?.userFaints === 'number'
+      ? Math.max(0, Math.min(3, options.userFaints))
+      : Math.max(0, Math.min(3, derivedUserFaints));
+
+  const oppFaints =
+    typeof options?.oppFaints === 'number'
+      ? Math.max(0, Math.min(3, options.oppFaints))
+      : Math.max(0, Math.min(3, derivedOppFaints));
+
+  const userShieldsRemaining =
+    typeof options?.userShieldsRemaining === 'number'
+      ? clampShieldCount(options.userShieldsRemaining)
+      : hasTimeline
+      ? runningUserShields
+      : 0;
+
+  const oppShieldsRemaining =
+    typeof options?.oppShieldsRemaining === 'number'
+      ? clampShieldCount(options.oppShieldsRemaining)
+      : hasTimeline
+      ? runningOppShields
+      : 0;
+
+  const numericResult = result === 'WIN' || result === 1 || result === 1.0 ? 1.0 : 0.0;
+  const deltaQBase = numericResult - pExec;
+  let deltaQScaled = deltaQBase;
+  let faintMarginScaled = false;
+  let shieldPenalty = 0.0;
+
+  // Faint Margin Scaling: If Result == 1 and (oppFaints - userFaints) >= 2, scale Delta Q * 1.10
+  if (numericResult === 1.0 && oppFaints - userFaints >= 2) {
+    deltaQScaled = deltaQScaled * 1.1;
+    faintMarginScaled = true;
+  }
+
+  // Shield in Pocket Penalty: If Result == 0 and userShieldsRemaining > 0: Delta Q_final = Delta Q - (0.15 * userShieldsRemaining)
+  if (numericResult === 0.0 && userShieldsRemaining > 0) {
+    shieldPenalty = 0.15 * userShieldsRemaining;
+    deltaQScaled = deltaQScaled - shieldPenalty;
+  }
+
+  const deltaQFinal = deltaQScaled;
+  const weightedResidual = deltaQFinal * weight;
+
+  return {
+    execWae: Number(deltaQFinal.toFixed(4)),
+    weightedResidual: Number(weightedResidual.toFixed(4)),
+    pExec: Number(pExec.toFixed(4)),
+    pPre: Number(pPre.toFixed(4)),
+    sActual: sActual !== null ? Number(sActual.toFixed(2)) : null,
+    deltaQBase: Number(deltaQBase.toFixed(4)),
+    deltaQFinal: Number(deltaQFinal.toFixed(4)),
+    weight,
+    faintMarginScaled,
+    shieldPenaltyApplied: Number(shieldPenalty.toFixed(4)),
+    userFaints,
+    oppFaints,
+    userShieldsRemaining,
+    oppShieldsRemaining,
+    intervals
+  };
+}
+
+/**
  * Core Mathematical Pipeline:
  * Evaluates Battle Quality & Wins Above Expected (WAE) for a logged GBL match,
- * grounded on Phase 1 Blind Matchup Favorability (BMF / P_pre).
+ * combining Phase 1 Blind Matchup Favorability (BMF / P_pre) and
+ * Phase 2 Dynamic Execution WAE Engine (P_exec & Delta_Q_final).
  *
  * Returns `null` if `oppTeam.firstSwap` is null/missing (incomplete match, weight = 0).
  */
@@ -472,7 +813,9 @@ export function calculateBattleQuality(
   league: string = 'GREAT LEAGUE',
   ratingsDb?: RatingsLookupDb,
   metaPool?: string[],
-  result: 'WIN' | 'LOSS' | number = 'WIN'
+  result: 'WIN' | 'LOSS' | number = 'WIN',
+  timelineEvents?: BattleTimelineEvent[] | null,
+  execOptions?: Omit<DynamicExecutionWAEOptions, 'ratingsDb' | 'metaPool'>
 ): BattleQualityMetadata | null {
   const bmfResult = calculateBlindMatchupFavorability(myTeam, oppTeam, league, ratingsDb, metaPool);
   if (
@@ -487,11 +830,17 @@ export function calculateBattleQuality(
     return null;
   }
 
-  const pWin = bmfResult.pPre;
-  const numericResult = result === 'WIN' || result === 1 || result === 1.0 ? 1.0 : 0.0;
-  const deltaQ = numericResult - pWin;
-  const weightedResidual = bmfResult.weight * deltaQ;
+  const execRes = calculateDynamicExecutionWAE(myTeam, oppTeam, league, result, timelineEvents, {
+    ...execOptions,
+    ratingsDb,
+    metaPool
+  });
 
+  if (!execRes) {
+    return null;
+  }
+
+  const pWin = execRes.pExec;
   const { badgeLabel, badgeColor } = getBadgeCategorization(pWin, result);
 
   return {
@@ -500,19 +849,28 @@ export function calculateBattleQuality(
     compositeM: bmfResult.compositeM,
     pPre: bmfResult.pPre,
     bmfPercentage: bmfResult.bmfPercentage,
-    pWin: bmfResult.pPre,
-    deltaQ: Number(deltaQ.toFixed(4)),
+    sActual: execRes.sActual,
+    pExec: execRes.pExec,
+    execWae: execRes.execWae,
+    pWin,
+    deltaQ: execRes.execWae,
     weight: bmfResult.weight,
-    weightedResidual: Number(weightedResidual.toFixed(4)),
+    weightedResidual: execRes.weightedResidual,
     badgeLabel,
     badgeColor,
-    isUnrevealedThird: bmfResult.isUnrevealedThird
+    isUnrevealedThird: bmfResult.isUnrevealedThird,
+    faintMarginScaled: execRes.faintMarginScaled,
+    shieldPenaltyApplied: execRes.shieldPenaltyApplied,
+    userFaints: execRes.userFaints,
+    oppFaints: execRes.oppFaints,
+    userShieldsRemaining: execRes.userShieldsRemaining,
+    oppShieldsRemaining: execRes.oppShieldsRemaining
   };
 }
 
 /**
  * Resolves a logged match's BattleQualityMetadata, using cached `entry.quality` if present
- * or computing it on-the-fly from `userPokemon` / `presets` and `opponents`.
+ * or computing it on-the-fly from `userPokemon` / `presets`, `opponents`, and `timelineEvents`.
  */
 export function resolveLogEntryQuality(
   entry: {
@@ -523,6 +881,12 @@ export function resolveLogEntryQuality(
     opponents?: string[];
     result: 'WIN' | 'LOSS' | string;
     quality?: BattleQualityMetadata | null;
+    timelineEvents?: BattleTimelineEvent[] | null;
+    battleDurationSec?: number | null;
+    userFaints?: number | null;
+    oppFaints?: number | null;
+    userShieldsRemaining?: number | null;
+    oppShieldsRemaining?: number | null;
   },
   presets: TeamPreset[] = [],
   ratingsDb?: RatingsLookupDb,
@@ -530,18 +894,39 @@ export function resolveLogEntryQuality(
 ): BattleQualityMetadata | null {
   if (entry.quality !== undefined) {
     if (entry.quality === null) return null;
-    // Ensure badgeLabel & deltaQ stay consistent with entry.result if result was toggled
     const numericResult = entry.result === 'WIN' ? 1.0 : 0.0;
-    const expectedDelta = Number((numericResult - entry.quality.pWin).toFixed(4));
-    if (Math.abs(expectedDelta - entry.quality.deltaQ) > 0.001) {
-      const { badgeLabel, badgeColor } = getBadgeCategorization(entry.quality.pWin, entry.result as 'WIN' | 'LOSS');
-      return {
-        ...entry.quality,
-        deltaQ: expectedDelta,
-        weightedResidual: Number((entry.quality.weight * expectedDelta).toFixed(4)),
-        badgeLabel,
-        badgeColor
-      };
+    const wasCachedWin = entry.quality.deltaQ >= 0;
+    const isNowWin = numericResult === 1.0;
+    if (wasCachedWin !== isNowWin) {
+      let myMonsForToggle = (entry.userPokemon || []).map((m) => m.trim()).filter(Boolean);
+      if (myMonsForToggle.length < 3) {
+        const matchedPreset = presets.find(
+          (p) =>
+            (entry.presetId && p.id === entry.presetId) ||
+            (entry.userTeamName && p.name.toLowerCase() === entry.userTeamName.toLowerCase())
+        );
+        if (matchedPreset && matchedPreset.pokemon.length > 0) {
+          myMonsForToggle = matchedPreset.pokemon.map((p) => p.name);
+        }
+      }
+      if (myMonsForToggle.length > 0 && (entry.opponents || []).length >= 2) {
+        return calculateBattleQuality(
+          myMonsForToggle,
+          entry.opponents || [],
+          entry.league,
+          ratingsDb,
+          metaPool,
+          entry.result === 'LOSS' ? 'LOSS' : 'WIN',
+          entry.timelineEvents,
+          {
+            totalDurationSec: entry.battleDurationSec,
+            userFaints: entry.userFaints ?? entry.quality.userFaints,
+            oppFaints: entry.oppFaints ?? entry.quality.oppFaints,
+            userShieldsRemaining: entry.userShieldsRemaining ?? entry.quality.userShieldsRemaining,
+            oppShieldsRemaining: entry.oppShieldsRemaining ?? entry.quality.oppShieldsRemaining
+          }
+        );
+      }
     }
     return entry.quality;
   }
@@ -570,13 +955,21 @@ export function resolveLogEntryQuality(
     entry.league,
     ratingsDb,
     metaPool,
-    entry.result === 'LOSS' ? 'LOSS' : 'WIN'
+    entry.result === 'LOSS' ? 'LOSS' : 'WIN',
+    entry.timelineEvents,
+    {
+      totalDurationSec: entry.battleDurationSec,
+      userFaints: entry.userFaints,
+      oppFaints: entry.oppFaints,
+      userShieldsRemaining: entry.userShieldsRemaining,
+      oppShieldsRemaining: entry.oppShieldsRemaining
+    }
   );
 }
 
 /**
  * Computes Aggregate Wins Above Expected (WAE) percentage across a filtered list of battle logs:
- *   Aggregate WAE = ( sum(w_i * (Result_i - P_win,i)) / sum(w_i) ) * 100%
+ *   Aggregate WAE = ( sum(w_i * Delta_Q_final,i) / sum(w_i) ) * 100%
  */
 export function calculateAggregateWAE(
   entries: Array<{
@@ -587,6 +980,12 @@ export function calculateAggregateWAE(
     opponents?: string[];
     result: 'WIN' | 'LOSS' | string;
     quality?: BattleQualityMetadata | null;
+    timelineEvents?: BattleTimelineEvent[] | null;
+    battleDurationSec?: number | null;
+    userFaints?: number | null;
+    oppFaints?: number | null;
+    userShieldsRemaining?: number | null;
+    oppShieldsRemaining?: number | null;
   }>,
   presets: TeamPreset[] = []
 ): {
@@ -602,8 +1001,7 @@ export function calculateAggregateWAE(
   for (const entry of entries) {
     const q = resolveLogEntryQuality(entry, presets);
     if (!q || q.weight <= 0) continue;
-    const resNum = entry.result === 'WIN' ? 1.0 : 0.0;
-    const delta = resNum - q.pWin;
+    const delta = typeof q.execWae === 'number' ? q.execWae : q.deltaQ;
     weightedSum += q.weight * delta;
     totalWeight += q.weight;
     rankedCount++;
@@ -630,12 +1028,6 @@ export function calculateAggregateWAE(
 
 /**
  * One-time retroactive migration script/routine (`migrateExistingBattleLogs()`):
- * - Iterates through all historical matches in localStorage (`gbl_battle_logs_v1` and `gbl_deleted_battles_trash_v1`).
- * - If a match lacks `quality` metadata:
- *   - Checks if `firstSwap` (`opponents[1]`) exists. If missing, marks `quality: null` (unranked/ignored).
- *   - Looks up team compositions and league in existing ratings data.
- *   - Calculates P_win, badge label, Delta Q, and weight (1.0 or 0.75).
- *   - Persists the enriched schema back to localStorage so recalculation does not re-run on every render.
  */
 export function migrateExistingBattleLogs<
   T extends {
@@ -647,6 +1039,7 @@ export function migrateExistingBattleLogs<
     opponents?: string[];
     result: 'WIN' | 'LOSS';
     quality?: BattleQualityMetadata | null;
+    timelineEvents?: BattleTimelineEvent[] | null;
   }
 >(logs: T[], presets: TeamPreset[] = [], storageKey: string = 'gbl_battle_logs_v1'): { logs: T[]; didMigrate: boolean } {
   let didMigrate = false;
@@ -683,8 +1076,7 @@ export function migrateExistingBattleLogs<
 
 /**
  * Re-evaluates all completed battle logs from scratch using the latest damage multipliers
- * (2.56x dual-type effectiveness, 1.2x Shadow attack, half-level CPM stats) and recalculates
- * both Lead Matchup (FAVORABLE / NEUTRAL / NEGATIVE) and Win Quality (WAE).
+ * and recalculates both Lead Matchup (FAVORABLE / NEUTRAL / NEGATIVE) and Win Quality (WAE).
  */
 export function reparseAllCompletedBattleLogs<
   T extends {
@@ -697,6 +1089,12 @@ export function reparseAllCompletedBattleLogs<
     result: 'WIN' | 'LOSS';
     leadMatchup?: 'FAVORABLE' | 'NEUTRAL' | 'NEGATIVE';
     quality?: BattleQualityMetadata | null;
+    timelineEvents?: BattleTimelineEvent[] | null;
+    battleDurationSec?: number | null;
+    userFaints?: number | null;
+    oppFaints?: number | null;
+    userShieldsRemaining?: number | null;
+    oppShieldsRemaining?: number | null;
     updatedAt?: number;
   }
 >(logs: T[], presets: TeamPreset[] = [], storageKey: string = 'gbl_battle_logs_v1'): T[] {
@@ -741,4 +1139,5 @@ export function reparseAllCompletedBattleLogs<
   }
   return reparsed;
 }
+
 

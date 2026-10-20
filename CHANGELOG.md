@@ -1,5 +1,22 @@
 # Changelog
 
+## v2.91
+**Phase 2/4 of 3.00 release, use 2.3x builds until 3.00 released**
+
+### Phase 2: Battle Timeline Tracking & Dynamic Execution WAE Engine
+1. **Clock Synchronization ($t_0$) & Live Event Capture (`OverlayService.kt` & `src/App.tsx`)**
+   - Initializes $t_0 = 0.00\text{s}$ at the exact millisecond the opponent's lead Pokémon is recognized by the app.
+   - Records relative elapsed seconds $t = (\text{Date.now()} - t_0) / 1000$ for all discrete in-battle actions (`BattleTimelineEvent`):
+     - **Swaps (`SWAP`)**: Logs `actor` (`user` | `opp`), `pokemonIn`, `pokemonOut`, remaining shield counts, and $t$.
+     - **Shields (`SHIELD`)**: Decrements remaining shields and logs `actor`, `shieldNumber` (1 or 2), active Pokémon shielded, remaining shield counts, and $t$.
+     - **Faints (`FAINT`)**: Logs `actor` (whose Pokémon fainted), `pokemonFainted`, remaining shield counts for both sides, and $t$.
+   - Attaches `timelineEvents` (and duration/faint/shield summary fields) to the match log schema (`SyncBattleLogRecord`, `BattleLogEntry`, `WebBattleLogEntry`) upon completion.
+2. **Dynamic Execution WAE Engine (`src/data/battleQuality.ts` & `OverlayService.kt`)**
+   - Implemented chronological match evaluation (`calculateDynamicExecutionWAE` / `calculateDynamicExecutionWAEStatic`):
+     - When event timeline data is absent (manual entries or legacy matches), sets $P_{\text{exec}} = P_{\text{pre}}$.
+     - When timeline events exist, partitions the battle duration into active head-to-head intervals $k$ bounded by swap and faint timestamps, resolves each interval's asymmetric shield rating $R_k = \text{Rating}_{s_{\text{user}}\text{v}s_{\text{opp}}}(\text{userActive}, \text{oppActive})$, and weights by fractional duration $\tau_k = \Delta t_k / t_{\text{total}}$ to compute $S_{\text{actual}} = \sum (\tau_k \cdot R_k)$ and $P_{\text{exec}} = \frac{1}{1 + e^{-0.006 \cdot (S_{\text{actual}} - 500)}}$.
+     - Computes Execution Residual ($\Delta Q = \text{Result} - P_{\text{exec}}$) with **Faint Margin Scaling** ($\Delta Q \times 1.10$ when $\text{Result} == 1$ and $(\text{oppFaints} - \text{userFaints}) \ge 2$) and **Shield in Pocket Penalty** ($\Delta Q_{\text{final}} = \Delta Q - 0.15 \cdot \text{userShieldsRemaining}$ when $\text{Result} == 0$ and $\text{userShieldsRemaining} > 0$).
+
 ## v2.90
 **Phase 1/4 of 3.00 release, use 2.3x builds until 3.00 released**
 
