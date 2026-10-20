@@ -492,9 +492,6 @@ class MainActivity : AppCompatActivity() {
         btnOverlayQuickHelp.setOnClickListener {
             switchMainPage("help")
         }
-        findViewById<Button>(R.id.btn_help_page_overlay_guide)?.setOnClickListener {
-            showOverlayUsageGuideDialog()
-        }
         findViewById<Button>(R.id.btn_help_page_metric_guide)?.setOnClickListener {
             showHelpAndMetricGuideDialog("wae")
         }
