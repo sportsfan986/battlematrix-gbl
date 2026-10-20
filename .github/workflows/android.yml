@@ -123,9 +123,9 @@ jobs:
           tag_name: ${{ steps.version.outputs.tag }}
           name: "SilphScope PvP ${{ steps.version.outputs.tag }}"
           body: |
-            ## SilphScope PvP ${{ steps.version.outputs.tag }} — Official v3.00 Release (Consolidating All v2.9x Milestones)
+            ## SilphScope PvP ${{ steps.version.outputs.tag }} — Official v3.01 Release (Consolidating All v2.9x & v3.00 Milestones + Further Documentation Enhancements)
             
-            ### Highlights in v3.00 & All 2.9x Releases (`v2.90` – `v3.00`)
+            ### Highlights in v3.00 / v3.01 & All 2.9x Releases (`v2.90` – `v3.01`)
             - **Phase 1 (v2.90) — Asymmetric 9-Shield Matrix & Blind Matchup Favorability (BMF)**:
               - Evaluates all 9 discrete shield permutations (`0v0`, `0v1`, `0v2`, `1v0`, `1v1`, `1v2`, `2v0`, `2v1`, `2v2`) for any head-to-head matchup.
               - Computes Pre-Match Blind Matchup Favorability ($M = 0.40 \cdot S_{\text{lead}} + 0.60 \cdot S_{\text{back}}$, $P_{\text{pre}}$) with automatic handling of early forfeits ($w = 0.00$ dropped when $<2$ opponents seen) and unrevealed 3rd closers ($w = 0.75$ Meta-Average 1v1 Prior `⚡ 75% Conf`).
@@ -141,8 +141,11 @@ jobs:
               - Standardized Pokémon names in **Copy GBL** and **Share / Copy Summary** outputs (`basename_form`, `_` for spaces/hyphens, trailing `S` for Shadows such as `ninetales_alolanS` and `laprasS`, and `_MEGA` / `_MEGA_X` / `_MEGA_Y` / `_PRIMAL` suffixes such as `charizard_MEGA_Y`) while keeping in-app display names unchanged.
               - Updated Share individual battle output rows to `W/L (L->F/N/U, M->F/N/U) opponent1 opponent2 opponent3`.
               - Added headless Tasker intent hooks (`com.gbl.overlay.ACTION_START_OVERLAY`, `com.gbl.overlay.ACTION_STOP_OVERLAY`, `com.gbl.overlay.ACTION_TOGGLE_OVERLAY`, and `com.gbl.overlay.ACTION_OPEN_BATTLE_LOG` / `BattleLogActivity`) to start/stop the overlay without switching apps or launch straight to the Battle Log page.
-            - **Phase 4 (v3.00) — In-App `Help & Metric Guide` Modal & Complete Mathematical Documentation**:
+            - **Phase 4 (v3.00–v3.01) — In-App `Help & Metric Guide`, Overlay Quick-Help HUD Dialog, Dedicated `❓ Help` Page & Reordered 4-Tab Navigation**:
               - Added interactive `(i)` info buttons next to `EXEC WAE` and `MATCHUP LUCK` on both Android and Web to open the **Help & Metric Guide**, plus full mathematical documentation in `README.md`.
+              - **v3.01 Further Documentation Enhancements for Users**:
+                - Added an in-app **❓ Help** button right in the **Start Battle Overlay / Status: Idle** top bar that opens the **Overlay HUD & Battle Flow Guide** explaining the general battle flow, how to read 3x3 Charged Move Damage percentages (`C1% / C2%`), how to interpret the **Shield Matrix** (`0S • 1S • 2S` 5-tier dots and 9-state `0v0–2v2` engine), **Dual 50s Swap Clocks** with faint swap-in preservation, fast move counting, sneak prevention, CMP ties, and top statusbar toasts.
+                - Reordered main navigation tabs to **⚔️ Teams • 📜 Battle Logs • ⚙️ Settings • ❓ Help** and added a comprehensive full-page **❓ Help** tab containing all instructions, tactical tips, and usage guides in one place.
             
             ### Download & Install
             Download **`silphscope-pvp-${{ steps.version.outputs.tag }}.apk`** from the **Assets** section below and install on your Android device.

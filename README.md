@@ -1,4 +1,4 @@
-# SilphScope PvP — Real-Time 3x3 Matchup Matrix, Damage Calculations, Turn Pacing HUD & Battle Log Overlay for Pokémon GO PvP (v3.00)
+# SilphScope PvP — Real-Time 3x3 Matchup Matrix, Damage Calculations, Turn Pacing HUD & Battle Log Overlay for Pokémon GO PvP (v3.01)
 
 [![Live Web Simulator](https://img.shields.io/badge/🌐%20Live%20Web%20Simulator-Try%20in%20Browser-0284c7?style=for-the-badge&logo=googlechrome&logoColor=white)](https://sportsfan986.github.io/silphscope-pvp/)
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Support%20the%20Project-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/sportsfan986)
@@ -127,10 +127,10 @@ If **SilphScope PvP** helps you count fast moves, win CMP ties, and climb Elo in
 
 ---
 
-## 📥 Download & Install Native Android APK (v3.00)
+## 📥 Download & Install Native Android APK (v3.01)
 
 1. Visit the **[Official GitHub Releases Page](https://github.com/sportsfan986/silphscope-pvp/releases)**.
-2. Download **`silphscope-pvp-v3.00.apk`** directly to your Android device.
+2. Download **`silphscope-pvp-v3.01.apk`** directly to your Android device.
 3. Tap the downloaded APK file to install (grant *"Install unknown apps"* permission if prompted).
 4. Launch **SilphScope PvP**:
    - Select, reorder, or customize your **GBL Team Presets**, set **Opponent Move Count Basis** (`My Fasts` vs. `Their Fasts`), and adjust **Overlay Size** (`50%–100%` screen width slider) and **Background Transparency**.
@@ -139,7 +139,7 @@ If **SilphScope PvP** helps you count fast moves, win CMP ties, and climb Elo in
 
 ---
 
-## ✨ What's New in v3.00 (Consolidating All v2.9x Releases)
+## ✨ What's New in v3.00 & v3.01 (Consolidating All v2.9x Releases + User Documentation Enhancements)
 
 - **Phase 1 (v2.90) — Asymmetric 9-Shield Matrix & Blind Matchup Favorability (BMF)**:
   - Evaluates all 9 discrete shield permutations ($0\text{v}0$ through $2\text{v}2$) for any matchup pair and computes Pre-Match Blind Matchup Favorability ($M = 0.40 \cdot S_{\text{lead}} + 0.60 \cdot S_{\text{back}}$, $P_{\text{pre}}$) with automatic handling of early forfeits ($w = 0.00$) and unrevealed 3rd closers ($w = 0.75$ Meta-Average Prior).
@@ -153,8 +153,11 @@ If **SilphScope PvP** helps you count fast moves, win CMP ties, and climb Elo in
   - Standardized Pokémon name formatting in **Copy GBL** and **Share / Copy Summary** outputs (`basename_form`, `_` for spaces/hyphens, trailing `S` for Shadows such as `ninetales_alolanS` and `laprasS`, and `_MEGA` / `_MEGA_X` / `_MEGA_Y` / `_PRIMAL` suffixes such as `charizard_MEGA_Y`) while keeping in-app display names unchanged.
   - Updated Share / Copy Summary individual battle output lines to `W/L (L->F/N/U, M->F/N/U) opponent1 opponent2 opponent3`.
   - Added headless Tasker intent hooks (`com.gbl.overlay.ACTION_START_OVERLAY`, `com.gbl.overlay.ACTION_STOP_OVERLAY`, `com.gbl.overlay.ACTION_TOGGLE_OVERLAY`, and `com.gbl.overlay.ACTION_OPEN_BATTLE_LOG` / `BattleLogActivity`) to start/stop the overlay without switching apps or launch directly to the Battle Log page.
-- **Phase 4 (v3.00) — In-App `Help & Metric Guide` Modal & Complete Mathematical Documentation**:
+- **Phase 4 (v3.00–v3.01) — In-App `Help & Metric Guide`, Overlay Quick-Help HUD Dialog, Dedicated `❓ Help` Page & Reordered 4-Tab Navigation**:
   - Added interactive `(i)` info buttons next to `EXEC WAE` and `MATCHUP LUCK` on both Android and Web to open the **Help & Metric Guide**, documenting Execution WAE, Matchup Luck (BMF), and the full Badge & Event Pill Glossary.
+  - **v3.01 Further Documentation Enhancements for Users**:
+    - Added an in-app **❓ Help** button right in the **Start Battle Overlay / Status: Idle** top bar that opens the **Overlay HUD & Battle Flow Guide** explaining the general battle flow, how to use 3x3 Charged Move Damage percentages (`C1% / C2%`), how to read the **Shield Matrix** (`0S • 1S • 2S` 5-tier dots and 9-state `0v0–2v2` engine), **Dual 50s Swap Clocks** with faint swap-in preservation, fast move counting, sneak prevention, CMP ties, and top statusbar toasts.
+    - Reordered main navigation tabs to **⚔️ Teams • 📜 Battle Logs • ⚙️ Settings • ❓ Help** and added a comprehensive full-page **❓ Help** tab containing all instructions, tactical tips, and usage guides in one place.
 
 ---
 

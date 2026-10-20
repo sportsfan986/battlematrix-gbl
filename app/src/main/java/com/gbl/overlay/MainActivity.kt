@@ -110,9 +110,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnNavTeams: Button
     private lateinit var btnNavSettings: Button
     private lateinit var btnNavBattleLog: Button
+    private lateinit var btnNavHelp: Button
     private lateinit var pageTeams: android.view.View
     private lateinit var pageSettings: android.view.View
     private lateinit var pageBattleLog: android.view.View
+    private lateinit var pageHelp: android.view.View
     private lateinit var btnReparseBattlesSettings: Button
     private lateinit var textReparseBattlesStatus: TextView
     private lateinit var btnToggleOppCountBasis: Button
@@ -324,6 +326,11 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
+        if (pageExtra.equals("help", ignoreCase = true)) {
+            switchMainPage("help")
+            return
+        }
+
         if (act.equals(OverlayService.ACTION_STOP_OVERLAY, ignoreCase = true) ||
             act.equals(OverlayService.ACTION_SHORT_STOP, ignoreCase = true) ||
             cmdExtra.equals("stop", ignoreCase = true)
@@ -371,8 +378,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun switchMainPage(page: String) {
         pageTeams.visibility = if (page == "teams") android.view.View.VISIBLE else android.view.View.GONE
-        pageSettings.visibility = if (page == "settings") android.view.View.VISIBLE else android.view.View.GONE
         pageBattleLog.visibility = if (page == "battle_log") android.view.View.VISIBLE else android.view.View.GONE
+        pageSettings.visibility = if (page == "settings") android.view.View.VISIBLE else android.view.View.GONE
+        pageHelp.visibility = if (page == "help") android.view.View.VISIBLE else android.view.View.GONE
 
         val activeBg = android.content.res.ColorStateList.valueOf(0xFF0284C7.toInt())
         val inactiveBg = android.content.res.ColorStateList.valueOf(0xFF1E293B.toInt())
@@ -382,11 +390,14 @@ class MainActivity : AppCompatActivity() {
         btnNavTeams.backgroundTintList = if (page == "teams") activeBg else inactiveBg
         btnNavTeams.setTextColor(if (page == "teams") activeText else inactiveText)
 
+        btnNavBattleLog.backgroundTintList = if (page == "battle_log") activeBg else inactiveBg
+        btnNavBattleLog.setTextColor(if (page == "battle_log") activeText else inactiveText)
+
         btnNavSettings.backgroundTintList = if (page == "settings") activeBg else inactiveBg
         btnNavSettings.setTextColor(if (page == "settings") activeText else inactiveText)
 
-        btnNavBattleLog.backgroundTintList = if (page == "battle_log") activeBg else inactiveBg
-        btnNavBattleLog.setTextColor(if (page == "battle_log") activeText else inactiveText)
+        btnNavHelp.backgroundTintList = if (page == "help") activeBg else inactiveBg
+        btnNavHelp.setTextColor(if (page == "help") activeText else inactiveText)
 
         if (page == "battle_log") {
             renderBattleLogPage()
@@ -403,9 +414,11 @@ class MainActivity : AppCompatActivity() {
         btnNavTeams = findViewById(R.id.btn_nav_teams)
         btnNavSettings = findViewById(R.id.btn_nav_settings)
         btnNavBattleLog = findViewById(R.id.btn_nav_battle_log)
+        btnNavHelp = findViewById(R.id.btn_nav_help)
         pageTeams = findViewById(R.id.page_teams)
         pageSettings = findViewById(R.id.page_settings)
         pageBattleLog = findViewById(R.id.page_battle_log)
+        pageHelp = findViewById(R.id.page_help)
         btnReparseBattlesSettings = findViewById(R.id.btn_reparse_battles_settings)
         textReparseBattlesStatus = findViewById(R.id.text_reparse_battles_status)
         btnToggleOppCountBasis = findViewById(R.id.btn_toggle_opp_count_basis)
@@ -471,8 +484,19 @@ class MainActivity : AppCompatActivity() {
         }
 
         btnNavTeams.setOnClickListener { switchMainPage("teams") }
-        btnNavSettings.setOnClickListener { switchMainPage("settings") }
         btnNavBattleLog.setOnClickListener { switchMainPage("battle_log") }
+        btnNavSettings.setOnClickListener { switchMainPage("settings") }
+        btnNavHelp.setOnClickListener { switchMainPage("help") }
+
+        findViewById<Button>(R.id.btn_overlay_quick_help)?.setOnClickListener {
+            showOverlayUsageGuideDialog()
+        }
+        findViewById<Button>(R.id.btn_help_page_overlay_guide)?.setOnClickListener {
+            showOverlayUsageGuideDialog()
+        }
+        findViewById<Button>(R.id.btn_help_page_metric_guide)?.setOnClickListener {
+            showHelpAndMetricGuideDialog("wae")
+        }
 
         updateOppCountBasisUi()
         updateOppChargedMovesUi()
@@ -2457,8 +2481,11 @@ class MainActivity : AppCompatActivity() {
         )
 
         val dialog = AlertDialog.Builder(this)
-            .setTitle("📖 Help & Metric Guide (v3.00)")
+            .setTitle("📖 Help & Metric Guide (v3.01)")
             .setView(scroll)
+            .setNeutralButton("Open Full Help Tab") { _, _ ->
+                switchMainPage("help")
+            }
             .setPositiveButton("Got It", null)
             .create()
         dialog.show()
@@ -2468,6 +2495,126 @@ class MainActivity : AppCompatActivity() {
         } else if (initialTopic == "wae") {
             scroll.post { scroll.smoothScrollTo(0, waeCard.top) }
         }
+    }
+
+    private fun showOverlayUsageGuideDialog() {
+        val density = resources.displayMetrics.density
+        val pad = (14 * density).toInt()
+        val scroll = ScrollView(this)
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, pad, pad, pad)
+            setBackgroundColor(0xFF0F172A.toInt())
+        }
+        scroll.addView(root)
+
+        fun addGuideSection(
+            title: String,
+            accentColor: Int,
+            bodyText: String
+        ) {
+            val card = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setBackgroundColor(0xFF1E293B.toInt())
+                val cPad = (11 * density).toInt()
+                setPadding(cPad, cPad, cPad, cPad)
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    bottomMargin = (10 * density).toInt()
+                }
+            }
+            val titleTv = TextView(this).apply {
+                text = title
+                textSize = 13f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(accentColor)
+            }
+            val bodyTv = TextView(this).apply {
+                text = bodyText
+                textSize = 11.5f
+                setTextColor(0xFFE2E8F0.toInt())
+                setLineSpacing(4f, 1.05f)
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    topMargin = (5 * density).toInt()
+                }
+            }
+            card.addView(titleTv)
+            card.addView(bodyTv)
+            root.addView(card)
+        }
+
+        addGuideSection(
+            title = "1. General Battle Flow & Interacting with the Overlay",
+            accentColor = 0xFF38BDF8.toInt(),
+            bodyText =
+                "• Select or Switch Teams: Choose an active team in ⚔️ Teams, or tap the team dropdown ('▼') directly inside the floating overlay header to swap presets without leaving Pokémon GO.\n" +
+                "• Launch & Reposition: Tap 'Start Battle Overlay' to open the floating HUD. Drag the header bar to move it anywhere on screen.\n" +
+                "• Minimize & Pause OCR ('⚔️' Icon): Tap the '⚔️' icon in the top-left of the overlay between sets or while catching Pokémon to collapse the HUD into a tiny floating bubble and pause screen scanning.\n" +
+                "• Start Battle ('⚔️ Start Battle'): Tap when a GBL match begins. This clears the previous opponent lineup, resets both 50s swap timers, resets shields (2v2) and Pokéballs (3v3), anchors the timeline clock (t=0s), and turns into '🛑 Stop Battle'.\n" +
+                "• Stop & Log ('🛑 Stop Battle'): Tap when the match finishes. Verify or tap the Lead Matchup chip ('Fav / Neu / Neg') and tap '🏆 Win' or '💀 Loss' (or '✕ Skip')."
+        )
+
+        addGuideSection(
+            title = "2. How to Use Battle Damage Numbers (C1% / C2% in 3x3 Matrix)",
+            accentColor = 0xFF4ADE80.toInt(),
+            bodyText =
+                "• 3x3 Grid Structure: Columns = Opponent's 3 Pokémon in the exact order revealed ([1st Lead, 2nd First Swap, 3rd Closer]). Rows = Your 3 Pokémon.\n" +
+                "• Live Charged Move Damage (C1% / C2%): Every cell shows the exact percentage of HP that Charged Move 1 and Charged Move 2 deal in that head-to-head matchup (accounting for League CP stat scaling, dual-type effectiveness up to 2.56x, STAB 1.2x, and Shadow +20% ATK / -16.7% DEF).\n" +
+                "• Tank vs. Shield Decisions: Glance at the cell to know immediately whether you can comfortably tank an incoming charged move (e.g. 38%) or must commit a shield (e.g. 84%), and see the exact HP threshold where your charged move KOs the opponent.\n" +
+                "• Interactive Opponent Headers & User Rows: Tap any opponent column header to mark it as active, toggle Shadow ('S'), or cycle Regional/Alternate forms. Tap any of your 3 Pokémon rows on the left to manually set your active on-field Pokémon."
+        )
+
+        addGuideSection(
+            title = "3. The Shield Matrix (0S • 1S • 2S Dots & 9-State Engine)",
+            accentColor = 0xFFFBBF24.toInt(),
+            bodyText =
+                "• 3 Shield Scenario Dots (0S • 1S • 2S): Each matrix cell displays 3 indicator dots for the 0-Shield, 1-Shield, and 2-Shield matchup ratings on PvPoke's 500-centered scale:\n" +
+                "  - [+] Bright Emerald (SW ≥ 620): Strong Win / hard counter.\n" +
+                "  - [●] Green (W 530–619): Favorable Win.\n" +
+                "  - [●] Slate Grey (N 471–529): Neutral 50/50 matchup decided by energy, IVs, or baiting.\n" +
+                "  - [●] Red (L 381–470): Unfavorable Loss.\n" +
+                "  - [×] Dark Crimson (SL ≤ 380): Strong Loss — swap or catch immediately.\n" +
+                "• Identifying Shield Flips: Compare the 3 dots left-to-right (0S, 1S, 2S). For example, [Red, Green, Red] tells you that spending 1 shield flips a losing matchup into a win!\n" +
+                "• Dynamic 9-State Asymmetric Matrix (0v0–2v2): Evaluates all 9 shield combinations ( including uneven 1v0, 2v1, 0v2 states) as shields are spent."
+        )
+
+        addGuideSection(
+            title = "4. Dual 50s Swap Timers, Faint Preservation & Statusbar Toasts",
+            accentColor = 0xFFC084FC.toInt(),
+            bodyText =
+                "• Independent 50s Swap Clocks: Tracks both your switch timer and the opponent's switch timer automatically:\n" +
+                "  - Red (50s–16s): Switch locked on cooldown.\n" +
+                "  - Orange/Amber (15s–1s): Switch window opening soon — prepare to throw energy or time a catch.\n" +
+                "  - Green (0s Ready): Switch available immediately.\n" +
+                "• Smart Faint Swap-In Preservation: Detects Pokéball drops (3→2→1) when a Pokémon faints so a replacement entering after a KO preserves the running swap timer instead of falsely resetting to 50s.\n" +
+                "• Shield (2→1→0) & Faint Column Dimming: Tracks remaining shields and automatically dims fainted opponent columns in the 3x3 matrix.\n" +
+                "• Top Statusbar / Clock Strip Toasts: Displays non-intrusive alerts for Swaps, Faint Swaps, and Shields Used at the top statusbar so your charged move buttons are never blocked."
+        )
+
+        addGuideSection(
+            title = "5. Move Counting, Sneak Prevention, CMP & Extra Features",
+            accentColor = 0xFFF472B6.toInt(),
+            bodyText =
+                "• Multi-Cycle Fast Move Counts (Cycle 1 / 2 / 3): Shows exact fast moves to reach Charged Move 1 & 2 across 3 consecutive cycles, accounting for leftover residual energy (e.g. 7 - 6 - 7).\n" +
+                "• Count Basis ('My Fasts' vs. 'Their Fasts'): Configurable in ⚙️ Settings.\n" +
+                "• Optimal Throw Timing (Sneak Prevention): Highlights exact fast move counts to throw on when fast move durations differ (e.g. 2-turn vs. 3-turn) to deny free opponent fast move sneaks.\n" +
+                "• CMP Tie Indicator ('CMP!'): Shows who wins Charged Move Priority ties based on Attack stat.\n" +
+                "• 4 Charged Moves Mode, Scale (50%–100%) & Transparency Sliders: Customize your HUD layout anytime in ⚙️ Settings."
+        )
+
+        AlertDialog.Builder(this)
+            .setTitle("🎯 Overlay HUD & Battle Flow Guide")
+            .setView(scroll)
+            .setNeutralButton("📖 Open Full Help Tab") { _, _ ->
+                switchMainPage("help")
+            }
+            .setPositiveButton("Got It", null)
+            .show()
     }
 
     private fun showExportFormatAndTimeframeDialog(isShareIntent: Boolean) {

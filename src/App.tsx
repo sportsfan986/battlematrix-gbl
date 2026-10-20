@@ -183,8 +183,8 @@ const DEFAULT_SEASONS_FALLBACK: GblSeasonInfo[] = [
 ];
 
 export default function App() {
-  // Navigation tabs (includes separated Teams, Settings, and Battle Log pages)
-  const [activeTab, setActiveTab] = useState<'simulator' | 'presets' | 'settings' | 'battle_log' | 'turn_matrix' | 'android_code'>('simulator');
+  // Navigation tabs (reordered: Teams, Battle Logs, Settings, Help)
+  const [activeTab, setActiveTab] = useState<'simulator' | 'presets' | 'battle_log' | 'settings' | 'help' | 'turn_matrix' | 'android_code'>('simulator');
 
   // Floating Overlay Visibility & Minimized Bubble State
   const [isOverlayVisible, setIsOverlayVisible] = useState(true);
@@ -436,6 +436,7 @@ export default function App() {
   const [replayOppShadow, setReplayOppShadow] = useState<boolean>(false);
   const [showHelpMetricGuideModal, setShowHelpMetricGuideModal] = useState<boolean>(false);
   const [helpMetricGuideTopic, setHelpMetricGuideTopic] = useState<'wae' | 'bmf' | 'badges'>('wae');
+  const [showOverlayQuickHelpModal, setShowOverlayQuickHelpModal] = useState<boolean>(false);
 
   // Two-Device Cloud & Delta Sync States
   const [githubGistToken, setGithubGistToken] = useState<string>(() => localStorage.getItem('gbl_sync_github_token') || '');
@@ -1917,7 +1918,7 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <h1 className="font-bold text-base md:text-lg tracking-tight text-white">SilphScope PvP</h1>
                 <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20">
-                  v3.00 • Android Native Overlay
+                  v3.01 • Android Native Overlay
                 </span>
               </div>
               <p className="text-xs text-slate-400 hidden sm:block">
@@ -1955,6 +1956,17 @@ export default function App() {
                 </span>
               </button>
               <button
+                onClick={() => setActiveTab('battle_log')}
+                className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition ${
+                  activeTab === 'battle_log'
+                    ? 'bg-sky-500 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                }`}
+              >
+                <Target className="w-3.5 h-3.5" />
+                <span>📜 Battle Logs</span>
+              </button>
+              <button
                 onClick={() => setActiveTab('settings')}
                 className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition ${
                   activeTab === 'settings'
@@ -1966,15 +1978,15 @@ export default function App() {
                 <span>⚙️ Settings</span>
               </button>
               <button
-                onClick={() => setActiveTab('battle_log')}
+                onClick={() => setActiveTab('help')}
                 className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition ${
-                  activeTab === 'battle_log'
+                  activeTab === 'help'
                     ? 'bg-sky-500 text-white shadow-sm'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
                 }`}
               >
-                <Target className="w-3.5 h-3.5" />
-                <span>📜 Battle Log</span>
+                <Info className="w-3.5 h-3.5" />
+                <span>❓ Help</span>
               </button>
               <button
                 onClick={() => setActiveTab('android_code')}
@@ -2004,6 +2016,48 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6">
+        {/* Persistent Overlay Launch, Status & Quick Help Bar (Mirrors Android Top Region) */}
+        <div className="mb-5 p-3.5 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="space-y-0.5">
+            <div className="text-xs sm:text-sm font-bold text-sky-400">
+              {isOverlayVisible
+                ? isBattleActive
+                  ? 'Status: Battle Active (1 Hz OCR Scanning & 50s Swap Clocks Running)'
+                  : 'Status: Idle (Ready to launch overlay)'
+                : 'Status: Overlay Hidden (Standby)'}
+            </div>
+            <div className="text-[11px] text-slate-400">
+              Tip: Tap ⚔️ in overlay to minimize &amp; pause OCR • Tap <strong className="text-sky-300">❓ Help</strong> for complete HUD, Shield Matrix, Damage % &amp; Swap Timer guide
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setShowOverlayQuickHelpModal(true)}
+              className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-sky-300 font-bold text-xs flex items-center gap-1.5 transition shadow-sm"
+              title="How to interact with and use the floating battle overlay"
+            >
+              <span>❓ Help</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setIsOverlayVisible((prev) => !prev);
+                if (!isOverlayVisible) {
+                  setIsOverlayMinimized(false);
+                }
+              }}
+              className={`px-4 py-2 rounded-xl font-bold text-xs text-white transition shadow-lg ${
+                isOverlayVisible
+                  ? 'bg-blue-600 hover:bg-blue-500 shadow-blue-600/20'
+                  : 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20'
+              }`}
+            >
+              {isOverlayVisible ? 'Start Battle Overlay (Active)' : 'Start Battle Overlay'}
+            </button>
+          </div>
+        </div>
         {/* Interactive Quick Undo Toast Banner */}
         {undoBanner && (
           <div className="mb-4 px-4 py-2.5 rounded-xl bg-amber-950/90 border border-amber-400/60 shadow-lg flex items-center justify-between gap-3">
@@ -4258,23 +4312,29 @@ export default function App() {
            ========================================================================= */}
         {activeTab === 'settings' && (
           <div className="max-w-3xl mx-auto space-y-5">
-            {/* 3-Page Quick Switcher Banner */}
-            <div className="flex items-center justify-between bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl">
+            {/* 4-Page Quick Switcher Banner (Teams • Battle Logs • Settings • Help) */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl">
               <div>
                 <h2 className="text-lg font-bold text-white flex items-center gap-2">
                   <Settings className="w-5 h-5 text-sky-400" />
                   <span>Overlay &amp; Database Settings</span>
                 </h2>
                 <p className="text-xs text-slate-400">
-                  Dedicated settings page matching the 3-page Android main app layout (Teams • Settings • Battle Log).
+                  Dedicated settings page matching the 4-page Android main app layout (Teams • Battle Logs • Settings • Help).
                 </p>
               </div>
-              <div className="flex items-center gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-bold">
+              <div className="flex items-center gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-bold shrink-0">
                 <button
                   onClick={() => setActiveTab('presets')}
                   className="px-3 py-1.5 rounded-lg text-slate-400 hover:text-white transition"
                 >
                   ⚔️ Teams
+                </button>
+                <button
+                  onClick={() => setActiveTab('battle_log')}
+                  className="px-3 py-1.5 rounded-lg text-slate-400 hover:text-white transition"
+                >
+                  📜 Battle Logs
                 </button>
                 <button
                   onClick={() => setActiveTab('settings')}
@@ -4283,10 +4343,10 @@ export default function App() {
                   ⚙️ Settings
                 </button>
                 <button
-                  onClick={() => setActiveTab('battle_log')}
+                  onClick={() => setActiveTab('help')}
                   className="px-3 py-1.5 rounded-lg text-slate-400 hover:text-white transition"
                 >
-                  📜 Battle Log
+                  ❓ Help
                 </button>
               </div>
             </div>
@@ -5232,12 +5292,12 @@ export default function App() {
 
           return (
             <div className="max-w-4xl mx-auto space-y-5">
-              {/* 3-Page Quick Switcher Banner */}
+              {/* 4-Page Quick Switcher Banner (Teams • Battle Logs • Settings • Help) */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl">
                 <div>
                   <h2 className="text-lg font-bold text-white flex items-center gap-2">
                     <Target className="w-5 h-5 text-sky-400" />
-                    <span>📜 GBL Battle Log, Season Export &amp; Interactive Replay</span>
+                    <span>📜 GBL Battle Logs, Season Export &amp; Interactive Replay</span>
                   </h2>
                   <p className="text-xs text-slate-400">
                     Click any battle card (or <strong>🔍 Replay</strong>) to inspect the interactive 3v3 overlay matrix and analyze swap/shield decisions!
@@ -5251,16 +5311,22 @@ export default function App() {
                     ⚔️ Teams
                   </button>
                   <button
+                    onClick={() => setActiveTab('battle_log')}
+                    className="px-3 py-1.5 rounded-lg bg-sky-500 text-white shadow-sm"
+                  >
+                    📜 Battle Logs
+                  </button>
+                  <button
                     onClick={() => setActiveTab('settings')}
                     className="px-3 py-1.5 rounded-lg text-slate-400 hover:text-white transition"
                   >
                     ⚙️ Settings
                   </button>
                   <button
-                    onClick={() => setActiveTab('battle_log')}
-                    className="px-3 py-1.5 rounded-lg bg-sky-500 text-white shadow-sm"
+                    onClick={() => setActiveTab('help')}
+                    className="px-3 py-1.5 rounded-lg text-slate-400 hover:text-white transition"
                   >
-                    📜 Battle Log
+                    ❓ Help
                   </button>
                 </div>
               </div>
@@ -6246,6 +6312,266 @@ export default function App() {
         )}
 
         {/* =========================================================================
+            PAGE 4: COMPLETE HELP, INSTRUCTIONS, TIPS & HUD GUIDE PAGE
+           ========================================================================= */}
+        {activeTab === 'help' && (
+          <div className="max-w-4xl mx-auto space-y-5">
+            {/* 4-Page Quick Switcher Banner (Teams • Battle Logs • Settings • Help) */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl">
+              <div>
+                <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                  <Info className="w-5 h-5 text-sky-400" />
+                  <span>📖 Complete Help, HUD Instructions, Tips &amp; Tactics Guide (v3.01)</span>
+                </h2>
+                <p className="text-xs text-slate-400">
+                  Everything you need to master the floating PvP overlay, 3x3 damage &amp; shield matrix, 50s swap clocks, move pacing, Battle Log analytics, and Tasker automation.
+                </p>
+              </div>
+              <div className="flex items-center gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-bold shrink-0">
+                <button
+                  onClick={() => setActiveTab('presets')}
+                  className="px-3 py-1.5 rounded-lg text-slate-400 hover:text-white transition"
+                >
+                  ⚔️ Teams
+                </button>
+                <button
+                  onClick={() => setActiveTab('battle_log')}
+                  className="px-3 py-1.5 rounded-lg text-slate-400 hover:text-white transition"
+                >
+                  📜 Battle Logs
+                </button>
+                <button
+                  onClick={() => setActiveTab('settings')}
+                  className="px-3 py-1.5 rounded-lg text-slate-400 hover:text-white transition"
+                >
+                  ⚙️ Settings
+                </button>
+                <button
+                  onClick={() => setActiveTab('help')}
+                  className="px-3 py-1.5 rounded-lg bg-sky-500 text-white shadow-sm"
+                >
+                  ❓ Help
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Popup Guide Launchers */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setShowOverlayQuickHelpModal(true)}
+                className="p-3.5 rounded-2xl bg-sky-500/15 hover:bg-sky-500/25 border border-sky-400/40 text-left flex items-center justify-between transition shadow-lg"
+              >
+                <div>
+                  <div className="text-xs font-extrabold text-sky-300">🎯 Open Overlay Flow &amp; HUD Popup Guide</div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">
+                    Quick reference for Shield Matrix, Damage %, 50s Swap Clocks &amp; Battle Flow
+                  </div>
+                </div>
+                <span className="text-sky-400 font-bold text-xs">Open →</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setHelpMetricGuideTopic('wae');
+                  setShowHelpMetricGuideModal(true);
+                }}
+                className="p-3.5 rounded-2xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-400/40 text-left flex items-center justify-between transition shadow-lg"
+              >
+                <div>
+                  <div className="text-xs font-extrabold text-emerald-300">📊 Open Execution WAE, BMF &amp; Badge Glossary</div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">
+                    Mathematical breakdown of Wins Above Expected, Matchup Luck &amp; 11 Badges/Pills
+                  </div>
+                </div>
+                <span className="text-emerald-400 font-bold text-xs">Open →</span>
+              </button>
+            </div>
+
+            {/* Section 1: General Battle Flow & How to Interact with the Overlay */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-2.5 text-xs text-slate-300 leading-relaxed">
+              <h3 className="text-sm font-bold text-sky-400">
+                1. General Battle Flow &amp; How to Interact with the Overlay
+              </h3>
+              <ul className="list-disc list-inside space-y-1.5">
+                <li>
+                  <strong className="text-white">Step 1 — Select or Build Your Team:</strong> On the <strong>⚔️ Teams</strong> tab, tap any team preset to make it active (or create a custom Great, Ultra, Master, or Mega Master League trio with auto-filled PvPoke recommended moves and IV/CP stat scaling).
+                </li>
+                <li>
+                  <strong className="text-white">Step 2 — Launch the Overlay:</strong> Tap <strong>Start Battle Overlay</strong> in the top status bar. Grant <em>Display over other apps</em> and <em>Screen Capture</em> (used strictly in-memory at 1 Hz for ML Kit OCR — zero screenshots are ever saved to disk).
+                </li>
+                <li>
+                  <strong className="text-white">Step 3 — Reposition or Minimize Anytime:</strong> Drag the overlay header bar to position it anywhere on screen. Between battles or while walking/catching Pokémon, tap the <strong>⚔️</strong> icon in the top-left of the overlay to collapse it into a tiny floating bubble and pause OCR scanning.
+                </li>
+                <li>
+                  <strong className="text-white">Step 4 — Switch Teams In-Overlay:</strong> Tap the team name dropdown (<strong>▼</strong>) directly inside the overlay header to switch active presets without leaving Pokémon GO.
+                </li>
+                <li>
+                  <strong className="text-white">Step 5 — Start Battle (⚔️ Start Battle):</strong> When a GBL match begins, tap <strong>⚔️ Start Battle</strong> on the overlay. This clears the previous opponent lineup, resets both 50s swap timers, resets shields (2v2) and Pokéballs (3v3), anchors the battle timeline clock (<code>t = 0s</code>), and turns the button into <strong>🛑 Stop Battle</strong>.
+                </li>
+                <li>
+                  <strong className="text-white">Step 6 — Stop &amp; Log (🛑 Stop Battle):</strong> When the match ends, tap <strong>🛑 Stop Battle</strong>. OCR pauses and the quick-log prompt appears: verify or tap the Lead Matchup chip (<strong>Fav / Neu / Neg</strong>) and tap <strong>🏆 Win</strong> or <strong>💀 Loss</strong> (or <strong>✕ Skip</strong>).
+                </li>
+              </ul>
+            </div>
+
+            {/* Section 2: How to Use Battle Damage Numbers & 3x3 Matchup Matrix */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-2.5 text-xs text-slate-300 leading-relaxed">
+              <h3 className="text-sm font-bold text-emerald-400">
+                2. How to Read Battle Damage Numbers (C1% / C2%) &amp; Use the 3x3 Matrix
+              </h3>
+              <ul className="list-disc list-inside space-y-1.5">
+                <li>
+                  <strong className="text-white">3x3 Grid Layout:</strong> The 3 columns represent the opponent&apos;s 3 Pokémon in the exact order revealed (<code>[1st Lead, 2nd First Swap, 3rd Closer]</code>). The 3 rows represent your 3 Pokémon.
+                </li>
+                <li>
+                  <strong className="text-white">Charged Move Damage Percentages (C1% / C2%):</strong> Each cell displays the exact percentage of HP that Charged Move 1 and Charged Move 2 deal in that head-to-head matchup, accounting for League CP stat scaling, dual-type effectiveness (up to <code>2.56x</code>), STAB (<code>1.2x</code>), and Shadow modifiers (<code>+20% ATK / -16.7% DEF</code>).
+                </li>
+                <li>
+                  <strong className="text-white">Tactical Tank vs. Shield Decisions:</strong> Use the damage numbers to know immediately whether an incoming charged move can be safely tanked (e.g., <code>36%</code>) or requires a shield (e.g., <code>84%</code>), and know the exact HP threshold where your own charged move KOs the opponent.
+                </li>
+                <li>
+                  <strong className="text-white">Interactive Opponent Column Headers:</strong> Tap any opponent name in the top header row to set it as the active opponent, toggle <strong>Shadow (S)</strong> status if OCR missed the purple aura, or cycle Regional/Alternate forms (e.g., Alolan, Galarian, Origin, Crowned).
+                </li>
+                <li>
+                  <strong className="text-white">Interactive User Rows:</strong> Tap any of your 3 Pokémon rows on the left to manually mark your active on-field Pokémon and immediately update the live Move Pacing &amp; Turn Alignment bar.
+                </li>
+              </ul>
+            </div>
+
+            {/* Section 3: The Shield Matrix */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-2.5 text-xs text-slate-300 leading-relaxed">
+              <h3 className="text-sm font-bold text-amber-400">
+                3. The Shield Matrix (0S • 1S • 2S Dots &amp; 9-State 0v0–2v2 Engine)
+              </h3>
+              <ul className="list-disc list-inside space-y-1.5">
+                <li>
+                  <strong className="text-white">3 Shield Scenario Dots (0S • 1S • 2S):</strong> Every cell in the 3x3 matrix displays 3 color-coded indicator dots representing the 0-Shield, 1-Shield, and 2-Shield matchup ratings on PvPoke&apos;s 500-centered scale:
+                  <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 mt-2 text-[11px]">
+                    <div className="p-2 rounded-lg bg-slate-950 border border-emerald-500/40">
+                      <strong className="text-emerald-400 block">[+] Strong Win (SW)</strong>
+                      <span className="text-slate-400">Rating ≥ 620 • Dominant wall</span>
+                    </div>
+                    <div className="p-2 rounded-lg bg-slate-950 border border-green-500/30">
+                      <strong className="text-green-400 block">[●] Win (W)</strong>
+                      <span className="text-slate-400">530–619 • Favorable win</span>
+                    </div>
+                    <div className="p-2 rounded-lg bg-slate-950 border border-slate-700">
+                      <strong className="text-slate-300 block">[●] Neutral (N)</strong>
+                      <span className="text-slate-400">471–529 • Even 50/50</span>
+                    </div>
+                    <div className="p-2 rounded-lg bg-slate-950 border border-rose-500/30">
+                      <strong className="text-rose-400 block">[●] Loss (L)</strong>
+                      <span className="text-slate-400">381–470 • Unfavorable</span>
+                    </div>
+                    <div className="p-2 rounded-lg bg-slate-950 border border-red-600/40">
+                      <strong className="text-red-400 block">[×] Strong Loss (SL)</strong>
+                      <span className="text-slate-400">≤ 380 • Hard counter</span>
+                    </div>
+                  </div>
+                </li>
+                <li>
+                  <strong className="text-white">Reading Shield Flip Scenarios:</strong> Compare the 3 dots left-to-right (<code>0S, 1S, 2S</code>). For example, if a cell shows <code>[Red, Green, Red]</code>, you lose the 0S and 2S scenarios but <strong>WIN the 1-Shield scenario</strong> — telling you to commit exactly 1 shield to flip the matchup!
+                </li>
+                <li>
+                  <strong className="text-white">Customizing Thresholds:</strong> Customize the exact SW / W / L / SL rating cutoffs anytime in <strong>⚙️ Settings → 5-Tier Matchup Rating Thresholds</strong>.
+                </li>
+                <li>
+                  <strong className="text-white">Dynamic 9-State Asymmetric Matrix (0v0 through 2v2):</strong> Under the hood, SilphScope evaluates all 9 discrete shield permutations (<code>0v0, 0v1, 0v2, 1v0, 1v1, 1v2, 2v0, 2v1, 2v2</code>) as shields are spent during the match.
+                </li>
+              </ul>
+            </div>
+
+            {/* Section 4: Swap Clocks, Faint Preservation, Shield/Faint Tracking & Statusbar Toasts */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-2.5 text-xs text-slate-300 leading-relaxed">
+              <h3 className="text-sm font-bold text-purple-400">
+                4. Dual 50s Swap Clocks, Faint Swap Preservation &amp; Top Statusbar Toasts
+              </h3>
+              <ul className="list-disc list-inside space-y-1.5">
+                <li>
+                  <strong className="text-white">Dual Independent 50s Swap Timers:</strong> Automatically starts a 50-second countdown whenever you or the opponent switches Pokémon:
+                  <span className="block ml-4 mt-1 text-slate-300">
+                    • <strong className="text-rose-400">Red (50s–16s):</strong> Switch locked on cooldown.<br />
+                    • <strong className="text-amber-300">Orange/Amber (15s–1s):</strong> Switch window opening soon — prepare to throw energy or time a catch.<br />
+                    • <strong className="text-emerald-400">Green (0s Ready):</strong> Switch available immediately.
+                  </span>
+                </li>
+                <li>
+                  <strong className="text-white">Smart Faint Swap-In Clock Preservation:</strong> When a Pokémon faints and a replacement enters, SilphScope detects the Pokéball drop (<code>3 → 2 → 1</code>) and preserves the existing running swap timer instead of falsely resetting it to 50s.
+                </li>
+                <li>
+                  <strong className="text-white">Automatic Pokéball (3→2→1) &amp; Shield (2→1→0) Tracking:</strong> Samples the top HUD lobes to track remaining Pokémon and shields for both players. When an opponent Pokémon faints, its column in the 3x3 matrix automatically dims so you can focus on surviving threats.
+                </li>
+                <li>
+                  <strong className="text-white">Top Statusbar / Clock Strip Battle Toasts:</strong> Real-time alerts for Swaps, Faint Swaps, and Shields Used appear in the top statusbar/clock area of the phone so they never block your charged move buttons (toggleable in <strong>⚙️ Settings</strong>).
+                </li>
+              </ul>
+            </div>
+
+            {/* Section 5: Move Counting, Cycle Pacing, Sneak Prevention & CMP */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-2.5 text-xs text-slate-300 leading-relaxed">
+              <h3 className="text-sm font-bold text-pink-400">
+                5. Fast Move Counting, Cycle Pacing, Sneak Prevention, CMP &amp; 4-Move Mode
+              </h3>
+              <ul className="list-disc list-inside space-y-1.5">
+                <li>
+                  <strong className="text-white">Multi-Cycle Move Counts (Cycle 1 / 2 / 3):</strong> Shows exact fast moves required to reach Charged Move 1 and Charged Move 2 across 3 consecutive cycles, automatically accounting for leftover residual energy (e.g., <code>7 - 6 - 7</code>).
+                </li>
+                <li>
+                  <strong className="text-white">Count Basis (&apos;My Fasts&apos; vs. &apos;Their Fasts&apos;):</strong> In <strong>⚙️ Settings</strong>, choose whether opponent move counts are displayed in units of your own fast move taps (<strong>My Fasts</strong>) or the opponent&apos;s fast move animations (<strong>Their Fasts</strong>).
+                </li>
+                <li>
+                  <strong className="text-white">Optimal Throw Timing (Sneak Prevention):</strong> In Pokémon GO, throwing a charged move on the exact turn an opponent&apos;s fast move finishes gives them a free &quot;sneak&quot; turn. When fast move durations differ (e.g., 2-turn vs. 3-turn), the HUD highlights exact attack numbers to throw on for zero-sneak alignment.
+                </li>
+                <li>
+                  <strong className="text-white">CMP Tie Indicator (&apos;CMP!&apos;):</strong> Alerts you when your active Pokémon has higher Attack stat to win Charged Move Priority ties.
+                </li>
+                <li>
+                  <strong className="text-white">4 Charged Moves Mode, Scale &amp; Transparency:</strong> Enable 4 Charged Moves in <strong>⚙️ Settings</strong> for unpredictable move-roulette opponents, and fine-tune Overlay Size (50%–100%) and Background Transparency (0%–100%).
+                </li>
+              </ul>
+            </div>
+
+            {/* Section 6: Battle Logs, Interactive Replay, WAE / Luck & Standardized Exports */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-2.5 text-xs text-slate-300 leading-relaxed">
+              <h3 className="text-sm font-bold text-sky-400">
+                6. Battle Logs, Interactive Replay, WAE / Luck &amp; Standardized GBL Exports
+              </h3>
+              <ul className="list-disc list-inside space-y-1.5">
+                <li>
+                  <strong className="text-white">5-Stat Analytics Grid:</strong> Tracks Record (W-L), Lead Matchups (Fav/Neu/Neg), Win Rate %, <strong>EXEC WAE</strong> (Wins Above Expected micro-execution skill), and <strong>MATCHUP LUCK</strong> (Blind Matchup Favorability BMF). Tap the <code>i</code> icon next to EXEC WAE or MATCHUP LUCK anytime for the full mathematical breakdown and Badge Glossary.
+                </li>
+                <li>
+                  <strong className="text-white">Interactive Battle Recap &amp; Replay:</strong> Tap any logged battle card in <strong>📜 Battle Logs</strong> to open the full 3v3 Matchup Matrix &amp; Timeline Replay for that battle.
+                </li>
+                <li>
+                  <strong className="text-white">Standardized Copy GBL &amp; Share Summary:</strong> Use <strong>📋 Copy GBL</strong> for Go Battle Log format (<code>[pokemon1 pokemon2 pokemon3]</code> + opponent rows) or <strong>📤 Share Log Summary</strong> for daily/season summaries with <code>W/L (L-&gt;F/N/U, M-&gt;F/N/U) opponent1 opponent2 opponent3</code> rows and standardized Pokémon naming (e.g., <code>ninetales_alolanS</code>, <code>laprasS</code>, <code>giratina_altered</code>, <code>charizard_MEGA_Y</code>).
+                </li>
+              </ul>
+            </div>
+
+            {/* Section 7: Multi-Device Cloud Sync, Trash Bin & Tasker Automation */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-2.5 text-xs text-slate-300 leading-relaxed">
+              <h3 className="text-sm font-bold text-emerald-400">
+                7. Multi-Device Cloud Sync, Trash Bin &amp; Tasker Automation Hooks
+              </h3>
+              <ul className="list-disc list-inside space-y-1.5">
+                <li>
+                  <strong className="text-white">2-Device GitHub Cloud Delta Sync:</strong> Sign in once per phone under <strong>⚙️ Settings → Multi-Device Cloud Sync</strong>. Your Team Presets and Battle Logs automatically reconcile across devices on app open and after every logged battle.
+                </li>
+                <li>
+                  <strong className="text-white">Trash Bin &amp; Instant Undo:</strong> Deleted teams or battles move to the <strong>🗑️ Trash Bin</strong> with an instant <strong>♻️ UNDO</strong> toast so nothing is ever lost by accident.
+                </li>
+                <li>
+                  <strong className="text-white">Tasker Automation Hooks:</strong> Start or stop the overlay from Tasker without switching apps using <code>com.gbl.overlay.ACTION_START_OVERLAY</code> and <code>com.gbl.overlay.ACTION_STOP_OVERLAY</code>, or launch straight to <strong>📜 Battle Logs</strong> with <code>com.gbl.overlay.ACTION_OPEN_BATTLE_LOG</code> (1-tap copy buttons available in <strong>⚙️ Settings</strong>).
+                </li>
+              </ul>
+            </div>
+          </div>
+        )}
+
+        {/* =========================================================================
             TAB 4: FAST MOVE TURN ALIGNMENT & SNEAK MECHANICS
            ========================================================================= */}
         {activeTab === 'turn_matrix' && (
@@ -6884,10 +7210,168 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="flex justify-end items-center pt-2 border-t border-slate-800 shrink-0">
+              <div className="flex justify-between items-center pt-2 border-t border-slate-800 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowHelpMetricGuideModal(false);
+                    setActiveTab('help');
+                  }}
+                  className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-300 text-xs font-bold transition"
+                >
+                  📖 Open Full Help Page
+                </button>
                 <button
                   type="button"
                   onClick={() => setShowHelpMetricGuideModal(false)}
+                  className="px-4 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold transition"
+                >
+                  Got It
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Overlay HUD & Battle Flow Quick Help Modal (Opened from Start Battle Overlay Region Help Button) */}
+        {showOverlayQuickHelpModal && (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-3xl w-full p-5 sm:p-6 shadow-2xl space-y-4 max-h-[88vh] flex flex-col">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3 shrink-0">
+                <div>
+                  <h3 className="font-bold text-base text-white flex items-center gap-2">
+                    <span>🎯 Overlay HUD &amp; Battle Flow Guide (v3.01)</span>
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    How to interact with the floating overlay, read 3x3 damage % &amp; shield dots, track 50s swap clocks, and log battles
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowOverlayQuickHelpModal(false)}
+                  className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-bold transition"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="overflow-y-auto space-y-3.5 pr-1 text-xs leading-relaxed text-slate-300">
+                <div className="p-4 rounded-xl bg-slate-950 border border-sky-500/30 space-y-1.5">
+                  <h4 className="font-bold text-sm text-sky-400">
+                    1. General Battle Flow &amp; Interacting with the Overlay
+                  </h4>
+                  <ul className="list-disc list-inside space-y-1">
+                    <li>
+                      <strong>Select or Switch Teams:</strong> Choose an active preset in <strong>⚔️ Teams</strong>, or tap the team dropdown (<strong>▼</strong>) directly inside the floating overlay header to swap presets without leaving Pokémon GO.
+                    </li>
+                    <li>
+                      <strong>Launch, Drag &amp; Minimize (⚔️ Icon):</strong> Tap <strong>Start Battle Overlay</strong> to launch the HUD. Drag the header bar to reposition it anywhere. Tap the <strong>⚔️</strong> icon in the top-left between matches to collapse the HUD into a tiny floating bubble and pause OCR scanning.
+                    </li>
+                    <li>
+                      <strong>Start Battle (⚔️ Start Battle):</strong> Tap when a GBL match begins. This clears the previous opponent lineup, resets both 50s swap clocks, resets shields (2v2) and Pokéballs (3v3), anchors the timeline clock (<code>t=0s</code>), and switches the button to <strong>🛑 Stop Battle</strong>.
+                    </li>
+                    <li>
+                      <strong>Stop &amp; Log (🛑 Stop Battle):</strong> Tap when the match finishes. Verify or tap the Lead Matchup chip (<strong>Fav / Neu / Neg</strong>) and tap <strong>🏆 Win</strong> or <strong>💀 Loss</strong> (or <strong>✕ Skip</strong>).
+                    </li>
+                  </ul>
+                </div>
+
+                <div className="p-4 rounded-xl bg-slate-950 border border-emerald-500/30 space-y-1.5">
+                  <h4 className="font-bold text-sm text-emerald-400">
+                    2. How to Use Battle Damage Numbers (C1% / C2% in 3x3 Matrix)
+                  </h4>
+                  <ul className="list-disc list-inside space-y-1">
+                    <li>
+                      <strong>3x3 Grid Structure:</strong> Columns = Opponent&apos;s 3 Pokémon in the exact order revealed (<code>[1st Lead, 2nd First Swap, 3rd Closer]</code>). Rows = Your 3 Pokémon.
+                    </li>
+                    <li>
+                      <strong>Live Charged Move Damage (C1% / C2%):</strong> Every cell displays the exact percentage of HP that Charged Move 1 and Charged Move 2 deal in that head-to-head matchup (accounting for League CP stat scaling, dual-type effectiveness up to <code>2.56x</code>, STAB <code>1.2x</code>, and Shadow <code>+20% ATK / -16.7% DEF</code>).
+                    </li>
+                    <li>
+                      <strong>Tank vs. Shield Decisions:</strong> Glance at the cell to know immediately whether you can safely tank an incoming charged move (e.g., <code>38%</code>) or must commit a shield (e.g., <code>84%</code>), and see the exact HP threshold where your charged move KOs the opponent.
+                    </li>
+                    <li>
+                      <strong>Interactive Headers &amp; Rows:</strong> Tap any opponent column header to mark it as active, toggle Shadow (<code>S</code>), or cycle Regional/Alternate forms. Tap any of your 3 Pokémon rows on the left to manually set your active on-field Pokémon.
+                    </li>
+                  </ul>
+                </div>
+
+                <div className="p-4 rounded-xl bg-slate-950 border border-amber-500/30 space-y-1.5">
+                  <h4 className="font-bold text-sm text-amber-400">
+                    3. The Shield Matrix (0S • 1S • 2S Dots &amp; 9-State Engine)
+                  </h4>
+                  <ul className="list-disc list-inside space-y-1">
+                    <li>
+                      <strong>3 Shield Scenario Dots (0S • 1S • 2S):</strong> Each cell shows 3 color-coded dots for the 0-Shield, 1-Shield, and 2-Shield matchup ratings on PvPoke&apos;s 500-centered scale:
+                      <span className="block ml-4 mt-1 text-[11px] text-slate-300">
+                        • <strong className="text-emerald-400">[+] Bright Emerald (SW ≥ 620):</strong> Strong Win / hard counter.<br />
+                        • <strong className="text-green-400">[●] Green (W 530–619):</strong> Favorable Win.<br />
+                        • <strong className="text-slate-300">[●] Slate Grey (N 471–529):</strong> Neutral 50/50 matchup.<br />
+                        • <strong className="text-rose-400">[●] Red (L 381–470):</strong> Unfavorable Loss.<br />
+                        • <strong className="text-red-400">[×] Dark Crimson (SL ≤ 380):</strong> Strong Loss — swap or catch immediately.
+                      </span>
+                    </li>
+                    <li>
+                      <strong>Identifying Shield Flips:</strong> Compare the 3 dots left-to-right (<code>0S, 1S, 2S</code>). For example, <code>[Red, Green, Red]</code> means spending 1 shield flips a losing matchup into a win!
+                    </li>
+                    <li>
+                      <strong>Dynamic 9-State Asymmetric Matrix (0v0–2v2):</strong> Evaluates all 9 shield combinations (including uneven <code>1v0, 2v1, 0v2</code> states) as shields are spent.
+                    </li>
+                  </ul>
+                </div>
+
+                <div className="p-4 rounded-xl bg-slate-950 border border-purple-500/30 space-y-1.5">
+                  <h4 className="font-bold text-sm text-purple-400">
+                    4. Dual 50s Swap Timers, Faint Preservation &amp; Statusbar Toasts
+                  </h4>
+                  <ul className="list-disc list-inside space-y-1">
+                    <li>
+                      <strong>Independent 50s Swap Clocks:</strong> Tracks both your switch timer and the opponent&apos;s switch timer (<strong className="text-rose-400">Red 50s–16s</strong> locked, <strong className="text-amber-300">Amber 15s–1s</strong> window opening soon, <strong className="text-emerald-400">Green 0s</strong> switch ready).
+                    </li>
+                    <li>
+                      <strong>Smart Faint Swap-In Preservation:</strong> Detects Pokéball drops (<code>3→2→1</code>) when a Pokémon faints so a replacement entering after a KO preserves the running swap timer instead of falsely resetting to 50s.
+                    </li>
+                    <li>
+                      <strong>Shield (2→1→0) &amp; Faint Column Dimming:</strong> Tracks remaining shields and automatically dims fainted opponent columns in the 3x3 matrix.
+                    </li>
+                    <li>
+                      <strong>Top Statusbar / Clock Strip Toasts:</strong> Non-intrusive alerts for Swaps, Faint Swaps, and Shields Used rendered at the top statusbar so charged move buttons are never blocked.
+                    </li>
+                  </ul>
+                </div>
+
+                <div className="p-4 rounded-xl bg-slate-950 border border-pink-500/30 space-y-1.5">
+                  <h4 className="font-bold text-sm text-pink-400">
+                    5. Move Counting, Sneak Prevention, CMP &amp; Extra Features
+                  </h4>
+                  <ul className="list-disc list-inside space-y-1">
+                    <li>
+                      <strong>Multi-Cycle Fast Move Counts (Cycle 1 / 2 / 3):</strong> Shows exact fast moves to reach Charged Move 1 &amp; 2 across 3 consecutive cycles, accounting for residual energy (e.g., <code>7 - 6 - 7</code>).
+                    </li>
+                    <li>
+                      <strong>Optimal Throw Timing (Sneak Prevention):</strong> Highlights exact fast move numbers to throw on when fast move durations differ (e.g., 2-turn vs. 3-turn) to deny free opponent fast move sneaks.
+                    </li>
+                    <li>
+                      <strong>CMP Tie Indicator (CMP!) &amp; 4 Charged Moves Mode:</strong> Alerts you when you win Charged Move Priority ties and optionally displays 4 charged moves for move-roulette opponents.
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
+              <div className="flex justify-between items-center pt-2 border-t border-slate-800 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowOverlayQuickHelpModal(false);
+                    setActiveTab('help');
+                  }}
+                  className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-300 text-xs font-bold transition"
+                >
+                  📖 Open Full Help Page
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowOverlayQuickHelpModal(false)}
                   className="px-4 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold transition"
                 >
                   Got It
@@ -6901,7 +7385,7 @@ export default function App() {
 
       {/* Footer */}
       <footer className="border-t border-slate-800/80 py-4 px-6 text-center text-xs text-slate-500">
-        SilphScope PvP v3.00 Overlay • Built with Kotlin, WindowManager TYPE_APPLICATION_OVERLAY, MediaProjection in-memory frame capture, and ML Kit Text Recognition.
+        SilphScope PvP v3.01 Overlay • Built with Kotlin, WindowManager TYPE_APPLICATION_OVERLAY, MediaProjection in-memory frame capture, and ML Kit Text Recognition.
       </footer>
     </div>
   );
