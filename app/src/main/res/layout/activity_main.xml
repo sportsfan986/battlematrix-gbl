@@ -73,30 +73,16 @@
             android:orientation="horizontal"
             android:gravity="center_vertical">
 
-            <LinearLayout
+            <TextView
+                android:id="@+id/text_status"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:orientation="vertical"
-                android:layout_marginEnd="6dp">
-
-                <TextView
-                    android:id="@+id/text_status"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Status: Idle (Ready to launch overlay)"
-                    android:textColor="#38bdf8"
-                    android:textSize="12sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Tip: Tap ⚔️ in overlay to minimize &amp; pause OCR • Tap ❓ Help for HUD guide"
-                    android:textColor="#94a3b8"
-                    android:textSize="10sp"
-                    android:layout_marginTop="2dp" />
-            </LinearLayout>
+                android:layout_marginEnd="8dp"
+                android:text="Status: Idle"
+                android:textColor="#38bdf8"
+                android:textSize="13sp"
+                android:textStyle="bold" />
 
             <Button
                 android:id="@+id/btn_overlay_quick_help"
@@ -104,7 +90,7 @@
                 android:layout_height="40dp"
                 android:backgroundTint="#334155"
                 android:textColor="#38bdf8"
-                android:textSize="11sp"
+                android:textSize="11.5sp"
                 android:textStyle="bold"
                 android:text="❓ Help"
                 android:layout_marginEnd="6dp" />
@@ -121,7 +107,7 @@
         </LinearLayout>
     </LinearLayout>
 
-    <!-- 4-Page Navigation Switcher Bar (Teams | Battle Logs | Settings | Help) -->
+    <!-- 3-Page Navigation Switcher Bar (Teams | Battle Log | Settings) -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -136,46 +122,33 @@
             android:layout_height="38dp"
             android:layout_weight="1"
             android:text="⚔️ Teams"
-            android:textSize="10.5sp"
+            android:textSize="11sp"
             android:textStyle="bold"
             android:singleLine="true"
             android:backgroundTint="#0284c7"
             android:textColor="#ffffff"
-            android:layout_marginEnd="3dp" />
+            android:layout_marginEnd="4dp" />
 
         <Button
             android:id="@+id/btn_nav_battle_log"
             android:layout_width="0dp"
             android:layout_height="38dp"
-            android:layout_weight="1.15"
-            android:text="📜 Battle Logs"
-            android:textSize="10.5sp"
+            android:layout_weight="1"
+            android:text="📜 Battle Log"
+            android:textSize="11sp"
             android:textStyle="bold"
             android:singleLine="true"
             android:backgroundTint="#1e293b"
             android:textColor="#94a3b8"
-            android:layout_marginEnd="3dp" />
+            android:layout_marginEnd="4dp" />
 
         <Button
             android:id="@+id/btn_nav_settings"
             android:layout_width="0dp"
             android:layout_height="38dp"
-            android:layout_weight="1.05"
+            android:layout_weight="1"
             android:text="⚙️ Settings"
-            android:textSize="10.5sp"
-            android:textStyle="bold"
-            android:singleLine="true"
-            android:backgroundTint="#1e293b"
-            android:textColor="#94a3b8"
-            android:layout_marginEnd="3dp" />
-
-        <Button
-            android:id="@+id/btn_nav_help"
-            android:layout_width="0dp"
-            android:layout_height="38dp"
-            android:layout_weight="0.9"
-            android:text="❓ Help"
-            android:textSize="10.5sp"
+            android:textSize="11sp"
             android:textStyle="bold"
             android:singleLine="true"
             android:backgroundTint="#1e293b"
@@ -1467,7 +1440,7 @@
     </LinearLayout>
 
     <!-- ===================================================================
-         PAGE 4: HELP & COMPLETE USER GUIDE (Instructions, Tips & HUD Reference)
+         PAGE 4: HELP & COMPLETE USER GUIDE (Opened when tapping ❓ Help button)
          =================================================================== -->
     <ScrollView
         android:id="@+id/page_help"
@@ -1485,7 +1458,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="📖 SilphScope PvP — Complete Help, HUD &amp; Tactics Guide (v3.01)"
+                android:text="📖 SilphScope PvP — Complete Help, HUD &amp; Tactics Guide"
                 android:textSize="15sp"
                 android:textStyle="bold"
                 android:textColor="#f8fafc"
@@ -1494,41 +1467,22 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Everything you need to master the floating PvP overlay, 3x3 damage &amp; shield matrix, 50s swap clocks, move pacing, Battle Log analytics, and Tasker automation."
+                android:text="Tap any tab above (⚔️ Teams, 📜 Battle Log, or ⚙️ Settings) to return. Below is the complete guide to the floating PvP overlay, 3v3 shield matrix, battle damage grids, 50s swap timers, move pacing, and Battle Log analytics."
                 android:textSize="11sp"
                 android:textColor="#94a3b8"
                 android:layout_marginBottom="10dp" />
 
-            <!-- Quick Modal Launchers Row -->
-            <LinearLayout
+            <!-- Quick Metric & Badge Guide Popup Button -->
+            <Button
+                android:id="@+id/btn_help_page_metric_guide"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:layout_marginBottom="10dp">
-
-                <Button
-                    android:id="@+id/btn_help_page_overlay_guide"
-                    android:layout_width="0dp"
-                    android:layout_height="38dp"
-                    android:layout_weight="1"
-                    android:text="🎯 Overlay Flow Popup"
-                    android:textSize="10.5sp"
-                    android:textStyle="bold"
-                    android:backgroundTint="#0284c7"
-                    android:textColor="#ffffff"
-                    android:layout_marginEnd="6dp" />
-
-                <Button
-                    android:id="@+id/btn_help_page_metric_guide"
-                    android:layout_width="0dp"
-                    android:layout_height="38dp"
-                    android:layout_weight="1"
-                    android:text="📊 WAE &amp; Badge Guide"
-                    android:textSize="10.5sp"
-                    android:textStyle="bold"
-                    android:backgroundTint="#059669"
-                    android:textColor="#ffffff" />
-            </LinearLayout>
+                android:layout_height="38dp"
+                android:text="📊 Open Execution WAE, Matchup Luck &amp; Badge Glossary Popup"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:backgroundTint="#059669"
+                android:textColor="#ffffff"
+                android:layout_marginBottom="10dp" />
 
             <!-- 1. General Battle Flow & Overlay Interaction -->
             <LinearLayout
@@ -1554,10 +1508,10 @@
                     android:lineSpacingExtra="2dp"
                     android:textColor="#e2e8f0"
                     android:textSize="11sp"
-                    android:text="• Step 1 — Select or Build Your Team: On the ⚔️ Teams tab, tap any team preset to make it active (or tap '+ New Team' to build a custom Great, Ultra, Master, or Mega Master League trio with auto-filled PvPoke recommended moves and IV/CP scaling).\n• Step 2 — Launch the Overlay: Tap 'Start Battle Overlay' at the top of the app. Grant 'Display over other apps' and 'Screen Capture' (used strictly in-memory at 1 Hz for ML Kit OCR — zero screenshots are ever written to disk).\n• Step 3 — Reposition or Minimize Anytime: Drag the overlay header to position it anywhere on screen. Between battles or while walking/catching, tap the '⚔️' icon in the top-left of the overlay to collapse it into a tiny floating bubble and pause OCR scanning.\n• Step 4 — Switch Teams In-Overlay: Tap the team name dropdown ('▼') in the overlay header to switch active presets without leaving Pokémon GO.\n• Step 5 — Start Battle ('⚔️ Start Battle'): When a GBL match begins, tap '⚔️ Start Battle' on the overlay. This clears the previous opponent lineup, resets both 50s swap clocks, resets shields (2v2) and Pokéballs (3v3), anchors the battle timeline clock (t=0s), and changes the button to '🛑 Stop Battle'.\n• Step 6 — Stop &amp; Log ('🛑 Stop Battle'): When the match ends, tap '🛑 Stop Battle'. OCR pauses and the quick-log bar appears: verify or tap the Lead Matchup chip ('Fav / Neu / Neg') and tap '🏆 Win' or '💀 Loss' (or '✕ Skip')." />
+                    android:text="• Step 1 — Select or Switch Your Team in the Main App: On the ⚔️ Teams tab, tap 'Select' on any team preset to make it active (or tap '+ New Team' to build a Great, Ultra, Master, or Mega Master League trio with auto-filled PvPoke recommended moves and IV/CP scaling). To switch to a different 3-Pokémon Team Preset, return to the ⚔️ Teams tab in the main app and tap 'Select' on the new team.\n• Step 2 — Launch the Overlay: Tap 'Start Battle Overlay' at the top of the app. Grant 'Display over other apps' and 'Screen Capture' (used strictly in-memory for live ML Kit OCR — zero screenshots are ever written to disk).\n• Step 3 — Reposition or Minimize ('⚔️' Button): Drag anywhere on the overlay to position it on screen. Between battles or while walking/catching Pokémon, tap the '⚔️' button in the top-left of the overlay header to collapse it into a compact floating app-icon bubble and pause OCR scanning. Tap the floating bubble to restore the full HUD and resume OCR.\n• Step 4 — Start Battle ('⚔️ Start Battle'): When a GBL match begins, tap '⚔️ Start Battle' in the overlay toolbar. This clears the previous opponent lineup, resets both 50s swap timers to 0s, resets shields (2v2) and Pokéballs (3v3), anchors the battle timeline clock (t=0s), starts OCR scanning, and switches the button to '🛑 Stop Battle'.\n• Step 5 — In-Battle Toolbar Controls ('Shadow', 'Form', &amp; Your 3 Active Pokémon Chips):\n  - 'Shadow: OFF / ON': Tap in the overlay toolbar to toggle the Shadow modifier (+20% ATK / -16.7% DEF) for the active opponent if OCR missed the purple aura.\n  - 'Form: [Form]': Automatically enables when the scanned opponent species has multiple regional/alternate forms (e.g. Alolan, Galarian, Origin, Crowned) — tap to cycle forms.\n  - Your 3 Active Pokémon Chips: On the right side of the overlay toolbar, 3 compact buttons show your 3 Pokémon on the active team. OCR automatically detects which of your 3 Pokémon is on the field, or you can tap any of the 3 chips to manually set your active on-field Pokémon.\n• Step 6 — Stop &amp; Log ('🛑 Stop Battle'): When the match ends, tap '🛑 Stop Battle'. OCR pauses and the post-battle log bar opens inside the overlay: tap 'Lead: Fav / Neu / Neg ▾' to verify or cycle the lead matchup, then tap '🏆 Win' or '💀 Loss' (or '✕ Skip')." />
             </LinearLayout>
 
-            <!-- 2. Battle Damage Numbers & 3x3 Matchup Matrix -->
+            <!-- 2. The 3v3 Shield Matrix -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -1569,34 +1523,7 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="2. How to Read Battle Damage Numbers &amp; Use the 3x3 Matrix"
-                    android:textColor="#4ade80"
-                    android:textSize="13sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
-                    android:lineSpacingExtra="2dp"
-                    android:textColor="#e2e8f0"
-                    android:textSize="11sp"
-                    android:text="• 3x3 Grid Layout: The 3 columns represent the opponent's 3 Pokémon in the exact order revealed ([1st Lead, 2nd First Swap, 3rd Closer]). The 3 rows represent your 3 Pokémon.\n• Charged Move Damage Percentages (C1% / C2%): Each cell displays the exact percentage of HP that each charged move deals in that head-to-head pairing, accounting for League CP stat scaling, dual-type effectiveness (up to 2.56x), STAB (1.2x), and Shadow modifiers (+20% ATK / -16.7% DEF).\n• Tactical Tank vs. Shield Decisions: Use the damage numbers to know immediately whether an incoming charged move can be safely tanked (e.g. 38%) or requires a shield (e.g. 82%), and whether your own charged move is in KO range.\n• Interactive Opponent Column Headers: Tap any opponent name in the top header row to set it as the active opponent, toggle Shadow ('S') status if OCR missed the purple aura, or cycle Regional/Alternate forms (e.g. Alolan, Galarian, Origin, Crowned).\n• Interactive User Rows: Tap any of your 3 Pokémon rows on the left to manually mark your active on-field Pokémon and immediately update the live Move Pacing &amp; Turn Alignment bar." />
-            </LinearLayout>
-
-            <!-- 3. Shield Matrix (0S / 1S / 2S Dots & 9-State Asymmetric Matrix) -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:background="#1e293b"
-                android:padding="12dp"
-                android:layout_marginBottom="10dp">
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="3. The Shield Matrix (0S • 1S • 2S Dots &amp; 9-State 0v0–2v2 Engine)"
+                    android:text="2. The 3v3 Shield Matrix (0S • 1S • 2S Dots &amp; 9-State Engine)"
                     android:textColor="#fbbf24"
                     android:textSize="13sp"
                     android:textStyle="bold" />
@@ -1608,7 +1535,34 @@
                     android:lineSpacingExtra="2dp"
                     android:textColor="#e2e8f0"
                     android:textSize="11sp"
-                    android:text="• 3 Shield Scenario Dots (0S • 1S • 2S): Every cell in the 3x3 matrix displays 3 indicator dots representing the 0-Shield, 1-Shield, and 2-Shield matchup ratings on PvPoke's 500-centered scale:\n  - [+] Bright Emerald (SW — Strong Win, rating ≥ 620): Dominant wall / hard counter.\n  - [●] Green (W — Win, 530 ≤ rating &lt; 620): Favorable matchup.\n  - [●] Slate Grey (N — Neutral, 470 &lt; rating &lt; 530): Even 50/50 matchup decided by energy lead, IVs, or baiting.\n  - [●] Red (L — Loss, 380 &lt; rating ≤ 470): Unfavorable matchup.\n  - [×] Dark Crimson (SL — Strong Loss, rating ≤ 380): Hard-countered loss — swap or catch immediately.\n• Reading Shield Flip Scenarios: Compare the 3 dots left-to-right (0S, 1S, 2S). For example, if a cell shows [Red, Green, Red], you lose the 0S and 2S but WIN the 1-Shield scenario — meaning you should commit exactly 1 shield to flip the matchup!\n• Customizing Thresholds: You can customize the exact SW / W / L / SL rating cutoffs anytime in ⚙️ Settings → 5-Tier Matchup Rating Thresholds.\n• Dynamic 9-State Asymmetric Shield Matrix (0v0 through 2v2): Under the hood, SilphScope evaluates all 9 discrete shield permutations (0v0, 0v1, 0v2, 1v0, 1v1, 1v2, 2v0, 2v1, 2v2) as shields are spent during the match." />
+                    android:text="• Fixed [1st, 2nd, 3rd] Opponent Rows: As opponents are revealed, up to 3 rows appear in the matrix in the exact order seen ('1st' Lead, '2nd' First Swap, '3rd' Closer). Tap any opponent row in the matrix (or column header) to manually set that opponent as the active on-field opponent.\n• 3 Shield Scenario Dots per Team Member (0S • 1S • 2S): Beside each opponent name, your 3 Pokémon are listed by initial (Initial: [0S][1S][2S]). The 3 dots represent the 0-Shield, 1-Shield, and 2-Shield matchup ratings on PvPoke's 500-centered scale:\n  - [+] Bright Emerald (SW — Strong Win, rating ≥ 620): Dominant wall / hard counter.\n  - [●] Green (W — Win, 530 ≤ rating &lt; 620): Favorable matchup.\n  - [●] Slate Grey (N — Neutral, 470 &lt; rating &lt; 530): Even 50/50 matchup decided by energy lead, IVs, or baiting.\n  - [●] Soft Red (L — Loss, 380 &lt; rating ≤ 470): Unfavorable matchup.\n  - [×] Dark Crimson (SL — Strong Loss, rating ≤ 380): Hard-countered loss — swap or catch immediately.\n• Reading Shield Flip Scenarios: Compare the 3 dots left-to-right (0S, 1S, 2S). For example, if your Pokémon shows [Red, Green, Red], you lose the 0S and 2S scenarios but WIN the 1-Shield scenario — meaning you should commit 1 shield to flip the matchup!\n• Customizing Thresholds &amp; 9-State Engine: Customize the exact SW / W / L / SL rating cutoffs anytime in ⚙️ Settings → 5-Tier Matchup Rating Thresholds. Under the hood, SilphScope evaluates all 9 asymmetric shield permutations (0v0, 0v1, 0v2, 1v0, 1v1, 1v2, 2v0, 2v1, 2v2) as shields are spent." />
+            </LinearLayout>
+
+            <!-- 3. How to Use Battle Damage Numbers -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="#1e293b"
+                android:padding="12dp"
+                android:layout_marginBottom="10dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="3. How to Read Battle Damage Numbers (Opponent &amp; My Attacks Grids)"
+                    android:textColor="#4ade80"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:lineSpacingExtra="2dp"
+                    android:textColor="#e2e8f0"
+                    android:textSize="11sp"
+                    android:text="• Opponent Attacks 3-Column Damage Grid (Damage to Your Team):\n  - The right side of the 'Opponent Attacks' section has 3 columns for your 3 Pokémon (with your currently active Pokémon's column highlighted in sky-blue and fainted teammates dimmed with strikethrough).\n  - Each row shows an opponent Charged Move (3 moves by default, or 4 when '4 Charged Moves' is enabled in ⚙️ Settings) and the exact percentage of HP it deals to each of your 3 Pokémon, accounting for League CP stat scaling, dual-type effectiveness (up to 2.56x), STAB (1.2x), and Shadow modifiers (+20% ATK / -16.7% DEF).\n  - Tank vs. Shield &amp; Safe-Catch Decisions: Glance at the highlighted active column to know immediately whether an incoming charged move can be safely tanked (e.g. 28% green) or requires a shield (e.g. 82% red), and compare the other 2 columns to see which bench teammate takes the least damage if you catch on a switch!\n• My Attacks 3-Column Damage Grid (Your Damage to Opponents #1, #2, #3):\n  - The right side of the 'My Attacks' section has 3 columns for the opponent's [1st, 2nd, 3rd] revealed Pokémon (with the active opponent column highlighted and fainted opponents dimmed).\n  - Shows the exact HP percentage each of your active Pokémon's Charged Moves deals to every revealed opponent ('dmgPct%', or 'KO!' when ≥ 100%), so you always know exact knockout range." />
             </LinearLayout>
 
             <!-- 4. Swap Clocks, Shield/Faint Tracking & Top Statusbar Toasts -->
@@ -1623,7 +1577,7 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="4. 50s Swap Clocks, Shield/Faint Tracking &amp; Top Statusbar Toasts"
+                    android:text="4. Dual 50s Swap Clocks, Faint Preservation &amp; Top Statusbar Toasts"
                     android:textColor="#c084fc"
                     android:textSize="13sp"
                     android:textStyle="bold" />
@@ -1635,7 +1589,7 @@
                     android:lineSpacingExtra="2dp"
                     android:textColor="#e2e8f0"
                     android:textSize="11sp"
-                    android:text="• Dual Independent 50s Swap Timers: Automatically starts a 50-second countdown whenever you or the opponent switches Pokémon:\n  - Red (50s–16s): Switch locked on cooldown.\n  - Orange/Amber (15s–1s): Switch window opening soon — prepare to throw energy or catch.\n  - Green (0s Ready): Switch available immediately.\n• Smart Faint Swap-In Clock Preservation: When a Pokémon faints and a replacement enters, SilphScope detects the Pokéball drop and preserves the existing swap timer instead of falsely resetting it to 50s.\n• Automatic Pokéball (3→2→1) &amp; Shield (2→1→0) Tracking: Samples the top HUD lobes to track remaining Pokémon and shields for both players. When an opponent Pokémon faints, its column in the 3x3 matrix automatically dims so you can focus on surviving threats.\n• Top Statusbar / Clock Strip Battle Toasts: Real-time alerts for Swaps, Faint Swaps, and Shields Used appear in the top statusbar/clock area of the phone so they never block your charged move buttons (can be toggled in ⚙️ Settings)." />
+                    android:text="• Dual Independent 50s Swap Timers: Tracks 'Opp Swap: Xs' (top-right header) and your 'Swap: Xs' (My Attacks header) automatically whenever either player switches Pokémon:\n  - White (50s–10s): Switch is locked on cooldown.\n  - Yellow (9s–1s): Under 10 seconds remaining — switch window is opening soon! Prepare to throw energy or time a catch.\n  - Ready (0s): Your 'Swap: 0s' turns Bright Green when your switch is available; 'Opp Swap: 0s' turns Alert Red to warn you that the opponent's switch is ready.\n• Smart Faint Swap-In Clock Preservation: When a Pokémon faints and a replacement enters, SilphScope detects the Pokéball drop (3→2→1) and preserves the existing swap timer instead of falsely resetting it to 50s.\n• Automatic Pokéball (3→2→1) &amp; Shield (2→1→0) Tracking: Samples the top HUD lobes to track remaining Pokémon and shields for both players and automatically dims fainted columns in the damage grids.\n• Top Statusbar / Clock Strip Battle Toasts: Real-time alerts for Swaps, Faint Swaps, and Shields Used appear in the top statusbar/clock area of the phone so they never block your charged move buttons (can be toggled in ⚙️ Settings)." />
             </LinearLayout>
 
             <!-- 5. Move Counting, Turn Pacing, Sneak Prevention & 4-Move Mode -->
@@ -1650,7 +1604,7 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="5. Fast Move Counting, Cycle Pacing, Sneak Prevention &amp; CMP"
+                    android:text="5. Multi-Cycle Fast Move Counting, Zero-Sneak Pacing &amp; CMP"
                     android:textColor="#f472b6"
                     android:textSize="13sp"
                     android:textStyle="bold" />
@@ -1662,7 +1616,7 @@
                     android:lineSpacingExtra="2dp"
                     android:textColor="#e2e8f0"
                     android:textSize="11sp"
-                    android:text="• Multi-Cycle Move Counts (Cycle 1 / 2 / 3): Shows exact fast moves required to reach Charged Move 1 and Charged Move 2 across 3 consecutive cycles, automatically accounting for leftover residual energy (e.g. 7 - 6 - 7).\n• Count Basis ('My Fasts' vs. 'Their Fasts'): In ⚙️ Settings, choose whether opponent move counts are displayed in units of your own fast move taps ('My Fasts') or the opponent's fast move animations ('Their Fasts').\n• Optimal Throw Timing (Sneak Prevention): In Pokémon GO, throwing a charged move on the exact turn an opponent's fast move finishes gives them a free 'sneak' turn. When fast move durations differ (e.g. 2-turn vs 3-turn), the HUD highlights exact attack numbers to throw on for zero-sneak alignment.\n• CMP Tie Indicator ('CMP!'): Alerts you when your active Pokémon has higher Attack stat to win Charged Move Priority ties.\n• 4 Charged Moves Mode: Enable in ⚙️ Settings to view up to 4 charged moves for unpredictable move-roulette opponents." />
+                    android:text="• Multi-Cycle Segmented Bars (Cycles 1, 2 &amp; 3): The center track of each move row shows exact fast moves required to reach each Charged Move across 3 consecutive cycles (e.g. 1–4 [#5]), automatically accounting for leftover residual energy.\n• Opponent Ready Blocks (Catch vs. CMP): In Opponent Attacks, the ready block (#N) is colored Red when the opponent can throw (catch window) or Green when your active Pokémon wins CMP on that turn.\n• My Attacks Zero-Sneak Throw Timing: In Pokémon GO, throwing a charged move on the exact turn an opponent's fast move finishes gives them a free 'sneak' turn. When fast move durations differ (e.g. 2t vs 3t), My Attacks highlights leak-free tap ranges in sky-blue so you throw on an optimal alignment turn.\n• CMP Tie Indicator ('CMP WIN ✓' / 'CMP LOSS'): Shown in the Opponent Attacks header to indicate whether your active Pokémon has higher Attack stat to win Charged Move Priority ties.\n• Count Basis ('My Fasts' vs. 'Their Fasts') &amp; 4 Charged Moves Mode: Configurable anytime in ⚙️ Settings." />
             </LinearLayout>
 
             <!-- 6. Battle Logs, Interactive Replay, WAE / BMF & Exports -->
@@ -1689,7 +1643,7 @@
                     android:lineSpacingExtra="2dp"
                     android:textColor="#e2e8f0"
                     android:textSize="11sp"
-                    android:text="• 5-Stat Analytics Grid: Tracks Record (W-L), Lead Matchups (Fav/Neu/Neg), Win Rate %, EXEC WAE (Wins Above Expected micro-execution skill), and MATCHUP LUCK (Blind Matchup Favorability BMF). Tap the 'i' icon on EXEC WAE or MATCHUP LUCK anytime for the full mathematical breakdown and Badge Glossary.\n• Interactive Battle Recap &amp; Replay: Tap any logged battle card in 📜 Battle Logs to open the full 3v3 Matchup Matrix &amp; Timeline Replay for that battle.\n• Standardized Copy GBL &amp; Share Summary: Use '📋 Copy GBL' for Go Battle Log format ([pokemon1 pokemon2 pokemon3] + opponent rows) or '📤 Share' for daily/season summaries with 'W/L (L-&gt;F/N/U, M-&gt;F/N/U) opponent1 opponent2 opponent3' rows and standardized Pokémon naming (e.g. ninetales_alolanS, laprasS, giratina_altered, charizard_MEGA_Y)." />
+                    android:text="• 5-Stat Analytics Grid: Tracks Record (W-L), Lead Matchups (Fav/Neu/Neg), Win Rate %, EXEC WAE (Wins Above Expected micro-execution skill), and MATCHUP LUCK (Blind Matchup Favorability BMF). Tap the 'i' icon on EXEC WAE or MATCHUP LUCK anytime for the full mathematical breakdown and Badge Glossary.\n• Interactive Battle Recap &amp; Replay: Tap any logged battle card in 📜 Battle Log to open the full 3v3 Matchup Matrix &amp; Timeline Replay for that battle.\n• Standardized Copy GBL &amp; Share Summary: Use '📋 Copy GBL' for Go Battle Log format ([pokemon1 pokemon2 pokemon3] + opponent rows) or '📤 Share' for daily/season summaries with 'W/L (L-&gt;F/N/U, M-&gt;F/N/U) opponent1 opponent2 opponent3' rows and standardized Pokémon naming (e.g. ninetales_alolanS, laprasS, giratina_altered, charizard_MEGA_Y)." />
             </LinearLayout>
 
             <!-- 7. Multi-Device Cloud Sync & Tasker Automation Hooks -->
@@ -1715,7 +1669,7 @@
                     android:lineSpacingExtra="2dp"
                     android:textColor="#e2e8f0"
                     android:textSize="11sp"
-                    android:text="• 2-Device GitHub Cloud Delta Sync: Sign in once per phone under ⚙️ Settings → Multi-Device Cloud Sync. Your Team Presets and Battle Logs automatically reconcile across devices on app open and after every logged battle.\n• Trash Bin &amp; Instant Undo: Deleted teams or battles move to the 🗑️ Trash Bin with an instant '↩ UNDO' toast so nothing is ever lost by accident.\n• Tasker Automation Hooks: Control the overlay from Tasker without switching apps using com.gbl.overlay.ACTION_START_OVERLAY, com.gbl.overlay.ACTION_STOP_OVERLAY, or open straight to 📜 Battle Logs with com.gbl.overlay.ACTION_OPEN_BATTLE_LOG (1-tap copy buttons available in ⚙️ Settings)." />
+                    android:text="• 2-Device GitHub Cloud Delta Sync: Sign in once per phone under ⚙️ Settings → Multi-Device Cloud Sync. Your Team Presets and Battle Logs automatically reconcile across devices on app open and after every logged battle.\n• Trash Bin &amp; Instant Undo: Deleted teams or battles move to the 🗑️ Trash Bin with an instant '↩ UNDO' toast so nothing is ever lost by accident.\n• Tasker Automation Hooks: Control the overlay from Tasker without switching apps using com.gbl.overlay.ACTION_START_OVERLAY, com.gbl.overlay.ACTION_STOP_OVERLAY, or open straight to 📜 Battle Log with com.gbl.overlay.ACTION_OPEN_BATTLE_LOG (1-tap copy buttons available in ⚙️ Settings)." />
             </LinearLayout>
         </LinearLayout>
     </ScrollView>
