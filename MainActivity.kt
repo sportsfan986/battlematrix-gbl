@@ -2772,7 +2772,7 @@ class MainActivity : AppCompatActivity() {
                 )
             }
 
-            val pushReplayStateToWeb = {
+            val pushReplayStateToWeb: () -> Unit = {
                 try {
                     val payloadJson = replayEngine.buildBattlePayloadJson(isReplayMode = true)
                     replayWebView.post {
@@ -2782,6 +2782,7 @@ class MainActivity : AppCompatActivity() {
                         } catch (_: Exception) {}
                     }
                 } catch (_: Exception) {}
+                Unit
             }
 
             val replayBridge = ReplayJavascriptBridge(replayEngine, pushReplayStateToWeb)
