@@ -60,7 +60,7 @@
                 android:id="@+id/tv_app_main_subtitle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Real-Time PvP Floating Overlay • v3.05"
+                android:text="Real-Time PvP Floating Overlay • v3.06"
                 android:textSize="11sp"
                 android:textColor="#94a3b8"
                 android:layout_marginTop="1dp" />
@@ -425,14 +425,21 @@
                             android:id="@+id/view_swatch_accent"
                             android:layout_width="14dp"
                             android:layout_height="14dp"
-                            android:background="#38bdf8"
+                            android:background="#2dd4bf"
+                            android:layout_marginEnd="3dp" />
+
+                        <View
+                            android:id="@+id/view_swatch_accent2"
+                            android:layout_width="14dp"
+                            android:layout_height="14dp"
+                            android:background="#facc15"
                             android:layout_marginEnd="3dp" />
 
                         <View
                             android:id="@+id/view_swatch_overlay"
                             android:layout_width="14dp"
                             android:layout_height="14dp"
-                            android:background="#2563eb" />
+                            android:background="#0d9488" />
                     </LinearLayout>
                 </LinearLayout>
 
@@ -453,7 +460,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Show Team / Sylveon Background Emblem"
+                            android:text="Show Team / Dialga / Sylveon Background Emblem"
                             android:textColor="#e2e8f0"
                             android:textSize="11.5sp"
                             android:textStyle="bold" />
@@ -461,7 +468,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Displays subtle Instinct ⚡, Mystic ❄️, Valor 🔥, or Sylveon 🎀 crest watermark in app"
+                            android:text="Displays Origin Dialga ✨, Instinct ⚡, Mystic ❄️, Valor 🔥, or Sylveon 🎀 crest watermark across pages &amp; modals"
                             android:textColor="#94a3b8"
                             android:textSize="10sp" />
                     </LinearLayout>

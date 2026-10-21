@@ -1,273 +1,425 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root_preset_dialog_frame"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:padding="16dp">
+    android:background="#0f172a">
 
-    <LinearLayout
+    <!-- Centered Background Emblem Watermark (Shown when theme watermarks are enabled) -->
+    <ImageView
+        android:id="@+id/iv_preset_dialog_watermark"
+        android:layout_width="250dp"
+        android:layout_height="250dp"
+        android:layout_gravity="center"
+        android:alpha="0.22"
+        android:scaleType="fitCenter"
+        android:visibility="gone"
+        android:importantForAccessibility="no" />
+
+    <ScrollView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical">
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Team Preset Name"
-            android:textStyle="bold"
-            android:textSize="13sp" />
-
-        <EditText
-            android:id="@+id/edit_preset_name"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="e.g. Great League Team"
-            android:inputType="textCapWords"
-            android:layout_marginBottom="10dp" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Battle League"
-            android:textStyle="bold"
-            android:textSize="13sp" />
-
-        <Spinner
-            android:id="@+id/spinner_league"
-            android:layout_width="match_parent"
-            android:layout_height="44dp"
-            android:layout_marginBottom="6dp" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Tip: Type a base Pokémon name to open the autocomplete dropdown with Base, Shadow, and Alternate Forms, auto-filling PvPoke recommended moves!"
-            android:textSize="11sp"
-            android:textColor="#64748b"
-            android:layout_marginBottom="10dp" />
-
-        <!-- Pokemon 1 (Lead) -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Lead Pokémon (Slot 1) &amp; Moveset"
-            android:textStyle="bold"
-            android:textColor="#2563eb"
-            android:textSize="13sp" />
+        android:padding="14dp">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal">
+            android:orientation="vertical">
 
-            <AutoCompleteTextView
-                android:id="@+id/edit_p1_name"
-                android:layout_width="0dp"
+            <!-- Team Name & League Card -->
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1.8"
-                android:completionThreshold="1"
-                android:dropDownWidth="280dp"
-                android:inputType="textCapWords"
-                android:textSize="13sp"
-                android:hint="Name (e.g. Giratina, Clodsire)" />
+                android:orientation="vertical"
+                android:background="#1e293b"
+                android:padding="10dp"
+                android:layout_marginBottom="10dp">
 
-            <EditText
-                android:id="@+id/edit_p1_cp"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="0.85"
-                android:textSize="12sp"
-                android:hint="CP (auto)"
-                android:inputType="number" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Team Preset Name"
+                    android:textColor="#38bdf8"
+                    android:textStyle="bold"
+                    android:textSize="12.5sp" />
 
-            <EditText
-                android:id="@+id/edit_p1_ivs"
-                android:layout_width="0dp"
+                <EditText
+                    android:id="@+id/edit_preset_name"
+                    android:layout_width="match_parent"
+                    android:layout_height="38dp"
+                    android:layout_marginTop="4dp"
+                    android:layout_marginBottom="8dp"
+                    android:background="#0f172a"
+                    android:paddingHorizontal="8dp"
+                    android:hint="e.g. Great League Team"
+                    android:textColor="#f8fafc"
+                    android:textColorHint="#94a3b8"
+                    android:textSize="13sp"
+                    android:inputType="textCapWords" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Battle League"
+                    android:textColor="#f59e0b"
+                    android:textStyle="bold"
+                    android:textSize="12.5sp" />
+
+                <Spinner
+                    android:id="@+id/spinner_league"
+                    android:layout_width="match_parent"
+                    android:layout_height="40dp"
+                    android:layout_marginTop="4dp"
+                    android:background="#0f172a"
+                    android:paddingHorizontal="6dp"
+                    android:layout_marginBottom="6dp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Tip: Type a base Pokémon name to open the autocomplete dropdown with Base, Shadow, and Alternate Forms, auto-filling PvPoke recommended moves!"
+                    android:textSize="10.5sp"
+                    android:textColor="#94a3b8" />
+            </LinearLayout>
+
+            <!-- Pokemon 1 (Lead) Card -->
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1.05"
-                android:textSize="12sp"
-                android:hint="IVs (opt 0/15/15)"
-                android:inputType="text" />
+                android:orientation="vertical"
+                android:background="#1e293b"
+                android:padding="10dp"
+                android:layout_marginBottom="8dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="⚔️ Lead Pokémon (Slot 1) &amp; Moveset"
+                    android:textStyle="bold"
+                    android:textColor="#38bdf8"
+                    android:textSize="12.5sp"
+                    android:layout_marginBottom="4dp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="6dp">
+
+                    <AutoCompleteTextView
+                        android:id="@+id/edit_p1_name"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1.8"
+                        android:background="#0f172a"
+                        android:paddingHorizontal="6dp"
+                        android:layout_marginEnd="4dp"
+                        android:completionThreshold="1"
+                        android:dropDownWidth="280dp"
+                        android:inputType="textCapWords"
+                        android:textColor="#f8fafc"
+                        android:textColorHint="#94a3b8"
+                        android:textSize="12sp"
+                        android:hint="Name (e.g. Clodsire)" />
+
+                    <EditText
+                        android:id="@+id/edit_p1_cp"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="0.85"
+                        android:background="#0f172a"
+                        android:paddingHorizontal="6dp"
+                        android:layout_marginEnd="4dp"
+                        android:textColor="#f8fafc"
+                        android:textColorHint="#94a3b8"
+                        android:textSize="11.5sp"
+                        android:hint="CP (auto)"
+                        android:inputType="number" />
+
+                    <EditText
+                        android:id="@+id/edit_p1_ivs"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1.05"
+                        android:background="#0f172a"
+                        android:paddingHorizontal="6dp"
+                        android:textColor="#f8fafc"
+                        android:textColorHint="#94a3b8"
+                        android:textSize="11.5sp"
+                        android:hint="IVs (0/15/15)"
+                        android:inputType="text" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <EditText
+                        android:id="@+id/edit_p1_fast"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:background="#0f172a"
+                        android:paddingHorizontal="6dp"
+                        android:layout_marginEnd="4dp"
+                        android:textColor="#f8fafc"
+                        android:textColorHint="#94a3b8"
+                        android:textSize="11.5sp"
+                        android:hint="Fast (auto)" />
+
+                    <EditText
+                        android:id="@+id/edit_p1_c1"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:background="#0f172a"
+                        android:paddingHorizontal="6dp"
+                        android:layout_marginEnd="4dp"
+                        android:textColor="#f8fafc"
+                        android:textColorHint="#94a3b8"
+                        android:textSize="11.5sp"
+                        android:hint="Charged 1" />
+
+                    <EditText
+                        android:id="@+id/edit_p1_c2"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:background="#0f172a"
+                        android:paddingHorizontal="6dp"
+                        android:textColor="#f8fafc"
+                        android:textColorHint="#94a3b8"
+                        android:textSize="11.5sp"
+                        android:hint="Charged 2" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Pokemon 2 (Safe Swap) Card -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="#1e293b"
+                android:padding="10dp"
+                android:layout_marginBottom="8dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="🔄 Safe Swap (Slot 2) &amp; Moveset"
+                    android:textStyle="bold"
+                    android:textColor="#f59e0b"
+                    android:textSize="12.5sp"
+                    android:layout_marginBottom="4dp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="6dp">
+
+                    <AutoCompleteTextView
+                        android:id="@+id/edit_p2_name"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1.8"
+                        android:background="#0f172a"
+                        android:paddingHorizontal="6dp"
+                        android:layout_marginEnd="4dp"
+                        android:completionThreshold="1"
+                        android:dropDownWidth="280dp"
+                        android:inputType="textCapWords"
+                        android:textColor="#f8fafc"
+                        android:textColorHint="#94a3b8"
+                        android:textSize="12sp"
+                        android:hint="Name (e.g. Feraligatr)" />
+
+                    <EditText
+                        android:id="@+id/edit_p2_cp"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="0.85"
+                        android:background="#0f172a"
+                        android:paddingHorizontal="6dp"
+                        android:layout_marginEnd="4dp"
+                        android:textColor="#f8fafc"
+                        android:textColorHint="#94a3b8"
+                        android:textSize="11.5sp"
+                        android:hint="CP (auto)"
+                        android:inputType="number" />
+
+                    <EditText
+                        android:id="@+id/edit_p2_ivs"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1.05"
+                        android:background="#0f172a"
+                        android:paddingHorizontal="6dp"
+                        android:textColor="#f8fafc"
+                        android:textColorHint="#94a3b8"
+                        android:textSize="11.5sp"
+                        android:hint="IVs (0/15/15)"
+                        android:inputType="text" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <EditText
+                        android:id="@+id/edit_p2_fast"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:background="#0f172a"
+                        android:paddingHorizontal="6dp"
+                        android:layout_marginEnd="4dp"
+                        android:textColor="#f8fafc"
+                        android:textColorHint="#94a3b8"
+                        android:textSize="11.5sp"
+                        android:hint="Fast (auto)" />
+
+                    <EditText
+                        android:id="@+id/edit_p2_c1"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:background="#0f172a"
+                        android:paddingHorizontal="6dp"
+                        android:layout_marginEnd="4dp"
+                        android:textColor="#f8fafc"
+                        android:textColorHint="#94a3b8"
+                        android:textSize="11.5sp"
+                        android:hint="Charged 1" />
+
+                    <EditText
+                        android:id="@+id/edit_p2_c2"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:background="#0f172a"
+                        android:paddingHorizontal="6dp"
+                        android:textColor="#f8fafc"
+                        android:textColorHint="#94a3b8"
+                        android:textSize="11.5sp"
+                        android:hint="Charged 2" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Pokemon 3 (Closer) Card -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="#1e293b"
+                android:padding="10dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="🛡️ Closer (Slot 3) &amp; Moveset"
+                    android:textStyle="bold"
+                    android:textColor="#38bdf8"
+                    android:textSize="12.5sp"
+                    android:layout_marginBottom="4dp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="6dp">
+
+                    <AutoCompleteTextView
+                        android:id="@+id/edit_p3_name"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1.8"
+                        android:background="#0f172a"
+                        android:paddingHorizontal="6dp"
+                        android:layout_marginEnd="4dp"
+                        android:completionThreshold="1"
+                        android:dropDownWidth="280dp"
+                        android:inputType="textCapWords"
+                        android:textColor="#f8fafc"
+                        android:textColorHint="#94a3b8"
+                        android:textSize="12sp"
+                        android:hint="Name (e.g. Mandibuzz)" />
+
+                    <EditText
+                        android:id="@+id/edit_p3_cp"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="0.85"
+                        android:background="#0f172a"
+                        android:paddingHorizontal="6dp"
+                        android:layout_marginEnd="4dp"
+                        android:textColor="#f8fafc"
+                        android:textColorHint="#94a3b8"
+                        android:textSize="11.5sp"
+                        android:hint="CP (auto)"
+                        android:inputType="number" />
+
+                    <EditText
+                        android:id="@+id/edit_p3_ivs"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1.05"
+                        android:background="#0f172a"
+                        android:paddingHorizontal="6dp"
+                        android:textColor="#f8fafc"
+                        android:textColorHint="#94a3b8"
+                        android:textSize="11.5sp"
+                        android:hint="IVs (0/15/15)"
+                        android:inputType="text" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <EditText
+                        android:id="@+id/edit_p3_fast"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:background="#0f172a"
+                        android:paddingHorizontal="6dp"
+                        android:layout_marginEnd="4dp"
+                        android:textColor="#f8fafc"
+                        android:textColorHint="#94a3b8"
+                        android:textSize="11.5sp"
+                        android:hint="Fast (auto)" />
+
+                    <EditText
+                        android:id="@+id/edit_p3_c1"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:background="#0f172a"
+                        android:paddingHorizontal="6dp"
+                        android:layout_marginEnd="4dp"
+                        android:textColor="#f8fafc"
+                        android:textColorHint="#94a3b8"
+                        android:textSize="11.5sp"
+                        android:hint="Charged 1" />
+
+                    <EditText
+                        android:id="@+id/edit_p3_c2"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:background="#0f172a"
+                        android:paddingHorizontal="6dp"
+                        android:textColor="#f8fafc"
+                        android:textColorHint="#94a3b8"
+                        android:textSize="11.5sp"
+                        android:hint="Charged 2" />
+                </LinearLayout>
+            </LinearLayout>
+
         </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginBottom="10dp">
-
-            <EditText
-                android:id="@+id/edit_p1_fast"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:textSize="12sp"
-                android:hint="Fast (auto)" />
-
-            <EditText
-                android:id="@+id/edit_p1_c1"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:textSize="12sp"
-                android:hint="Charged 1 (auto)" />
-
-            <EditText
-                android:id="@+id/edit_p1_c2"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:textSize="12sp"
-                android:hint="Charged 2 (auto)" />
-        </LinearLayout>
-
-        <!-- Pokemon 2 (Safe Swap) -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Safe Swap (Slot 2) &amp; Moveset"
-            android:textStyle="bold"
-            android:textColor="#2563eb"
-            android:textSize="13sp" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal">
-
-            <AutoCompleteTextView
-                android:id="@+id/edit_p2_name"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1.8"
-                android:completionThreshold="1"
-                android:dropDownWidth="280dp"
-                android:inputType="textCapWords"
-                android:textSize="13sp"
-                android:hint="Name (e.g. Feraligatr, Ninetales)" />
-
-            <EditText
-                android:id="@+id/edit_p2_cp"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="0.85"
-                android:textSize="12sp"
-                android:hint="CP (auto)"
-                android:inputType="number" />
-
-            <EditText
-                android:id="@+id/edit_p2_ivs"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1.05"
-                android:textSize="12sp"
-                android:hint="IVs (opt 0/15/15)"
-                android:inputType="text" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginBottom="10dp">
-
-            <EditText
-                android:id="@+id/edit_p2_fast"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:textSize="12sp"
-                android:hint="Fast (auto)" />
-
-            <EditText
-                android:id="@+id/edit_p2_c1"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:textSize="12sp"
-                android:hint="Charged 1 (auto)" />
-
-            <EditText
-                android:id="@+id/edit_p2_c2"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:textSize="12sp"
-                android:hint="Charged 2 (auto)" />
-        </LinearLayout>
-
-        <!-- Pokemon 3 (Closer) -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Closer (Slot 3) &amp; Moveset"
-            android:textStyle="bold"
-            android:textColor="#2563eb"
-            android:textSize="13sp" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal">
-
-            <AutoCompleteTextView
-                android:id="@+id/edit_p3_name"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1.8"
-                android:completionThreshold="1"
-                android:dropDownWidth="280dp"
-                android:inputType="textCapWords"
-                android:textSize="13sp"
-                android:hint="Name (e.g. Zacian, Mandibuzz)" />
-
-            <EditText
-                android:id="@+id/edit_p3_cp"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="0.85"
-                android:textSize="12sp"
-                android:hint="CP (auto)"
-                android:inputType="number" />
-
-            <EditText
-                android:id="@+id/edit_p3_ivs"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1.05"
-                android:textSize="12sp"
-                android:hint="IVs (opt 0/15/15)"
-                android:inputType="text" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal">
-
-            <EditText
-                android:id="@+id/edit_p3_fast"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:textSize="12sp"
-                android:hint="Fast (auto)" />
-
-            <EditText
-                android:id="@+id/edit_p3_c1"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:textSize="12sp"
-                android:hint="Charged 1 (auto)" />
-
-            <EditText
-                android:id="@+id/edit_p3_c2"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:textSize="12sp"
-                android:hint="Charged 2 (auto)" />
-        </LinearLayout>
-
-    </LinearLayout>
-</ScrollView>
+    </ScrollView>
+</FrameLayout>

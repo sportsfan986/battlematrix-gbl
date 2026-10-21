@@ -198,15 +198,167 @@ export interface WebAppThemePalette {
   overlayBgRgb: string;
   overlayBorderRgb: string;
   overlayHeaderRgb: string;
-  emblemType: 'none' | 'instinct' | 'mystic' | 'valor' | 'sylveon';
+  emblemType: 'none' | 'dialga' | 'instinct' | 'mystic' | 'valor' | 'sylveon';
   watermarkAlpha: number;
 }
 
 export const WEB_APP_THEMES: WebAppThemePalette[] = [
   {
+    id: 'dialga_shiny_midnight',
+    name: '✨ Shiny Origin Dialga Midnight (Dark)',
+    description: 'Shiny Origin Forme Dialga ✨ • Deep temporal void (#050B16) with Luminous Teal (#2DD4BF), Astral Ring Gold (#FACC15) & Origin Crest',
+    isLight: false,
+    bgHex: '#050B16',
+    cardHex: '#0E1B2E',
+    cardAltHex: '#081120',
+    borderHex: '#19304E',
+    accentHex: '#2DD4BF',
+    accentSecondaryHex: '#FACC15',
+    textPrimaryHex: '#ECFEFF',
+    textSecondaryHex: '#99F6E4',
+    overlayBgRgb: '5, 11, 22',
+    overlayBorderRgb: '45, 212, 191',
+    overlayHeaderRgb: '45, 212, 191',
+    emblemType: 'dialga',
+    watermarkAlpha: 0.22
+  },
+  {
+    id: 'instinct_dark',
+    name: '⚡ Team Instinct Storm (Dark)',
+    description: 'Pokémon GO Instinct • Thunder Charcoal (#0F0D06) with Zapdos Lightning Gold (#FACC15), Storm Sky Cyan (#38BDF8) & Emblem',
+    isLight: false,
+    bgHex: '#0F0D06',
+    cardHex: '#1A1609',
+    cardAltHex: '#120F06',
+    borderHex: '#3D3210',
+    accentHex: '#FACC15',
+    accentSecondaryHex: '#38BDF8',
+    textPrimaryHex: '#FEFCE8',
+    textSecondaryHex: '#FDE047',
+    overlayBgRgb: '18, 15, 6',
+    overlayBorderRgb: '250, 204, 21',
+    overlayHeaderRgb: '250, 204, 21',
+    emblemType: 'instinct',
+    watermarkAlpha: 0.22
+  },
+  {
+    id: 'instinct_light',
+    name: '⚡ Team Instinct Spark (Light)',
+    description: 'Pokémon GO Instinct Light • Warm Ivory (#FFFDF4) with Golden Amber (#D97706), Electric Cobalt (#0284C7) & Zapdos Emblem',
+    isLight: true,
+    bgHex: '#FFFDF4',
+    cardHex: '#FFFFFF',
+    cardAltHex: '#FEF9C3',
+    borderHex: '#FDE047',
+    accentHex: '#D97706',
+    accentSecondaryHex: '#0284C7',
+    textPrimaryHex: '#1C1917',
+    textSecondaryHex: '#57534E',
+    overlayBgRgb: '18, 15, 6',
+    overlayBorderRgb: '245, 158, 11',
+    overlayHeaderRgb: '245, 158, 11',
+    emblemType: 'instinct',
+    watermarkAlpha: 0.25
+  },
+  {
+    id: 'mystic_dark',
+    name: '❄️ Team Mystic Blizzard (Dark)',
+    description: 'Pokémon GO Mystic • Deep Glacial Abyss (#060D1A) with Articuno Ice Blue (#38BDF8), Aurora Violet (#C084FC) & Emblem',
+    isLight: false,
+    bgHex: '#060D1A',
+    cardHex: '#0C1930',
+    cardAltHex: '#081224',
+    borderHex: '#1E3A8A',
+    accentHex: '#38BDF8',
+    accentSecondaryHex: '#C084FC',
+    textPrimaryHex: '#EFF6FF',
+    textSecondaryHex: '#93C5FD',
+    overlayBgRgb: '8, 16, 32',
+    overlayBorderRgb: '56, 189, 248',
+    overlayHeaderRgb: '56, 189, 248',
+    emblemType: 'mystic',
+    watermarkAlpha: 0.22
+  },
+  {
+    id: 'mystic_light',
+    name: '❄️ Team Mystic Glacier (Light)',
+    description: 'Pokémon GO Mystic Light • Crisp Ice White (#F0F7FF) with Glacier Blue (#0284C7), Royal Frost Indigo (#7C3AED) & Articuno Emblem',
+    isLight: true,
+    bgHex: '#F0F7FF',
+    cardHex: '#FFFFFF',
+    cardAltHex: '#DBEAFE',
+    borderHex: '#93C5FD',
+    accentHex: '#0284C7',
+    accentSecondaryHex: '#7C3AED',
+    textPrimaryHex: '#0F172A',
+    textSecondaryHex: '#334155',
+    overlayBgRgb: '8, 16, 32',
+    overlayBorderRgb: '56, 189, 248',
+    overlayHeaderRgb: '56, 189, 248',
+    emblemType: 'mystic',
+    watermarkAlpha: 0.25
+  },
+  {
+    id: 'valor_dark',
+    name: '🔥 Team Valor Inferno (Dark)',
+    description: 'Pokémon GO Valor • Smoldering Obsidian (#160709) with Moltres Crimson (#F43F5E), Molten Solar Gold (#FBBF24) & Emblem',
+    isLight: false,
+    bgHex: '#160709',
+    cardHex: '#240C10',
+    cardAltHex: '#1B080C',
+    borderHex: '#4C111B',
+    accentHex: '#F43F5E',
+    accentSecondaryHex: '#FBBF24',
+    textPrimaryHex: '#FEF2F2',
+    textSecondaryHex: '#FCA5A5',
+    overlayBgRgb: '24, 8, 10',
+    overlayBorderRgb: '244, 63, 94',
+    overlayHeaderRgb: '244, 63, 94',
+    emblemType: 'valor',
+    watermarkAlpha: 0.22
+  },
+  {
+    id: 'valor_light',
+    name: '🔥 Team Valor Dawn (Light)',
+    description: 'Pokémon GO Valor Light • Warm Cream (#FFF5F5) with Valor Crimson (#E11D48), Phoenix Solar Amber (#D97706) & Moltres Emblem',
+    isLight: true,
+    bgHex: '#FFF5F5',
+    cardHex: '#FFFFFF',
+    cardAltHex: '#FEE2E2',
+    borderHex: '#FCA5A5',
+    accentHex: '#E11D48',
+    accentSecondaryHex: '#D97706',
+    textPrimaryHex: '#1F1215',
+    textSecondaryHex: '#57363B',
+    overlayBgRgb: '24, 8, 10',
+    overlayBorderRgb: '249, 115, 22',
+    overlayHeaderRgb: '249, 115, 22',
+    emblemType: 'valor',
+    watermarkAlpha: 0.25
+  },
+  {
+    id: 'sylveon_pink',
+    name: '🎀 Sylveon Fairy Ribbon (Light Pink)',
+    description: 'Sylveon Theme • Pastel Blush (#FFF0F6) with Fairy Ribbon Pink (#EC4899), Distinctive Sylveon Pastel Blue (#38BDF8) & Bow Watermark',
+    isLight: true,
+    bgHex: '#FFF0F6',
+    cardHex: '#FFFFFF',
+    cardAltHex: '#FCE7F3',
+    borderHex: '#F9A8D4',
+    accentHex: '#EC4899',
+    accentSecondaryHex: '#38BDF8',
+    textPrimaryHex: '#3B0724',
+    textSecondaryHex: '#831843',
+    overlayBgRgb: '27, 11, 22',
+    overlayBorderRgb: '244, 114, 182',
+    overlayHeaderRgb: '244, 114, 182',
+    emblemType: 'sylveon',
+    watermarkAlpha: 0.25
+  },
+  {
     id: 'slate',
-    name: 'SilphScope Slate (Default)',
-    description: 'Default Dark • Deep tactical navy (#080C14) with Sky Cyan (#38BDF8) & Amber accents',
+    name: '🛡️ SilphScope Slate (Default Generic)',
+    description: 'Generic Default • Deep tactical navy (#080C14) with Sky Cyan (#38BDF8) & Tactical Amber (#F59E0B) accents',
     isLight: false,
     bgHex: '#080C14',
     cardHex: '#121824',
@@ -217,187 +369,28 @@ export const WEB_APP_THEMES: WebAppThemePalette[] = [
     textPrimaryHex: '#F8FAFC',
     textSecondaryHex: '#94A3B8',
     overlayBgRgb: '10, 14, 22',
-    overlayBorderRgb: '255, 255, 255',
-    overlayHeaderRgb: '56, 189, 248',
-    emblemType: 'none',
-    watermarkAlpha: 0
-  },
-  {
-    id: 'amoled_cyan',
-    name: 'AMOLED Cyber Cyan',
-    description: 'True Black #000000 • Electric Cyan (#00F0FF) accents for zero OLED pixel draw',
-    isLight: false,
-    bgHex: '#000000',
-    cardHex: '#070B10',
-    cardAltHex: '#040609',
-    borderHex: '#0F293A',
-    accentHex: '#00F0FF',
-    accentSecondaryHex: '#38BDF8',
-    textPrimaryHex: '#F8FAFC',
-    textSecondaryHex: '#94A3B8',
-    overlayBgRgb: '0, 0, 0',
-    overlayBorderRgb: '0, 240, 255',
-    overlayHeaderRgb: '0, 240, 255',
-    emblemType: 'none',
-    watermarkAlpha: 0
-  },
-  {
-    id: 'amoled_matrix',
-    name: 'AMOLED Matrix Phosphor',
-    description: 'True Black #000000 • Matrix Phosphor Lime (#00FF41) terminal accents',
-    isLight: false,
-    bgHex: '#000000',
-    cardHex: '#050C07',
-    cardAltHex: '#030704',
-    borderHex: '#0D3318',
-    accentHex: '#00FF41',
-    accentSecondaryHex: '#10B981',
-    textPrimaryHex: '#ECFDF5',
-    textSecondaryHex: '#6EE7B7',
-    overlayBgRgb: '0, 4, 1',
-    overlayBorderRgb: '0, 255, 65',
-    overlayHeaderRgb: '0, 255, 65',
-    emblemType: 'none',
-    watermarkAlpha: 0
-  },
-  {
-    id: 'instinct_dark',
-    name: 'Team Instinct Dark (Storm Gold)',
-    description: 'Pokémon GO Instinct • Thunder Charcoal (#0F0D06) with Zapdos Lightning Gold (#FACC15) & Emblem',
-    isLight: false,
-    bgHex: '#0F0D06',
-    cardHex: '#1A1609',
-    cardAltHex: '#120F06',
-    borderHex: '#3D3210',
-    accentHex: '#FACC15',
-    accentSecondaryHex: '#F59E0B',
-    textPrimaryHex: '#FEFCE8',
-    textSecondaryHex: '#FDE047',
-    overlayBgRgb: '18, 15, 6',
-    overlayBorderRgb: '250, 204, 21',
-    overlayHeaderRgb: '250, 204, 21',
-    emblemType: 'instinct',
-    watermarkAlpha: 0.08
-  },
-  {
-    id: 'instinct_light',
-    name: 'Team Instinct Light (Spark Daylight)',
-    description: 'Pokémon GO Instinct Light • Warm Ivory (#FFFDF4) with Golden Amber (#D97706) & Zapdos Emblem',
-    isLight: true,
-    bgHex: '#FFFDF4',
-    cardHex: '#FFFFFF',
-    cardAltHex: '#FEF9C3',
-    borderHex: '#FDE047',
-    accentHex: '#D97706',
-    accentSecondaryHex: '#B45309',
-    textPrimaryHex: '#1C1917',
-    textSecondaryHex: '#57534E',
-    overlayBgRgb: '18, 15, 6',
-    overlayBorderRgb: '245, 158, 11',
-    overlayHeaderRgb: '245, 158, 11',
-    emblemType: 'instinct',
-    watermarkAlpha: 0.1
-  },
-  {
-    id: 'mystic_dark',
-    name: 'Team Mystic Dark (Blizzard Navy)',
-    description: 'Pokémon GO Mystic • Deep Glacial Abyss (#060D1A) with Articuno Ice Blue (#3B82F6) & Emblem',
-    isLight: false,
-    bgHex: '#060D1A',
-    cardHex: '#0C1930',
-    cardAltHex: '#081224',
-    borderHex: '#1E3A8A',
-    accentHex: '#3B82F6',
-    accentSecondaryHex: '#38BDF8',
-    textPrimaryHex: '#EFF6FF',
-    textSecondaryHex: '#93C5FD',
-    overlayBgRgb: '8, 16, 32',
-    overlayBorderRgb: '59, 130, 246',
-    overlayHeaderRgb: '59, 130, 246',
-    emblemType: 'mystic',
-    watermarkAlpha: 0.08
-  },
-  {
-    id: 'mystic_light',
-    name: 'Team Mystic Light (Glacier Frost)',
-    description: 'Pokémon GO Mystic Light • Crisp Ice White (#F0F7FF) with Cobalt Blue (#1D4ED8) & Articuno Emblem',
-    isLight: true,
-    bgHex: '#F0F7FF',
-    cardHex: '#FFFFFF',
-    cardAltHex: '#DBEAFE',
-    borderHex: '#93C5FD',
-    accentHex: '#1D4ED8',
-    accentSecondaryHex: '#0284C7',
-    textPrimaryHex: '#0F172A',
-    textSecondaryHex: '#334155',
-    overlayBgRgb: '8, 16, 32',
     overlayBorderRgb: '56, 189, 248',
     overlayHeaderRgb: '56, 189, 248',
-    emblemType: 'mystic',
-    watermarkAlpha: 0.1
-  },
-  {
-    id: 'valor_dark',
-    name: 'Team Valor Dark (Magma Crimson)',
-    description: 'Pokémon GO Valor • Smoldering Obsidian (#160709) with Moltres Flame Red (#EF4444) & Emblem',
-    isLight: false,
-    bgHex: '#160709',
-    cardHex: '#240C10',
-    cardAltHex: '#1B080C',
-    borderHex: '#4C111B',
-    accentHex: '#EF4444',
-    accentSecondaryHex: '#F97316',
-    textPrimaryHex: '#FEF2F2',
-    textSecondaryHex: '#FCA5A5',
-    overlayBgRgb: '24, 8, 10',
-    overlayBorderRgb: '239, 68, 68',
-    overlayHeaderRgb: '239, 68, 68',
-    emblemType: 'valor',
-    watermarkAlpha: 0.08
-  },
-  {
-    id: 'valor_light',
-    name: 'Team Valor Light (Phoenix Sun)',
-    description: 'Pokémon GO Valor Light • Warm Cream (#FFF5F5) with Valor Crimson (#DC2626) & Moltres Emblem',
-    isLight: true,
-    bgHex: '#FFF5F5',
-    cardHex: '#FFFFFF',
-    cardAltHex: '#FEE2E2',
-    borderHex: '#FCA5A5',
-    accentHex: '#DC2626',
-    accentSecondaryHex: '#EA580C',
-    textPrimaryHex: '#1F1215',
-    textSecondaryHex: '#57363B',
-    overlayBgRgb: '24, 8, 10',
-    overlayBorderRgb: '249, 115, 22',
-    overlayHeaderRgb: '249, 115, 22',
-    emblemType: 'valor',
-    watermarkAlpha: 0.1
-  },
-  {
-    id: 'sylveon_light',
-    name: 'Sylveon Fairy Ribbon (Light)',
-    description: 'Sylveon Theme • Pastel Blush (#FFF5F8) with Ribbon Pink (#EC4899), Nymph Sky Blue & Sylveon Bow Watermark',
-    isLight: true,
-    bgHex: '#FFF5F8',
-    cardHex: '#FFFFFF',
-    cardAltHex: '#FCE7F3',
-    borderHex: '#F9A8D4',
-    accentHex: '#EC4899',
-    accentSecondaryHex: '#38BDF8',
-    textPrimaryHex: '#3B0724',
-    textSecondaryHex: '#831843',
-    overlayBgRgb: '24, 10, 20',
-    overlayBorderRgb: '244, 114, 182',
-    overlayHeaderRgb: '244, 114, 182',
-    emblemType: 'sylveon',
-    watermarkAlpha: 0.11
+    emblemType: 'none',
+    watermarkAlpha: 0
   }
 ];
 
 function renderThemeOverlayIcon(themeId: string, sizePx: number = 14) {
   const s = `${sizePx}px`;
   const styleObj = { width: s, height: s, display: 'inline-block', verticalAlign: 'middle', flexShrink: 0 };
+  if (themeId === 'dialga_shiny_midnight') {
+    return (
+      <svg viewBox="0 0 240 240" style={styleObj}>
+        <path fill="none" stroke="#2DD4BF" strokeWidth="10" d="M120,12 L196,44 L228,120 L196,196 L120,228 L44,196 L12,120 L44,44 Z" />
+        <path fill="none" stroke="#FACC15" strokeWidth="11" d="M120,44 L178,76 L178,164 L120,196 L62,164 L62,76 Z" />
+        <path fill="#FACC15" d="M62,76 L18,48 L48,94 Z M178,76 L222,48 L192,94 Z M54,120 L10,120 L54,134 Z M186,120 L230,120 L186,134 Z M62,164 L22,192 L54,146 Z M178,164 L218,192 L186,146 Z" />
+        <path fill="#14B8A6" stroke="#67E8F9" strokeWidth="6" d="M120,16 L138,48 L156,32 L144,76 L186,98 L152,134 L168,188 L142,174 L120,224 L98,174 L72,188 L88,134 L54,98 L96,76 L84,32 L102,48 Z" />
+        <path fill="#081224" stroke="#FACC15" strokeWidth="9" d="M120,84 L152,120 L120,156 L88,120 Z" />
+        <path fill="#67E8F9" d="M120,96 L140,120 L120,144 L100,120 Z" />
+      </svg>
+    );
+  }
   if (themeId === 'instinct_dark' || themeId === 'instinct_light') {
     return (
       <svg viewBox="0 0 240 240" style={styleObj}>
@@ -429,22 +422,6 @@ function renderThemeOverlayIcon(themeId: string, sizePx: number = 14) {
         <path fill="#EC4899" d="M112,108 C84,72 42,66 30,92 C18,118 48,148 112,124 Z M128,108 C156,72 198,66 210,92 C222,118 192,148 128,124 Z" />
         <circle cx="120" cy="118" r="24" fill="#F9A8D4" />
         <path fill="#38BDF8" d="M120,24 L127,44 L147,51 L127,58 L120,78 L113,58 L93,51 L113,44 Z" />
-      </svg>
-    );
-  }
-  if (themeId === 'amoled_matrix') {
-    return (
-      <svg viewBox="0 0 240 240" style={styleObj}>
-        <path fill="#00FF41" d="M120,16 L224,120 L120,224 L16,120 Z M120,40 L40,120 L120,200 L200,120 Z" />
-        <path fill="#34D399" d="M76,88 L116,120 L76,152 L64,138 L88,120 L64,102 Z M124,140 L176,140 L176,158 L124,158 Z" />
-      </svg>
-    );
-  }
-  if (themeId === 'amoled_cyan') {
-    return (
-      <svg viewBox="0 0 240 240" style={styleObj}>
-        <path fill="#00F0FF" d="M120,14 L214,68 L214,172 L120,226 L26,172 L26,68 Z M120,36 L46,78 L46,162 L120,204 L194,162 L194,78 Z" />
-        <circle cx="120" cy="120" r="34" fill="#22D3EE" />
       </svg>
     );
   }
@@ -575,13 +552,15 @@ export default function App() {
     } catch {}
   };
 
-  // App-Level Setting: App & Overlay Theme + Background Emblem Watermark (v3.02)
+  // App-Level Setting: App & Overlay Theme + Background Emblem Watermark (v3.06)
   const [appThemeId, setAppThemeId] = useState<string>(() => {
     try {
       const saved = localStorage.getItem('gbl_app_theme_id');
+      if (saved === 'amoled_cyan' || saved === 'amoled_matrix') return 'dialga_shiny_midnight';
+      if (saved === 'sylveon_light') return 'sylveon_pink';
       if (saved && WEB_APP_THEMES.some((t) => t.id === saved)) return saved;
     } catch {}
-    return 'slate';
+    return 'dialga_shiny_midnight';
   });
 
   const handleSetAppThemeId = (themeId: string) => {
@@ -2223,85 +2202,135 @@ export default function App() {
         color: activeTheme.textPrimaryHex
       }}
     >
-      {/* Dynamic CSS Theme Surface Overrides for Light / AMOLED / Team / Sylveon Themes */}
-      {activeTheme.id !== 'slate' && (
-        <style>{`
-          .theme-surface .bg-slate-900:not(.overlay-hud-preserve *),
-          .theme-surface .bg-slate-900\\/80:not(.overlay-hud-preserve *),
-          .theme-surface .bg-slate-900\\/90:not(.overlay-hud-preserve *),
-          .theme-surface .bg-slate-900\\/70:not(.overlay-hud-preserve *),
-          .theme-surface .bg-slate-900\\/60:not(.overlay-hud-preserve *) {
-            background-color: ${activeTheme.cardHex} !important;
-          }
-          .theme-surface .bg-slate-950:not(.overlay-hud-preserve *),
-          .theme-surface .bg-slate-950\\/70:not(.overlay-hud-preserve *),
-          .theme-surface .bg-slate-950\\/80:not(.overlay-hud-preserve *),
-          .theme-surface .bg-slate-950\\/60:not(.overlay-hud-preserve *),
-          .theme-surface .bg-slate-950\\/90:not(.overlay-hud-preserve *) {
-            background-color: ${activeTheme.cardAltHex} !important;
-          }
-          .theme-surface .border-slate-800:not(.overlay-hud-preserve *),
-          .theme-surface .border-slate-700:not(.overlay-hud-preserve *),
-          .theme-surface .border-slate-800\\/80:not(.overlay-hud-preserve *),
-          .theme-surface .border-slate-700\\/60:not(.overlay-hud-preserve *) {
-            border-color: ${activeTheme.borderHex} !important;
-          }
-          .theme-surface .bg-sky-500:not(.overlay-hud-preserve *),
-          .theme-surface .bg-sky-600:not(.overlay-hud-preserve *),
-          .theme-surface .bg-blue-600:not(.overlay-hud-preserve *) {
-            background-color: ${activeTheme.accentHex} !important;
-            color: ${activeTheme.isLight ? '#FFFFFF' : '#080C14'} !important;
-          }
-          .theme-surface .bg-sky-500\\/20:not(.overlay-hud-preserve *),
-          .theme-surface .bg-sky-500\\/15:not(.overlay-hud-preserve *),
-          .theme-surface .bg-sky-500\\/10:not(.overlay-hud-preserve *) {
-            background-color: rgba(${activeTheme.overlayHeaderRgb}, 0.16) !important;
-          }
-          .theme-surface .text-sky-400:not(.overlay-hud-preserve *),
-          .theme-surface .text-sky-300:not(.overlay-hud-preserve *),
-          .theme-surface .text-sky-200:not(.overlay-hud-preserve *) {
-            color: ${activeTheme.accentHex} !important;
-          }
-          .theme-surface .border-sky-400:not(.overlay-hud-preserve *),
-          .theme-surface .border-sky-500:not(.overlay-hud-preserve *),
-          .theme-surface .border-sky-400\\/40:not(.overlay-hud-preserve *),
-          .theme-surface .border-sky-500\\/40:not(.overlay-hud-preserve *),
-          .theme-surface .border-sky-500\\/30:not(.overlay-hud-preserve *) {
-            border-color: ${activeTheme.accentHex} !important;
-          }
-          .theme-surface input[type="range"] {
-            accent-color: ${activeTheme.accentHex} !important;
-          }
-          ${
-            activeTheme.isLight
-              ? `
-          .theme-surface .text-white:not(.overlay-hud-preserve *),
-          .theme-surface .text-slate-100:not(.overlay-hud-preserve *),
-          .theme-surface .text-slate-200:not(.overlay-hud-preserve *) {
-            color: ${activeTheme.textPrimaryHex} !important;
-          }
-          .theme-surface .text-slate-300:not(.overlay-hud-preserve *),
-          .theme-surface .text-slate-400:not(.overlay-hud-preserve *),
-          .theme-surface .text-slate-500:not(.overlay-hud-preserve *) {
-            color: ${activeTheme.textSecondaryHex} !important;
-          }
-          .theme-surface .bg-slate-800:not(.overlay-hud-preserve *),
-          .theme-surface .bg-slate-800\\/60:not(.overlay-hud-preserve *) {
-            background-color: ${activeTheme.cardAltHex} !important;
-          }
-          `
-              : ''
-          }
-        `}</style>
-      )}
+      {/* Dynamic CSS Theme Surface, Dual-Accent & Page Transparency Overrides */}
+      <style>{`
+        .theme-surface .bg-slate-900:not(.overlay-hud-preserve *),
+        .theme-surface .bg-slate-900\\/80:not(.overlay-hud-preserve *),
+        .theme-surface .bg-slate-900\\/90:not(.overlay-hud-preserve *),
+        .theme-surface .bg-slate-900\\/70:not(.overlay-hud-preserve *),
+        .theme-surface .bg-slate-900\\/60:not(.overlay-hud-preserve *) {
+          background-color: color-mix(in srgb, ${activeTheme.cardHex} ${showThemeWatermark && activeTheme.emblemType !== 'none' ? '74%' : '96%'}, transparent) !important;
+        }
+        .theme-surface .bg-slate-950:not(.overlay-hud-preserve *),
+        .theme-surface .bg-slate-950\\/70:not(.overlay-hud-preserve *),
+        .theme-surface .bg-slate-950\\/80:not(.overlay-hud-preserve *),
+        .theme-surface .bg-slate-950\\/60:not(.overlay-hud-preserve *),
+        .theme-surface .bg-slate-950\\/90:not(.overlay-hud-preserve *) {
+          background-color: color-mix(in srgb, ${activeTheme.cardAltHex} ${showThemeWatermark && activeTheme.emblemType !== 'none' ? '68%' : '94%'}, transparent) !important;
+        }
+        .theme-surface .bg-slate-800:not(.overlay-hud-preserve *),
+        .theme-surface .bg-slate-800\\/60:not(.overlay-hud-preserve *) {
+          background-color: color-mix(in srgb, ${activeTheme.cardAltHex} ${showThemeWatermark && activeTheme.emblemType !== 'none' ? '76%' : '95%'}, ${activeTheme.accentSecondaryHex} 14%) !important;
+          border-color: color-mix(in srgb, ${activeTheme.borderHex} 70%, ${activeTheme.accentSecondaryHex} 30%) !important;
+        }
+        .theme-surface .border-slate-800:not(.overlay-hud-preserve *),
+        .theme-surface .border-slate-700:not(.overlay-hud-preserve *),
+        .theme-surface .border-slate-800\\/80:not(.overlay-hud-preserve *),
+        .theme-surface .border-slate-700\\/60:not(.overlay-hud-preserve *) {
+          border-color: ${activeTheme.borderHex} !important;
+        }
+        .theme-surface .bg-sky-500:not(.overlay-hud-preserve *),
+        .theme-surface .bg-sky-600:not(.overlay-hud-preserve *),
+        .theme-surface .bg-blue-600:not(.overlay-hud-preserve *) {
+          background-color: ${activeTheme.accentHex} !important;
+          color: ${activeTheme.isLight ? '#FFFFFF' : '#080C14'} !important;
+        }
+        .theme-surface .bg-emerald-600:not(.overlay-hud-preserve *) {
+          background-color: ${activeTheme.accentSecondaryHex} !important;
+          color: ${activeTheme.isLight ? '#FFFFFF' : '#080C14'} !important;
+        }
+        .theme-surface .bg-emerald-600\\/25:not(.overlay-hud-preserve *),
+        .theme-surface .bg-purple-600\\/25:not(.overlay-hud-preserve *) {
+          background-color: color-mix(in srgb, ${activeTheme.accentSecondaryHex} 22%, transparent) !important;
+          border-color: color-mix(in srgb, ${activeTheme.accentSecondaryHex} 60%, transparent) !important;
+          color: ${activeTheme.accentSecondaryHex} !important;
+        }
+        .theme-surface .bg-sky-500\\/20:not(.overlay-hud-preserve *),
+        .theme-surface .bg-sky-500\\/15:not(.overlay-hud-preserve *),
+        .theme-surface .bg-sky-500\\/10:not(.overlay-hud-preserve *),
+        .theme-surface .bg-sky-600\\/25:not(.overlay-hud-preserve *) {
+          background-color: rgba(${activeTheme.overlayHeaderRgb}, 0.20) !important;
+        }
+        .theme-surface .text-sky-400:not(.overlay-hud-preserve *),
+        .theme-surface .text-sky-300:not(.overlay-hud-preserve *),
+        .theme-surface .text-sky-200:not(.overlay-hud-preserve *) {
+          color: ${activeTheme.accentHex} !important;
+        }
+        .theme-surface .text-amber-300:not(.overlay-hud-preserve *),
+        .theme-surface .text-amber-400:not(.overlay-hud-preserve *),
+        .theme-surface .text-purple-200:not(.overlay-hud-preserve *),
+        .theme-surface .text-purple-300:not(.overlay-hud-preserve *) {
+          color: ${activeTheme.accentSecondaryHex} !important;
+        }
+        .theme-surface .border-sky-400:not(.overlay-hud-preserve *),
+        .theme-surface .border-sky-500:not(.overlay-hud-preserve *),
+        .theme-surface .border-sky-400\\/40:not(.overlay-hud-preserve *),
+        .theme-surface .border-sky-400\\/50:not(.overlay-hud-preserve *),
+        .theme-surface .border-sky-500\\/40:not(.overlay-hud-preserve *),
+        .theme-surface .border-sky-500\\/30:not(.overlay-hud-preserve *) {
+          border-color: ${activeTheme.accentHex} !important;
+        }
+        .theme-surface input[type="range"] {
+          accent-color: ${activeTheme.accentHex} !important;
+        }
+        ${
+          activeTheme.isLight
+            ? `
+        .theme-surface .text-white:not(.overlay-hud-preserve *),
+        .theme-surface .text-slate-100:not(.overlay-hud-preserve *),
+        .theme-surface .text-slate-200:not(.overlay-hud-preserve *) {
+          color: ${activeTheme.textPrimaryHex} !important;
+        }
+        .theme-surface .text-slate-300:not(.overlay-hud-preserve *),
+        .theme-surface .text-slate-400:not(.overlay-hud-preserve *),
+        .theme-surface .text-slate-500:not(.overlay-hud-preserve *) {
+          color: ${activeTheme.textSecondaryHex} !important;
+        }
+        `
+            : ''
+        }
+      `}</style>
 
-      {/* Centered Non-Interactive Background Emblem Watermark (Instinct / Mystic / Valor / Sylveon) */}
+      {/* Centered Non-Interactive Background Emblem Watermark (Dialga / Instinct / Mystic / Valor / Sylveon) */}
       {showThemeWatermark && activeTheme.emblemType !== 'none' && (
         <div
           className="fixed inset-0 pointer-events-none flex items-center justify-center z-0 overflow-hidden"
           style={{ opacity: activeTheme.watermarkAlpha }}
           aria-hidden="true"
         >
+          {activeTheme.emblemType === 'dialga' && (
+            <svg viewBox="0 0 240 240" className="w-[440px] h-[440px]">
+              <path
+                fill="none"
+                stroke="#2DD4BF"
+                strokeWidth="4"
+                d="M120,10 L196,42 L228,120 L196,198 L120,230 L44,198 L12,120 L44,42 Z"
+              />
+              <path
+                fill="none"
+                stroke="#FACC15"
+                strokeWidth="5"
+                d="M120,44 L178,76 L178,164 L120,196 L62,164 L62,76 Z"
+              />
+              <path
+                fill="#FACC15"
+                d="M62,76 L22,52 L48,92 Z M178,76 L218,52 L192,92 Z M56,120 L14,120 L56,132 Z M184,120 L226,120 L184,132 Z M62,164 L26,188 L54,148 Z M178,164 L214,188 L186,148 Z"
+              />
+              <path
+                fill="#14B8A6"
+                stroke="#67E8F9"
+                strokeWidth="3"
+                d="M120,14 L138,48 L156,32 L144,76 L186,98 L152,134 L168,188 L142,174 L120,224 L98,174 L72,188 L88,134 L54,98 L96,76 L84,32 L102,48 Z"
+              />
+              <path
+                fill="#081224"
+                stroke="#FACC15"
+                strokeWidth="4"
+                d="M120,84 L152,120 L120,156 L88,120 Z"
+              />
+              <path fill="#67E8F9" d="M120,96 L140,120 L120,144 L100,120 Z" />
+            </svg>
+          )}
           {activeTheme.emblemType === 'instinct' && (
             <svg viewBox="0 0 240 240" className="w-[420px] h-[420px]">
               <path fill="#FACC15" d="M120,8 L224,120 L120,232 L16,120 Z M120,24 L32,120 L120,216 L208,120 Z" />
@@ -2401,7 +2430,7 @@ export default function App() {
                     backgroundColor: `${activeTheme.accentHex}1A`
                   }}
                 >
-                  v3.05 • Android Native Overlay
+                  v3.06 • Android Native Overlay
                 </span>
               </div>
               <p className="text-xs hidden sm:block" style={{ color: activeTheme.textSecondaryHex }}>
@@ -5405,7 +5434,7 @@ export default function App() {
                           'Content-Type': 'application/json'
                         },
                         body: JSON.stringify({
-                          description: 'SilphScope PvP v3.05 Multi-Device Delta Sync Vault',
+                          description: 'SilphScope PvP v3.06 Multi-Device Delta Sync Vault',
                           public: false,
                           files: {
                             'gbl_delta_sync_v2.json': { content: bundleStr }
@@ -6681,8 +6710,22 @@ export default function App() {
 
                 return (
                   <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-                    <div className="bg-slate-900 border border-sky-500/50 rounded-2xl max-w-lg w-full p-5 shadow-2xl space-y-3">
-                      <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                    <div
+                      className="relative overflow-hidden border rounded-2xl max-w-lg w-full p-5 shadow-2xl space-y-3"
+                      style={{
+                        backgroundColor: activeTheme.bgHex,
+                        borderColor: activeTheme.accentHex
+                      }}
+                    >
+                      {showThemeWatermark && activeTheme.emblemType !== 'none' && (
+                        <div
+                          className="absolute inset-0 pointer-events-none flex items-center justify-center z-0"
+                          style={{ opacity: activeTheme.isLight ? 0.24 : 0.20 }}
+                        >
+                          {renderThemeOverlayIcon(activeTheme.id, 260)}
+                        </div>
+                      )}
+                      <div className="relative z-10 flex items-center justify-between border-b border-slate-800 pb-2.5">
                         <div>
                           <h3 className="font-bold text-sm text-white flex items-center gap-2">
                             <span>🔍 Post-Game Interactive Overlay Replay</span>
@@ -6709,7 +6752,13 @@ export default function App() {
                       </div>
 
                       {/* Interactive Overlay HUD Replica */}
-                      <div className="rounded-xl bg-slate-950 border border-sky-400/40 p-3 space-y-2.5 text-xs">
+                      <div
+                        className="relative z-10 rounded-xl border p-3 space-y-2.5 text-xs"
+                        style={{
+                          backgroundColor: `rgba(${activeTheme.overlayBgRgb}, ${showThemeWatermark && activeTheme.emblemType !== 'none' ? 0.62 : 0.85})`,
+                          borderColor: activeTheme.accentHex
+                        }}
+                      >
                         <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-800">
                           <div className="flex items-center gap-1.5">
                             <span className="font-extrabold text-amber-300">
@@ -6735,7 +6784,7 @@ export default function App() {
                                 onClick={() => setReplayUserIdx(idx)}
                                 className={`px-2 py-0.5 rounded text-[10px] font-bold border transition ${
                                   safeUserSlot === idx
-                                    ? 'bg-emerald-500/35 border-emerald-400 text-white'
+                                    ? 'bg-sky-500/35 border-sky-400 text-white'
                                     : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white'
                                 }`}
                               >
@@ -6937,7 +6986,7 @@ export default function App() {
               <div>
                 <h2 className="text-lg font-bold text-white flex items-center gap-2">
                   <Info className="w-5 h-5 text-sky-400" />
-                  <span>📖 Complete Help, HUD Instructions, Tips &amp; Tactics Guide (v3.05)</span>
+                  <span>📖 Complete Help, HUD Instructions, Tips &amp; Tactics Guide (v3.06)</span>
                 </h2>
                 <p className="text-xs text-slate-400">
                   Everything you need to master the floating PvP overlay, 3x3 matchup &amp; shield matrix, bottom 3-column damage grid, 50s swap clocks, move pacing, Battle Log analytics, and Tasker automation.
@@ -7841,7 +7890,7 @@ export default function App() {
               <div className="flex items-center justify-between border-b border-slate-800 pb-3 shrink-0">
                 <div>
                   <h3 className="font-bold text-base text-white flex items-center gap-2">
-                    <span>🎯 Overlay HUD &amp; Battle Flow Guide (v3.05)</span>
+                    <span>🎯 Overlay HUD &amp; Battle Flow Guide (v3.06)</span>
                   </h3>
                   <p className="text-xs text-slate-400 mt-0.5">
                     How to interact with the floating overlay, read 3x3 damage % &amp; shield dots, track 50s swap clocks, and log battles
@@ -7984,7 +8033,7 @@ export default function App() {
           color: activeTheme.textSecondaryHex
         }}
       >
-        SilphScope PvP v3.05 Overlay • Built with Kotlin, WindowManager TYPE_APPLICATION_OVERLAY, MediaProjection in-memory frame capture, and ML Kit Text Recognition.
+        SilphScope PvP v3.06 Overlay • Built with Kotlin, WindowManager TYPE_APPLICATION_OVERLAY, MediaProjection in-memory frame capture, and ML Kit Text Recognition.
       </footer>
     </div>
   );

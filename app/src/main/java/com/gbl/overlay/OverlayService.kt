@@ -3418,7 +3418,7 @@ class OverlayService : LifecycleService() {
     private var disableBattleToasts = false
     private var overlayScalePct = 78
     private var overlayTransparencyPct = 72
-    private var appThemeId = "slate"
+    private var appThemeId = "dialga_shiny_midnight"
     private var isOverlayMinimized = false
     private var cachedScreenBitmap: Bitmap? = null
     private val captureLock = Any()
@@ -3619,7 +3619,8 @@ class OverlayService : LifecycleService() {
         disableBattleToasts = prefs.getBoolean(PREFS_KEY_DISABLE_BATTLE_TOASTS, false)
         overlayScalePct = prefs.getInt("overlay_scale_pct", 78).coerceIn(50, 100)
         overlayTransparencyPct = prefs.getInt(PREFS_KEY_OVERLAY_TRANSPARENCY_PCT, 72).coerceIn(0, 100)
-        appThemeId = prefs.getString(PREFS_KEY_APP_THEME_ID, "slate") ?: "slate"
+        val rawSavedThemeId = prefs.getString(PREFS_KEY_APP_THEME_ID, "dialga_shiny_midnight") ?: "dialga_shiny_midnight"
+        appThemeId = if (rawSavedThemeId == "amoled_cyan" || rawSavedThemeId == "amoled_matrix") "dialga_shiny_midnight" else rawSavedThemeId
         syncTierThresholdsFromPrefs(prefs)
 
         val metrics = resources.displayMetrics
@@ -3659,6 +3660,7 @@ class OverlayService : LifecycleService() {
             try {
                 val density = resources.displayMetrics.density
                 val themeAccentHex = when (appThemeId) {
+                    "dialga_shiny_midnight" -> "#2DD4BF"
                     "instinct_dark" -> "#EAB308"
                     "instinct_light" -> "#CA8A04"
                     "mystic_dark" -> "#38BDF8"
@@ -3666,8 +3668,6 @@ class OverlayService : LifecycleService() {
                     "valor_dark" -> "#F87171"
                     "valor_light" -> "#DC2626"
                     "sylveon_pink", "sylveon_light" -> "#EC4899"
-                    "amoled_matrix" -> "#10B981"
-                    "amoled_cyan" -> "#06B6D4"
                     else -> "#38BDF8"
                 }
                 val borderColor = when {
@@ -3998,7 +3998,8 @@ class OverlayService : LifecycleService() {
     }
 
     private fun applyOverlayTheme(themeId: String) {
-        appThemeId = themeId.ifBlank { "slate" }
+        val cleaned = themeId.ifBlank { "dialga_shiny_midnight" }
+        appThemeId = if (cleaned == "amoled_cyan" || cleaned == "amoled_matrix") "dialga_shiny_midnight" else cleaned
         Handler(Looper.getMainLooper()).post {
             try {
                 overlayView?.evaluateJavascript(
@@ -4101,8 +4102,8 @@ class OverlayService : LifecycleService() {
                 applyOverlayTransparency(startTransparencyPct)
 
                 val startThemeId = intent?.getStringExtra(EXTRA_APP_THEME_ID)
-                    ?: prefs.getString(PREFS_KEY_APP_THEME_ID, "slate")
-                    ?: "slate"
+                    ?: prefs.getString(PREFS_KEY_APP_THEME_ID, "dialga_shiny_midnight")
+                    ?: "dialga_shiny_midnight"
                 applyOverlayTheme(startThemeId)
 
                 enable4ChargedMoves = if (intent?.hasExtra(EXTRA_ENABLE_4_CHARGED_MOVES) == true) {

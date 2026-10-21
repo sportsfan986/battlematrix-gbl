@@ -1,114 +1,43 @@
-# Changelog
+# SilphScope PvP Changelog (Since v3.00)
 
-## v3.05
-**Interactive Shield Counters in Overlay Header & Mid-Battle Matrix Recalculation**
+## [v3.06] — 2026-10-20 — Dual-Accent Theme Engine Overhaul, Shiny Origin Forme Dialga Midnight Theme, Complete Modal/Button Theming & Enhanced Page Transparency
+- **New ✨ Shiny Origin Forme Dialga Midnight Theme (`dialga_shiny_midnight`)**:
+  - Replaced legacy AMOLED Cyber Pulse Cyan & Matrix Phosphor Green themes with **✨ Shiny Origin Dialga Midnight (Dark)** (`#050B16` deep temporal void, `#2DD4BF` luminous shiny teal primary accent, `#FACC15` astral ring gold secondary accent, and custom vector Origin Forme Dialga temporal wheel & diamond core emblem).
+- **Dual-Accent Color Palettes Across All 9 Themes**:
+  - Added a distinct secondary accent color (`secondaryAccentColor` / `secondaryButtonColor` + 5-dot swatch preview in Settings) to every theme for richer visual depth across headers, badges, slot titles, and secondary action buttons.
+  - **🎀 Sylveon Fairy Ribbon**: Paired Fairy Ribbon Pink (`#EC4899`) with Sylveon's signature **Pastel Sky Blue** (`#38BDF8`) secondary accent.
+  - **⚡ Team Instinct (Dark & Light)**: Paired Zapdos Lightning Gold with Storm Sky Cyan (`#38BDF8`) and Electric Cobalt (`#0284C7`).
+  - **❄️ Team Mystic (Dark & Light)**: Paired Articuno Ice Blue with Aurora Borealis Violet (`#C084FC`) and Royal Frost Indigo (`#7C3AED`).
+  - **🔥 Team Valor (Dark & Light)**: Paired Moltres Crimson with Molten Solar Gold (`#FBBF24`) and Phoenix Amber (`#D97706`).
+  - **🛡️ SilphScope Slate (Default Generic)**: Placed last in the theme selector as a clean generic fallback with Sky Cyan (`#38BDF8`) & Tactical Amber (`#F59E0B`).
+- **Complete Action Button, Team Edit & Replay Matrix Theming**:
+  - Fixed Android `MaterialButton` background tint resolution and explicitly themed all action buttons across the app:
+    - **Top Bar & Overlay**: `Start Battle Overlay` / `Stop Battle Overlay`, `❓ Help`, `☕ Support`, and the floating overlay's `⚔️ Start Battle` button.
+    - **Battle Log Page**: `+ Log`, `☁️ Sync`, `🗑️ Trash`, `Clear`, `📋 Copy GBL`, and `📤 Share`.
+    - **Settings Page**: `💾 Save Thresholds`, `↺ Restore Defaults`, all 3 cloud sync buttons (`🔑 Login with GitHub`, `☁️ Sync Devices Now`, `📦 Sync Bundle`), `Sync PvPoke`, `🔄 Reparse All`, and Tasker hook buttons.
+  - **Themed Team Edit & Manual Battle Log Modals**: Added active theme backgrounds, dual-accent Lead / Safe Swap / Closer slot headers, themed inputs, and centered background emblem watermarks when enabled.
+  - **Themed Replay Overlay Matrix & Watermark**: Styled the main app's interactive post-game replay overlay matrix with the active theme's background, primary/secondary accent colors, and centered emblem logo watermark.
+- **Enhanced Transparency Across All 3 Main Pages (`Teams`, `Battle Log`, `Settings`)**:
+  - Increased background emblem watermark visibility (`alpha` `0.22`–`0.25`) and reduced card/surface opacity across all 3 main pages when watermarks are enabled so the centered team/Pokémon crest shines through cleanly.
 
-1. **Interactive Dual Shield Badges in Overlay Header (`overlay.html`, `OverlayService.kt`, `src/App.tsx`)**
-   - Added compact, tactile, color-coded shield badges directly to the floating overlay's top header row:
-     - **Player Shields (`🛡️ 2`)**: Styled with the active theme's accent color (`#38BDF8`, gold, ice blue, red, pink, or neon green); taps cycle `2 -> 1 -> 0 -> 2`.
-     - **Opponent Shields (`🛡️ 2`)**: Distinct rose/pink styling (`#F472B6`); taps cycle `2 -> 1 -> 0 -> 2`.
-     - **Zero Shields State**: Automatically transitions to a muted strike-through style (`#94A3B8`) when 0 shields remain.
-     - **Mid-Match Matrix Recalculation**: Adjusting either shield count immediately recalculates the 9-scenario PvPoke rating and dynamically updates combat indicators across all rows and columns.
-     - **Native Bridge Integration**: Fully synchronized with native Android OCR shield drop state and battle timeline events via `setPlayerShields` and `setOpponentShields` JavascriptInterface handlers.
+---
 
-## v3.03
-**Complete UI Theme Coverage & Dynamic Theme Emblem Icons on Floating Overlay**
+## [v3.05] — 2026-10-20 — Interactive Overlay Header Shield Counters & Live Matrix Recalculation
+- **Interactive Header Shield Counters (`🛡️ You` & `🛡️ Opp`)**:
+  - Added interactive shield counter buttons for both the player and opponent directly in the floating overlay's top header row.
+  - Tapping either shield icon cycles remaining shields (`2 → 1 → 0 → 2`) mid-battle, automatically dims with a strike-through at `0` shields, logs `SHIELD` timeline events during active matches, and immediately recalculates the 3x3 PvPoke matchup matrix and threat thresholds.
 
-1. **Dynamic Theme Emblem Icon on Floating Overlay (`overlay.html`, `src/App.tsx`)**
-   - Replaced the static crossed-swords (`⚔️`) battle icon on the floating overlay's upper-left minimize button (`#btn-minimize-sword`), minimized floating bubble (`#minimized-bubble`), and `Start Battle` button with a dynamic vector SVG emblem matching the currently selected theme:
-     - **Team Instinct (Dark & Light)**: Electric jagged diamond + Zapdos silhouette crest (`#FACC15` / `#EAB308`).
-     - **Team Mystic (Dark & Light)**: Hexagonal ice crystal + Articuno silhouette crest (`#38BDF8` / `#0284C7`).
-     - **Team Valor (Dark & Light)**: Fiery phoenix crest + Moltres silhouette (`#F87171` / `#DC2626`).
-     - **Sylveon Fairy Ribbon (Light)**: Sylveon pastel pink/sky ribbon bow & fairy sparkle crest (`#EC4899` / `#38BDF8`).
-     - **AMOLED Matrix Phosphor**: Phosphor lime terminal diamond reticle (`#00FF41`).
-     - **AMOLED Cyber Cyan**: Electric cyan hexagonal HUD reticle (`#00F0FF`).
-     - **SilphScope Slate (Default)**: Tactical sky-cyan & amber target reticle (`#38BDF8`).
-2. **Eliminated Remaining Unthemed Blue Elements Across App & Overlay (`MainActivity.kt`, `overlay.html`, `OverlayService.kt`, `src/App.tsx`)**
-   - **Android App**: Extended `applyThemeRecursively` and `applyCurrentAppTheme` to dynamically theme all `Button`s (`Start Battle Overlay`, `+ New Team`, `My Fasts`, `3 Moves`, `Toasts On`, `Save 5-Tier Thresholds`, `Sync Now`, `Reparse`, `Download PvPoke`, `Copy/Share`), `ImageButton`s (`Edit Team`), `Switch`es, `RadioButton`s / `CheckBox`es (`item_team_preset`), `Spinner` closed & dropdown views (`createThemedSpinnerAdapter`), top header app badge, Battle Log empty state cards, and all modal dialogs (Preset Editor, Battle Log Interactive Replay WebView, GitHub Sync, and Trash Bins).
-   - **Floating Overlay**: Replaced remaining hardcoded sky-blue (`#38bdf8`) borders, highlights, and glows on `.matrix-row.active-lead`, `.opp-col.active-col`, `.hud-btn.btn-form`, and `#start-battle-menu` with `var(--header-accent-rgb)` and `var(--panel-border-rgb)` while keeping all tactical damage, shield, and timer colors untouched.
+---
 
-## v3.02
-**App & Overlay Theme Engine, Pokémon GO Team & Sylveon Emblem Watermarks, & Settings Reorganization**
+## [v3.03] — 2026-10-20 — Dynamic Overlay Emblem Icons & Recursive UI Theme Engine
+- **Dynamic Theme Emblem Icons on Floating Overlay**:
+  - Updated the floating overlay's upper-left minimize button, minimized floating bubble, and `Start Battle` button to display vector SVG emblems matching the active theme.
+- **Recursive View-Tree Theming**:
+  - Added recursive theme traversal across Android layouts, spinners, switches, and cards.
 
-1. **10-Theme Collection (`MainActivity.kt`, `OverlayService.kt`, `overlay.html`, `activity_main.xml`, `src/App.tsx`)**
-   - **Default Dark**: **SilphScope Slate (Default)** — Deep tactical navy (`#080C14`) with Sky Cyan (`#38BDF8`) & Amber (`#F59E0B`) accents.
-   - **2 True AMOLED Black Themes (`#000000`)**:
-     - **AMOLED Cyber Cyan**: Pitch-black `#000000` canvas with Electric Cyan (`#00F0FF`) accents for zero OLED pixel draw.
-     - **AMOLED Matrix Phosphor**: Pitch-black `#000000` canvas with terminal phosphor Matrix Lime (`#00FF41`) accents.
-   - **6 Pokémon GO Team Themes (Dark & Light Pairs with Vector Emblem Watermarks)**:
-     - **Team Instinct Dark (Storm Gold)** & **Team Instinct Light (Spark Daylight)** with centered electric jagged diamond + Zapdos silhouette background watermark (`bg_emblem_instinct.xml`).
-     - **Team Mystic Dark (Blizzard Navy)** & **Team Mystic Light (Glacier Frost)** with centered hexagonal ice crystal crest + Articuno silhouette background watermark (`bg_emblem_mystic.xml`).
-     - **Team Valor Dark (Magma Crimson)** & **Team Valor Light (Phoenix Sun)** with centered fiery crest + Moltres rising phoenix silhouette background watermark (`bg_emblem_valor.xml`).
-   - **Sylveon Fairy Ribbon (Light)**: Soft pastel cream/blush background (`#FFF5F8`), rose-white cards (`#FFFFFF`), and vibrant Sylveon ribbon pink (`#EC4899`) + nymph sky-blue (`#38BDF8`) accents with a custom Sylveon bow, feeler ribbons, and 4-point fairy sparkles background watermark (`bg_emblem_sylveon.xml`).
-2. **Tactical-Safe Floating Overlay Accenting (`overlay.html`, `OverlayService.kt`)**
-   - Tints only the floating HUD base glass panel (`--panel-bg-rgb`), outer border (`--panel-border-rgb`), header strip (`--header-accent-rgb`), and minimize bubble while keeping 100% of tactical combat indicators untouched (5-tier matchup dots, 9-state shield matrix tags, move-type color dots, KO! badges, and 50s swap timers).
-3. **Settings Page Reorganization (`activity_main.xml`, `src/App.tsx`)**
-   - Reordered Settings into a logical 5-section hierarchy with **Card 1: App & Overlay Theme, Size & Transparency** at the very top (grouping Theme selector, 5-color swatch preview, Emblem Watermark toggle, Overlay Size slider, and Overlay Background Transparency slider together).
+---
 
-## v3.01
-**In-App Overlay Quick Help Modal, Full Help Page, & Share Individual Output Format**
-
-1. **Share Individual Battle Line Format**: Updated single-day/individual share output lines to `W/L (L->F/N/U, M->F/N/U) opponent1 opponent2 opponent3`.
-2. **In-App Help Button & Dedicated Help Page**: Added `❓ Help` button in the top status bar and a comprehensive in-app Help & Tactics guide covering the 3x3 Shield Matrix, bottom 3-column battle damage percentages, dual 50s swap timers, and turn alignment.
-
-## v2.93
-**Phase 3/4 of 3.00 release, use 2.3x builds until 3.00 released**
-
-### Phase 3: Dashboard Grid, Performance Badges, & Historical Migration
-1. **5-Stat Responsive Header Summary Grid (`src/App.tsx`, `activity_main.xml`, `MainActivity.kt`)**
-   - Expanded the Battle Log dashboard summary row into a 5-stat responsive layout:
-     1. `RECORD (W - L)`: Total wins and losses.
-     2. `LEAD MATCHUPS`: Breakdown of Favorable / Neutral / Unfavorable leads.
-     3. `WIN RATE`: Win percentage.
-     4. `EXEC WAE`: Weighted average $\Delta Q_{\text{final}}$, formatted as a signed percentage `+XX.X%` (Green `#4ade80` if $\ge 0$, Red `#f43f5e` if $< 0$).
-     5. `MATCHUP LUCK`: Weighted average BMF ($P_{\text{pre}}$), formatted as an unsigned percentage `XX.X%` (Blue `#38bdf8` if $> 50\%$, Orange `#fb923c` if $< 50\%$).
-   - Updated daily section banners and plain-text summaries to append formatted strings for both `WAE` and `Luck`.
-2. **Battle Card Badges & Contextual Event Flags (`src/data/battleQuality.ts`, `OverlayService.kt`, `src/App.tsx`, `MainActivity.kt`)**
-   - **Primary Performance Badges (Derived from $P_{\text{pre}}$)**:
-     - `Clutch Win` (Cyan `#22d3ee`): Win with $P_{\text{pre}} < 0.40$
-     - `Skill Win` (Green `#4ade80`): Win with $0.40 \le P_{\text{pre}} \le 0.60$
-     - `Expected Win` (Slate `#94a3b8`): Win with $P_{\text{pre}} > 0.60$
-     - `Blunder Loss` (Rose Red `#f43f5e`): Loss with $P_{\text{pre}} > 0.60$
-     - `Tough Loss` (Orange `#fb923c`): Loss with $0.40 \le P_{\text{pre}} \le 0.60$
-     - `Expected Loss` (Slate `#94a3b8`): Loss with $P_{\text{pre}} < 0.40$
-   - **Contextual Event Flags (Pills)**:
-     - `⚠️ Double Shield Pocket`: Loss with 2 shields remaining.
-     - `⚠️ Shield in Pocket`: Loss with 1 shield remaining.
-     - `🧹 Clean Sweep`: Win with 0 user faints.
-     - `🛡️ Shield Advantage`: Win ending with user shields > opp shields.
-     - `⚡ 75% Conf`: Opponent 3rd Pokémon unrevealed.
-3. **Retroactive Data Migration (`migrateExistingBattleLogs` in `src/data/battleQuality.ts` & `MainActivity.kt`)**
-   - Processes existing logged battles in storage (`localStorage` and Android `SharedPreferences`):
-     - Marks battles with missing `oppTeam.firstSwap` as unranked (`bmfScore: null`, `execWae: null`).
-     - Evaluates BMF ($P_{\text{pre}}$), Dynamic Execution WAE ($\Delta Q_{\text{final}}$), and attaches applicable badges and contextual event flags when team data exists, persisting back to storage without data loss.
-
-## v2.91
-**Phase 2/4 of 3.00 release, use 2.3x builds until 3.00 released**
-
-### Phase 2: Battle Timeline Tracking & Dynamic Execution WAE Engine
-1. **Clock Synchronization ($t_0$) & Live Event Capture (`OverlayService.kt` & `src/App.tsx`)**
-   - Initializes $t_0 = 0.00\text{s}$ at the exact millisecond the opponent's lead Pokémon is recognized by the app.
-   - Records relative elapsed seconds $t = (\text{Date.now()} - t_0) / 1000$ for all discrete in-battle actions (`BattleTimelineEvent`):
-     - **Swaps (`SWAP`)**: Logs `actor` (`user` | `opp`), `pokemonIn`, `pokemonOut`, remaining shield counts, and $t$.
-     - **Shields (`SHIELD`)**: Decrements remaining shields and logs `actor`, `shieldNumber` (1 or 2), active Pokémon shielded, remaining shield counts, and $t$.
-     - **Faints (`FAINT`)**: Logs `actor` (whose Pokémon fainted), `pokemonFainted`, remaining shield counts for both sides, and $t$.
-   - Attaches `timelineEvents` (and duration/faint/shield summary fields) to the match log schema (`SyncBattleLogRecord`, `BattleLogEntry`, `WebBattleLogEntry`) upon completion.
-2. **Dynamic Execution WAE Engine (`src/data/battleQuality.ts` & `OverlayService.kt`)**
-   - Implemented chronological match evaluation (`calculateDynamicExecutionWAE` / `calculateDynamicExecutionWAEStatic`):
-     - When event timeline data is absent (manual entries or legacy matches), sets $P_{\text{exec}} = P_{\text{pre}}$.
-     - When timeline events exist, partitions the battle duration into active head-to-head intervals $k$ bounded by swap and faint timestamps, resolves each interval's asymmetric shield rating $R_k = \text{Rating}_{s_{\text{user}}\text{v}s_{\text{opp}}}(\text{userActive}, \text{oppActive})$, and weights by fractional duration $\tau_k = \Delta t_k / t_{\text{total}}$ to compute $S_{\text{actual}} = \sum (\tau_k \cdot R_k)$ and $P_{\text{exec}} = \frac{1}{1 + e^{-0.006 \cdot (S_{\text{actual}} - 500)}}$.
-     - Computes Execution Residual ($\Delta Q = \text{Result} - P_{\text{exec}}$) with **Faint Margin Scaling** ($\Delta Q \times 1.10$ when $\text{Result} == 1$ and $(\text{oppFaints} - \text{userFaints}) \ge 2$) and **Shield in Pocket Penalty** ($\Delta Q_{\text{final}} = \Delta Q - 0.15 \cdot \text{userShieldsRemaining}$ when $\text{Result} == 0$ and $\text{userShieldsRemaining} > 0$).
-
-## v2.90
-**Phase 1/4 of 3.00 release, use 2.3x builds until 3.00 released**
-
-### Phase 1: Asymmetric Shield Matrix & Blind Matchup Favorability (BMF)
-1. **9-Permutation Asymmetric Shield Matrix (`0v0`, `0v1`, `0v2`, `1v0`, `1v1`, `1v2`, `2v0`, `2v1`, `2v2`)**
-   - Extended battle rating lookups in `src/data/battleQuality.ts` and `OverlayService.kt` to accept discrete shield counts for both combatants ($s_{\text{user}} \text{v} s_{\text{opp}} \in \{0, 1, 2\}^2$).
-   - Added `computeMetaAverage1v1Rating` / `computeBacklineMetaAverages` (`computeMetaAverage1v1RatingStatic` in Kotlin) to compute unweighted average 1v1 battle ratings ($\bar{R}_{\text{swap}}$ and $\bar{R}_{\text{close}}$) against the active league's top meta list.
-2. **Blind Matchup Favorability (BMF / Pre-Match Expectation $P_{\text{pre}}$)**
-   - Implemented `calculateBlindMatchupFavorability` (`calculateBlindMatchupFavorabilityStatic` in Kotlin):
-     - If `oppTeam.firstSwap` is null or missing: returns `{ bmf: null, pPre: null, bmfPercentage: null, weight: 0.0 }`.
-     - If `oppTeam.finalSeen` is null or missing (unrevealed 3rd): sets weight $w = 0.75$ and uses meta-average ratings ($\bar{R}_{\text{swap}}, \bar{R}_{\text{close}}$) for the missing slot.
-     - If all 3 Pokémon are resolved: sets weight $w = 1.0$.
-     - Computes $S_{\text{lead}} = 0.50 \cdot \text{Rating}_{1\text{v}1} + 0.50 \cdot \text{Rating}_{2\text{v}2}$, $S_{\text{back}} = 0.70 \cdot \max(\text{Score}_A, \text{Score}_B) + 0.30 \cdot \min(\text{Score}_A, \text{Score}_B)$, $M = 0.40 \cdot S_{\text{lead}} + 0.60 \cdot S_{\text{back}}$, and $P_{\text{pre}} = \frac{1}{1 + e^{-0.006 \cdot (M - 500)}}$.
+## [v3.02] — 2026-10-20 — Theme Engine, Background Emblem Watermarks & Reorganized Settings
+- **Multi-Theme Engine & Background Watermarks**:
+  - Introduced the app-wide & overlay theme engine with Pokémon GO Team (Instinct ⚡, Mystic ❄️, Valor 🔥) and Sylveon 🎀 vector emblem watermarks.
+  - Reorganized the **⚙️ Settings** page to group **App & Overlay Theme**, **Overlay Size (% of Screen Width)**, and **Overlay Background Transparency** together in the top card.

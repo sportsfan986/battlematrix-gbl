@@ -20,10 +20,12 @@
             --subpanel-bg-alpha: 0.18;
             --row-bg-alpha: 0.42;
             --panel-blur: 3px;
-            --panel-bg-rgb: 10, 14, 22;
-            --panel-border-rgb: 56, 189, 248;
-            --header-accent-rgb: 56, 189, 248;
-            --header-accent-hex: #38bdf8;
+            --panel-bg-rgb: 5, 11, 22;
+            --panel-border-rgb: 45, 212, 191;
+            --header-accent-rgb: 45, 212, 191;
+            --header-accent-hex: #2dd4bf;
+            --secondary-accent-rgb: 250, 204, 21;
+            --secondary-accent-hex: #facc15;
         }
 
         body {
@@ -38,6 +40,8 @@
 
         /* Ultra-Transparent High-Contrast Glass Container (Accented by Theme Border & Base Tint) */
         .glass-panel {
+            position: relative;
+            overflow: hidden;
             background: rgba(var(--panel-bg-rgb), var(--panel-bg-alpha));
             border: 1px solid rgba(var(--panel-border-rgb), var(--panel-border-alpha));
             border-radius: 8px;
@@ -49,6 +53,31 @@
             flex-direction: column;
             gap: 3.5px;
             text-shadow: 0 1px 2px rgba(0, 0, 0, 0.98), 0 0 4px rgba(0, 0, 0, 0.95);
+        }
+
+        .overlay-watermark-bg {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 175px;
+            height: 175px;
+            opacity: 0.20;
+            pointer-events: none;
+            z-index: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .overlay-watermark-bg svg {
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        .glass-panel > *:not(.overlay-watermark-bg) {
+            position: relative;
+            z-index: 1;
         }
 
         /* Header Row (Full Width for Opponent Name & Fast Move) */
@@ -135,7 +164,7 @@
         }
 
         .opp-move-tag {
-            color: #fdba74;
+            color: var(--secondary-accent-hex);
             font-weight: 700;
             font-size: 9px;
             flex-shrink: 0;
@@ -183,13 +212,13 @@
         }
 
         .hud-shield-btn.opp-shield {
-            border-color: rgba(244, 114, 182, 0.68);
-            background: rgba(244, 114, 182, 0.20);
+            border-color: rgba(var(--secondary-accent-rgb), 0.72);
+            background: rgba(var(--secondary-accent-rgb), 0.22);
             color: #ffffff;
         }
 
         .hud-shield-btn.opp-shield .shield-val {
-            color: #f472b6;
+            color: var(--secondary-accent-hex);
             font-weight: 900;
         }
 
@@ -242,10 +271,10 @@
         }
 
         .chip-btn.active {
-            background: rgba(16, 185, 129, 0.42);
-            border-color: rgba(52, 211, 153, 0.85);
+            background: rgba(var(--header-accent-rgb), 0.40);
+            border-color: rgba(var(--secondary-accent-rgb), 0.85);
             color: #ffffff;
-            box-shadow: 0 0 5px rgba(52, 211, 153, 0.35);
+            box-shadow: 0 0 5px rgba(var(--header-accent-rgb), 0.35);
         }
 
         .hud-btn {
@@ -268,9 +297,9 @@
         }
 
         .hud-btn.btn-battle {
-            background: rgba(16, 185, 129, 0.35);
-            border-color: rgba(52, 211, 153, 0.75);
-            color: #d1fae5;
+            background: rgba(var(--header-accent-rgb), 0.34);
+            border-color: rgba(var(--secondary-accent-rgb), 0.78);
+            color: #ffffff;
         }
 
         .hud-btn.btn-battle.stop-mode {
@@ -310,7 +339,8 @@
 
         /* 3v3 Matchup Matrix (Full Opponent Names) */
         .matrix-container {
-            background: rgba(0, 0, 0, var(--subpanel-bg-alpha));
+            background: rgba(var(--panel-bg-rgb), var(--subpanel-bg-alpha));
+            border: 1px solid rgba(var(--header-accent-rgb), 0.22);
             border-radius: 4px;
             padding: 3px 5px;
             display: flex;
@@ -875,6 +905,7 @@
 
     <!-- OPTION 1: Top-Left Sky Trench (Transparent, Full-Width Header, 3-Column Threat Matrices) -->
     <div id="mode-sky-trench" class="glass-panel">
+        <div id="overlay-watermark-bg" class="overlay-watermark-bg hidden"></div>
         <!-- Header: Upper-Left Sword Minimize Button, Opponent Name, Opponent Fast Move Telemetry & Opponent Swap Clock Badge -->
         <div class="header-row">
             <div class="opp-title" id="sky-title">
@@ -1282,25 +1313,36 @@
         }
 
         const OVERLAY_THEME_PRESETS = {
-            "slate":          { bgRgb: "10, 14, 22",  borderRgb: "56, 189, 248",  accentRgb: "56, 189, 248",  accentHex: "#38bdf8", emblem: "slate" },
-            "amoled_cyan":    { bgRgb: "0, 4, 10",    borderRgb: "0, 245, 212",   accentRgb: "0, 245, 212",   accentHex: "#00f5d4", emblem: "cyan" },
-            "amoled_matrix":  { bgRgb: "0, 8, 3",     borderRgb: "0, 255, 102",   accentRgb: "0, 255, 102",   accentHex: "#00ff66", emblem: "matrix" },
-            "instinct_dark":  { bgRgb: "18, 14, 4",   borderRgb: "250, 204, 21",  accentRgb: "250, 204, 21",  accentHex: "#facc15", emblem: "instinct" },
-            "instinct_light": { bgRgb: "22, 17, 5",   borderRgb: "250, 204, 21",  accentRgb: "250, 204, 21",  accentHex: "#facc15", emblem: "instinct" },
-            "mystic_dark":    { bgRgb: "6, 14, 34",   borderRgb: "56, 189, 248",  accentRgb: "56, 189, 248",  accentHex: "#38bdf8", emblem: "mystic" },
-            "mystic_light":   { bgRgb: "8, 18, 38",   borderRgb: "56, 189, 248",  accentRgb: "56, 189, 248",  accentHex: "#38bdf8", emblem: "mystic" },
-            "valor_dark":     { bgRgb: "24, 7, 12",   borderRgb: "244, 63, 94",   accentRgb: "244, 63, 94",   accentHex: "#f43f5e", emblem: "valor" },
-            "valor_light":    { bgRgb: "26, 8, 14",   borderRgb: "251, 113, 133", accentRgb: "251, 113, 133", accentHex: "#fb7185", emblem: "valor" },
-            "sylveon_pink":   { bgRgb: "27, 11, 22",  borderRgb: "244, 114, 182", accentRgb: "244, 114, 182", accentHex: "#f472b6", emblem: "sylveon" },
-            "sylveon_light":  { bgRgb: "27, 11, 22",  borderRgb: "244, 114, 182", accentRgb: "244, 114, 182", accentHex: "#f472b6", emblem: "sylveon" }
+            "dialga_shiny_midnight": { bgRgb: "5, 11, 22",   borderRgb: "45, 212, 191",  accentRgb: "45, 212, 191",  accentHex: "#2dd4bf", accent2Rgb: "250, 204, 21", accent2Hex: "#facc15", emblem: "dialga" },
+            "instinct_dark":         { bgRgb: "18, 14, 4",   borderRgb: "250, 204, 21",  accentRgb: "250, 204, 21",  accentHex: "#facc15", accent2Rgb: "56, 189, 248", accent2Hex: "#38bdf8", emblem: "instinct" },
+            "instinct_light":        { bgRgb: "22, 17, 5",   borderRgb: "250, 204, 21",  accentRgb: "250, 204, 21",  accentHex: "#facc15", accent2Rgb: "56, 189, 248", accent2Hex: "#38bdf8", emblem: "instinct" },
+            "mystic_dark":           { bgRgb: "6, 14, 34",   borderRgb: "56, 189, 248",  accentRgb: "56, 189, 248",  accentHex: "#38bdf8", accent2Rgb: "192, 132, 252", accent2Hex: "#c084fc", emblem: "mystic" },
+            "mystic_light":          { bgRgb: "8, 18, 38",   borderRgb: "56, 189, 248",  accentRgb: "56, 189, 248",  accentHex: "#38bdf8", accent2Rgb: "167, 139, 250", accent2Hex: "#a78bfa", emblem: "mystic" },
+            "valor_dark":            { bgRgb: "24, 7, 12",   borderRgb: "244, 63, 94",   accentRgb: "244, 63, 94",   accentHex: "#f43f5e", accent2Rgb: "251, 191, 36",  accent2Hex: "#fbbf24", emblem: "valor" },
+            "valor_light":           { bgRgb: "26, 8, 14",   borderRgb: "251, 113, 133", accentRgb: "251, 113, 133", accentHex: "#fb7185", accent2Rgb: "251, 191, 36",  accent2Hex: "#fbbf24", emblem: "valor" },
+            "sylveon_pink":          { bgRgb: "27, 11, 22",  borderRgb: "244, 114, 182", accentRgb: "244, 114, 182", accentHex: "#f472b6", accent2Rgb: "56, 189, 248",  accent2Hex: "#38bdf8", emblem: "sylveon" },
+            "sylveon_light":         { bgRgb: "27, 11, 22",  borderRgb: "244, 114, 182", accentRgb: "244, 114, 182", accentHex: "#f472b6", accent2Rgb: "56, 189, 248",  accent2Hex: "#38bdf8", emblem: "sylveon" },
+            "slate":                 { bgRgb: "10, 14, 22",  borderRgb: "56, 189, 248",  accentRgb: "56, 189, 248",  accentHex: "#38bdf8", accent2Rgb: "245, 158, 11",  accent2Hex: "#f59e0b", emblem: "slate" }
         };
 
-        let activeOverlayThemeId = "slate";
+        let activeOverlayThemeId = "dialga_shiny_midnight";
+        let showOverlayWatermark = window.location.search.indexOf("replay=1") !== -1;
 
         function getOverlayThemeIconSvg(themeId, sizePx) {
-            const t = OVERLAY_THEME_PRESETS[themeId] || OVERLAY_THEME_PRESETS["slate"];
+            const mappedId = (themeId === "amoled_cyan" || themeId === "amoled_matrix") ? "dialga_shiny_midnight" : themeId;
+            const t = OVERLAY_THEME_PRESETS[mappedId] || OVERLAY_THEME_PRESETS["dialga_shiny_midnight"];
             const s = sizePx || 13;
             const styleStr = `width:${s}px;height:${s}px;display:inline-block;vertical-align:middle;flex-shrink:0;`;
+            if (t.emblem === "dialga") {
+                return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" style="${styleStr}">
+                    <path fill="none" stroke="#2DD4BF" stroke-width="10" d="M120,12 L196,44 L228,120 L196,196 L120,228 L44,196 L12,120 L44,44 Z"/>
+                    <path fill="none" stroke="#FACC15" stroke-width="11" d="M120,44 L178,76 L178,164 L120,196 L62,164 L62,76 Z"/>
+                    <path fill="#FACC15" d="M62,76 L18,48 L48,94 Z M178,76 L222,48 L192,94 Z M54,120 L10,120 L54,134 Z M186,120 L230,120 L186,134 Z M62,164 L22,192 L54,146 Z M178,164 L218,192 L186,146 Z"/>
+                    <path fill="#14B8A6" stroke="#67E8F9" stroke-width="6" d="M120,16 L138,48 L156,32 L144,76 L186,98 L152,134 L168,188 L142,174 L120,224 L98,174 L72,188 L88,134 L54,98 L96,76 L84,32 L102,48 Z"/>
+                    <path fill="#081224" stroke="#FACC15" stroke-width="9" d="M120,84 L152,120 L120,156 L88,120 Z"/>
+                    <path fill="#67E8F9" d="M120,96 L140,120 L120,144 L100,120 Z"/>
+                </svg>`;
+            }
             if (t.emblem === "instinct") {
                 return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" style="${styleStr}">
                     <path fill="#FACC15" d="M120,8 L224,120 L120,232 L16,120 Z M120,28 L36,120 L120,212 L204,120 Z"/>
@@ -1328,20 +1370,6 @@
                     <path fill="#38BDF8" d="M120,22 L128,44 L150,52 L128,60 L120,82 L112,60 L90,52 L112,44 Z"/>
                 </svg>`;
             }
-            if (t.emblem === "matrix") {
-                return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" style="${styleStr}">
-                    <polygon points="54,10 92,32 92,76 54,98 16,76 16,32" fill="#031208" stroke="#00FF66" stroke-width="7"/>
-                    <polygon points="54,26 78,40 78,68 54,82 30,68 30,40" fill="none" stroke="#10B981" stroke-width="4" stroke-dasharray="6 4"/>
-                    <circle cx="54" cy="54" r="11" fill="#00FF66"/>
-                </svg>`;
-            }
-            if (t.emblem === "cyan") {
-                return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" style="${styleStr}">
-                    <polygon points="54,10 92,30 92,74 54,98 16,74 16,30" fill="#04101C" stroke="#00F5D4" stroke-width="7"/>
-                    <path d="M28,46 L54,62 L80,46" fill="none" stroke="#38BDF8" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
-                    <circle cx="54" cy="36" r="7" fill="#00F5D4"/>
-                </svg>`;
-            }
             return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" style="${styleStr}">
                 <polygon points="54,12 88,28 88,64 54,94 20,64 20,28" fill="#101827" stroke="#38BDF8" stroke-width="7" stroke-linejoin="round"/>
                 <circle cx="42" cy="46" r="6" fill="#22C55E"/>
@@ -1350,21 +1378,42 @@
             </svg>`;
         }
 
+        function refreshOverlayWatermarkUi() {
+            const wmEl = document.getElementById("overlay-watermark-bg");
+            if (!wmEl) return;
+            const t = OVERLAY_THEME_PRESETS[activeOverlayThemeId] || OVERLAY_THEME_PRESETS["dialga_shiny_midnight"];
+            if (showOverlayWatermark && t.emblem && t.emblem !== "slate") {
+                wmEl.innerHTML = getOverlayThemeIconSvg(activeOverlayThemeId, 175);
+                wmEl.classList.remove("hidden");
+            } else {
+                wmEl.classList.add("hidden");
+            }
+        }
+
+        window.setOverlayWatermark = function(enabled) {
+            showOverlayWatermark = !!enabled;
+            refreshOverlayWatermarkUi();
+        };
+
         window.setOverlayTheme = function(themeId) {
             try {
-                activeOverlayThemeId = OVERLAY_THEME_PRESETS[themeId] ? themeId : "slate";
+                const mappedId = (themeId === "amoled_cyan" || themeId === "amoled_matrix") ? "dialga_shiny_midnight" : themeId;
+                activeOverlayThemeId = OVERLAY_THEME_PRESETS[mappedId] ? mappedId : "dialga_shiny_midnight";
                 const t = OVERLAY_THEME_PRESETS[activeOverlayThemeId];
                 const root = document.documentElement;
                 root.style.setProperty("--panel-bg-rgb", t.bgRgb);
                 root.style.setProperty("--panel-border-rgb", t.borderRgb);
                 root.style.setProperty("--header-accent-rgb", t.accentRgb);
                 root.style.setProperty("--header-accent-hex", t.accentHex);
+                root.style.setProperty("--secondary-accent-rgb", t.accent2Rgb || t.accentRgb);
+                root.style.setProperty("--secondary-accent-hex", t.accent2Hex || t.accentHex);
                 const myShortEl = document.getElementById("sky-my-short");
                 if (myShortEl) myShortEl.style.color = t.accentHex;
                 const minBtn = document.getElementById("btn-minimize-sword");
                 if (minBtn) minBtn.innerHTML = getOverlayThemeIconSvg(activeOverlayThemeId, 13);
                 const bubbleEl = document.getElementById("minimized-bubble");
                 if (bubbleEl) bubbleEl.innerHTML = getOverlayThemeIconSvg(activeOverlayThemeId, 34);
+                refreshOverlayWatermarkUi();
                 updateBattleButtonUi();
             } catch (e) {}
         };

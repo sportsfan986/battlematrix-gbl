@@ -97,7 +97,9 @@ data class AppThemePalette(
     val primaryTextColor: Int,
     val secondaryTextColor: Int,
     val accentColor: Int,
+    val secondaryAccentColor: Int,
     val buttonAccentColor: Int,
+    val secondaryButtonColor: Int,
     val overlayBorderColor: Int,
     val emblemDrawableRes: Int? = null
 )
@@ -187,6 +189,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var viewSwatchBg: android.view.View
     private lateinit var viewSwatchSurface: android.view.View
     private lateinit var viewSwatchAccent: android.view.View
+    private lateinit var viewSwatchAccent2: android.view.View
     private lateinit var viewSwatchOverlay: android.view.View
     private lateinit var switchShowThemeWatermark: Switch
     private var currentActivePage: String = "teams"
@@ -195,60 +198,28 @@ class MainActivity : AppCompatActivity() {
     private val APP_THEME_COLLECTION: List<AppThemePalette> by lazy {
         listOf(
             AppThemePalette(
-                id = "slate",
-                label = "SilphScope Slate (Default Dark)",
-                description = "SilphScope Slate (Default Dark) — Deep slate canvas with sky-cyan tactical accents and glass HUD.",
+                id = "dialga_shiny_midnight",
+                label = "✨ Shiny Origin Dialga Midnight (Dark)",
+                description = "Shiny Origin Dialga Midnight ✨ — Deep temporal void with luminous shiny teal (#2DD4BF) & astral ring gold (#FACC15) accents.",
                 isLight = false,
-                bgColor = 0xFF0F172A.toInt(),
-                navBarColor = 0xFF020617.toInt(),
-                surfaceColor = 0xFF1E293B.toInt(),
-                innerCardColor = 0xFF0F172A.toInt(),
-                elevatedColor = 0xFF334155.toInt(),
-                primaryTextColor = 0xFFF8FAFC.toInt(),
-                secondaryTextColor = 0xFF94A3B8.toInt(),
-                accentColor = 0xFF38BDF8.toInt(),
-                buttonAccentColor = 0xFF0284C7.toInt(),
-                overlayBorderColor = 0xFF38BDF8.toInt(),
-                emblemDrawableRes = null
-            ),
-            AppThemePalette(
-                id = "amoled_cyan",
-                label = "Cyber Pulse Cyan (AMOLED Black)",
-                description = "Cyber Pulse Cyan (AMOLED) — Pitch-black #000000 battery-saving canvas with electric cyan accents.",
-                isLight = false,
-                bgColor = 0xFF000000.toInt(),
-                navBarColor = 0xFF03070E.toInt(),
-                surfaceColor = 0xFF0A1322.toInt(),
-                innerCardColor = 0xFF040911.toInt(),
-                elevatedColor = 0xFF132640.toInt(),
+                bgColor = 0xFF050B16.toInt(),
+                navBarColor = 0xFF02060D.toInt(),
+                surfaceColor = 0xFF0E1B2E.toInt(),
+                innerCardColor = 0xFF081120.toInt(),
+                elevatedColor = 0xFF19304E.toInt(),
                 primaryTextColor = 0xFFECFEFF.toInt(),
-                secondaryTextColor = 0xFF67E8F9.toInt(),
-                accentColor = 0xFF00F5D4.toInt(),
-                buttonAccentColor = 0xFF0891B2.toInt(),
-                overlayBorderColor = 0xFF00F5D4.toInt(),
-                emblemDrawableRes = null
-            ),
-            AppThemePalette(
-                id = "amoled_matrix",
-                label = "Matrix Phosphor Green (AMOLED Black)",
-                description = "Matrix Phosphor Green (AMOLED) — True #000000 black terminal canvas with neon phosphor matrix green.",
-                isLight = false,
-                bgColor = 0xFF000000.toInt(),
-                navBarColor = 0xFF020A04.toInt(),
-                surfaceColor = 0xFF07170C.toInt(),
-                innerCardColor = 0xFF030C06.toInt(),
-                elevatedColor = 0xFF0F2D18.toInt(),
-                primaryTextColor = 0xFFDCFCE7.toInt(),
-                secondaryTextColor = 0xFF4ADE80.toInt(),
-                accentColor = 0xFF00FF66.toInt(),
-                buttonAccentColor = 0xFF16A34A.toInt(),
-                overlayBorderColor = 0xFF00FF66.toInt(),
-                emblemDrawableRes = null
+                secondaryTextColor = 0xFF99F6E4.toInt(),
+                accentColor = 0xFF2DD4BF.toInt(),
+                secondaryAccentColor = 0xFFFACC15.toInt(),
+                buttonAccentColor = 0xFF0D9488.toInt(),
+                secondaryButtonColor = 0xFFCA8A04.toInt(),
+                overlayBorderColor = 0xFF2DD4BF.toInt(),
+                emblemDrawableRes = R.drawable.bg_emblem_dialga
             ),
             AppThemePalette(
                 id = "instinct_dark",
                 label = "⚡ Team Instinct Storm (Dark)",
-                description = "Team Instinct Storm (Dark) ⚡ — Obsidian storm-cloud dark mode with Zapdos lightning gold & emblem watermark.",
+                description = "Team Instinct Storm (Dark) ⚡ — Obsidian storm-cloud dark mode with Zapdos lightning gold & electric plasma cyan-amber accents.",
                 isLight = false,
                 bgColor = 0xFF0E0B03.toInt(),
                 navBarColor = 0xFF070501.toInt(),
@@ -258,14 +229,16 @@ class MainActivity : AppCompatActivity() {
                 primaryTextColor = 0xFFFEFCE8.toInt(),
                 secondaryTextColor = 0xFFFDE047.toInt(),
                 accentColor = 0xFFFACC15.toInt(),
+                secondaryAccentColor = 0xFF38BDF8.toInt(),
                 buttonAccentColor = 0xFFCA8A04.toInt(),
+                secondaryButtonColor = 0xFFD97706.toInt(),
                 overlayBorderColor = 0xFFFACC15.toInt(),
                 emblemDrawableRes = R.drawable.bg_emblem_instinct
             ),
             AppThemePalette(
                 id = "instinct_light",
                 label = "⚡ Team Instinct Spark (Light)",
-                description = "Team Instinct Spark (Light) ⚡ — Warm solar-gold daylight theme with Zapdos crest watermark & dark tactical HUD.",
+                description = "Team Instinct Spark (Light) ⚡ — Warm solar-gold daylight theme with Zapdos crest watermark & electric sky-cobalt accents.",
                 isLight = true,
                 bgColor = 0xFFFEFCE8.toInt(),
                 navBarColor = 0xFFFEF08A.toInt(),
@@ -275,14 +248,16 @@ class MainActivity : AppCompatActivity() {
                 primaryTextColor = 0xFF1C1917.toInt(),
                 secondaryTextColor = 0xFF713F12.toInt(),
                 accentColor = 0xFFB45309.toInt(),
+                secondaryAccentColor = 0xFF0284C7.toInt(),
                 buttonAccentColor = 0xFFD97706.toInt(),
+                secondaryButtonColor = 0xFF0284C7.toInt(),
                 overlayBorderColor = 0xFFFACC15.toInt(),
                 emblemDrawableRes = R.drawable.bg_emblem_instinct
             ),
             AppThemePalette(
                 id = "mystic_dark",
                 label = "❄️ Team Mystic Blizzard (Dark)",
-                description = "Team Mystic Blizzard (Dark) ❄️ — Deep midnight glacier navy with Articuno ice-crystal blue & emblem watermark.",
+                description = "Team Mystic Blizzard (Dark) ❄️ — Deep midnight glacier navy with Articuno ice-crystal blue & aurora violet accents.",
                 isLight = false,
                 bgColor = 0xFF060E20.toInt(),
                 navBarColor = 0xFF030712.toInt(),
@@ -292,14 +267,16 @@ class MainActivity : AppCompatActivity() {
                 primaryTextColor = 0xFFF0F9FF.toInt(),
                 secondaryTextColor = 0xFF93C5FD.toInt(),
                 accentColor = 0xFF38BDF8.toInt(),
-                buttonAccentColor = 0xFF2563EB.toInt(),
+                secondaryAccentColor = 0xFFC084FC.toInt(),
+                buttonAccentColor = 0xFF0284C7.toInt(),
+                secondaryButtonColor = 0xFF6366F1.toInt(),
                 overlayBorderColor = 0xFF38BDF8.toInt(),
                 emblemDrawableRes = R.drawable.bg_emblem_mystic
             ),
             AppThemePalette(
                 id = "mystic_light",
                 label = "❄️ Team Mystic Glacier (Light)",
-                description = "Team Mystic Glacier (Light) ❄️ — Crisp arctic ice-blue daylight theme with Articuno crest watermark.",
+                description = "Team Mystic Glacier (Light) ❄️ — Crisp arctic ice-blue daylight theme with Articuno crest & royal aurora indigo accents.",
                 isLight = true,
                 bgColor = 0xFFF0F9FF.toInt(),
                 navBarColor = 0xFFDBEAFE.toInt(),
@@ -309,14 +286,16 @@ class MainActivity : AppCompatActivity() {
                 primaryTextColor = 0xFF0F172A.toInt(),
                 secondaryTextColor = 0xFF1E40AF.toInt(),
                 accentColor = 0xFF0284C7.toInt(),
-                buttonAccentColor = 0xFF2563EB.toInt(),
+                secondaryAccentColor = 0xFF7C3AED.toInt(),
+                buttonAccentColor = 0xFF0369A1.toInt(),
+                secondaryButtonColor = 0xFF4F46E5.toInt(),
                 overlayBorderColor = 0xFF38BDF8.toInt(),
                 emblemDrawableRes = R.drawable.bg_emblem_mystic
             ),
             AppThemePalette(
                 id = "valor_dark",
                 label = "🔥 Team Valor Inferno (Dark)",
-                description = "Team Valor Inferno (Dark) 🔥 — Volcanic ember dark mode with Moltres crimson-flame accents & emblem watermark.",
+                description = "Team Valor Inferno (Dark) 🔥 — Volcanic ember dark mode with Moltres crimson-flame & molten phoenix gold accents.",
                 isLight = false,
                 bgColor = 0xFF16070B.toInt(),
                 navBarColor = 0xFF0B0305.toInt(),
@@ -326,14 +305,16 @@ class MainActivity : AppCompatActivity() {
                 primaryTextColor = 0xFFFFF1F2.toInt(),
                 secondaryTextColor = 0xFFFDA4AF.toInt(),
                 accentColor = 0xFFF43F5E.toInt(),
+                secondaryAccentColor = 0xFFFBBF24.toInt(),
                 buttonAccentColor = 0xFFE11D48.toInt(),
+                secondaryButtonColor = 0xFFD97706.toInt(),
                 overlayBorderColor = 0xFFF43F5E.toInt(),
                 emblemDrawableRes = R.drawable.bg_emblem_valor
             ),
             AppThemePalette(
                 id = "valor_light",
                 label = "🔥 Team Valor Dawn (Light)",
-                description = "Team Valor Dawn (Light) 🔥 — Warm rose-ivory daylight theme with crimson Moltres crest watermark.",
+                description = "Team Valor Dawn (Light) 🔥 — Warm rose-ivory daylight theme with crimson Moltres crest & solar phoenix amber accents.",
                 isLight = true,
                 bgColor = 0xFFFFF1F2.toInt(),
                 navBarColor = 0xFFFFE4E6.toInt(),
@@ -343,26 +324,49 @@ class MainActivity : AppCompatActivity() {
                 primaryTextColor = 0xFF1F090D.toInt(),
                 secondaryTextColor = 0xFF9F1239.toInt(),
                 accentColor = 0xFFE11D48.toInt(),
+                secondaryAccentColor = 0xFFD97706.toInt(),
                 buttonAccentColor = 0xFFF43F5E.toInt(),
+                secondaryButtonColor = 0xFFB45309.toInt(),
                 overlayBorderColor = 0xFFFB7185.toInt(),
                 emblemDrawableRes = R.drawable.bg_emblem_valor
             ),
             AppThemePalette(
                 id = "sylveon_pink",
-                label = "🎀 Sylveon Fairy Ribbon (Light Pink)",
-                description = "Sylveon Fairy Ribbon (Light Pink) 🎀 — Pastel fairy-blush & sky-blue bow palette with Sylveon ribbon watermark.",
+                label = "🎀 Sylveon Fairy Ribbon (Light Pink & Pastel Blue)",
+                description = "Sylveon Fairy Ribbon 🎀 — Soft fairy-blush pink paired with Sylveon's distinctive pastel sky-blue (#38BDF8 / #60A5FA) & ribbon watermark.",
                 isLight = true,
                 bgColor = 0xFFFDF2F8.toInt(),
                 navBarColor = 0xFFFCE7F3.toInt(),
                 surfaceColor = 0xFFFFFFFF.toInt(),
                 innerCardColor = 0xFFFCE7F3.toInt(),
-                elevatedColor = 0xFFFBCFE8.toInt(),
+                elevatedColor = 0xFFE0F2FE.toInt(),
                 primaryTextColor = 0xFF3B0726.toInt(),
                 secondaryTextColor = 0xFF9D174D.toInt(),
                 accentColor = 0xFFDB2777.toInt(),
+                secondaryAccentColor = 0xFF0284C7.toInt(),
                 buttonAccentColor = 0xFFEC4899.toInt(),
+                secondaryButtonColor = 0xFF38BDF8.toInt(),
                 overlayBorderColor = 0xFFF472B6.toInt(),
                 emblemDrawableRes = R.drawable.bg_emblem_sylveon
+            ),
+            AppThemePalette(
+                id = "slate",
+                label = "🛡️ SilphScope Slate (Default Generic)",
+                description = "SilphScope Slate (Default Generic) — Deep slate canvas with sky-cyan & tactical amber accents.",
+                isLight = false,
+                bgColor = 0xFF0F172A.toInt(),
+                navBarColor = 0xFF020617.toInt(),
+                surfaceColor = 0xFF1E293B.toInt(),
+                innerCardColor = 0xFF0F172A.toInt(),
+                elevatedColor = 0xFF334155.toInt(),
+                primaryTextColor = 0xFFF8FAFC.toInt(),
+                secondaryTextColor = 0xFF94A3B8.toInt(),
+                accentColor = 0xFF38BDF8.toInt(),
+                secondaryAccentColor = 0xFFF59E0B.toInt(),
+                buttonAccentColor = 0xFF0284C7.toInt(),
+                secondaryButtonColor = 0xFF4F46E5.toInt(),
+                overlayBorderColor = 0xFF38BDF8.toInt(),
+                emblemDrawableRes = null
             )
         )
     }
@@ -486,12 +490,19 @@ class MainActivity : AppCompatActivity() {
     private fun syncOverlayRunningUiState() {
         isOverlayRunning = OverlayService.isInstanceRunning
         if (::btnToggleOverlay.isInitialized && ::statusText.isInitialized) {
+            val theme = if (::prefs.isInitialized) getActiveAppTheme() else APP_THEME_COLLECTION.first()
             if (isOverlayRunning) {
                 btnToggleOverlay.text = "Stop Battle Overlay"
+                btnToggleOverlay.backgroundTintList = android.content.res.ColorStateList.valueOf(theme.secondaryButtonColor)
+                btnToggleOverlay.setTextColor(0xFFFFFFFF.toInt())
                 statusText.text = "Status: Overlay Active"
+                statusText.setTextColor(theme.secondaryAccentColor)
             } else {
                 btnToggleOverlay.text = "Start Battle Overlay"
+                btnToggleOverlay.backgroundTintList = android.content.res.ColorStateList.valueOf(theme.buttonAccentColor)
+                btnToggleOverlay.setTextColor(0xFFFFFFFF.toInt())
                 statusText.text = "Status: Idle"
+                statusText.setTextColor(theme.accentColor)
             }
         }
     }
@@ -580,8 +591,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun getActiveAppTheme(): AppThemePalette {
-        val savedId = prefs.getString(OverlayService.PREFS_KEY_APP_THEME_ID, "slate") ?: "slate"
-        return APP_THEME_COLLECTION.find { it.id == savedId } ?: APP_THEME_COLLECTION.first()
+        val rawId = prefs.getString(OverlayService.PREFS_KEY_APP_THEME_ID, "dialga_shiny_midnight") ?: "dialga_shiny_midnight"
+        val mappedId = when (rawId) {
+            "amoled_cyan", "amoled_matrix" -> "dialga_shiny_midnight"
+            else -> rawId
+        }
+        return APP_THEME_COLLECTION.find { it.id == mappedId } ?: APP_THEME_COLLECTION.first()
     }
 
     private fun createThemedSpinnerAdapter(items: List<String>): ArrayAdapter<String> {
@@ -616,9 +631,11 @@ class MainActivity : AppCompatActivity() {
         pageHelp.visibility = if (page == "help") android.view.View.VISIBLE else android.view.View.GONE
 
         val theme = if (::prefs.isInitialized) getActiveAppTheme() else APP_THEME_COLLECTION.first()
+        val hasWatermark = prefs.getBoolean(OverlayService.PREFS_KEY_SHOW_THEME_WATERMARK, true) && theme.emblemDrawableRes != null
+        val surfaceAlpha = if (hasWatermark) 0xB8 else 0xFF
         val activeBg = android.content.res.ColorStateList.valueOf(theme.buttonAccentColor)
-        val inactiveBg = android.content.res.ColorStateList.valueOf(theme.surfaceColor)
-        val helpDefaultBg = android.content.res.ColorStateList.valueOf(theme.elevatedColor)
+        val inactiveBg = android.content.res.ColorStateList.valueOf(withAlpha(theme.surfaceColor, surfaceAlpha))
+        val helpDefaultBg = android.content.res.ColorStateList.valueOf(withAlpha(theme.elevatedColor, surfaceAlpha))
         val activeText = 0xFFFFFFFF.toInt()
         val inactiveText = theme.secondaryTextColor
 
@@ -633,7 +650,7 @@ class MainActivity : AppCompatActivity() {
 
         if (::btnOverlayQuickHelp.isInitialized) {
             btnOverlayQuickHelp.backgroundTintList = if (page == "help") activeBg else helpDefaultBg
-            btnOverlayQuickHelp.setTextColor(if (page == "help") activeText else theme.accentColor)
+            btnOverlayQuickHelp.setTextColor(if (page == "help") activeText else theme.secondaryAccentColor)
         }
 
         if (page == "battle_log") {
@@ -643,6 +660,70 @@ class MainActivity : AppCompatActivity() {
 
     private fun withAlpha(color: Int, alpha: Int): Int {
         return (color and 0x00FFFFFF) or ((alpha.coerceIn(0, 255)) shl 24)
+    }
+
+    private fun wrapViewWithThemeWatermark(contentView: android.view.View, watermarkSizeDp: Int = 250): FrameLayout {
+        val theme = if (::prefs.isInitialized) getActiveAppTheme() else APP_THEME_COLLECTION.first()
+        val showWatermark = ::prefs.isInitialized &&
+            prefs.getBoolean(OverlayService.PREFS_KEY_SHOW_THEME_WATERMARK, true) &&
+            theme.emblemDrawableRes != null
+        val density = resources.displayMetrics.density
+        val frame = FrameLayout(this).apply {
+            setBackgroundColor(theme.bgColor)
+        }
+        if (showWatermark && theme.emblemDrawableRes != null) {
+            val iv = ImageView(this).apply {
+                id = R.id.iv_preset_dialog_watermark
+                setImageResource(theme.emblemDrawableRes)
+                alpha = if (theme.isLight) 0.24f else 0.20f
+                scaleType = ImageView.ScaleType.FIT_CENTER
+                layoutParams = FrameLayout.LayoutParams(
+                    (watermarkSizeDp * density).toInt(),
+                    (watermarkSizeDp * density).toInt(),
+                    android.view.Gravity.CENTER
+                )
+            }
+            frame.addView(iv)
+        }
+        if (contentView.background is android.graphics.drawable.ColorDrawable) {
+            contentView.setBackgroundColor(0x00000000)
+        }
+        frame.addView(
+            contentView,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT
+            )
+        )
+        applyThemeRecursively(contentView, theme, showWatermark)
+        return frame
+    }
+
+    private fun styleThemedAlertDialog(dialog: AlertDialog) {
+        if (!::prefs.isInitialized) return
+        val theme = getActiveAppTheme()
+        try {
+            dialog.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(theme.bgColor))
+            dialog.findViewById<TextView>(androidx.appcompat.R.id.alertTitle)?.setTextColor(theme.accentColor)
+            dialog.findViewById<TextView>(android.R.id.message)?.setTextColor(theme.primaryTextColor)
+            dialog.findViewById<android.view.View>(androidx.appcompat.R.id.parentPanel)?.setBackgroundColor(theme.bgColor)
+            dialog.findViewById<android.view.View>(androidx.appcompat.R.id.topPanel)?.setBackgroundColor(theme.surfaceColor)
+            dialog.findViewById<android.view.View>(androidx.appcompat.R.id.contentPanel)?.setBackgroundColor(0x00000000)
+            dialog.findViewById<android.view.View>(androidx.appcompat.R.id.buttonPanel)?.setBackgroundColor(theme.surfaceColor)
+
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.let { btn ->
+                btn.backgroundTintList = android.content.res.ColorStateList.valueOf(theme.buttonAccentColor)
+                btn.setTextColor(0xFFFFFFFF.toInt())
+            }
+            dialog.getButton(AlertDialog.BUTTON_NEUTRAL)?.let { btn ->
+                btn.backgroundTintList = android.content.res.ColorStateList.valueOf(theme.secondaryButtonColor)
+                btn.setTextColor(0xFFFFFFFF.toInt())
+            }
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE)?.let { btn ->
+                btn.backgroundTintList = android.content.res.ColorStateList.valueOf(theme.elevatedColor)
+                btn.setTextColor(theme.primaryTextColor)
+            }
+        } catch (_: Exception) {}
     }
 
     private fun applyCurrentAppThemeToSubtree(rootView: android.view.View?) {
@@ -656,9 +737,11 @@ class MainActivity : AppCompatActivity() {
         if (view.id == R.id.view_swatch_bg ||
             view.id == R.id.view_swatch_surface ||
             view.id == R.id.view_swatch_accent ||
+            view.id == R.id.view_swatch_accent2 ||
             view.id == R.id.view_swatch_overlay ||
             view.id == R.id.root_theme_frame ||
-            view.id == R.id.iv_theme_watermark_bg
+            view.id == R.id.iv_theme_watermark_bg ||
+            view.id == R.id.iv_preset_dialog_watermark
         ) {
             return
         }
@@ -669,13 +752,16 @@ class MainActivity : AppCompatActivity() {
                 view.setTag(R.id.root_theme_frame, it)
             }
             val rgb = origBg and 0x00FFFFFF
-            val surfaceAlpha = if (hasWatermark) 0xDC else 0xFF
-            val innerAlpha = if (hasWatermark) 0xD4 else 0xFF
+            // Increased transparency when watermark is enabled so the emblem shows through all 3 main pages & dialogs
+            val navAlpha = if (hasWatermark) 0xBE else 0xFF
+            val surfaceAlpha = if (hasWatermark) 0xAD else 0xFF
+            val innerAlpha = if (hasWatermark) 0x9C else 0xFF
+            val elevatedAlpha = if (hasWatermark) 0xB8 else 0xFF
             when (rgb) {
-                0x020617 -> view.setBackgroundColor(withAlpha(theme.navBarColor, surfaceAlpha))
+                0x020617 -> view.setBackgroundColor(withAlpha(theme.navBarColor, navAlpha))
                 0x0F172A, 0x111827, 0x0B1325 -> view.setBackgroundColor(withAlpha(theme.innerCardColor, innerAlpha))
                 0x1E293B -> view.setBackgroundColor(withAlpha(theme.surfaceColor, surfaceAlpha))
-                0x334155, 0x475569 -> view.setBackgroundColor(withAlpha(theme.elevatedColor, surfaceAlpha))
+                0x334155, 0x475569 -> view.setBackgroundColor(withAlpha(theme.elevatedColor, elevatedAlpha))
                 0x2563EB, 0x0284C7, 0x38BDF8 -> view.setBackgroundColor(theme.accentColor)
             }
         }
@@ -698,32 +784,42 @@ class MainActivity : AppCompatActivity() {
             )
             view.setTextColor(theme.primaryTextColor)
         } else if (view is Button) {
-            val currentTint = view.backgroundTintList?.defaultColor ?: 0xFF2563EB.toInt()
-            val origTint = (view.getTag(R.id.view_swatch_bg) as? Int) ?: currentTint.also {
+            val csl = view.backgroundTintList
+            val enabledTint = csl?.getColorForState(intArrayOf(android.R.attr.state_enabled), csl.defaultColor) ?: 0xFF2563EB.toInt()
+            val origTint = (view.getTag(R.id.view_swatch_bg) as? Int) ?: enabledTint.also {
                 view.setTag(R.id.view_swatch_bg, it)
             }
             val origText = (view.getTag(R.id.iv_theme_watermark_bg) as? Int) ?: view.currentTextColor.also {
                 view.setTag(R.id.iv_theme_watermark_bg, it)
             }
+            val elevAlpha = if (hasWatermark) 0xCC else 0xFF
             when (origTint and 0x00FFFFFF) {
-                0x2563EB, 0x0284C7, 0x0369A1, 0x3B82F6, 0x1D4ED8, 0x0EA5E9, 0x38BDF8 -> {
-                    view.backgroundTintList = android.content.res.ColorStateList.valueOf(theme.buttonAccentColor)
+                0x0369A1, 0x059669, 0x10B981, 0xF59E0B, 0xD97706 -> {
+                    view.backgroundTintList = android.content.res.ColorStateList.valueOf(theme.secondaryButtonColor)
                     view.setTextColor(0xFFFFFFFF.toInt())
                 }
                 0x334155, 0x475569, 0x64748B -> {
-                    view.backgroundTintList = android.content.res.ColorStateList.valueOf(theme.elevatedColor)
+                    view.backgroundTintList = android.content.res.ColorStateList.valueOf(withAlpha(theme.elevatedColor, elevAlpha))
                     when (origText and 0x00FFFFFF) {
                         0x38BDF8, 0x7DD3FC -> view.setTextColor(theme.accentColor)
+                        0xFCD34D, 0xFBBF24, 0xF59E0B -> view.setTextColor(theme.secondaryAccentColor)
                         else -> view.setTextColor(theme.primaryTextColor)
                     }
                 }
                 0x1E293B, 0x0F172A -> {
-                    view.backgroundTintList = android.content.res.ColorStateList.valueOf(theme.surfaceColor)
+                    view.backgroundTintList = android.content.res.ColorStateList.valueOf(withAlpha(theme.surfaceColor, elevAlpha))
                     when (origText and 0x00FFFFFF) {
                         0x38BDF8, 0x7DD3FC -> view.setTextColor(theme.accentColor)
                         0xCBD5E1, 0x94A3B8, 0x64748B -> view.setTextColor(theme.secondaryTextColor)
-                        0xF8FAFC, 0xFFFFFF, 0xE2E8F0 -> view.setTextColor(theme.primaryTextColor)
+                        else -> view.setTextColor(theme.primaryTextColor)
                     }
+                }
+                0xE11D48, 0xDC2626 -> {
+                    // Preserve semantic destructive red buttons
+                }
+                else -> {
+                    view.backgroundTintList = android.content.res.ColorStateList.valueOf(theme.buttonAccentColor)
+                    view.setTextColor(0xFFFFFFFF.toInt())
                 }
             }
         } else if (view is TextView) {
@@ -734,6 +830,7 @@ class MainActivity : AppCompatActivity() {
                 0xF8FAFC, 0xFFFFFF, 0xE2E8F0 -> view.setTextColor(theme.primaryTextColor)
                 0xCBD5E1, 0x94A3B8, 0x64748B -> view.setTextColor(theme.secondaryTextColor)
                 0x38BDF8, 0x7DD3FC, 0x0284C7, 0x2563EB -> view.setTextColor(theme.accentColor)
+                0xF59E0B, 0xFBBF24, 0xFCD34D, 0x34D399, 0xC084FC -> view.setTextColor(theme.secondaryAccentColor)
             }
             if (view is EditText) {
                 view.setHintTextColor(withAlpha(theme.secondaryTextColor, 0x99))
@@ -771,6 +868,7 @@ class MainActivity : AppCompatActivity() {
         if (!::prefs.isInitialized) return
         val theme = getActiveAppTheme()
         val showWatermark = prefs.getBoolean(OverlayService.PREFS_KEY_SHOW_THEME_WATERMARK, true)
+        val hasWatermark = showWatermark && theme.emblemDrawableRes != null
 
         findViewById<android.view.View>(R.id.root_theme_frame)?.setBackgroundColor(theme.bgColor)
         try {
@@ -779,9 +877,9 @@ class MainActivity : AppCompatActivity() {
         } catch (_: Exception) {}
 
         findViewById<ImageView>(R.id.iv_theme_watermark_bg)?.let { iv ->
-            if (showWatermark && theme.emblemDrawableRes != null) {
+            if (hasWatermark && theme.emblemDrawableRes != null) {
                 iv.setImageResource(theme.emblemDrawableRes)
-                iv.alpha = if (theme.isLight) 0.16f else 0.13f
+                iv.alpha = if (theme.isLight) 0.25f else 0.22f
                 iv.visibility = android.view.View.VISIBLE
             } else {
                 iv.visibility = android.view.View.GONE
@@ -802,6 +900,7 @@ class MainActivity : AppCompatActivity() {
         if (::viewSwatchBg.isInitialized) viewSwatchBg.setBackgroundColor(theme.bgColor)
         if (::viewSwatchSurface.isInitialized) viewSwatchSurface.setBackgroundColor(theme.surfaceColor)
         if (::viewSwatchAccent.isInitialized) viewSwatchAccent.setBackgroundColor(theme.accentColor)
+        if (::viewSwatchAccent2.isInitialized) viewSwatchAccent2.setBackgroundColor(theme.secondaryAccentColor)
         if (::viewSwatchOverlay.isInitialized) viewSwatchOverlay.setBackgroundColor(theme.overlayBorderColor)
 
         if (::seekbarOverlayScale.isInitialized) {
@@ -810,14 +909,104 @@ class MainActivity : AppCompatActivity() {
             seekbarOverlayScale.thumbTintList = accentState
         }
         if (::seekbarOverlayTransparency.isInitialized) {
-            val accentState = android.content.res.ColorStateList.valueOf(theme.accentColor)
-            seekbarOverlayTransparency.progressTintList = accentState
-            seekbarOverlayTransparency.thumbTintList = accentState
+            val accent2State = android.content.res.ColorStateList.valueOf(theme.secondaryAccentColor)
+            seekbarOverlayTransparency.progressTintList = accent2State
+            seekbarOverlayTransparency.thumbTintList = accent2State
         }
 
         findViewById<android.view.View>(R.id.root_main_layout)?.let { mainRoot ->
-            applyThemeRecursively(mainRoot, theme, showWatermark && theme.emblemDrawableRes != null)
+            applyThemeRecursively(mainRoot, theme, hasWatermark)
         }
+
+        // Explicitly apply dual-accent & elevated colors to all key action buttons across all 3 pages
+        val primaryBtnTint = android.content.res.ColorStateList.valueOf(theme.buttonAccentColor)
+        val secondaryBtnTint = android.content.res.ColorStateList.valueOf(theme.secondaryButtonColor)
+        val elevatedAlpha = if (hasWatermark) 0xCC else 0xFF
+        val elevatedBtnTint = android.content.res.ColorStateList.valueOf(withAlpha(theme.elevatedColor, elevatedAlpha))
+        val surfaceBtnTint = android.content.res.ColorStateList.valueOf(withAlpha(theme.surfaceColor, elevatedAlpha))
+
+        // Top Bar & Teams Page Buttons
+        syncOverlayRunningUiState()
+        if (::btnDonate.isInitialized) {
+            btnDonate.backgroundTintList = secondaryBtnTint
+            btnDonate.setTextColor(0xFFFFFFFF.toInt())
+        }
+        if (::btnAddPreset.isInitialized) {
+            btnAddPreset.backgroundTintList = primaryBtnTint
+            btnAddPreset.setTextColor(0xFFFFFFFF.toInt())
+        }
+        if (::btnTrashTeams.isInitialized) {
+            btnTrashTeams.backgroundTintList = elevatedBtnTint
+            btnTrashTeams.setTextColor(theme.secondaryAccentColor)
+        }
+
+        // Battle Log Page Buttons (+Log, Sync, Trash, Clear, Copy GBL, Share)
+        if (::btnLogManualBattle.isInitialized) {
+            btnLogManualBattle.backgroundTintList = primaryBtnTint
+            btnLogManualBattle.setTextColor(0xFFFFFFFF.toInt())
+        }
+        if (::btnSyncBattleLog.isInitialized) {
+            btnSyncBattleLog.backgroundTintList = secondaryBtnTint
+            btnSyncBattleLog.setTextColor(0xFFFFFFFF.toInt())
+        }
+        if (::btnTrashBattleLog.isInitialized) {
+            btnTrashBattleLog.backgroundTintList = elevatedBtnTint
+            btnTrashBattleLog.setTextColor(theme.secondaryAccentColor)
+        }
+        if (::btnClearBattleLog.isInitialized) {
+            btnClearBattleLog.backgroundTintList = elevatedBtnTint
+            btnClearBattleLog.setTextColor(theme.primaryTextColor)
+        }
+        if (::btnCopyBattleLog.isInitialized) {
+            btnCopyBattleLog.backgroundTintList = surfaceBtnTint
+            btnCopyBattleLog.setTextColor(theme.accentColor)
+        }
+        if (::btnShareBattleLog.isInitialized) {
+            btnShareBattleLog.backgroundTintList = secondaryBtnTint
+            btnShareBattleLog.setTextColor(0xFFFFFFFF.toInt())
+        }
+
+        // Settings Page Buttons (Save Thresholds, Restore Defaults, 3 Sync Buttons, Sync PvPoke, Reparse, Tasker)
+        if (::btnSaveTierThresholds.isInitialized) {
+            btnSaveTierThresholds.backgroundTintList = primaryBtnTint
+            btnSaveTierThresholds.setTextColor(0xFFFFFFFF.toInt())
+        }
+        if (::btnRestoreTierThresholds.isInitialized) {
+            btnRestoreTierThresholds.backgroundTintList = elevatedBtnTint
+            btnRestoreTierThresholds.setTextColor(theme.secondaryAccentColor)
+        }
+        if (::btnGithubLoginSettings.isInitialized) {
+            updateSyncStatusUi()
+        }
+        if (::btnSyncDevicesSettings.isInitialized) {
+            btnSyncDevicesSettings.backgroundTintList = primaryBtnTint
+            btnSyncDevicesSettings.setTextColor(0xFFFFFFFF.toInt())
+        }
+        if (::btnSyncBundleSettings.isInitialized) {
+            btnSyncBundleSettings.backgroundTintList = elevatedBtnTint
+            btnSyncBundleSettings.setTextColor(theme.secondaryAccentColor)
+        }
+        if (::btnDownloadDb.isInitialized) {
+            btnDownloadDb.backgroundTintList = secondaryBtnTint
+            btnDownloadDb.setTextColor(0xFFFFFFFF.toInt())
+        }
+        if (::btnReparseBattlesSettings.isInitialized) {
+            btnReparseBattlesSettings.backgroundTintList = primaryBtnTint
+            btnReparseBattlesSettings.setTextColor(0xFFFFFFFF.toInt())
+        }
+        findViewById<Button>(R.id.btn_copy_tasker_start)?.let {
+            it.backgroundTintList = primaryBtnTint
+            it.setTextColor(0xFFFFFFFF.toInt())
+        }
+        findViewById<Button>(R.id.btn_copy_tasker_battle_log)?.let {
+            it.backgroundTintList = secondaryBtnTint
+            it.setTextColor(0xFFFFFFFF.toInt())
+        }
+        findViewById<Button>(R.id.btn_help_page_metric_guide)?.let {
+            it.backgroundTintList = secondaryBtnTint
+            it.setTextColor(0xFFFFFFFF.toInt())
+        }
+
         if (::btnToggleOppCountBasis.isInitialized) updateOppCountBasisUi()
         if (::btnToggleOppChargedMoves.isInitialized) updateOppChargedMovesUi()
         if (::btnToggleBattleToasts.isInitialized) updateBattleToastsUi()
@@ -904,14 +1093,15 @@ class MainActivity : AppCompatActivity() {
         viewSwatchBg = findViewById(R.id.view_swatch_bg)
         viewSwatchSurface = findViewById(R.id.view_swatch_surface)
         viewSwatchAccent = findViewById(R.id.view_swatch_accent)
+        viewSwatchAccent2 = findViewById(R.id.view_swatch_accent2)
         viewSwatchOverlay = findViewById(R.id.view_swatch_overlay)
         switchShowThemeWatermark = findViewById(R.id.switch_show_theme_watermark)
 
         isUpdatingThemeSpinner = true
         val themeLabels = APP_THEME_COLLECTION.map { it.label }
         spinnerAppTheme.adapter = createThemedSpinnerAdapter(themeLabels)
-        val savedThemeId = prefs.getString(OverlayService.PREFS_KEY_APP_THEME_ID, "slate") ?: "slate"
-        val themeIdx = APP_THEME_COLLECTION.indexOfFirst { it.id == savedThemeId }.takeIf { it >= 0 } ?: 0
+        val activeTheme = getActiveAppTheme()
+        val themeIdx = APP_THEME_COLLECTION.indexOfFirst { it.id == activeTheme.id }.takeIf { it >= 0 } ?: 0
         spinnerAppTheme.setSelection(themeIdx, false)
         switchShowThemeWatermark.isChecked = prefs.getBoolean(OverlayService.PREFS_KEY_SHOW_THEME_WATERMARK, true)
         isUpdatingThemeSpinner = false
@@ -1300,15 +1490,18 @@ class MainActivity : AppCompatActivity() {
         val timeFmt = java.text.SimpleDateFormat("MMM d, h:mm a", java.util.Locale.US)
         val lastStr = if (lastAt > 0L) timeFmt.format(java.util.Date(lastAt)) else "Never"
 
+        val theme = if (::prefs.isInitialized) getActiveAppTheme() else APP_THEME_COLLECTION.first()
         if (token.isNotEmpty()) {
             val userLabel = if (username.isNotEmpty()) "@$username" else "GitHub Account"
             btnGithubLoginSettings.text = "✅ Connected: $userLabel (Tap to Manage / Sign Out)"
-            btnGithubLoginSettings.backgroundTintList = android.content.res.ColorStateList.valueOf(0xFF059669.toInt())
+            btnGithubLoginSettings.backgroundTintList = android.content.res.ColorStateList.valueOf(theme.buttonAccentColor)
+            btnGithubLoginSettings.setTextColor(0xFFFFFFFF.toInt())
             val vaultShort = if (gistId.isNotEmpty()) "Gist: ${gistId.take(8)}…" else "Account Vault ($userLabel)"
             textSyncStatus.text = "🟢 Auto-Sync Active ($userLabel) • Last: $lastStr • $vaultShort • Logs: ${loadBattleLogs().size} • Teams: ${loadPresets().size}"
         } else {
             btnGithubLoginSettings.text = "🔑 Login with GitHub (Generate Sync Token)"
-            btnGithubLoginSettings.backgroundTintList = android.content.res.ColorStateList.valueOf(0xFF10B981.toInt())
+            btnGithubLoginSettings.backgroundTintList = android.content.res.ColorStateList.valueOf(theme.secondaryButtonColor)
+            btnGithubLoginSettings.setTextColor(0xFFFFFFFF.toInt())
             textSyncStatus.text = "⚪ Not signed in (Local-only) • Tap 'Login with GitHub' to enable multi-device auto-sync"
         }
     }
@@ -3495,9 +3688,9 @@ class MainActivity : AppCompatActivity() {
             setTextColor(0xFF94A3B8.toInt())
             textSize = 11f
         }
-        val resultsArr = arrayOf("WIN", "LOSS")
+        val resultsArr = listOf("WIN", "LOSS")
         val spinnerResult = Spinner(this).apply {
-            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, resultsArr)
+            adapter = createThemedSpinnerAdapter(resultsArr)
             val idx = if (existing?.result.equals("LOSS", ignoreCase = true)) 1 else 0
             setSelection(idx)
         }
@@ -3509,9 +3702,9 @@ class MainActivity : AppCompatActivity() {
             textSize = 11f
             setPadding(0, (8 * density).toInt(), 0, 0)
         }
-        val leadsArr = arrayOf("FAVORABLE", "NEUTRAL", "NEGATIVE")
+        val leadsArr = listOf("FAVORABLE", "NEUTRAL", "NEGATIVE")
         val spinnerLead = Spinner(this).apply {
-            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, leadsArr)
+            adapter = createThemedSpinnerAdapter(leadsArr)
             val idx = leadsArr.indexOfFirst { it.equals(existing?.leadMatchup ?: "NEUTRAL", ignoreCase = true) }.coerceAtLeast(0)
             setSelection(idx)
         }
@@ -3525,7 +3718,7 @@ class MainActivity : AppCompatActivity() {
         }
         val presetDisplayNames = presets.map { "${it.name} (${it.league})" }
         val spinnerPreset = Spinner(this).apply {
-            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, presetDisplayNames)
+            adapter = createThemedSpinnerAdapter(presetDisplayNames)
             val initIdx = if (existing != null) {
                 presets.indexOfFirst { it.id == existing.presetId || it.name.equals(existing.userTeamName, ignoreCase = true) }
                     .takeIf { it >= 0 } ?: 0
@@ -3574,9 +3767,10 @@ class MainActivity : AppCompatActivity() {
         container.addView(editOpp2)
         container.addView(editOpp3)
 
-        AlertDialog.Builder(this)
+        val themedContainer = wrapViewWithThemeWatermark(container, watermarkSizeDp = 220)
+        val dialog = AlertDialog.Builder(this)
             .setTitle(if (existing != null) "✏️ Modify Logged Battle" else "+ Log GBL Battle")
-            .setView(container)
+            .setView(themedContainer)
             .setPositiveButton("Save Battle") { _, _ ->
                 val chosenPreset = presets.getOrNull(spinnerPreset.selectedItemPosition) ?: selectedPreset
                 val opps = listOf(
@@ -3647,6 +3841,7 @@ class MainActivity : AppCompatActivity() {
             }
             .setNegativeButton("Cancel", null)
             .show()
+        styleThemedAlertDialog(dialog)
     }
 
     inner class ReplayJavascriptBridge(
@@ -3813,10 +4008,13 @@ class MainActivity : AppCompatActivity() {
                 try {
                     val payloadJson = replayEngine.buildBattlePayloadJson(isReplayMode = true)
                     val activeThemeId = getActiveAppTheme().id
+                    val showWatermark = prefs.getBoolean(OverlayService.PREFS_KEY_SHOW_THEME_WATERMARK, true) && getActiveAppTheme().emblemDrawableRes != null
+                    val replayTransPct = if (showWatermark) 42 else 18
                     replayWebView.post {
                         try {
-                            replayWebView.evaluateJavascript("if (window.setOverlayTransparencyPct) setOverlayTransparencyPct(15);", null)
+                            replayWebView.evaluateJavascript("if (window.setOverlayTransparencyPct) setOverlayTransparencyPct($replayTransPct);", null)
                             replayWebView.evaluateJavascript("if (window.setOverlayTheme) setOverlayTheme('$activeThemeId');", null)
+                            replayWebView.evaluateJavascript("if (window.setOverlayWatermark) setOverlayWatermark($showWatermark);", null)
                             replayWebView.evaluateJavascript("if (window.updateBattleData) updateBattleData($payloadJson);", null)
                         } catch (_: Exception) {}
                     }
@@ -3837,15 +4035,17 @@ class MainActivity : AppCompatActivity() {
 
             dialogContainer.addView(hintTv)
             dialogContainer.addView(replayWebView)
-            applyCurrentAppThemeToSubtree(dialogContainer)
+            val themedReplayRoot = wrapViewWithThemeWatermark(dialogContainer, watermarkSizeDp = 250)
 
-            AlertDialog.Builder(this)
-                .setView(dialogContainer)
+            val dialog = AlertDialog.Builder(this)
+                .setTitle("🎬 Battle Matrix Replay • $safeLeague")
+                .setView(themedReplayRoot)
                 .setPositiveButton("Close Replay", null)
                 .setNeutralButton("✏️ Edit Log") { _, _ ->
                     showEditOrCreateBattleLogDialog(entry)
                 }
                 .show()
+            styleThemedAlertDialog(dialog)
         } catch (e: Exception) {
             Toast.makeText(this, "Error opening Battle Recap: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
         }
@@ -4024,8 +4224,7 @@ class MainActivity : AppCompatActivity() {
         try {
             ContextCompat.startForegroundService(this, serviceIntent)
             isOverlayRunning = true
-            btnToggleOverlay.text = "Stop Battle Overlay"
-            statusText.text = "Status: Overlay Active"
+            syncOverlayRunningUiState()
             Toast.makeText(this, "GBL Battle Overlay launched! Check your screen", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
             Toast.makeText(this, "Failed to start overlay: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
@@ -4039,8 +4238,7 @@ class MainActivity : AppCompatActivity() {
         }
         startService(serviceIntent)
         isOverlayRunning = false
-        btnToggleOverlay.text = "Start Battle Overlay"
-        statusText.text = "Status: Idle"
+        syncOverlayRunningUiState()
     }
 
     /**
@@ -4589,8 +4787,23 @@ class MainActivity : AppCompatActivity() {
             )
         }
 
-        AlertDialog.Builder(this)
-            .setTitle(if (existingPreset != null) "Edit Team & Moves" else "Create Custom GBL Team")
+        // Apply active theme & optional background watermark logo to the Team Edit dialog
+        val activeTheme = getActiveAppTheme()
+        val showWatermark = prefs.getBoolean(OverlayService.PREFS_KEY_SHOW_THEME_WATERMARK, true) && activeTheme.emblemDrawableRes != null
+        dialogView.findViewById<android.view.View>(R.id.root_preset_dialog_frame)?.setBackgroundColor(activeTheme.bgColor)
+        dialogView.findViewById<ImageView>(R.id.iv_preset_dialog_watermark)?.let { iv ->
+            if (showWatermark && activeTheme.emblemDrawableRes != null) {
+                iv.setImageResource(activeTheme.emblemDrawableRes)
+                iv.alpha = if (activeTheme.isLight) 0.24f else 0.20f
+                iv.visibility = android.view.View.VISIBLE
+            } else {
+                iv.visibility = android.view.View.GONE
+            }
+        }
+        applyThemeRecursively(dialogView, activeTheme, showWatermark)
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(if (existingPreset != null) "⚔️ Edit Team & Moves" else "➕ Create Custom GBL Team")
             .setView(dialogView)
             .setPositiveButton("Save Team") { _, _ ->
                 val league = spinnerLeague.selectedItem.toString()
@@ -4625,6 +4838,7 @@ class MainActivity : AppCompatActivity() {
             }
             .setNegativeButton("Cancel", null)
             .show()
+        styleThemedAlertDialog(dialog)
     }
 
     private fun formatDbAndLeagueStatusText(): String {

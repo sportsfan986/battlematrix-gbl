@@ -123,34 +123,29 @@ jobs:
           tag_name: ${{ steps.version.outputs.tag }}
           name: "SilphScope PvP ${{ steps.version.outputs.tag }}"
           body: |
-            ## SilphScope PvP ${{ steps.version.outputs.tag }} — Official v3.05 Release (Interactive Overlay Header Shield Counters & Live Matrix Recalculation)
+            ## SilphScope PvP ${{ steps.version.outputs.tag }} — Official v3.06 Release (Dual-Accent Themes, Shiny Origin Dialga, Full Modal/Button Theming & Interactive Shield Counters)
             
-            ### What's New in v3.05 (Interactive Shield Counters & Mid-Match Rating Recalculation)
-            - **Interactive Header Shield Counters (`overlay.html`, `OverlayService.kt`, `src/App.tsx`)**:
-              - Added tactile, color-coded shield counters for both sides directly into the overlay's top header row:
-                - **Player Shields (`🛡️ 2`)**: Visualized in active theme accent color (`#38BDF8`, gold, ice blue, red, pink, or lime); tap cycles `2 -> 1 -> 0 -> 2`.
-                - **Opponent Shields (`🛡️ 2`)**: Visualized in soft pink/rose (`#F472B6`); tap cycles `2 -> 1 -> 0 -> 2`.
-                - **Zero-Shield State**: Automatically dims and displays strike-through when 0 shields remain.
-                - **Live PvPoke Matrix Recalculation**: Tapping to adjust shields immediately recalculates the 9-scenario PvPoke rating and re-renders matchup dots and threat percentages in real-time.
-                - **Native Android Bridge**: Two-way synchronization between web overlay and native Android service with toasts and timeline logging.
-            
-            ### Included from v3.03 & v3.02 (Themes, Emblem Watermarks & Overlay Icons)
-            - **Dynamic Theme Emblem Icons on Floating Overlay (`overlay.html`, `src/App.tsx`)**: The upper-left minimize button, floating bubble, and Start Battle button display crisp vector SVG emblems matching the active theme (Zapdos diamond, Articuno crest, Moltres flame, Sylveon bow, Matrix phosphor reticle, Cyber Cyan hexagon, and SilphScope reticle).
-            - **Complete UI Theme Coverage (`MainActivity.kt`, `overlay.html`, `OverlayService.kt`, `src/App.tsx`)**: All buttons, switches, checkboxes, spinners, cards, and modal dialogs inherit the active theme.
-            - **10 Distinct Themes**: SilphScope Slate, AMOLED Cyber Cyan, AMOLED Matrix Phosphor, Team Instinct Dark & Light, Team Mystic Dark & Light, Team Valor Dark & Light, and Sylveon Fairy Ribbon.
+            ### What's New in v3.06 (Theme Overhaul, Complete UI/Modal Theming & Page Transparency)
+            - **New ✨ Shiny Origin Forme Dialga Midnight Theme (`dialga_shiny_midnight`)**:
+              - Replaced legacy AMOLED Cyber Pulse Cyan & Matrix Phosphor Green themes with **✨ Shiny Origin Dialga Midnight (Dark)** featuring a deep cosmic void canvas (`#050B16`), Shiny Origin Dialga's luminous Temporal Teal primary accent (`#2DD4BF`), Astral Ring Gold secondary accent (`#FACC15`), and a custom vector Origin Forme Dialga crest & diamond core watermark.
+            - **Dual-Accent Color Palettes Across All 9 Themes**:
+              - Added a distinct secondary accent color (`secondaryAccentColor` / `secondaryButtonColor` + 5-dot swatch preview in Settings) to every theme for richer depth across headers, badges, slot titles, and action buttons:
+                - **🎀 Sylveon Fairy Ribbon**: Paired Fairy Ribbon Pink (`#EC4899`) with Sylveon's distinctive **Pastel Sky Blue** (`#38BDF8`).
+                - **⚡ Team Instinct (Dark & Light)**: Zapdos Lightning Gold paired with Storm Sky Cyan (`#38BDF8`) & Electric Cobalt (`#0284C7`).
+                - **❄️ Team Mystic (Dark & Light)**: Articuno Ice Blue paired with Aurora Borealis Violet (`#C084FC`) & Royal Frost Indigo (`#7C3AED`).
+                - **🔥 Team Valor (Dark & Light)**: Moltres Crimson paired with Molten Solar Gold (`#FBBF24`) & Phoenix Amber (`#D97706`).
+                - **🛡️ SilphScope Slate (Default Generic)**: Placed last in the theme selector as a generic fallback theme.
+            - **Complete Button, Team Edit & Replay Overlay Matrix Theming**:
+              - Themed all previously unthemed buttons across **Battle Log** (`+ Log`, `☁️ Sync`, `🗑️ Trash`, `Clear`, `📋 Copy GBL`, `📤 Share`), **Settings** (`💾 Save Thresholds`, `↺ Restore Defaults`, all 3 cloud sync buttons, `Sync PvPoke`, `🔄 Reparse All`), and **Top Bar / Overlay** (`Start Battle Overlay`, `⚔️ Start Battle`).
+              - Themed the **Team Edit** & **Manual Battle Log** dialogs and the **Interactive Replay Overlay Matrix** with active theme backgrounds, dual-accent headers, and centered background emblem watermarks.
+            - **Enhanced Transparency Across All 3 Main Pages (`Teams`, `Battle Log`, `Settings`)**:
+              - Increased watermark visibility and card transparency across all 3 main pages when watermarks are enabled so the background emblem clearly shines through.
 
-            ### Highlights in v3.00 / v3.01 & All 2.9x Releases (`v2.90` – `v3.01`)
-            - **Phase 1 (v2.90) — Asymmetric 9-Shield Matrix & Blind Matchup Favorability (BMF)**:
-              - Evaluates all 9 discrete shield permutations (`0v0`, `0v1`, `0v2`, `1v0`, `1v1`, `1v2`, `2v0`, `2v1`, `2v2`) for any head-to-head matchup.
-              - Computes Pre-Match Blind Matchup Favorability ($M = 0.40 \cdot S_{\text{lead}} + 0.60 \cdot S_{\text{back}}$, $P_{\text{pre}}$) with automatic handling of early forfeits ($w = 0.00$ dropped when $<2$ opponents seen) and unrevealed 3rd closers ($w = 0.75$ Meta-Average 1v1 Prior `⚡ 75% Conf`).
-            - **Phase 2 (v2.91) — Battle Timeline Tracking & Dynamic Execution WAE Engine**:
-              - Records timestamped `SWAP`, `SHIELD`, and `FAINT` timeline events during live overlay battles.
-              - Partitions battles into head-to-head intervals weighted by fractional duration ($S_{\text{actual}} = \sum \tau_k \cdot R_k$), applies **Faint Margin Scaling** ($\times 1.10$ on wins with $\ge 2$ faint margin), and applies **Shield-in-Pocket Penalties** ($-0.15 \times \text{userShieldsRemaining}$ on losses).
-            - **Phase 3 (v2.93) — 5-Stat Analytics Dashboard, Performance Badges, Event Pills & Historical Migration**:
-              - Upgraded the Battle Log summary to a 5-stat grid (`RECORD`, `LEAD MATCHUPS`, `WIN RATE`, `EXEC WAE`, `MATCHUP LUCK`).
-              - Added the **6 Primary Performance Badges** (`Clutch Win`, `Skill Win`, `Expected Win`, `Blunder Loss`, `Tough Loss`, `Expected Loss`) and **5 Contextual Event Pills** (`⚠️ Double Shield Pocket`, `⚠️ Shield in Pocket`, `🧹 Clean Sweep`, `🛡️ Shield Advantage`, `⚡ 75% Conf`), Interactive Battle Recap / Timeline Replay, and automatic retroactive migration of existing battle logs.
-            - **v2.94–v3.01 — Faint Detection, Top Statusbar Toasts, Standardized GBL Export, Tasker Hooks & In-App Help Guide**:
-              - Reliable opponent faint detection, preserved swap clock timers on faint swap-ins, dedicated top statusbar toasts, standardized Go Battle Log export formatting, Share individual battle line format (`W/L (L->F/N/U, M->F/N/U) opponent1 opponent2 opponent3`), Tasker automation hooks, and dedicated in-app **❓ Help** page with 3-tab bottom/top navigation.
+            ### Shield & Theme Highlights Since v3.00 (`v3.02` – `v3.05`)
+            - **v3.05 — Interactive Overlay Header Shield Counters (`🛡️ You` & `🛡️ Opp`)**:
+              - Tap either shield icon in the floating overlay header to cycle remaining shields (`2 → 1 → 0 → 2`) mid-battle, log `SHIELD` timeline events, and immediately recalculate the 3x3 PvPoke matchup matrix and threat thresholds.
+            - **v3.02–v3.03 — Dynamic Overlay Emblem Icons & Background Crest Watermarks**:
+              - Theme-matched vector SVG emblems on the overlay minimize button, floating bubble, and `Start Battle` button, plus centered background crest watermarks and top-grouped Theme/Size/Transparency settings.
             
             ### Download & Install
             Download **`silphscope-pvp-${{ steps.version.outputs.tag }}.apk`** from the **Assets** section below and install on your Android device.
