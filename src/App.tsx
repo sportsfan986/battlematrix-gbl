@@ -39,6 +39,7 @@ import {
   calculateOpponentMoveTimingRows,
   calculateMyMoveTimingRows,
   getAvailableFormsForPokemon,
+  resolveBestDefaultFormAndShadow,
   abbrMove5,
   OppCountMode,
   PokemonStats,
@@ -718,7 +719,7 @@ export default function App() {
   // Battle Log Filter & Modal States
   const [logFilterLeague, setLogFilterLeague] = useState<string>('ALL LEAGUES');
   const [logFilterTeamId, setLogFilterTeamId] = useState<string>('ALL TEAMS');
-  const [logFilterTimeframe, setLogFilterTimeframe] = useState<'DAY' | 'WEEK' | 'CURRENT_SEASON' | 'PREVIOUS_SEASON' | 'ALL'>('ALL');
+  const [logFilterTimeframe, setLogFilterTimeframe] = useState<'DAY' | 'YESTERDAY' | 'WEEK' | 'CURRENT_SEASON' | 'PREVIOUS_SEASON' | 'ALL'>('ALL');
   const [exportPromptAction, setExportPromptAction] = useState<'COPY' | 'SHARE' | null>(null);
   const [editingLogEntry, setEditingLogEntry] = useState<WebBattleLogEntry | null>(null);
   const [replayLogEntry, setReplayLogEntry] = useState<WebBattleLogEntry | null>(null);
@@ -1256,7 +1257,13 @@ export default function App() {
   };
 
   // Fixed Opponent Discovery Order: [1st seen, 2nd seen, 3rd seen] NEVER reorders when swapping active opponent!
-  const handleSwapActiveOpponent = (name: string) => {
+  const handleSwapActiveOpponent = (rawInputName: string) => {
+    const currentLeagueForDefault: LeagueType =
+      selectedOpponentLeague === 'AUTO' ? (activePreset?.league || 'MASTER LEAGUE') : selectedOpponentLeague;
+    const resolvedDefault = resolveBestDefaultFormAndShadow(rawInputName, currentLeagueForDefault);
+    const name = resolvedDefault.formName;
+    setIsOpponentShadow(resolvedDefault.isShadow);
+
     const wasWaiting = isWaitingOpponent;
     const prevBase = getBaseSpeciesKey(activeOpponentKey);
     const targetBase = getBaseSpeciesKey(name);
@@ -2430,7 +2437,7 @@ export default function App() {
                     backgroundColor: `${activeTheme.accentHex}1A`
                   }}
                 >
-                  v3.06 • Android Native Overlay
+                  v3.07 • Android Native Overlay
                 </span>
               </div>
               <p className="text-xs hidden sm:block" style={{ color: activeTheme.textSecondaryHex }}>
@@ -5434,7 +5441,7 @@ export default function App() {
                           'Content-Type': 'application/json'
                         },
                         body: JSON.stringify({
-                          description: 'SilphScope PvP v3.06 Multi-Device Delta Sync Vault',
+                          description: 'SilphScope PvP v3.07 Multi-Device Delta Sync Vault',
                           public: false,
                           files: {
                             'gbl_delta_sync_v2.json': { content: bundleStr }
@@ -5583,10 +5590,12 @@ export default function App() {
 
           const filterByRange = (
             entries: WebBattleLogEntry[],
-            rangeCode: 'DAY' | 'WEEK' | 'CURRENT_SEASON' | 'PREVIOUS_SEASON' | 'ALL'
+            rangeCode: 'DAY' | 'YESTERDAY' | 'WEEK' | 'CURRENT_SEASON' | 'PREVIOUS_SEASON' | 'ALL'
           ) => {
             const startOfToday = new Date();
             startOfToday.setHours(0, 0, 0, 0);
+            const startOfYesterday = new Date(startOfToday);
+            startOfYesterday.setDate(startOfYesterday.getDate() - 1);
             const sevenDaysAgo = nowMs - 7 * 24 * 60 * 60 * 1000;
             return entries.filter((e) => {
               const leagueOk = logFilterLeague === 'ALL LEAGUES' || e.league.toUpperCase() === logFilterLeague.toUpperCase();
@@ -5597,6 +5606,8 @@ export default function App() {
               const timeOk =
                 rangeCode === 'DAY'
                   ? e.timestampMs >= startOfToday.getTime()
+                  : rangeCode === 'YESTERDAY'
+                  ? e.timestampMs >= startOfYesterday.getTime() && e.timestampMs < startOfToday.getTime()
                   : rangeCode === 'WEEK'
                   ? e.timestampMs >= sevenDaysAgo
                   : rangeCode === 'CURRENT_SEASON'
@@ -5768,6 +5779,25 @@ export default function App() {
             return isShadow ? `${combined}S` : combined;
           };
 
+          const normalizeDailyLeadKey = (rawLead?: string): string => {
+            const formatted = formatExportPokemonName((rawLead || '').trim()).trim().toLowerCase();
+            if (!formatted || formatted === 'unknown' || formatted === 'waiting...' || formatted === 'none') {
+              return '';
+            }
+            return formatted;
+          };
+
+          const countUniqueLeads = (entries: WebBattleLogEntry[]): number => {
+            const set = new Set<string>();
+            entries.forEach((e) => {
+              const k = normalizeDailyLeadKey(e.opponents?.[0]);
+              if (k) set.add(k);
+            });
+            return set.size;
+          };
+
+          const uniqueCount = countUniqueLeads(filteredLogs);
+
           const resolveUserTeamInfo = (entry: WebBattleLogEntry) => {
             const matchedPreset = presets.find(
               (p) =>
@@ -5785,7 +5815,7 @@ export default function App() {
           };
 
           const buildCopyGblText = (
-            rangeCode: 'DAY' | 'WEEK' | 'CURRENT_SEASON' | 'PREVIOUS_SEASON' | 'ALL' = logFilterTimeframe
+            rangeCode: 'DAY' | 'YESTERDAY' | 'WEEK' | 'CURRENT_SEASON' | 'PREVIOUS_SEASON' | 'ALL' = logFilterTimeframe
           ) => {
             const list = [...filterByRange(battleLogs, rangeCode)].sort((a, b) => b.timestampMs - a.timestampMs);
             if (list.length === 0) {
@@ -5833,7 +5863,7 @@ export default function App() {
           };
 
           const buildPlainTextSummary = (
-            rangeCode: 'DAY' | 'WEEK' | 'CURRENT_SEASON' | 'PREVIOUS_SEASON' | 'ALL'
+            rangeCode: 'DAY' | 'YESTERDAY' | 'WEEK' | 'CURRENT_SEASON' | 'PREVIOUS_SEASON' | 'ALL'
           ) => {
             const list = [...filterByRange(battleLogs, rangeCode)].sort((a, b) => b.timestampMs - a.timestampMs);
             const w = list.filter((e) => e.result === 'WIN').length;
@@ -5843,10 +5873,13 @@ export default function App() {
             const fv = list.filter((e) => e.leadMatchup === 'FAVORABLE').length;
             const nu = list.filter((e) => e.leadMatchup === 'NEUTRAL').length;
             const ng = list.filter((e) => e.leadMatchup === 'NEGATIVE').length;
+            const uq = countUniqueLeads(list);
             const waeInfo = calculateAggregateWAE(list, presets);
             const rangeTitle =
               rangeCode === 'DAY'
                 ? 'Day (Today)'
+                : rangeCode === 'YESTERDAY'
+                ? 'Yesterday'
                 : rangeCode === 'WEEK'
                 ? 'This Week (Last 7 Days)'
                 : rangeCode === 'CURRENT_SEASON'
@@ -5863,7 +5896,7 @@ export default function App() {
               `SilphScope PvP Battle Log — ${leagueHeader}`,
               `Team: ${teamName}`,
               `Range: ${rangeTitle}`,
-              `Overall Record: ${w}W - ${l}L (${pct}%) • Leads: ${fv} Fav / ${nu} Neu / ${ng} Neg • WAE: ${waeInfo.formatted} • Luck: ${waeInfo.luckFormatted}`
+              `Overall Record: ${w}W - ${l}L (${pct}%) • Leads: ${fv} Fav / ${nu} Neu / ${ng} Neg / ${uq} Unique • WAE: ${waeInfo.formatted} • Luck: ${waeInfo.luckFormatted}`
             ];
             if (list.length === 0) {
               lines.push('', 'No battles logged in this timeframe.');
@@ -5888,6 +5921,15 @@ export default function App() {
             });
 
             dayGroups.forEach(({ dayStr, items }) => {
+              // Count same-day opponent lead occurrences across all battles on this calendar day
+              const dayLeadCounts = new Map<string, number>();
+              items.forEach((b) => {
+                const leadKey = normalizeDailyLeadKey(b.opponents?.[0]);
+                if (leadKey) {
+                  dayLeadCounts.set(leadKey, (dayLeadCounts.get(leadKey) || 0) + 1);
+                }
+              });
+
               const dayTeamsMap = new Map<string, WebBattleLogEntry[]>();
               items.forEach((b) => {
                 const tInfo = resolveUserTeamInfo(b);
@@ -5915,10 +5957,11 @@ export default function App() {
                 const dfv = teamItems.filter((e) => e.leadMatchup === 'FAVORABLE').length;
                 const dnu = teamItems.filter((e) => e.leadMatchup === 'NEUTRAL').length;
                 const dng = teamItems.filter((e) => e.leadMatchup === 'NEGATIVE').length;
+                const duq = countUniqueLeads(teamItems);
                 const dwae = calculateAggregateWAE(teamItems, presets);
                 lines.push(
                   '',
-                  `=== ${dayStr} - ${tInfo.teamName} ${tInfo.monsBracket} Daily Record: ${dw}W - ${dl}L (${dpct}%) [Leads: ${dfv} Fav, ${dnu} Neu, ${dng} Neg] • WAE: ${dwae.formatted} • Luck: ${dwae.luckFormatted} ===`
+                  `=== ${dayStr} - ${tInfo.teamName} ${tInfo.monsBracket} Daily Record: ${dw}W - ${dl}L (${dpct}%) [Leads: ${dfv} Fav / ${dnu} Neu / ${dng} Neg / ${duq} Unique] • WAE: ${dwae.formatted} • Luck: ${dwae.luckFormatted} ===`
                 );
                 [...teamItems]
                   .sort((a, b) => b.timestampMs - a.timestampMs)
@@ -5930,9 +5973,12 @@ export default function App() {
                     const matchPPre = q ? (typeof q.pPre === 'number' ? q.pPre : q.pWin) : null;
                     const matchTag =
                       matchPPre === null ? 'N' : matchPPre > 0.6 ? 'F' : matchPPre < 0.4 ? 'U' : 'N';
+                    const leadKey = normalizeDailyLeadKey(b.opponents?.[0]);
+                    const isRepeatedLeadToday = !!leadKey && (dayLeadCounts.get(leadKey) || 0) >= 2;
                     const oppList = (b.opponents || [])
                       .map((o) => formatExportPokemonName(o.trim()))
-                      .filter(Boolean);
+                      .filter(Boolean)
+                      .map((formatted, idx) => (idx === 0 && isRepeatedLeadToday ? `**${formatted}**` : formatted));
                     const oppStr = oppList.length > 0 ? oppList.join(' ') : 'Unknown';
                     lines.push(`${wl} (L->${leadTag}, M->${matchTag}) ${oppStr}`);
                   });
@@ -6020,6 +6066,7 @@ export default function App() {
                       className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-semibold"
                     >
                       <option value="DAY">Day (Today)</option>
+                      <option value="YESTERDAY">Yesterday</option>
                       <option value="WEEK">Week (Last 7 Days)</option>
                       <option value="CURRENT_SEASON">Current Season ({currentSeason.name})</option>
                       <option value="PREVIOUS_SEASON">Previous Season ({prevSeason.name})</option>
@@ -6108,7 +6155,7 @@ export default function App() {
                     LEAD MATCHUPS
                   </span>
                   <strong className="text-xs sm:text-sm font-extrabold text-sky-400 tabular-nums">
-                    {favCount} Fav • {neuCount} Neu • {negCount} Neg
+                    {favCount} Fav / {neuCount} Neu / {negCount} Neg / {uniqueCount} Unique
                   </strong>
                 </div>
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 text-center shadow-xl">
@@ -6215,13 +6262,27 @@ export default function App() {
                       const dFav = dayGroup.entries.filter((e) => e.leadMatchup === 'FAVORABLE').length;
                       const dNeu = dayGroup.entries.filter((e) => e.leadMatchup === 'NEUTRAL').length;
                       const dNeg = dayGroup.entries.filter((e) => e.leadMatchup === 'NEGATIVE').length;
+                      const dUnique = countUniqueLeads(dayGroup.entries);
                       const dWae = calculateAggregateWAE(dayGroup.entries, presets);
+
+                      // Track same-day repeated opponent leads and chronological occurrence (#1 of N, #2 of N)
+                      const dayLeadCounts = new Map<string, number>();
+                      const dayLeadOccurrenceByEntryId = new Map<string, number>();
+                      const chronologicalDayEntries = [...dayGroup.entries].sort((a, b) => a.timestampMs - b.timestampMs);
+                      chronologicalDayEntries.forEach((e) => {
+                        const k = normalizeDailyLeadKey(e.opponents?.[0]);
+                        if (k) {
+                          const nextOcc = (dayLeadCounts.get(k) || 0) + 1;
+                          dayLeadCounts.set(k, nextOcc);
+                          dayLeadOccurrenceByEntryId.set(e.id, nextOcc);
+                        }
+                      });
 
                       return (
                         <div key={dayGroup.dayLabel} className="space-y-2">
                           <div className="px-2 py-1 text-[11.5px] font-bold text-sky-400 flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80">
                             <span>
-                              📅 {dayGroup.dayLabel} — Daily Record: {dWins}W - {dLosses}L ({dPct}%) • Leads: {dFav} Fav / {dNeu} Neu / {dNeg} Neg • WAE:{' '}
+                              📅 {dayGroup.dayLabel} — Daily Record: {dWins}W - {dLosses}L ({dPct}%) • Leads: {dFav} Fav / {dNeu} Neu / {dNeg} Neg / {dUnique} Unique • WAE:{' '}
                               <span
                                 style={{
                                   color:
@@ -6260,6 +6321,10 @@ export default function App() {
                                 : entry.leadMatchup === 'NEGATIVE'
                                 ? 'Neg'
                                 : 'Neu';
+                            const entryLeadKey = normalizeDailyLeadKey(entry.opponents?.[0]);
+                            const dayLeadCount = entryLeadKey ? dayLeadCounts.get(entryLeadKey) || 0 : 0;
+                            const isRepeatedLeadToday = dayLeadCount >= 2;
+                            const leadOccIdx = dayLeadOccurrenceByEntryId.get(entry.id) || 1;
                             const quality = resolveLogEntryQuality(entry, presets);
                             const bmfPct = quality ? Math.round(quality.pPre * 100) : null;
                             const execWaeVal = quality
@@ -6334,7 +6399,11 @@ export default function App() {
                                   setReplayOppIdx(0);
                                   setReplayOppShadow(false);
                                 }}
-                                className="p-3.5 rounded-xl bg-slate-950 hover:bg-slate-900/90 border border-slate-800 hover:border-sky-500/50 cursor-pointer transition flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                                className={`p-3.5 rounded-xl bg-slate-950 hover:bg-slate-900/90 border cursor-pointer transition flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs ${
+                                  isRepeatedLeadToday
+                                    ? 'border-amber-400/70 shadow-[0_0_12px_rgba(251,191,36,0.12)]'
+                                    : 'border-slate-800 hover:border-sky-500/50'
+                                }`}
                               >
                                 <div className="space-y-1.5">
                                   <div className="flex items-center gap-2 flex-wrap">
@@ -6373,6 +6442,11 @@ export default function App() {
                                     >
                                       Lead: {leadLabel} ↻
                                     </button>
+                                    {isRepeatedLeadToday && (
+                                      <span className="px-2 py-0.5 rounded-full font-extrabold text-[10px] bg-amber-500/20 text-amber-300 border border-amber-400/50">
+                                        🔁 Repeat Lead (#{leadOccIdx} of {dayLeadCount} Today)
+                                      </span>
+                                    )}
                                     <span className="font-bold text-sky-400">
                                       {entry.league}
                                     </span>
@@ -6390,7 +6464,21 @@ export default function App() {
                                     <span className="text-slate-400">Opponents (1st → 2nd → 3rd):</span>{' '}
                                     <strong>
                                       {entry.opponents.length > 0
-                                        ? entry.opponents.map((o, i) => `#${i + 1} ${o}`).join('  •  ')
+                                        ? entry.opponents.map((o, i) => (
+                                            <React.Fragment key={i}>
+                                              {i > 0 && '  •  '}
+                                              <span
+                                                className={
+                                                  i === 0 && isRepeatedLeadToday
+                                                    ? 'text-amber-300 underline decoration-amber-400/70 font-extrabold'
+                                                    : ''
+                                                }
+                                              >
+                                                #{i + 1} {o}
+                                                {i === 0 && isRepeatedLeadToday ? ' 🔁' : ''}
+                                              </span>
+                                            </React.Fragment>
+                                          ))
                                         : 'None Scanned'}
                                     </strong>
                                   </div>
@@ -6499,6 +6587,7 @@ export default function App() {
                       {(
                         [
                           { code: 'DAY', label: 'Day (Today)' },
+                          { code: 'YESTERDAY', label: 'Yesterday' },
                           { code: 'WEEK', label: 'Week (Last 7 Days)' },
                           { code: 'CURRENT_SEASON', label: `Current Season (${currentSeason.name})` },
                           { code: 'PREVIOUS_SEASON', label: `Previous Season (${prevSeason.name})` },
@@ -6986,7 +7075,7 @@ export default function App() {
               <div>
                 <h2 className="text-lg font-bold text-white flex items-center gap-2">
                   <Info className="w-5 h-5 text-sky-400" />
-                  <span>📖 Complete Help, HUD Instructions, Tips &amp; Tactics Guide (v3.06)</span>
+                  <span>📖 Complete Help, HUD Instructions, Tips &amp; Tactics Guide (v3.07)</span>
                 </h2>
                 <p className="text-xs text-slate-400">
                   Everything you need to master the floating PvP overlay, 3x3 matchup &amp; shield matrix, bottom 3-column damage grid, 50s swap clocks, move pacing, Battle Log analytics, and Tasker automation.
@@ -7890,7 +7979,7 @@ export default function App() {
               <div className="flex items-center justify-between border-b border-slate-800 pb-3 shrink-0">
                 <div>
                   <h3 className="font-bold text-base text-white flex items-center gap-2">
-                    <span>🎯 Overlay HUD &amp; Battle Flow Guide (v3.06)</span>
+                    <span>🎯 Overlay HUD &amp; Battle Flow Guide (v3.07)</span>
                   </h3>
                   <p className="text-xs text-slate-400 mt-0.5">
                     How to interact with the floating overlay, read 3x3 damage % &amp; shield dots, track 50s swap clocks, and log battles
@@ -8033,7 +8122,7 @@ export default function App() {
           color: activeTheme.textSecondaryHex
         }}
       >
-        SilphScope PvP v3.06 Overlay • Built with Kotlin, WindowManager TYPE_APPLICATION_OVERLAY, MediaProjection in-memory frame capture, and ML Kit Text Recognition.
+        SilphScope PvP v3.07 Overlay • Built with Kotlin, WindowManager TYPE_APPLICATION_OVERLAY, MediaProjection in-memory frame capture, and ML Kit Text Recognition.
       </footer>
     </div>
   );

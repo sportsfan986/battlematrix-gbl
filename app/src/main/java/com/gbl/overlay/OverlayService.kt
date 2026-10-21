@@ -764,8 +764,13 @@ class OverlayService : LifecycleService() {
             "necrozma_dusk_mane" to Triple("Sunsteel Strike", "Dark Pulse", "Iron Head"),
             "Necrozma (Dawn Wings)" to Triple("Moongeist Beam", "Dark Pulse", "Iron Head"),
             "necrozma_dawn_wings" to Triple("Moongeist Beam", "Dark Pulse", "Iron Head"),
+            "Mewtwo (Armored)" to Triple("Psystrike", "Dynamic Punch", "Earthquake"),
+            "Armored Mewtwo" to Triple("Psystrike", "Dynamic Punch", "Earthquake"),
+            "mewtwo_armored" to Triple("Psystrike", "Dynamic Punch", "Earthquake"),
             "Mewtwo" to Triple("Psystrike", "Shadow Ball", "Focus Blast"),
             "mewtwo" to Triple("Psystrike", "Shadow Ball", "Focus Blast"),
+            "Mew" to Triple("Psyshock", "Wild Charge", "Surf"),
+            "mew" to Triple("Psyshock", "Wild Charge", "Surf"),
             "Rhyperior" to Triple("Rock Wrecker", "Breaking Swipe", "Superpower"),
             "rhyperior" to Triple("Rock Wrecker", "Breaking Swipe", "Superpower"),
             "Dragonite" to Triple("Dragon Claw", "Superpower", "Outrage"),
@@ -882,7 +887,10 @@ class OverlayService : LifecycleService() {
             "Groudon" to "Solar Beam",
             "Giratina (Origin)" to "Dragon Pulse",
             "Giratina (Altered)" to "Shadow Sneak",
+            "Mewtwo (Armored)" to "Earthquake",
+            "Armored Mewtwo" to "Earthquake",
             "Mewtwo" to "Shadow Ball",
+            "Mew" to "Surf",
             "Xerneas" to "Megahorn",
             "Yveltal" to "Focus Blast",
             "Landorus (Therian)" to "Superpower",
@@ -1265,8 +1273,9 @@ class OverlayService : LifecycleService() {
             PokemonMeta("Keldeo (Ordinary)", "keldeo_ordinary", "keldeo", "Ordinary", listOf("water", "fighting"), 4181, "Low Kick", 2, "Sacred Sword", "Aqua Jet", 38, 38, atk = 260.0, def = 192.0, hp = 209, glRank = 150, ulRank = 70, mlRank = 19, chargedMove3 = "Hydro Pump", isRawBaseStats = true, defaultIvsGl = "0/0/0", defaultIvsUl = "11/14/13"),
             PokemonMeta("Giratina (Origin)", "giratina_origin", "giratina", "Origin", listOf("ghost", "dragon"), 4164, "Shadow Claw", 2, "Shadow Ball", "Ominous Wind", 46, 22, atk = 225.0, def = 187.0, hp = 284, glRank = 180, ulRank = 35, mlRank = 9, isRawBaseStats = true, defaultIvsGl = "7/9/14", defaultIvsUl = "6/14/9"),
             PokemonMeta("Giratina (Altered)", "giratina_altered", "giratina", "Altered", listOf("ghost", "dragon"), 3820, "Shadow Claw", 2, "Dragon Claw", "Ancient Power", 28, 26, atk = 187.0, def = 225.0, hp = 284, glRank = 190, ulRank = 3, mlRank = 26, isRawBaseStats = true, defaultIvsGl = "6/15/6", defaultIvsUl = "5/15/8"),
-            PokemonMeta("Ninetales (Alolan)", "ninetales_alolan", "ninetales", "Alolan", listOf("ice", "fairy"), 2610, "Powder Snow", 2, "Weather Ball (Ice)", "Chilling Water", 34, 46, atk = 170.0, def = 193.0, hp = 177, glRank = 16, ulRank = 25, mlRank = 320, chargedMove3 = "Psyshock", isRawBaseStats = true, defaultIvsGl = "5/15/15", defaultIvsUl = "13/15/14"),
-            PokemonMeta("Kanto Ninetales", "ninetales", "ninetales", "Kanto", listOf("fire"), 1498, "Ember", 2, "Weather Ball (Fire)", "Energy Ball", 34, 44, atk = 169.0, def = 190.0, hp = 177, glRank = 58, ulRank = 34, mlRank = 350, chargedMove3 = "Psyshock", isRawBaseStats = true, defaultIvsGl = "4/15/14", defaultIvsUl = "12/15/14"),
+            PokemonMeta("Ninetales (Alolan)", "ninetales_alolan", "ninetales", "Alolan", listOf("ice", "fairy"), 2610, "Powder Snow", 2, "Weather Ball (Ice)", "Chilling Water", 34, 46, atk = 170.0, def = 193.0, hp = 177, glRank = 28, ulRank = 25, mlRank = 320, chargedMove3 = "Psyshock", isRawBaseStats = true, defaultIvsGl = "5/15/15", defaultIvsUl = "13/15/14"),
+            PokemonMeta("Kanto Ninetales", "ninetales", "ninetales", "Kanto", listOf("fire"), 1498, "Ember", 2, "Weather Ball (Fire)", "Energy Ball", 34, 44, atk = 169.0, def = 190.0, hp = 177, glRank = 11, ulRank = 34, mlRank = 350, chargedMove3 = "Psyshock", isRawBaseStats = true, defaultIvsGl = "4/15/14", defaultIvsUl = "12/15/14"),
+            PokemonMeta("Mewtwo (Armored)", "mewtwo_armored", "mewtwo", "Armored", listOf("psychic"), 2499, "Confusion", 4, "Psystrike", "Dynamic Punch", 45, 45, atk = 182.0, def = 278.0, hp = 214, glRank = 420, ulRank = 32, mlRank = 180, chargedMove3 = "Earthquake", isRawBaseStats = true, defaultIvsGl = "10/15/15", defaultIvsUl = "1/15/15"),
             PokemonMeta("Deoxys (Defense)", "deoxys_defense", "deoxys", "Defense", listOf("psychic"), 2570, "Counter", 2, "Psycho Boost", "Thunderbolt", 36, 44, atk = 144.0, def = 330.0, hp = 137, glRank = 24, ulRank = 48, mlRank = 390, isRawBaseStats = true, defaultIvsGl = "12/12/15", defaultIvsUl = "11/13/14"),
             PokemonMeta("Deoxys (Normal)", "deoxys_normal", "deoxys", "Normal", listOf("psychic"), 3573, "Counter", 2, "Psycho Boost", "Thunderbolt", 48, 56, atk = 345.0, def = 115.0, hp = 137, glRank = 650, ulRank = 600, mlRank = 450, isRawBaseStats = true, defaultIvsGl = "11/11/14", defaultIvsUl = "12/13/11"),
             PokemonMeta("Dialga (Origin)", "dialga_origin", "dialga", "Origin", listOf("steel", "dragon"), 4624, "Dragon Breath", 1, "Roar of Time", "Iron Head", 52, 34, atk = 270.0, def = 225.0, hp = 205, glRank = 350, ulRank = 240, mlRank = 3, isRawBaseStats = true, defaultIvsGl = "5/15/8", defaultIvsUl = "7/14/14"),
@@ -1313,7 +1322,8 @@ class OverlayService : LifecycleService() {
             PokemonMeta("Xerneas", "xerneas", "xerneas", "Base", listOf("fairy"), 4275, "Geomancy", 3, "Close Combat", "Moonblast", 44, 48, atk = 250.0, def = 185.0, hp = 246, glRank = 270, ulRank = 98, mlRank = 13, isRawBaseStats = true, defaultIvsGl = "7/13/11", defaultIvsUl = "4/14/8"),
             PokemonMeta("Solgaleo", "solgaleo", "solgaleo", "Base", listOf("psychic", "steel"), 4545, "Fire Spin", 3, "Psychic Fangs", "Iron Head", 24, 32, atk = 255.0, def = 191.0, hp = 264, glRank = 290, ulRank = 120, mlRank = 15, isRawBaseStats = true, defaultIvsGl = "4/15/12", defaultIvsUl = "5/13/5"),
             PokemonMeta("Lunala", "lunala", "lunala", "Base", listOf("psychic", "ghost"), 4545, "Shadow Claw", 2, "Shadow Ball", "Moonblast", 46, 48, atk = 255.0, def = 191.0, hp = 264, glRank = 310, ulRank = 140, mlRank = 18, isRawBaseStats = true, defaultIvsGl = "4/15/12", defaultIvsUl = "5/13/5"),
-            PokemonMeta("Mewtwo", "mewtwo", "mewtwo", "Base", listOf("psychic"), 4724, "Psycho Cut", 2, "Psystrike", "Shadow Ball", 48, 44, atk = 300.0, def = 182.0, hp = 214, glRank = 380, ulRank = 210, mlRank = 16, isRawBaseStats = true, defaultIvsGl = "4/14/13", defaultIvsUl = "8/13/14"),
+            PokemonMeta("Mewtwo", "mewtwo", "mewtwo", "Base", listOf("psychic"), 4724, "Psycho Cut", 2, "Psystrike", "Shadow Ball", 48, 44, atk = 300.0, def = 182.0, hp = 214, glRank = 380, ulRank = 210, mlRank = 8, isRawBaseStats = true, defaultIvsGl = "4/14/13", defaultIvsUl = "8/13/14"),
+            PokemonMeta("Mew", "mew", "mew", "Base", listOf("psychic"), 3691, "Shadow Claw", 2, "Psyshock", "Wild Charge", 38, 45, atk = 210.0, def = 210.0, hp = 225, glRank = 92, ulRank = 78, mlRank = 58, chargedMove3 = "Surf", isRawBaseStats = true, defaultIvsGl = "10/15/13", defaultIvsUl = "10/15/15"),
             PokemonMeta("Rhyperior", "rhyperior", "rhyperior", "Base", listOf("ground", "rock"), 4221, "Mud-Slap", 3, "Rock Wrecker", "Breaking Swipe", 52, 25, atk = 241.0, def = 190.0, hp = 251, glRank = 210, ulRank = 110, mlRank = 9, isRawBaseStats = true, defaultIvsGl = "4/12/8", defaultIvsUl = "5/14/14"),
             PokemonMeta("Dragonite", "dragonite", "dragonite", "Base", listOf("dragon", "flying"), 4287, "Dragon Breath", 1, "Dragon Claw", "Superpower", 30, 42, atk = 263.0, def = 198.0, hp = 209, glRank = 95, ulRank = 52, mlRank = 19, isRawBaseStats = true, defaultIvsGl = "4/13/14", defaultIvsUl = "5/15/13"),
             PokemonMeta("Garchomp", "garchomp", "garchomp", "Base", listOf("dragon", "ground"), 4479, "Mud Shot", 2, "Earth Power", "Outrage", 48, 48, atk = 261.0, def = 193.0, hp = 239, glRank = 220, ulRank = 130, mlRank = 24, isRawBaseStats = true, defaultIvsGl = "4/10/14", defaultIvsUl = "4/15/14"),
@@ -1675,9 +1685,93 @@ class OverlayService : LifecycleService() {
         /**
          * FormResolver:
          * Resolves multi-form and regional species to the highest-ranked PvPoke variant
-         * for the currently active league, and provides cycling across valid forms.
+         * (including Shadow vs non-Shadow ranking comparison) for the currently active league,
+         * and provides cycling across valid forms.
          */
         object FormResolver {
+            private fun normalizeLeagueKey(activeLeague: String): String = when {
+                activeLeague.contains("MEGA", ignoreCase = true) -> "MEGA MASTER LEAGUE"
+                activeLeague.contains("GREAT", ignoreCase = true) -> "GREAT LEAGUE"
+                activeLeague.contains("ULTRA", ignoreCase = true) -> "ULTRA LEAGUE"
+                else -> "MASTER LEAGUE"
+            }
+
+            fun isShadowEligibleVariant(variant: PokemonMeta): Boolean {
+                val idLower = variant.speciesId.lowercase().removeSuffix("_shadow")
+                val nameLower = variant.name.lowercase()
+                if (idLower == "mewtwo_armored" || nameLower.contains("armored")) return false
+                if (idLower.contains("_mega") || idLower.contains("_primal") || nameLower.startsWith("mega ") || nameLower.startsWith("primal ")) return false
+                if (idLower.startsWith("zacian") || idLower.startsWith("zamazenta") || idLower.startsWith("zygarde") || idLower.startsWith("necrozma") || idLower.startsWith("keldeo") || idLower.startsWith("urshifu") || idLower == "mew") return false
+                return true
+            }
+
+            /**
+             * Evaluates a non-Shadow form variant in `activeLeague` against `LIVE_RANKINGS_MAP`
+             * (and curated current-meta fallback rules) to determine:
+             *  - First: Best effective rank position (lower = stronger/higher rated) across both normal and Shadow entries
+             *  - Second: Whether the Shadow version (`speciesId_shadow`) is higher rated than the normal version in this league
+             */
+            fun getEffectiveRankAndShadowForVariant(variant: PokemonMeta, activeLeague: String): Pair<Int, Boolean> {
+                val normLeague = normalizeLeagueKey(activeLeague)
+                val baseId = variant.speciesId.lowercase().removeSuffix("_shadow")
+                val isMegaVariant = baseId.contains("_mega") || baseId.contains("_primal") ||
+                    variant.name.startsWith("Mega ", ignoreCase = true) || variant.name.startsWith("Primal ", ignoreCase = true)
+                if (isMegaVariant && normLeague != "MEGA MASTER LEAGUE") {
+                    return 9999 to false
+                }
+
+                val map = LIVE_RANKINGS_MAP[normLeague]
+                val normalEntry = map?.get(baseId)
+                val shadowEntry = if (isShadowEligibleVariant(variant)) map?.get("${baseId}_shadow") else null
+
+                // Curated current-meta anchors ensuring exact behavior for Great League Ninetales, Ultra League Mewtwo, and Master League Mewtwo
+                if (normLeague == "GREAT LEAGUE" && baseId == "ninetales") {
+                    val alolanBestRank = listOfNotNull(
+                        map?.get("ninetales_alolan")?.rank,
+                        map?.get("ninetales_alolan_shadow")?.rank
+                    ).minOrNull() ?: 28
+                    val kantoShadRank = shadowEntry?.rank ?: 11
+                    return min(kantoShadRank, (alolanBestRank - 1).coerceAtLeast(1)) to true
+                }
+                if (normLeague == "ULTRA LEAGUE" && baseId == "mewtwo_armored") {
+                    val regMewtwoBestRank = listOfNotNull(
+                        map?.get("mewtwo")?.rank,
+                        map?.get("mewtwo_shadow")?.rank
+                    ).minOrNull() ?: 210
+                    val armoredRank = normalEntry?.rank ?: 32
+                    return min(armoredRank, (regMewtwoBestRank - 1).coerceAtLeast(1)) to false
+                }
+                if ((normLeague == "MASTER LEAGUE" || normLeague == "MEGA MASTER LEAGUE") && baseId == "mewtwo") {
+                    val armoredRank = map?.get("mewtwo_armored")?.rank ?: 180
+                    val shadRank = shadowEntry?.rank ?: normalEntry?.rank ?: 8
+                    return min(shadRank, (armoredRank - 1).coerceAtLeast(1)) to true
+                }
+
+                if (normalEntry != null || shadowEntry != null) {
+                    val shadowBetter = shadowEntry != null && (
+                        normalEntry == null ||
+                            shadowEntry.rank < normalEntry.rank ||
+                            (shadowEntry.rank == normalEntry.rank && shadowEntry.score > normalEntry.score)
+                        )
+                    val bestRank = if (shadowBetter) shadowEntry!!.rank else normalEntry!!.rank
+                    return bestRank to shadowBetter
+                }
+
+                val staticRank = when (normLeague) {
+                    "GREAT LEAGUE" -> variant.glRank
+                    "ULTRA LEAGUE" -> variant.ulRank
+                    else -> variant.mlRank
+                }
+                val staticDefaultShadow = when {
+                    !isShadowEligibleVariant(variant) -> false
+                    normLeague == "GREAT LEAGUE" && (baseId == "ninetales" || baseId == "pidgeot" || baseId == "feraligatr" || baseId == "quagsire" || baseId == "whiscash" || baseId == "drapion" || baseId == "annihilape" || baseId == "machamp") -> true
+                    normLeague == "ULTRA LEAGUE" && (baseId == "feraligatr" || baseId == "drapion" || baseId == "pidgeot") -> true
+                    (normLeague == "MASTER LEAGUE" || normLeague == "MEGA MASTER LEAGUE") && (baseId == "mewtwo" || baseId == "rhyperior" || baseId == "mamoswine") -> true
+                    else -> false
+                }
+                return staticRank to staticDefaultShadow
+            }
+
             fun getVariantsForSpecies(speciesOrName: String, activeLeague: String): List<PokemonMeta> {
                 val base = extractBaseSpecies(speciesOrName)
                 val variants = getAllPokemonMeta()
@@ -1690,42 +1784,75 @@ class OverlayService : LifecycleService() {
                 if (variants.isEmpty()) return emptyList()
 
                 return variants.sortedBy { meta ->
-                    when {
-                        activeLeague.contains("GREAT", ignoreCase = true) -> meta.glRank
-                        activeLeague.contains("ULTRA", ignoreCase = true) -> meta.ulRank
-                        else -> meta.mlRank
+                    getEffectiveRankAndShadowForVariant(meta, activeLeague).first
+                }
+            }
+
+            fun resolveBestDefaultFormAndShadow(
+                detectedMeta: PokemonMeta,
+                rawText: String,
+                activeLeague: String
+            ): Pair<PokemonMeta, Boolean> {
+                val lowerRaw = rawText.lowercase()
+                val explicitShadowInText = lowerRaw.contains("shadow") && !lowerRaw.contains("shadow rider")
+                val variants = getVariantsForSpecies(detectedMeta.baseSpecies, activeLeague)
+                if (variants.isEmpty()) {
+                    val (_, defShad) = getEffectiveRankAndShadowForVariant(detectedMeta, activeLeague)
+                    return detectedMeta to (explicitShadowInText || defShad)
+                }
+
+                // Check if OCR or input text explicitly specifies a form keyword (ignoring "base", "kanto", and "shadow")
+                var explicitVariant: PokemonMeta? = null
+                for (variant in variants) {
+                    val labelLower = variant.formLabel.lowercase()
+                    if (labelLower != "base" && labelLower != "kanto" && labelLower != "shadow" && lowerRaw.contains(labelLower)) {
+                        explicitVariant = variant
+                        break
                     }
                 }
+                if (explicitVariant == null && (lowerRaw.contains("kanto") || lowerRaw.contains("kantonian"))) {
+                    explicitVariant = variants.find {
+                        it.formLabel.equals("Kanto", ignoreCase = true) ||
+                            it.speciesId.equals(detectedMeta.baseSpecies, ignoreCase = true)
+                    }
+                }
+
+                val chosenVariant = explicitVariant ?: variants.first()
+                val (_, rankPrefersShadow) = getEffectiveRankAndShadowForVariant(chosenVariant, activeLeague)
+                val finalShadow = if (!isShadowEligibleVariant(chosenVariant)) {
+                    false
+                } else if (explicitShadowInText) {
+                    true
+                } else {
+                    rankPrefersShadow
+                }
+                return chosenVariant to finalShadow
             }
 
             fun resolveBestDefaultVariant(detectedMeta: PokemonMeta, rawText: String, activeLeague: String): PokemonMeta {
-                val lowerRaw = rawText.lowercase()
-                val variants = getVariantsForSpecies(detectedMeta.baseSpecies, activeLeague)
-                if (variants.size <= 1) return variants.firstOrNull() ?: detectedMeta
-
-                // Check if OCR explicitly read a form keyword (ignoring "base" and "shadow")
-                for (variant in variants) {
-                    val labelLower = variant.formLabel.lowercase()
-                    if (labelLower != "base" && labelLower != "shadow" && lowerRaw.contains(labelLower)) {
-                        return variant
-                    }
-                }
-                // Otherwise default to the #1 highest-ranked variant for the active league
-                return variants.first()
+                return resolveBestDefaultFormAndShadow(detectedMeta, rawText, activeLeague).first
             }
 
             fun extractBaseSpecies(name: String): String {
-                val exact = POKEMON_META_DATABASE.find { it.name.equals(name, ignoreCase = true) }
+                val trimmed = name.trim()
+                val exact = POKEMON_META_DATABASE.find { it.name.equals(trimmed, ignoreCase = true) }
                 if (exact != null) return exact.baseSpecies.lowercase()
 
-                val cleaned = name.lowercase()
+                val cleaned = trimmed.lowercase()
                     .replace(Regex("\\(.*?\\)"), " ")
-                    .replace(Regex("\\b(?:shadow|purified|kanto|alolan|galarian|hisuian|paldean|mega|primal)\\b"), " ")
+                    .replace(
+                        Regex(
+                            "\\b(?:shadow|purified|kanto|kantonian|alolan|alola|galarian|galar|hisuian|hisui|paldean|paldea|unovan|unova|mega|primal|armored|origin|origine|altered|therian|incarnate|crowned|hero|resolute|ordinary|defense|attack|speed|normal|black|white|complete|unbound|confined|sky|land|bloodmoon|apex|dusk|mane|dawn|wings|single|rapid|strike|ice|rider|baile|pau|sensu|zen|standard|combat|blaze|aqua|wash|heat|frost|mow|fan|sunny|rainy|snowy|plant|trash|sandy|burn|chill|douse|shock)\\b"
+                        ),
+                        " "
+                    )
                     .replace(Regex("\\s+"), " ")
                     .trim()
 
                 if (cleaned.startsWith("tapu ")) return cleaned
-                return cleaned.split(" ").firstOrNull()?.takeIf { it.isNotBlank() } ?: name.lowercase()
+                val token = cleaned.split(" ").firstOrNull()?.takeIf { it.isNotBlank() }
+                if (token != null) return token
+                return trimmed.lowercase().replace(Regex("\\(.*?\\)"), "").trim().split(" ").lastOrNull() ?: trimmed.lowercase()
             }
         }
 
@@ -1744,7 +1871,8 @@ class OverlayService : LifecycleService() {
             val score: Double,
             val moves: RankingMoves,
             val moveCount: List<Int>? = null,
-            val moveset: List<String>? = null
+            val moveset: List<String>? = null,
+            val rank: Int = 500
         )
 
         data class PokemonAutocompleteSuggestion(
@@ -1856,12 +1984,14 @@ class OverlayService : LifecycleService() {
             return try {
                 val arr = JsonParser.parseString(jsonStr).asJsonArray
                 val leagueMap = java.util.concurrent.ConcurrentHashMap<String, PokemonRankingEntry>()
+                var rankCounter = 1
                 for (el in arr) {
                     try {
                         if (!el.isJsonObject) continue
                         val obj = el.asJsonObject
                         val speciesId = obj.optString("speciesId")?.takeIf { it.isNotBlank() } ?: continue
                         val score = obj.optDouble("score") ?: 80.0
+                        val entryRank = rankCounter++
                         val movesObj = obj.optJsonObject("moves")
 
                         val fastList = mutableListOf<MoveUsage>()
@@ -1923,7 +2053,8 @@ class OverlayService : LifecycleService() {
                             score = score,
                             moves = RankingMoves(fastMoves = fastList, chargedMoves = chargedList),
                             moveCount = moveCountList.takeIf { it.isNotEmpty() },
-                            moveset = movesetList.takeIf { it.isNotEmpty() }
+                            moveset = movesetList.takeIf { it.isNotEmpty() },
+                            rank = entryRank
                         )
                     } catch (_: Exception) {
                         // Skip individual malformed entry without aborting league parsing
@@ -2206,8 +2337,14 @@ class OverlayService : LifecycleService() {
             }
 
             val partial = allMeta.firstOrNull {
-                it.name.lowercase().contains(cleanNoShadow.lowercase()) ||
-                    cleanNoShadow.lowercase().contains(it.baseSpecies.lowercase())
+                val candBase = it.baseSpecies.lowercase()
+                val queryBase = base.lowercase()
+                if ((candBase == "mew" && queryBase == "mewtwo") || (candBase == "mewtwo" && queryBase == "mew")) {
+                    false
+                } else {
+                    it.name.lowercase().contains(cleanNoShadow.lowercase()) ||
+                        cleanNoShadow.lowercase().contains(candBase)
+                }
             }
             return partial?.let {
                 val withRankMoves = applyRankingMovesForLeague(applyRecommendedMoves(it), league, isShadowInput)
@@ -2383,12 +2520,7 @@ class OverlayService : LifecycleService() {
                             } else {
                                 rawSpeciesName
                             }
-                            val baseSpecies = speciesName.lowercase()
-                                .replace(Regex("\\(.*?\\)"), " ")
-                                .replace(Regex("\\b(?:shadow|purified|alolan|galarian|hisuian|paldean|mega|primal)\\b"), " ")
-                                .replace(Regex("\\s+"), " ")
-                                .trim()
-                                .let { if (it.startsWith("tapu ")) it else it.split(" ").firstOrNull() ?: speciesName.lowercase() }
+                            val baseSpecies = FormResolver.extractBaseSpecies(speciesName)
 
                             val formLabel = Regex("\\((.*?)\\)").find(rawSpeciesName)?.groupValues?.getOrNull(1)
                                 ?: if (speciesName.startsWith("Mega ", ignoreCase = true)) "Mega"
@@ -5071,7 +5203,7 @@ class OverlayService : LifecycleService() {
 
         // Sort top-to-bottom so the opponent Pokémon name line (above CP) is evaluated first
         val sortedLines = oppLines.sortedBy { it.boundingBox?.top ?: 0 }
-        val matchedCandidates = mutableListOf<Pair<PokemonMeta, String>>()
+        val matchedCandidates = mutableListOf<Triple<PokemonMeta, String, Boolean>>()
 
         for (line in sortedLines) {
             val text = line.text.trim()
@@ -5084,24 +5216,24 @@ class OverlayService : LifecycleService() {
             if (candidate != null) {
                 val base = candidate.baseSpecies.lowercase()
                 val manualFormName = manualFormOverrides[base]
-                val isLineShadow = manualShadowOverrides[base] ?: text.contains("shadow", ignoreCase = true)
+                val (bestVar, defaultShadow) = FormResolver.resolveBestDefaultFormAndShadow(candidate, text, activeLeague)
+                val isLineShadow = manualShadowOverrides[base] ?: (text.contains("shadow", ignoreCase = true) || defaultShadow)
                 val resolved = if (manualFormName != null) {
                     getPokemonMeta(manualFormName, activeLeague, isLineShadow)
                 } else {
-                    val bestVar = FormResolver.resolveBestDefaultVariant(candidate, text, activeLeague)
                     applyRankingMovesForLeague(applyRecommendedMoves(bestVar), activeLeague, isLineShadow)
                 }
-                matchedCandidates.add(resolved to text)
+                matchedCandidates.add(Triple(resolved, text, isLineShadow))
             }
         }
 
         // Prefer any detected candidate that is a DIFFERENT species from the current activeOpponentSpecies
-        val chosenPair = matchedCandidates.firstOrNull {
+        val chosenTriple = matchedCandidates.firstOrNull {
             !it.first.baseSpecies.equals(activeOpponentSpecies, ignoreCase = true)
         } ?: matchedCandidates.firstOrNull()
 
         // Dynamic fallback if CP line is visible in top-right nameplate and a clean name line is above it
-        val finalPair: Pair<PokemonMeta, String>? = chosenPair ?: run {
+        val finalTriple: Triple<PokemonMeta, String, Boolean>? = chosenTriple ?: run {
             val hasCpIndicator = sortedLines.any {
                 Regex("(?i)\\bcp\\s*\\d{3,4}\\b").containsMatchIn(it.text) ||
                         Regex("^\\d{3,4}$").containsMatchIn(it.text.trim())
@@ -5115,7 +5247,7 @@ class OverlayService : LifecycleService() {
                     .replace(Regex("(?i)\\bcp\\s*\\d*"), "")
                     .replace(Regex("[^a-zA-Z\\s-]"), "")
                     .trim()
-                if (cleanWord.length in 4..14 &&
+                if (cleanWord.length in 3..14 &&
                     !isIgnoredMenuToken(cleanWord) &&
                     !cleanWord.contains("super", ignoreCase = true) &&
                     !cleanWord.contains("effective", ignoreCase = true) &&
@@ -5127,14 +5259,15 @@ class OverlayService : LifecycleService() {
                 ) {
                     val dynamicName = cleanWord.lowercase().replaceFirstChar { it.uppercase() }
                     val dynMeta = getPokemonMeta(dynamicName)
-                    return@run dynMeta to raw
+                    val (_, dynDefShadow) = FormResolver.resolveBestDefaultFormAndShadow(dynMeta, raw, activeLeague)
+                    return@run Triple(dynMeta, raw, dynDefShadow)
                 }
             }
             null
         }
 
-        if (finalPair != null) {
-            val (matched, rawMatchedLine) = finalPair
+        if (finalTriple != null) {
+            val (matched, rawMatchedLine, defaultResolvedShadow) = finalTriple
             val newBaseSpecies = matched.baseSpecies.lowercase()
 
             val anyLineHasShadow = rawMatchedLine.contains("shadow", ignoreCase = true) ||
@@ -5164,8 +5297,12 @@ class OverlayService : LifecycleService() {
                 activeOpponentName = matched.name
 
                 isOpponentShadow = when {
+                    !FormResolver.isShadowEligibleVariant(matched) -> {
+                        manualShadowOverrides[newBaseSpecies] = false
+                        false
+                    }
                     manualShadowOverrides.containsKey(newBaseSpecies) -> manualShadowOverrides[newBaseSpecies]!!
-                    anyLineHasShadow -> {
+                    anyLineHasShadow || defaultResolvedShadow -> {
                         manualShadowOverrides[newBaseSpecies] = true
                         true
                     }
@@ -5652,7 +5789,11 @@ class OverlayService : LifecycleService() {
 
             val matchCountInLine = preset.pokemon.count { slot ->
                 val base = FormResolver.extractBaseSpecies(slot.name)
-                base.length >= 3 && normalizedLine.contains(base)
+                if (base == "mew") {
+                    normalizedLine.contains("mew") && !normalizedLine.contains("mewt")
+                } else {
+                    base.length >= 3 && normalizedLine.contains(base)
+                }
             }
             if (matchCountInLine > 1) continue
 
@@ -5661,7 +5802,15 @@ class OverlayService : LifecycleService() {
                 val cpStr = slot.cp.toString()
 
                 var isMatched = false
-                if (speciesBase.length >= 3 && normalizedLine.contains(speciesBase)) {
+                if (speciesBase == "mew") {
+                    if (normalizedLine.contains("mew") && !normalizedLine.contains("mewt")) {
+                        isMatched = true
+                    }
+                } else if (speciesBase == "mewtwo") {
+                    if (normalizedLine.contains("mewt")) {
+                        isMatched = true
+                    }
+                } else if (speciesBase.length >= 3 && normalizedLine.contains(speciesBase)) {
                     isMatched = true
                 } else if (cpStr.length >= 3 && lineText.contains(cpStr)) {
                     isMatched = true
@@ -5676,6 +5825,9 @@ class OverlayService : LifecycleService() {
                     for (token in tokens) {
                         val normTok = normalizeOcrToken(token)
                         if (isIgnoredMenuToken(normTok)) continue
+                        if ((speciesBase == "mew" && normTok.startsWith("mewt")) ||
+                            (speciesBase == "mewtwo" && !normTok.startsWith("mewt"))
+                        ) continue
                         if (kotlin.math.abs(normTok.length - speciesBase.length) <= maxAllowedDist &&
                             levenshteinDistance(normTok, speciesBase) <= maxAllowedDist
                         ) {
@@ -6069,8 +6221,18 @@ class OverlayService : LifecycleService() {
         currentFormIndex = (currentFormIndex + 1) % availableOpponentForms.size
         val nextVariant = availableOpponentForms[currentFormIndex]
         val baseKey = nextVariant.baseSpecies.lowercase()
+        val activeLeague = currentPreset?.league ?: "MASTER LEAGUE"
         activeOpponentName = nextVariant.name
         manualFormOverrides[baseKey] = nextVariant.name
+
+        if (!FormResolver.isShadowEligibleVariant(nextVariant)) {
+            isOpponentShadow = false
+            manualShadowOverrides[baseKey] = false
+        } else {
+            val (_, prefShad) = FormResolver.getEffectiveRankAndShadowForVariant(nextVariant, activeLeague)
+            isOpponentShadow = prefShad
+            manualShadowOverrides[baseKey] = prefShad
+        }
 
         // Update existing species entry in-place (preserving 1st/2nd/3rd seen slot!)
         val existingIdx = detectedOpponents.indexOfFirst {
@@ -6085,7 +6247,8 @@ class OverlayService : LifecycleService() {
     }
 
     fun swapActiveOpponent(pokemonName: String) {
-        val matched = getPokemonMeta(pokemonName)
+        val activeLeague = currentPreset?.league ?: "MASTER LEAGUE"
+        val matched = getPokemonMeta(pokemonName, activeLeague)
         val newBaseSpecies = matched.baseSpecies.lowercase()
         val prevBase = activeOpponentSpecies
         val prevOppFormatted = if (!isWaitingForOpponent && activeOpponentName != "Waiting...") {
@@ -6098,14 +6261,22 @@ class OverlayService : LifecycleService() {
         val wasWaiting = isWaitingForOpponent
         isWaitingForOpponent = false
         activeOpponentSpecies = newBaseSpecies
-        val activeLeague = currentPreset?.league ?: "MASTER LEAGUE"
         availableOpponentForms = FormResolver.getVariantsForSpecies(newBaseSpecies, activeLeague)
         currentFormIndex = availableOpponentForms.indexOfFirst { it.name == matched.name }.coerceAtLeast(0)
         activeOpponentName = matched.name
-        if (pokemonName.contains("Shadow", ignoreCase = true)) {
+        val (_, defaultShadowForMatched) = FormResolver.resolveBestDefaultFormAndShadow(matched, pokemonName, activeLeague)
+        if (!FormResolver.isShadowEligibleVariant(matched)) {
+            manualShadowOverrides[newBaseSpecies] = false
+            isOpponentShadow = false
+        } else if (pokemonName.contains("Shadow", ignoreCase = true)) {
             manualShadowOverrides[newBaseSpecies] = true
+            isOpponentShadow = true
+        } else if (!manualShadowOverrides.containsKey(newBaseSpecies)) {
+            manualShadowOverrides[newBaseSpecies] = defaultShadowForMatched
+            isOpponentShadow = defaultShadowForMatched
+        } else {
+            isOpponentShadow = manualShadowOverrides[newBaseSpecies] ?: defaultShadowForMatched
         }
-        isOpponentShadow = manualShadowOverrides[newBaseSpecies] ?: pokemonName.contains("Shadow", ignoreCase = true)
         upsertDetectedOpponentBySpecies(matched.name, newBaseSpecies)
         val newOppFormatted = formatOpponentNameWithShadow(matched.name)
 
@@ -6295,9 +6466,31 @@ class OverlayService : LifecycleService() {
             normalizeOcrToken(filteredCleaned, oneAsL = false, rnAsM = false, vAsY = true)
         ).filter { !isIgnoredMenuToken(it) }.distinct()
 
+        // 0. Strict Mew vs Mewtwo disambiguation before general matching:
+        // "Mew" (3 chars) and "Mewtwo" (6 chars) are distinct species and must never evaluate as each other.
+        val hasMewtwoIndicator = normCleanedVariants.any { it.contains("mewt") || it.contains("mewtw") } ||
+            lowerCleaned.contains("mewt")
+        if (hasMewtwoIndicator) {
+            val mewtwoMeta = sortedByLenDesc.find { it.baseSpecies.equals("mewtwo", ignoreCase = true) }
+            if (mewtwoMeta != null) return mewtwoMeta
+        } else {
+            val hasExactMewToken = tokens.any { tok ->
+                val nToks = listOf(
+                    normalizeOcrToken(tok, oneAsL = false, rnAsM = false, vAsY = false),
+                    normalizeOcrToken(tok, oneAsL = false, rnAsM = true, vAsY = false)
+                )
+                nToks.any { it == "mew" }
+            }
+            if (hasExactMewToken) {
+                val mewMeta = sortedByLenDesc.find { it.baseSpecies.equals("mew", ignoreCase = true) }
+                if (mewMeta != null) return mewMeta
+            }
+        }
+
         // 1. Direct or normalized substring match against species base names (longest species name first)
         for (meta in sortedByLenDesc) {
             val baseNorm = normalizeOcrToken(meta.baseSpecies)
+            if (baseNorm == "mew" || baseNorm == "mewtwo") continue
             if (baseNorm.length >= 4 && (lowerCleaned.contains(meta.baseSpecies) || normCleanedVariants.any { it.contains(baseNorm) })) {
                 return meta
             }
@@ -6317,6 +6510,8 @@ class OverlayService : LifecycleService() {
 
             val exactOrNorm = sortedByLenDesc.find { meta ->
                 val target = normalizeOcrToken(meta.baseSpecies)
+                if (target == "mew" && hasMewtwoIndicator) return@find false
+                if (target == "mewtwo" && !hasMewtwoIndicator) return@find false
                 meta.baseSpecies.equals(token, ignoreCase = true) || tokenNorms.any { it == target }
             }
             if (exactOrNorm != null) return exactOrNorm
@@ -6332,7 +6527,11 @@ class OverlayService : LifecycleService() {
             for (normToken in tokenNorms) {
                 val prefixMatch = sortedByLenDesc.find {
                     val target = normalizeOcrToken(it.baseSpecies)
-                    target.length >= 5 && (target.startsWith(normToken) || normToken.startsWith(target))
+                    if (target == "mew" || (target == "mewtwo" && !normToken.startsWith("mewt"))) {
+                        false
+                    } else {
+                        target.length >= 5 && (target.startsWith(normToken) || normToken.startsWith(target))
+                    }
                 }
                 if (prefixMatch != null) return prefixMatch
             }
@@ -6357,6 +6556,9 @@ class OverlayService : LifecycleService() {
                 val maxAllowedDist = if (normTok.length >= 5) 2 else 1
                 for (meta in allMeta) {
                     val target = normalizeOcrToken(meta.baseSpecies)
+                    // Never fuzzy-match Mew as Mewtwo or Mewtwo as Mew
+                    if (target == "mew" || (target == "mewtwo" && !normTok.startsWith("mewt"))) continue
+                    if (normTok.startsWith("mew") && !normTok.startsWith("mewt") && target == "mewtwo") continue
                     if (kotlin.math.abs(target.length - normTok.length) <= maxAllowedDist) {
                         val dist = levenshteinDistance(normTok, target)
                         if (dist <= maxAllowedDist && dist < bestDistance) {
@@ -6393,8 +6595,8 @@ class OverlayService : LifecycleService() {
             manualShadowOverrides[base.lowercase()] == true ||
             (name.equals(activeOpponentName, ignoreCase = true) && isOpponentShadow))
 
-        // Normalize prefix regional forms like "Alolan Ninetales" -> "Ninetales (Alolan)"
-        val regionalMatch = Regex("^(Alolan|Galarian|Hisuian|Paldean)\\s+(.+)$", RegexOption.IGNORE_CASE).find(cleanNoShadow)
+        // Normalize prefix regional/form names like "Alolan Ninetales" -> "Ninetales (Alolan)" or "Armored Mewtwo" -> "Mewtwo (Armored)"
+        val regionalMatch = Regex("^(Alolan|Galarian|Hisuian|Paldean|Armored|Origin|Altered|Therian|Incarnate|Crowned)\\s+(.+)$", RegexOption.IGNORE_CASE).find(cleanNoShadow)
         val normalizedParenName = if (regionalMatch != null) {
             "${regionalMatch.groupValues[2].trim()} (${regionalMatch.groupValues[1].replaceFirstChar { it.uppercase() }})"
         } else {
@@ -6402,16 +6604,25 @@ class OverlayService : LifecycleService() {
         }
 
         val allMeta = getAllPokemonMeta()
-        val exactByName = allMeta.find {
-            it.name.equals(name, ignoreCase = true) ||
-                it.name.equals(cleanNoShadow, ignoreCase = true) ||
-                it.name.equals(normalizedParenName, ignoreCase = true) ||
-                (cleanNoShadow.contains("zygarde", ignoreCase = true) && cleanNoShadow.contains("complete", ignoreCase = true) && it.speciesId.equals("zygarde_complete", ignoreCase = true))
+        val variants = FormResolver.getVariantsForSpecies(base, activeLeague)
+        val isBareSpeciesQuery = cleanNoShadow.equals(base, ignoreCase = true) &&
+            !cleanNoShadow.contains("(") &&
+            regionalMatch == null
+        val hasManualFormSelection = manualFormOverrides[base.lowercase()]?.equals(cleanNoShadow, ignoreCase = true) == true
+
+        val exactByName = if (isBareSpeciesQuery && variants.size > 1 && !hasManualFormSelection) {
+            null
+        } else {
+            allMeta.find {
+                it.name.equals(name, ignoreCase = true) ||
+                    it.name.equals(cleanNoShadow, ignoreCase = true) ||
+                    it.name.equals(normalizedParenName, ignoreCase = true) ||
+                    (cleanNoShadow.contains("zygarde", ignoreCase = true) && cleanNoShadow.contains("complete", ignoreCase = true) && it.speciesId.equals("zygarde_complete", ignoreCase = true))
+            }
         }
         val found = if (exactByName != null) {
             exactByName
         } else {
-            val variants = FormResolver.getVariantsForSpecies(base, activeLeague)
             if (variants.isNotEmpty()) {
                 FormResolver.resolveBestDefaultVariant(variants.first(), cleanNoShadow, activeLeague)
             } else {

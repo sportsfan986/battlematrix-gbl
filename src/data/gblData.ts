@@ -724,6 +724,60 @@ export const POKEMON_DATABASE: Record<string, PokemonStats> = {
     ],
     color: "#c084fc"
   },
+  "Mewtwo (Armored)": {
+    speciesId: "mewtwo_armored",
+    name: "Mewtwo (Armored)",
+    baseSpecies: "mewtwo",
+    formLabel: "Armored",
+    types: ["psychic"],
+    baseStats: { atk: 182, def: 278, hp: 214 },
+    isRawBaseStats: true,
+    defaultIvsGl: "1/15/15",
+    defaultIvsUl: "1/15/15",
+    defaultFastMove: { name: "Confusion", type: "psychic", turns: 4, power: 16, energyGain: 12 },
+    chargedMoves: [
+      { name: "Psystrike", code: "PS", type: "psychic", power: 90, energyCost: 45 },
+      { name: "Dynamic Punch", code: "DP", type: "fighting", power: 85, energyCost: 45 },
+      { name: "Earthquake", code: "EQ", type: "ground", power: 110, energyCost: 65 }
+    ],
+    color: "#9333ea"
+  },
+  "Armored Mewtwo": {
+    speciesId: "mewtwo_armored",
+    name: "Mewtwo (Armored)",
+    baseSpecies: "mewtwo",
+    formLabel: "Armored",
+    types: ["psychic"],
+    baseStats: { atk: 182, def: 278, hp: 214 },
+    isRawBaseStats: true,
+    defaultIvsGl: "1/15/15",
+    defaultIvsUl: "1/15/15",
+    defaultFastMove: { name: "Confusion", type: "psychic", turns: 4, power: 16, energyGain: 12 },
+    chargedMoves: [
+      { name: "Psystrike", code: "PS", type: "psychic", power: 90, energyCost: 45 },
+      { name: "Dynamic Punch", code: "DP", type: "fighting", power: 85, energyCost: 45 },
+      { name: "Earthquake", code: "EQ", type: "ground", power: 110, energyCost: 65 }
+    ],
+    color: "#9333ea"
+  },
+  "Mew": {
+    speciesId: "mew",
+    name: "Mew",
+    baseSpecies: "mew",
+    formLabel: "Base",
+    types: ["psychic"],
+    baseStats: { atk: 210, def: 210, hp: 225 },
+    isRawBaseStats: true,
+    defaultIvsGl: "10/15/13",
+    defaultIvsUl: "0/14/15",
+    defaultFastMove: { name: "Shadow Claw", type: "ghost", turns: 2, power: 6, energyGain: 8 },
+    chargedMoves: [
+      { name: "Psyshock", code: "PS", type: "psychic", power: 70, energyCost: 45 },
+      { name: "Wild Charge", code: "WC", type: "electric", power: 100, energyCost: 45 },
+      { name: "Surf", code: "Su", type: "water", power: 65, energyCost: 40 }
+    ],
+    color: "#f472b6"
+  },
   "Feraligatr": {
     speciesId: "feraligatr",
     name: "Feraligatr",
@@ -1372,18 +1426,81 @@ export const SPECIES_VARIANTS: Record<string, string[]> = {
   zamazenta: ["Zamazenta (Crowned)", "Zamazenta (Hero)"],
   keldeo: ["Keldeo (Resolute)", "Keldeo (Ordinary)"],
   giratina: ["Giratina (Origin)", "Giratina (Altered)"],
-  ninetales: ["Ninetales (Alolan)", "Kanto Ninetales"],
+  ninetales: ["Kanto Ninetales", "Ninetales (Alolan)"],
   dialga: ["Dialga (Origin)"],
   kyurem: ["Kyurem (Black)", "Kyurem (White)", "Kyurem"],
   kyogre: ["Kyogre", "Primal Kyogre"],
   groudon: ["Primal Groudon"],
-  mewtwo: ["Mewtwo", "Mega Mewtwo Y"]
+  mewtwo: ["Mewtwo", "Mewtwo (Armored)", "Mega Mewtwo Y"],
+  mew: ["Mew"]
 };
 
 export function getAvailableFormsForPokemon(name: string): string[] {
   const stats = POKEMON_DATABASE[name];
   const base = stats?.baseSpecies || name.split(" ")[0].toLowerCase();
   return SPECIES_VARIANTS[base] || [name];
+}
+
+export function resolveBestDefaultFormAndShadow(
+  rawName: string,
+  league: LeagueType
+): { formName: string; isShadow: boolean } {
+  const trimmed = (rawName || "").trim();
+  const lower = trimmed.toLowerCase();
+  const explicitShadow = /^shadow\s+|\(\s*shadow\s*\)/i.test(trimmed);
+  const cleanName = trimmed
+    .replace(/^shadow\s+/i, "")
+    .replace(/\(\s*shadow\s*\)/gi, "")
+    .trim();
+  const hasExplicitForm =
+    /\([^)]+\)/.test(cleanName) ||
+    /^(alolan|galarian|hisuian|paldean|kanto|armored|origin|altered|crowned|hero|therian|incarnate|mega|primal)\b/i.test(
+      cleanName
+    );
+  if (hasExplicitForm && POKEMON_DATABASE[cleanName]) {
+    return { formName: POKEMON_DATABASE[cleanName].name, isShadow: explicitShadow };
+  }
+
+  const base = (
+    POKEMON_DATABASE[cleanName]?.baseSpecies ||
+    cleanName
+      .replace(/^(alolan|galarian|hisuian|paldean|kanto|armored)\s+/i, "")
+      .replace(/\s*\([^)]+\)/g, "")
+      .trim()
+  ).toLowerCase();
+
+  if (base === "mew" && lower !== "mewtwo" && !lower.includes("mewtwo")) {
+    return { formName: "Mew", isShadow: false };
+  }
+  if (base === "ninetales") {
+    if (league === "GREAT LEAGUE") {
+      return { formName: "Kanto Ninetales", isShadow: true };
+    }
+    return { formName: "Ninetales (Alolan)", isShadow: explicitShadow };
+  }
+  if (base === "mewtwo") {
+    if (league === "ULTRA LEAGUE") {
+      return { formName: "Mewtwo (Armored)", isShadow: false };
+    }
+    if (league === "MEGA MASTER LEAGUE") {
+      return { formName: "Mega Mewtwo Y", isShadow: false };
+    }
+    return { formName: "Mewtwo", isShadow: true };
+  }
+  if (base === "giratina") {
+    if (league === "ULTRA LEAGUE") {
+      return { formName: "Giratina (Altered)", isShadow: explicitShadow };
+    }
+    return { formName: "Giratina (Origin)", isShadow: false };
+  }
+  if (base === "feraligatr") {
+    return { formName: "Feraligatr", isShadow: true };
+  }
+
+  return {
+    formName: POKEMON_DATABASE[cleanName]?.name || cleanName || rawName,
+    isShadow: explicitShadow
+  };
 }
 
 /**
@@ -2779,10 +2896,17 @@ export function getPokemonAutocompleteSuggestions(
 
   // 1. Identify all matched baseSpecies keys so typing a base form (e.g. "ninetales", "giratina", "feraligatr")
   // pulls in ALL alternate forms & Shadow options for that base species!
+  // Strict disambiguation: "mew" must never pull in "mewtwo" and vice versa.
   const matchedBaseSpecies = new Set<string>();
   for (const opt of poolByName.values()) {
     const nameLower = opt.name.toLowerCase();
     const baseLower = opt.baseSpecies.toLowerCase();
+    if (
+      (searchToken === "mew" && baseLower === "mewtwo") ||
+      (searchToken === "mewtwo" && baseLower === "mew")
+    ) {
+      continue;
+    }
     if (
       baseLower.startsWith(searchToken) ||
       baseLower.includes(searchToken) ||
@@ -2794,7 +2918,14 @@ export function getPokemonAutocompleteSuggestions(
 
   const results: PokemonAutocompleteOption[] = [];
   for (const opt of poolByName.values()) {
-    const inMatchedFamily = matchedBaseSpecies.has(opt.baseSpecies.toLowerCase());
+    const baseLower = opt.baseSpecies.toLowerCase();
+    if (
+      (searchToken === "mew" && baseLower === "mewtwo") ||
+      (searchToken === "mewtwo" && baseLower === "mew")
+    ) {
+      continue;
+    }
+    const inMatchedFamily = matchedBaseSpecies.has(baseLower);
     const directMatch = opt.name.toLowerCase().includes(query);
     if (!inMatchedFamily && !directMatch) continue;
     results.push(opt);

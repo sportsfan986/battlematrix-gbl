@@ -2551,6 +2551,7 @@ class MainActivity : AppCompatActivity() {
         val timeframeLabels = listOf(
             "All Time",
             "Today (Day)",
+            "Yesterday",
             "This Week (Last 7d)",
             "Current Season (${currSeason.name} • ${dateFmt.format(java.util.Date(currSeason.startMs))})",
             "Previous Season"
@@ -2558,6 +2559,7 @@ class MainActivity : AppCompatActivity() {
         val timeframeKeys = listOf(
             "ALL_TIME",
             "DAY",
+            "YESTERDAY",
             "WEEK",
             "CURRENT_SEASON",
             "PREVIOUS_SEASON"
@@ -2620,6 +2622,8 @@ class MainActivity : AppCompatActivity() {
         cal.set(java.util.Calendar.SECOND, 0)
         cal.set(java.util.Calendar.MILLISECOND, 0)
         val startOfTodayMs = cal.timeInMillis
+        cal.add(java.util.Calendar.DAY_OF_YEAR, -1)
+        val startOfYesterdayMs = cal.timeInMillis
         val sevenDaysAgoMs = startOfTodayMs - 6L * 86400000L
 
         return logs.filter { entry ->
@@ -2627,6 +2631,7 @@ class MainActivity : AppCompatActivity() {
             val teamOk = teamFilter == "ALL" || entry.userTeamName.equals(teamFilter, ignoreCase = true)
             val timeOk = when (timeframeKey) {
                 "DAY" -> entry.timestampMs >= startOfTodayMs
+                "YESTERDAY" -> entry.timestampMs in startOfYesterdayMs until startOfTodayMs
                 "WEEK" -> entry.timestampMs >= sevenDaysAgoMs
                 "CURRENT_SEASON" -> entry.timestampMs in currSeason.startMs..currSeason.endMs
                 "PREVIOUS_SEASON" -> entry.timestampMs >= prevSeason.startMs && entry.timestampMs < currSeason.startMs
@@ -2634,6 +2639,32 @@ class MainActivity : AppCompatActivity() {
             }
             leagueOk && teamOk && timeOk
         }
+    }
+
+    private fun normalizeDailyLeadKey(rawLead: String?): String {
+        val trimmed = rawLead?.trim().orEmpty()
+        if (trimmed.isEmpty() ||
+            trimmed.equals("Unknown", ignoreCase = true) ||
+            trimmed.equals("Waiting...", ignoreCase = true) ||
+            trimmed.equals("No opponents recorded", ignoreCase = true)
+        ) {
+            return ""
+        }
+        val exported = formatExportPokemonName(trimmed)
+        if (exported.isEmpty()) return ""
+        val isShadow = exported.endsWith("S") && exported.dropLast(1).any { it.isLowerCase() }
+        val baseExport = if (isShadow) exported.dropLast(1) else exported
+        val canonicalBase = baseExport.lowercase()
+            .removeSuffix("_kanto")
+            .removeSuffix("_kantonian")
+            .removeSuffix("_base")
+        return if (isShadow) "${canonicalBase}_shadow" else canonicalBase
+    }
+
+    private fun countUniqueLeads(entries: List<BattleLogEntry>): Int {
+        return entries.mapNotNull { entry ->
+            normalizeDailyLeadKey(entry.opponents.firstOrNull()).takeIf { it.isNotEmpty() }
+        }.toSet().size
     }
 
     private data class ResolvedUserTeamInfo(
@@ -2874,8 +2905,12 @@ class MainActivity : AppCompatActivity() {
         val (currSeason, prevSeason) = getCurrentAndPreviousSeason()
         val dateFmt = java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.US)
 
+        val yesterdayCal = java.util.Calendar.getInstance().apply {
+            add(java.util.Calendar.DAY_OF_YEAR, -1)
+        }
         val rangeLabel = when (timeframeKey) {
             "DAY" -> "Today (${dateFmt.format(java.util.Date())})"
+            "YESTERDAY" -> "Yesterday (${dateFmt.format(yesterdayCal.time)})"
             "WEEK" -> "This Week (Last 7 Days)"
             "CURRENT_SEASON" -> "Current Season (${currSeason.name} • Since ${dateFmt.format(java.util.Date(currSeason.startMs))})"
             "PREVIOUS_SEASON" -> "Previous Season (${dateFmt.format(java.util.Date(prevSeason.startMs))} – ${dateFmt.format(java.util.Date(prevSeason.endMs))})"
@@ -2889,6 +2924,7 @@ class MainActivity : AppCompatActivity() {
         val favCount = filtered.count { it.leadMatchup.equals("FAVORABLE", ignoreCase = true) }
         val neuCount = filtered.count { it.leadMatchup.equals("NEUTRAL", ignoreCase = true) || it.leadMatchup.isBlank() }
         val negCount = filtered.count { it.leadMatchup.equals("NEGATIVE", ignoreCase = true) }
+        val uniqueLeadsTotal = countUniqueLeads(filtered)
 
         val presets = loadPresets()
         val aggWae = OverlayService.calculateAggregateWAEStatic(filtered.map { resolveEntryQuality(it, presets) })
@@ -2899,7 +2935,7 @@ class MainActivity : AppCompatActivity() {
         sb.append("SilphScope PvP Battle Log — $leagueTitle\n")
         sb.append("Team: $teamTitle\n")
         sb.append("Range: $rangeLabel\n")
-        sb.append("Overall Record: ${wins}W - ${losses}L ($winPct%) • Leads: $favCount Fav / $neuCount Neu / $negCount Neg • WAE: ${aggWae.formatted} • Luck: ${aggWae.luckFormatted}\n")
+        sb.append("Overall Record: ${wins}W - ${losses}L ($winPct%) • Leads: $favCount Fav / $neuCount Neu / $negCount Neg / $uniqueLeadsTotal Unique • WAE: ${aggWae.formatted} • Luck: ${aggWae.luckFormatted}\n")
 
         if (filtered.isEmpty()) {
             sb.append("\nNo battles logged in this timeframe.\n")
@@ -2908,6 +2944,14 @@ class MainActivity : AppCompatActivity() {
 
         val groupedByDay = filtered.groupBy { dateFmt.format(java.util.Date(it.timestampMs)) }
         for ((dayStr, dayEntries) in groupedByDay) {
+            val dayLeadCounts = HashMap<String, Int>()
+            for (dEntry in dayEntries) {
+                val lKey = normalizeDailyLeadKey(dEntry.opponents.firstOrNull())
+                if (lKey.isNotEmpty()) {
+                    dayLeadCounts[lKey] = (dayLeadCounts[lKey] ?: 0) + 1
+                }
+            }
+
             val groupedByTeam = dayEntries.groupBy { resolveUserTeamInfo(it, presets).groupKey }
             val sortedDayTeams = groupedByTeam.entries.sortedWith(
                 compareByDescending<Map.Entry<String, List<BattleLogEntry>>> { it.value.size }
@@ -2923,9 +2967,10 @@ class MainActivity : AppCompatActivity() {
                 val dFav = teamDayEntries.count { it.leadMatchup.equals("FAVORABLE", ignoreCase = true) }
                 val dNeu = teamDayEntries.count { it.leadMatchup.equals("NEUTRAL", ignoreCase = true) || it.leadMatchup.isBlank() }
                 val dNeg = teamDayEntries.count { it.leadMatchup.equals("NEGATIVE", ignoreCase = true) }
+                val dUnique = countUniqueLeads(teamDayEntries)
                 val dWae = OverlayService.calculateAggregateWAEStatic(teamDayEntries.map { resolveEntryQuality(it, presets) })
 
-                sb.append("\n=== $dayStr - ${teamInfo.teamName} ${teamInfo.monsBracket} Daily Record: ${dWins}W - ${dLosses}L ($dPct%) [Leads: $dFav Fav, $dNeu Neu, $dNeg Neg] • WAE: ${dWae.formatted} • Luck: ${dWae.luckFormatted} ===\n")
+                sb.append("\n=== $dayStr - ${teamInfo.teamName} ${teamInfo.monsBracket} Daily Record: ${dWins}W - ${dLosses}L ($dPct%) [Leads: $dFav Fav / $dNeu Neu / $dNeg Neg / $dUnique Unique] • WAE: ${dWae.formatted} • Luck: ${dWae.luckFormatted} ===\n")
                 for (entry in teamDayEntries.sortedByDescending { it.timestampMs }) {
                     val wl = if (entry.result.equals("WIN", ignoreCase = true)) "W" else "L"
                     val leadTag = when (entry.leadMatchup.uppercase()) {
@@ -2941,9 +2986,14 @@ class MainActivity : AppCompatActivity() {
                         matchPPre < 0.40 -> "U"
                         else -> "N"
                     }
+                    val entryLeadKey = normalizeDailyLeadKey(entry.opponents.firstOrNull())
+                    val isRepeatLeadToday = entryLeadKey.isNotEmpty() && (dayLeadCounts[entryLeadKey] ?: 0) >= 2
                     val oppList = entry.opponents
                         .map { formatExportPokemonName(it.trim()) }
                         .filter { it.isNotEmpty() }
+                        .mapIndexed { idx, formattedOpp ->
+                            if (idx == 0 && isRepeatLeadToday) "**$formattedOpp**" else formattedOpp
+                        }
                     val oppStr = if (oppList.isEmpty()) "Unknown" else oppList.joinToString(" ")
                     sb.append("$wl (L->$leadTag, M->$matchTag) $oppStr\n")
                 }
@@ -3279,12 +3329,13 @@ class MainActivity : AppCompatActivity() {
         val dateFmt = java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.US)
         val options = arrayOf(
             "Today (Day)",
+            "Yesterday",
             "This Week (Last 7 Days)",
             "Current Season (${currSeason.name} • Since ${dateFmt.format(java.util.Date(currSeason.startMs))})",
             "Previous Season (${dateFmt.format(java.util.Date(prevSeason.startMs))} – ${dateFmt.format(java.util.Date(prevSeason.endMs))})",
             "All Time"
         )
-        val keys = arrayOf("DAY", "WEEK", "CURRENT_SEASON", "PREVIOUS_SEASON", "ALL_TIME")
+        val keys = arrayOf("DAY", "YESTERDAY", "WEEK", "CURRENT_SEASON", "PREVIOUS_SEASON", "ALL_TIME")
 
         AlertDialog.Builder(this)
             .setTitle(if (isShareIntent) "📤 Share Battle Log Summary — Range" else "📋 Copy Battle Log Summary — Range")
@@ -3329,12 +3380,13 @@ class MainActivity : AppCompatActivity() {
         val favCount = filtered.count { it.leadMatchup.equals("FAVORABLE", ignoreCase = true) }
         val neuCount = filtered.count { it.leadMatchup.equals("NEUTRAL", ignoreCase = true) || it.leadMatchup.isBlank() }
         val negCount = filtered.count { it.leadMatchup.equals("NEGATIVE", ignoreCase = true) }
+        val uniqueLeadCount = countUniqueLeads(filtered)
 
         val presets = loadPresets()
         val aggWae = OverlayService.calculateAggregateWAEStatic(filtered.map { resolveEntryQuality(it, presets) })
 
         textBattleLogTotal.text = "${wins}W - ${losses}L ($total)"
-        textBattleLogLeague.text = "$favCount Fav · $neuCount Neu · $negCount Neg"
+        textBattleLogLeague.text = "$favCount Fav / $neuCount Neu / $negCount Neg / $uniqueLeadCount Unique"
         textBattleLogWinrate.text = if (total == 0) "—%" else "$winPct%"
         textBattleLogWae.text = aggWae.formatted
         textBattleLogWae.setTextColor(
@@ -3392,6 +3444,9 @@ class MainActivity : AppCompatActivity() {
         val timeFmt = java.text.SimpleDateFormat("h:mm a", java.util.Locale.US)
         val groupedByDay = filtered.groupBy { dayFmt.format(java.util.Date(it.timestampMs)) }
 
+        val activeTheme = getActiveAppTheme()
+        val hasWatermark = prefs.getBoolean(OverlayService.PREFS_KEY_SHOW_THEME_WATERMARK, true) && activeTheme.emblemDrawableRes != null
+
         for ((dayStr, dayEntries) in groupedByDay) {
             val dWins = dayEntries.count { it.result.equals("WIN", ignoreCase = true) }
             val dLosses = dayEntries.count { it.result.equals("LOSS", ignoreCase = true) }
@@ -3400,10 +3455,29 @@ class MainActivity : AppCompatActivity() {
             val dFav = dayEntries.count { it.leadMatchup.equals("FAVORABLE", ignoreCase = true) }
             val dNeu = dayEntries.count { it.leadMatchup.equals("NEUTRAL", ignoreCase = true) || it.leadMatchup.isBlank() }
             val dNeg = dayEntries.count { it.leadMatchup.equals("NEGATIVE", ignoreCase = true) }
+            val dUnique = countUniqueLeads(dayEntries)
             val dayWae = OverlayService.calculateAggregateWAEStatic(dayEntries.map { resolveEntryQuality(it, presets) })
 
+            // Compute same-day repeated lead occurrences in chronological order (oldest -> newest within the day)
+            val dayLeadCounts = HashMap<String, Int>()
+            val entryLeadOccurrenceIndex = HashMap<String, Int>()
+            val entryLeadPreviousResult = HashMap<String, String>()
+            val lastSeenResultByLead = HashMap<String, String>()
+            for (cEntry in dayEntries.sortedBy { it.timestampMs }) {
+                val lKey = normalizeDailyLeadKey(cEntry.opponents.firstOrNull())
+                if (lKey.isNotEmpty()) {
+                    val nextOcc = (dayLeadCounts[lKey] ?: 0) + 1
+                    dayLeadCounts[lKey] = nextOcc
+                    entryLeadOccurrenceIndex[cEntry.id] = nextOcc
+                    lastSeenResultByLead[lKey]?.let { prevRes ->
+                        entryLeadPreviousResult[cEntry.id] = prevRes
+                    }
+                    lastSeenResultByLead[lKey] = if (cEntry.result.equals("WIN", ignoreCase = true)) "W" else "L"
+                }
+            }
+
             val dayHeader = TextView(this).apply {
-                text = "📅 $dayStr — Daily Record: ${dWins}W - ${dLosses}L ($dPct%) • Leads: $dFav Fav / $dNeu Neu / $dNeg Neg • WAE: ${dayWae.formatted} • Luck: ${dayWae.luckFormatted}"
+                text = "📅 $dayStr — Daily Record: ${dWins}W - ${dLosses}L ($dPct%) • Leads: $dFav Fav / $dNeu Neu / $dNeg Neg / $dUnique Unique • WAE: ${dayWae.formatted} • Luck: ${dayWae.luckFormatted}"
                 setTextColor(0xFF38BDF8.toInt())
                 textSize = 11f
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
@@ -3426,9 +3500,25 @@ class MainActivity : AppCompatActivity() {
                     else -> 0xFFCBD5E1.toInt()
                 }
 
+                val entryLeadKey = normalizeDailyLeadKey(entry.opponents.firstOrNull())
+                val repeatLeadTotal = if (entryLeadKey.isNotEmpty()) (dayLeadCounts[entryLeadKey] ?: 0) else 0
+                val isRepeatDailyLead = repeatLeadTotal >= 2
+                val repeatOccIdx = entryLeadOccurrenceIndex[entry.id] ?: 1
+                val prevLeadRes = entryLeadPreviousResult[entry.id]
+
                 val card = LinearLayout(this).apply {
                     orientation = LinearLayout.VERTICAL
-                    setBackgroundColor(0xFF1E293B.toInt())
+                    if (isRepeatDailyLead) {
+                        val surfaceAlpha = if (hasWatermark) 0xBF else 0xF5
+                        background = android.graphics.drawable.GradientDrawable().apply {
+                            shape = android.graphics.drawable.GradientDrawable.RECTANGLE
+                            cornerRadius = 8f * density
+                            setColor(withAlpha(activeTheme.surfaceColor, surfaceAlpha))
+                            setStroke((1.6f * density).toInt().coerceAtLeast(2), activeTheme.secondaryAccentColor)
+                        }
+                    } else {
+                        setBackgroundColor(0xFF1E293B.toInt())
+                    }
                     val pad = (11 * density).toInt()
                     setPadding(pad, pad, pad, pad)
                     layoutParams = LinearLayout.LayoutParams(
@@ -3480,18 +3570,39 @@ class MainActivity : AppCompatActivity() {
                     setPadding(0, (4 * density).toInt(), 0, (2 * density).toInt())
                 }
 
-                val oppOrderedText = if (entry.opponents.isEmpty()) {
-                    "No opponents recorded"
-                } else {
-                    entry.opponents.mapIndexed { idx, opp ->
-                        val ord = when (idx) { 0 -> "1st"; 1 -> "2nd"; else -> "3rd" }
-                        "$ord: $opp"
-                    }.joinToString("  •  ")
-                }
-
                 val oppTv = TextView(this).apply {
-                    text = "Vs: $oppOrderedText"
-                    setTextColor(0xFFF8FAFC.toInt())
+                    if (entry.opponents.isEmpty()) {
+                        text = "Vs: No opponents recorded"
+                        setTextColor(0xFFF8FAFC.toInt())
+                    } else if (isRepeatDailyLead) {
+                        val ssb = android.text.SpannableStringBuilder("Vs: ")
+                        entry.opponents.forEachIndexed { idx, opp ->
+                            if (idx > 0) ssb.append("  •  ")
+                            val ord = when (idx) { 0 -> "1st"; 1 -> "2nd"; else -> "3rd" }
+                            if (idx == 0) {
+                                val start = ssb.length
+                                ssb.append("$ord: $opp 🔁")
+                                ssb.setSpan(
+                                    android.text.style.ForegroundColorSpan(activeTheme.secondaryAccentColor),
+                                    start,
+                                    ssb.length,
+                                    android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                                )
+                            } else {
+                                ssb.append("$ord: $opp")
+                            }
+                        }
+                        text = ssb
+                        setTextColor(activeTheme.primaryTextColor)
+                        setTag(R.id.iv_theme_watermark_bg, 0x123456) // Preserve custom spannable highlight color
+                    } else {
+                        val oppOrderedText = entry.opponents.mapIndexed { idx, opp ->
+                            val ord = when (idx) { 0 -> "1st"; 1 -> "2nd"; else -> "3rd" }
+                            "$ord: $opp"
+                        }.joinToString("  •  ")
+                        text = "Vs: $oppOrderedText"
+                        setTextColor(0xFFF8FAFC.toInt())
+                    }
                     textSize = 12f
                     setTypeface(typeface, android.graphics.Typeface.BOLD)
                 }
@@ -3501,6 +3612,41 @@ class MainActivity : AppCompatActivity() {
                 val qualityRow = LinearLayout(this).apply {
                     orientation = LinearLayout.VERTICAL
                     setPadding(0, (5 * density).toInt(), 0, (2 * density).toInt())
+                }
+
+                if (isRepeatDailyLead) {
+                    val curResShort = if (isWin) "W" else "L"
+                    val repeatDetail = when {
+                        repeatOccIdx == 1 -> "🔁 Repeat Lead (#1 of $repeatLeadTotal Today)"
+                        prevLeadRes == "L" && curResShort == "W" -> "🔁 Repeat Lead (#$repeatOccIdx of $repeatLeadTotal Today • Adapted L→W ✨)"
+                        prevLeadRes == "W" && curResShort == "W" -> "🔁 Repeat Lead (#$repeatOccIdx of $repeatLeadTotal Today • Repeat W→W ✓)"
+                        prevLeadRes == "W" && curResShort == "L" -> "🔁 Repeat Lead (#$repeatOccIdx of $repeatLeadTotal Today • Flipped W→L ⚠️)"
+                        prevLeadRes != null -> "🔁 Repeat Lead (#$repeatOccIdx of $repeatLeadTotal Today • Repeat ${prevLeadRes}→$curResShort)"
+                        else -> "🔁 Repeat Lead (#$repeatOccIdx of $repeatLeadTotal Today)"
+                    }
+                    val repeatBannerTv = TextView(this).apply {
+                        text = repeatDetail
+                        setTextColor(activeTheme.secondaryAccentColor)
+                        setTag(R.id.iv_theme_watermark_bg, 0x123456)
+                        background = android.graphics.drawable.GradientDrawable().apply {
+                            shape = android.graphics.drawable.GradientDrawable.RECTANGLE
+                            cornerRadius = 5f * density
+                            setColor(withAlpha(activeTheme.secondaryAccentColor, 0x26))
+                            setStroke((1f * density).toInt().coerceAtLeast(1), withAlpha(activeTheme.secondaryAccentColor, 0x80))
+                        }
+                        textSize = 10f
+                        setTypeface(typeface, android.graphics.Typeface.BOLD)
+                        val pH = (7 * density).toInt()
+                        val pV = (3 * density).toInt()
+                        setPadding(pH, pV, pH, pV)
+                        layoutParams = LinearLayout.LayoutParams(
+                            LinearLayout.LayoutParams.WRAP_CONTENT,
+                            LinearLayout.LayoutParams.WRAP_CONTENT
+                        ).apply {
+                            bottomMargin = (4 * density).toInt()
+                        }
+                    }
+                    qualityRow.addView(repeatBannerTv)
                 }
 
                 if (entryQuality != null) {

@@ -123,29 +123,27 @@ jobs:
           tag_name: ${{ steps.version.outputs.tag }}
           name: "SilphScope PvP ${{ steps.version.outputs.tag }}"
           body: |
-            ## SilphScope PvP ${{ steps.version.outputs.tag }} — Official v3.06 Release (Dual-Accent Themes, Shiny Origin Dialga, Full Modal/Button Theming & Interactive Shield Counters)
+            ## SilphScope PvP ${{ steps.version.outputs.tag }} — Official v3.07 Release (League-Rated Default Form & Shadow Selection, Mew/Mewtwo Disambiguation, Repeated Daily Lead Highlighting & Yesterday Filter)
             
-            ### What's New in v3.06 (Theme Overhaul, Complete UI/Modal Theming & Page Transparency)
-            - **New ✨ Shiny Origin Forme Dialga Midnight Theme (`dialga_shiny_midnight`)**:
-              - Replaced legacy AMOLED Cyber Pulse Cyan & Matrix Phosphor Green themes with **✨ Shiny Origin Dialga Midnight (Dark)** featuring a deep cosmic void canvas (`#050B16`), Shiny Origin Dialga's luminous Temporal Teal primary accent (`#2DD4BF`), Astral Ring Gold secondary accent (`#FACC15`), and a custom vector Origin Forme Dialga crest & diamond core watermark.
-            - **Dual-Accent Color Palettes Across All 9 Themes**:
-              - Added a distinct secondary accent color (`secondaryAccentColor` / `secondaryButtonColor` + 5-dot swatch preview in Settings) to every theme for richer depth across headers, badges, slot titles, and action buttons:
-                - **🎀 Sylveon Fairy Ribbon**: Paired Fairy Ribbon Pink (`#EC4899`) with Sylveon's distinctive **Pastel Sky Blue** (`#38BDF8`).
-                - **⚡ Team Instinct (Dark & Light)**: Zapdos Lightning Gold paired with Storm Sky Cyan (`#38BDF8`) & Electric Cobalt (`#0284C7`).
-                - **❄️ Team Mystic (Dark & Light)**: Articuno Ice Blue paired with Aurora Borealis Violet (`#C084FC`) & Royal Frost Indigo (`#7C3AED`).
-                - **🔥 Team Valor (Dark & Light)**: Moltres Crimson paired with Molten Solar Gold (`#FBBF24`) & Phoenix Amber (`#D97706`).
-                - **🛡️ SilphScope Slate (Default Generic)**: Placed last in the theme selector as a generic fallback theme.
-            - **Complete Button, Team Edit & Replay Overlay Matrix Theming**:
-              - Themed all previously unthemed buttons across **Battle Log** (`+ Log`, `☁️ Sync`, `🗑️ Trash`, `Clear`, `📋 Copy GBL`, `📤 Share`), **Settings** (`💾 Save Thresholds`, `↺ Restore Defaults`, all 3 cloud sync buttons, `Sync PvPoke`, `🔄 Reparse All`), and **Top Bar / Overlay** (`Start Battle Overlay`, `⚔️ Start Battle`).
-              - Themed the **Team Edit** & **Manual Battle Log** dialogs and the **Interactive Replay Overlay Matrix** with active theme backgrounds, dual-accent headers, and centered background emblem watermarks.
-            - **Enhanced Transparency Across All 3 Main Pages (`Teams`, `Battle Log`, `Settings`)**:
-              - Increased watermark visibility and card transparency across all 3 main pages when watermarks are enabled so the background emblem clearly shines through.
+            ### What's New in v3.07
+            - **Highest-Rated League Default Form & Shadow Selection on Scan**:
+              - Scanning an opponent Pokémon with multiple forms or Shadow variants now evaluates all form variants and their Shadow counterparts in the active league and selects the highest-ranked default automatically:
+                - **Great League (`1500`)**: `"Ninetales"` defaults to **Shadow Kanto Ninetales**.
+                - **Ultra League (`2500`)**: `"Mewtwo"` defaults to **Armored Mewtwo** (`Mewtwo (Armored)`).
+                - **Master League (`10000`)**: `"Mewtwo"` defaults to **Shadow Mewtwo**.
+              - Added `Mewtwo (Armored)` and `Mew` to built-in and live PvPoke metadata and recommended movesets.
+            - **Strict `Mew` vs. `Mewtwo` Disambiguation**:
+              - `"Mew"` and `"Mewtwo"` are strictly disambiguated across OCR token/prefix/fuzzy matching, switch detection, and stats resolution so neither ever evaluates as the other.
+            - **Battle Log: Same-Day Repeated Lead Highlighting, `/ # Unique` Lead Counts & Markdown Share Formatting**:
+              - Added **`/ # Unique`** after **`/ # Neg`** in the Battle Log top summary, daily record headers, and Share log lines (`Leads: # Fav / # Neu / # Neg / # Unique`).
+              - Highlighted any opponent lead faced more than once on the same calendar day with an accent card border, **`🔁 Repeat Lead (#1 of 2 Today)` / `🔁 Repeat Lead (#2 of 2 Today)`** adaptation badge, and **`**lead_name**`** Markdown bold formatting in Share output.
+            - **New `"Yesterday"` Timeframe Filter**:
+              - Added **`Yesterday`** to the Battle Log timeframe filter dropdown and the **Share** / **Copy GBL** export range chooser dialogs.
 
-            ### Shield & Theme Highlights Since v3.00 (`v3.02` – `v3.05`)
-            - **v3.05 — Interactive Overlay Header Shield Counters (`🛡️ You` & `🛡️ Opp`)**:
-              - Tap either shield icon in the floating overlay header to cycle remaining shields (`2 → 1 → 0 → 2`) mid-battle, log `SHIELD` timeline events, and immediately recalculate the 3x3 PvPoke matchup matrix and threat thresholds.
-            - **v3.02–v3.03 — Dynamic Overlay Emblem Icons & Background Crest Watermarks**:
-              - Theme-matched vector SVG emblems on the overlay minimize button, floating bubble, and `Start Battle` button, plus centered background crest watermarks and top-grouped Theme/Size/Transparency settings.
+            ### Highlights Since v3.00 (`v3.02` – `v3.06`)
+            - **v3.06 — Dual-Accent Theme Engine, ✨ Shiny Origin Dialga Midnight Theme, Full Modal/Button Theming & Page Transparency**.
+            - **v3.05 — Interactive Overlay Header Shield Counters (`🛡️ You` & `🛡️ Opp`)**.
+            - **v3.02–v3.03 — Dynamic Overlay Emblem Icons & Background Crest Watermarks**.
             
             ### Download & Install
             Download **`silphscope-pvp-${{ steps.version.outputs.tag }}.apk`** from the **Assets** section below and install on your Android device.

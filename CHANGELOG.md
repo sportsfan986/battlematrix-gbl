@@ -1,5 +1,23 @@
 # SilphScope PvP Changelog (Since v3.00)
 
+## [v3.07] — 2026-10-21 — League-Rated Default Form & Shadow Selection, Strict Mew/Mewtwo Disambiguation, Same-Day Repeated Lead Highlighting & Yesterday Filter
+- **Highest-Rated League Default Form & Shadow Selection on Scan (`FormResolver` & `OverlayService`)**:
+  - Scanning an opponent with multiple forms or Shadow variants now evaluates all form variants and their `_shadow` counterparts against the active league's live PvPoke rankings (plus curated current-meta fallbacks) and selects the highest-rated form + Shadow state automatically:
+    - **Great League (`1500`)**: Scanning `"Ninetales"` (without `"Alolan"` in the OCR nameplate) defaults to **Shadow Kanto Ninetales**.
+    - **Ultra League (`2500`)**: Scanning `"Mewtwo"` defaults to **Armored Mewtwo** (`Mewtwo (Armored)`).
+    - **Master League (`10000`)**: Scanning `"Mewtwo"` defaults to **Shadow Mewtwo**.
+  - Added `Mewtwo (Armored)` (`Confusion` + `Psystrike` / `Dynamic Punch` / `Earthquake`) and `Mew` (`Shadow Claw` + `Psyshock` / `Wild Charge` / `Surf`) to static + live metadata and recommended movesets.
+- **Strict `Mew` vs. `Mewtwo` Disambiguation**:
+  - Enabled exact 3-letter token matching for `"Mew"` while adding strict disambiguation guards across OCR prefix matching, Levenshtein sliding-window matching, player switch detection, and stats lookups so `"Mew"` never evaluates as `"Mewtwo"` and `"Mewtwo"` never evaluates as `"Mew"`.
+- **Battle Log: Same-Day Repeated Lead Highlighting, `/ # Unique` Lead Counts & Markdown Share Bold**:
+  - **Unique Lead Counts (`/# Unique`)**: Added `/ # Unique` right after `/ # Neg` across the Battle Log top summary, daily record headers, and Share log output (`Leads: # Fav / # Neu / # Neg / # Unique`).
+  - **In-App Repeated Daily Lead Highlighting**: When the same opponent lead is faced more than once on the same calendar day, all matching battle cards on that day are highlighted with an accent border, highlighted `1st: <Lead> 🔁` text, and a chronological **`🔁 Repeat Lead (#1 of 2 Today)` / `🔁 Repeat Lead (#2 of 2 Today)`** badge so you can evaluate whether you adapted and improved the second time.
+  - **Markdown Share Highlighting**: Repeated same-day opponent leads are automatically wrapped in Markdown bold syntax (`**lead_name**`) in the Share log summary.
+- **New `"Yesterday"` Timeframe Filter**:
+  - Added **`Yesterday`** to the Battle Log page timeframe filter dropdown and the **Share** / **Copy GBL** timeframe chooser dialogs.
+
+---
+
 ## [v3.06] — 2026-10-20 — Dual-Accent Theme Engine Overhaul, Shiny Origin Forme Dialga Midnight Theme, Complete Modal/Button Theming & Enhanced Page Transparency
 - **New ✨ Shiny Origin Forme Dialga Midnight Theme (`dialga_shiny_midnight`)**:
   - Replaced legacy AMOLED Cyber Pulse Cyan & Matrix Phosphor Green themes with **✨ Shiny Origin Dialga Midnight (Dark)** (`#050B16` deep temporal void, `#2DD4BF` luminous shiny teal primary accent, `#FACC15` astral ring gold secondary accent, and custom vector Origin Forme Dialga temporal wheel & diamond core emblem).
