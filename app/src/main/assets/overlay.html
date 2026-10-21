@@ -120,17 +120,93 @@
             color: #fef08a;
             display: flex;
             align-items: center;
-            gap: 4px;
+            gap: 3.5px;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            width: 100%;
+            min-width: 0;
+            flex: 1;
+        }
+
+        #sky-opp-name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            min-width: 0;
         }
 
         .opp-move-tag {
             color: #fdba74;
             font-weight: 700;
-            font-size: 9.5px;
+            font-size: 9px;
+            flex-shrink: 0;
+        }
+
+        .header-right-cluster {
+            display: flex;
+            align-items: center;
+            gap: 2.5px;
+            flex-shrink: 0;
+        }
+
+        .hud-shield-btn {
+            background: rgba(15, 23, 42, 0.72);
+            border: 1px solid rgba(148, 163, 184, 0.45);
+            border-radius: 4px;
+            padding: 1px 3px;
+            font-size: 8px;
+            font-weight: 800;
+            line-height: 1.1;
+            cursor: pointer;
+            color: #ffffff;
+            display: inline-flex;
+            align-items: center;
+            gap: 1.5px;
+            font-variant-numeric: tabular-nums;
+            user-select: none;
+            -webkit-user-select: none;
+            transition: transform 0.1s ease, background 0.15s ease, border-color 0.15s ease;
+        }
+
+        .hud-shield-btn:active {
+            transform: scale(0.92);
+        }
+
+        .hud-shield-btn.player-shield {
+            border-color: rgba(var(--header-accent-rgb), 0.68);
+            background: rgba(var(--header-accent-rgb), 0.20);
+            color: #ffffff;
+        }
+
+        .hud-shield-btn.player-shield .shield-val {
+            color: var(--header-accent-hex);
+            font-weight: 900;
+        }
+
+        .hud-shield-btn.opp-shield {
+            border-color: rgba(244, 114, 182, 0.68);
+            background: rgba(244, 114, 182, 0.20);
+            color: #ffffff;
+        }
+
+        .hud-shield-btn.opp-shield .shield-val {
+            color: #f472b6;
+            font-weight: 900;
+        }
+
+        .hud-shield-btn.shield-zero {
+            opacity: 0.5;
+            border-color: rgba(100, 116, 139, 0.4);
+            background: rgba(15, 23, 42, 0.5);
+        }
+
+        .hud-shield-btn.shield-zero .shield-val {
+            color: #94a3b8 !important;
+            text-decoration: line-through;
+        }
+
+        .hud-shield-btn .shield-glyph {
+            font-size: 8px;
+            line-height: 1;
         }
 
         /* Quick Action Toolbar & Active Team Chips */
@@ -806,7 +882,15 @@
                 <span id="sky-opp-name">WAITING FOR OPPONENT...</span> 
                 <span class="opp-move-tag" id="sky-opp-fastmove">(1 Hz OCR Active)</span>
             </div>
-            <span class="swap-clock-badge opp-swap-badge" id="sky-opp-swap-clock" title="Opponent Switch/Swap Cooldown Timer">Opp Swap: 0s</span>
+            <div class="header-right-cluster">
+                <button id="btn-player-shields" type="button" class="hud-shield-btn player-shield" onclick="cyclePlayerShields(event)" title="Your shields remaining (Tap to cycle 2->1->0->2)">
+                    <span class="shield-glyph">🛡️</span><span id="txt-player-shields" class="shield-val">2</span>
+                </button>
+                <button id="btn-opp-shields" type="button" class="hud-shield-btn opp-shield" onclick="cycleOpponentShields(event)" title="Opponent shields remaining (Tap to cycle 2->1->0->2)">
+                    <span class="shield-glyph">🛡️</span><span id="txt-opp-shields" class="shield-val">2</span>
+                </button>
+                <span class="swap-clock-badge opp-swap-badge" id="sky-opp-swap-clock" title="Opponent Switch/Swap Cooldown Timer">Opp Swap: 0s</span>
+            </div>
         </div>
 
         <!-- Toolbar: Start/Stop Battle Trigger, Shadow Toggle, Form Cycler, and Active Team Chips -->
@@ -1146,6 +1230,10 @@
             scannedOpponents: [],
             oppMoveTimingRows: [],
             myMoveTimingRows: [],
+            playerShields: 2,
+            oppShields: 2,
+            player_shields_remaining: 2,
+            opponent_shields_remaining: 2,
             throwAlignmentText: "—",
             throwHorizonText: "—"
         };
@@ -1440,6 +1528,61 @@
 
         setInterval(refreshSwapClocks, 250);
 
+        function cyclePlayerShields(e) {
+            if (e) e.stopPropagation();
+            const cur = (typeof battleData.player_shields_remaining === "number")
+                ? battleData.player_shields_remaining
+                : (typeof battleData.playerShields === "number" ? battleData.playerShields : 2);
+            const next = cur > 0 ? (cur - 1) : 2;
+            battleData.player_shields_remaining = next;
+            battleData.playerShields = next;
+            updateShieldButtonsUi();
+            if (window.AndroidOverlay && window.AndroidOverlay.setPlayerShields) {
+                window.AndroidOverlay.setPlayerShields(next);
+            }
+        }
+
+        function cycleOpponentShields(e) {
+            if (e) e.stopPropagation();
+            const cur = (typeof battleData.opponent_shields_remaining === "number")
+                ? battleData.opponent_shields_remaining
+                : (typeof battleData.oppShields === "number" ? battleData.oppShields : 2);
+            const next = cur > 0 ? (cur - 1) : 2;
+            battleData.opponent_shields_remaining = next;
+            battleData.oppShields = next;
+            updateShieldButtonsUi();
+            if (window.AndroidOverlay && window.AndroidOverlay.setOpponentShields) {
+                window.AndroidOverlay.setOpponentShields(next);
+            }
+        }
+
+        function updateShieldButtonsUi() {
+            const pShields = (typeof battleData.player_shields_remaining === "number")
+                ? battleData.player_shields_remaining
+                : (typeof battleData.playerShields === "number" ? battleData.playerShields : 2);
+            const oShields = (typeof battleData.opponent_shields_remaining === "number")
+                ? battleData.opponent_shields_remaining
+                : (typeof battleData.oppShields === "number" ? battleData.oppShields : 2);
+
+            const btnP = document.getElementById("btn-player-shields");
+            const txtP = document.getElementById("txt-player-shields");
+            if (btnP && txtP) {
+                txtP.textContent = String(pShields);
+                btnP.title = `Your Shields: ${pShields}/2 remaining (Tap to cycle 2->1->0->2)`;
+                if (pShields === 0) btnP.classList.add("shield-zero");
+                else btnP.classList.remove("shield-zero");
+            }
+
+            const btnO = document.getElementById("btn-opp-shields");
+            const txtO = document.getElementById("txt-opp-shields");
+            if (btnO && txtO) {
+                txtO.textContent = String(oShields);
+                btnO.title = `Opponent Shields: ${oShields}/2 remaining (Tap to cycle 2->1->0->2)`;
+                if (oShields === 0) btnO.classList.add("shield-zero");
+                else btnO.classList.remove("shield-zero");
+            }
+        }
+
         function updateBattleButtonUi() {
             if (buttonToastActive) return;
             const btn = document.getElementById("btn-start-battle");
@@ -1479,6 +1622,8 @@
             battleData.oppSwapRemainingSec = 0;
             battleData.playerPokeballCount = 3;
             battleData.oppPokeballCount = 3;
+            battleData.playerShields = 2;
+            battleData.oppShields = 2;
             battleData.player_shields_remaining = 2;
             battleData.opponent_shields_remaining = 2;
             battleData.playerFaintedSlots = [false, false, false];
@@ -1741,6 +1886,7 @@
                 console.error("Toolbar render error", e);
             }
 
+            updateShieldButtonsUi();
             refreshSwapClocks();
 
             const oppNameEl = document.getElementById("sky-opp-name");

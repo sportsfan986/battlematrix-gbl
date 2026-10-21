@@ -2401,7 +2401,7 @@ export default function App() {
                     backgroundColor: `${activeTheme.accentHex}1A`
                   }}
                 >
-                  v3.03 • Android Native Overlay
+                  v3.05 • Android Native Overlay
                 </span>
               </div>
               <p className="text-xs hidden sm:block" style={{ color: activeTheme.textSecondaryHex }}>
@@ -2858,21 +2858,64 @@ export default function App() {
                             </>
                           )}
                         </div>
-                        {/* v2.33: Opponent Swap Clock (Top-Right Header badge replacing redundant fast-move telemetry) */}
-                        {!isWaitingOpponent && scannedOpponents.length > 0 && (
-                          <span
-                            className={`font-mono font-extrabold text-[8px] px-1.5 py-0.5 rounded border leading-none transition-colors shrink-0 ${
-                              oppSwapRemainingSec <= 0
-                                ? 'text-[#FF3B30] bg-red-950/60 border-red-500/60 shadow-[0_0_6px_rgba(255,59,48,0.35)]'
-                                : oppSwapRemainingSec < 10
-                                ? 'text-[#FFD700] bg-amber-950/60 border-amber-400/60'
-                                : 'text-white bg-black/45 border-white/40'
+                        {/* Interactive Shield Counters: You (P) & Opponent (O) */}
+                        <div className="flex items-center gap-1 shrink-0 font-mono text-[8px] font-extrabold">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const next = userShields > 0 ? userShields - 1 : 2;
+                              setUserShields(next);
+                            }}
+                            className={`px-1.5 py-0.5 rounded border leading-none transition-all flex items-center gap-0.5 active:scale-95 cursor-pointer ${
+                              userShields === 0
+                                ? 'opacity-50 text-slate-400 bg-slate-900/60 border-slate-700 line-through'
+                                : 'text-sky-200 border-sky-400/50 hover:bg-sky-900/50'
                             }`}
-                            title="Opponent Swap Countdown (50s countdown, resets on True Swap)"
+                            style={{
+                              borderColor: userShields > 0 ? `rgba(${activeTheme.overlayHeaderRgb}, 0.65)` : undefined,
+                              backgroundColor: userShields > 0 ? `rgba(${activeTheme.overlayHeaderRgb}, 0.22)` : undefined,
+                              color: userShields > 0 ? activeTheme.accentHex : undefined
+                            }}
+                            title={`Your Shields: ${userShields}/2 remaining (Tap to cycle 2->1->0->2)`}
                           >
-                            Opp Swap: {oppSwapRemainingSec}s
-                          </span>
-                        )}
+                            <span className="text-[8px]">🛡️</span>
+                            <span>{userShields}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const next = oppShields > 0 ? oppShields - 1 : 2;
+                              setOppShields(next);
+                            }}
+                            className={`px-1.5 py-0.5 rounded border leading-none transition-all flex items-center gap-0.5 active:scale-95 cursor-pointer ${
+                              oppShields === 0
+                                ? 'opacity-50 text-slate-400 bg-slate-900/60 border-slate-700 line-through'
+                                : 'text-pink-300 bg-pink-950/60 border-pink-500/50 hover:bg-pink-900/50'
+                            }`}
+                            title={`Opponent Shields: ${oppShields}/2 remaining (Tap to cycle 2->1->0->2)`}
+                          >
+                            <span className="text-[8px]">🛡️</span>
+                            <span>{oppShields}</span>
+                          </button>
+
+                          {/* v2.33: Opponent Swap Clock (Top-Right Header badge replacing redundant fast-move telemetry) */}
+                          {!isWaitingOpponent && scannedOpponents.length > 0 && (
+                            <span
+                              className={`font-mono font-extrabold text-[8px] px-1.5 py-0.5 rounded border leading-none transition-colors shrink-0 ${
+                                oppSwapRemainingSec <= 0
+                                  ? 'text-[#FF3B30] bg-red-950/60 border-red-500/60 shadow-[0_0_6px_rgba(255,59,48,0.35)]'
+                                  : oppSwapRemainingSec < 10
+                                  ? 'text-[#FFD700] bg-amber-950/60 border-amber-400/60'
+                                  : 'text-white bg-black/45 border-white/40'
+                              }`}
+                              title="Opponent Swap Countdown (50s countdown, resets on True Swap)"
+                            >
+                              Opp Swap: {oppSwapRemainingSec}s
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       {/* Action Toolbar: Start Battle, Swap Opponent, Shadow Toggle, Form Cycler, and Active Lead Switch */}
@@ -5362,7 +5405,7 @@ export default function App() {
                           'Content-Type': 'application/json'
                         },
                         body: JSON.stringify({
-                          description: 'SilphScope PvP v3.03 Multi-Device Delta Sync Vault',
+                          description: 'SilphScope PvP v3.05 Multi-Device Delta Sync Vault',
                           public: false,
                           files: {
                             'gbl_delta_sync_v2.json': { content: bundleStr }
@@ -6894,7 +6937,7 @@ export default function App() {
               <div>
                 <h2 className="text-lg font-bold text-white flex items-center gap-2">
                   <Info className="w-5 h-5 text-sky-400" />
-                  <span>📖 Complete Help, HUD Instructions, Tips &amp; Tactics Guide (v3.03)</span>
+                  <span>📖 Complete Help, HUD Instructions, Tips &amp; Tactics Guide (v3.05)</span>
                 </h2>
                 <p className="text-xs text-slate-400">
                   Everything you need to master the floating PvP overlay, 3x3 matchup &amp; shield matrix, bottom 3-column damage grid, 50s swap clocks, move pacing, Battle Log analytics, and Tasker automation.
@@ -7798,7 +7841,7 @@ export default function App() {
               <div className="flex items-center justify-between border-b border-slate-800 pb-3 shrink-0">
                 <div>
                   <h3 className="font-bold text-base text-white flex items-center gap-2">
-                    <span>🎯 Overlay HUD &amp; Battle Flow Guide (v3.03)</span>
+                    <span>🎯 Overlay HUD &amp; Battle Flow Guide (v3.05)</span>
                   </h3>
                   <p className="text-xs text-slate-400 mt-0.5">
                     How to interact with the floating overlay, read 3x3 damage % &amp; shield dots, track 50s swap clocks, and log battles
@@ -7824,6 +7867,9 @@ export default function App() {
                     </li>
                     <li>
                       <strong>Launch, Drag &amp; Minimize (Theme Emblem Icon):</strong> Tap <strong>Start Battle Overlay</strong> to launch the HUD. Drag the header bar to reposition it anywhere. Tap the theme emblem icon in the top-left between matches to collapse the HUD into a tiny floating bubble and pause OCR scanning.
+                    </li>
+                    <li>
+                      <strong>Interactive Header Shield Counters (🛡️ You &amp; 🛡️ Opp):</strong> Tap either shield icon in the overlay header to cycle remaining shields (<code>2→1→0→2</code>) mid-battle. Instantly recalculates the 9-scenario PvPoke matrix rating and adjusts all combat threat thresholds in real-time.
                     </li>
                     <li>
                       <strong>Manual Opponent Override (&apos;Opponents (Tap to Edit)&apos;):</strong> Tap the <strong>Opponents (Tap to Edit)</strong> header bar inside the overlay if OCR misreads a name or form to manually override any of the 3 opponent slots (with Shadow &amp; Regional/Form support).
@@ -7938,7 +7984,7 @@ export default function App() {
           color: activeTheme.textSecondaryHex
         }}
       >
-        SilphScope PvP v3.03 Overlay • Built with Kotlin, WindowManager TYPE_APPLICATION_OVERLAY, MediaProjection in-memory frame capture, and ML Kit Text Recognition.
+        SilphScope PvP v3.05 Overlay • Built with Kotlin, WindowManager TYPE_APPLICATION_OVERLAY, MediaProjection in-memory frame capture, and ML Kit Text Recognition.
       </footer>
     </div>
   );

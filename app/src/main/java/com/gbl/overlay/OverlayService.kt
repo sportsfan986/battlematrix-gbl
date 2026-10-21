@@ -7777,6 +7777,70 @@ class OverlayService : LifecycleService() {
         }
 
         @JavascriptInterface
+        fun setPlayerShields(count: Int) {
+            Handler(Looper.getMainLooper()).post {
+                val clamped = count.coerceIn(0, 2)
+                if (playerShieldsRemaining != clamped) {
+                    val prev = playerShieldsRemaining
+                    playerShieldsRemaining = clamped
+                    sampledPlayerShields = clamped
+                    playerShieldDropFrames = 0
+                    if (!isWaitingForOpponent && clamped < prev) {
+                        val eventT = getElapsedBattleSeconds()
+                        val activeUserMon = activeUserPokemonName ?: currentPreset?.pokemon?.firstOrNull()?.name ?: ""
+                        val shieldNum = (2 - clamped).coerceIn(1, 2)
+                        battleTimelineEvents.add(
+                            BattleTimelineEvent(
+                                type = "SHIELD",
+                                actor = "user",
+                                t = eventT,
+                                shieldNumber = shieldNum,
+                                activePokemon = activeUserMon.ifEmpty { null },
+                                pokemonShielded = activeUserMon.ifEmpty { null },
+                                userShieldsRemaining = clamped,
+                                oppShieldsRemaining = oppShieldsRemaining
+                            )
+                        )
+                    }
+                    showBattleToast("🛡️ You: $playerShieldsRemaining shield${if (playerShieldsRemaining == 1) "" else "s"}")
+                    recalculateAndPushBattleData()
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun setOpponentShields(count: Int) {
+            Handler(Looper.getMainLooper()).post {
+                val clamped = count.coerceIn(0, 2)
+                if (oppShieldsRemaining != clamped) {
+                    val prev = oppShieldsRemaining
+                    oppShieldsRemaining = clamped
+                    sampledOppShields = clamped
+                    oppShieldDropFrames = 0
+                    if (!isWaitingForOpponent && clamped < prev) {
+                        val eventT = getElapsedBattleSeconds()
+                        val activeOppMon = formatOpponentNameWithShadow(activeOpponentName)
+                        val shieldNum = (2 - clamped).coerceIn(1, 2)
+                        battleTimelineEvents.add(
+                            BattleTimelineEvent(
+                                type = "SHIELD",
+                                actor = "opp",
+                                t = eventT,
+                                shieldNumber = shieldNum,
+                                activePokemon = activeOppMon.ifEmpty { null },
+                                pokemonShielded = activeOppMon.ifEmpty { null },
+                                userShieldsRemaining = playerShieldsRemaining,
+                                oppShieldsRemaining = clamped
+                            )
+                        )
+                    }
+                    showBattleToast("🛡️ Opponent: $oppShieldsRemaining shield${if (oppShieldsRemaining == 1) "" else "s"}")
+                    recalculateAndPushBattleData()
+                }
+            }
+        }
+
+        @JavascriptInterface
         fun updateContentHeight(heightDp: Int) {
             if (isOverlayMinimized || currentLayoutMode != "option1") return
             val density = resources.displayMetrics.density

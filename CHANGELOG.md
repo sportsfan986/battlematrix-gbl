@@ -1,5 +1,16 @@
 # Changelog
 
+## v3.05
+**Interactive Shield Counters in Overlay Header & Mid-Battle Matrix Recalculation**
+
+1. **Interactive Dual Shield Badges in Overlay Header (`overlay.html`, `OverlayService.kt`, `src/App.tsx`)**
+   - Added compact, tactile, color-coded shield badges directly to the floating overlay's top header row:
+     - **Player Shields (`🛡️ 2`)**: Styled with the active theme's accent color (`#38BDF8`, gold, ice blue, red, pink, or neon green); taps cycle `2 -> 1 -> 0 -> 2`.
+     - **Opponent Shields (`🛡️ 2`)**: Distinct rose/pink styling (`#F472B6`); taps cycle `2 -> 1 -> 0 -> 2`.
+     - **Zero Shields State**: Automatically transitions to a muted strike-through style (`#94A3B8`) when 0 shields remain.
+     - **Mid-Match Matrix Recalculation**: Adjusting either shield count immediately recalculates the 9-scenario PvPoke rating and dynamically updates combat indicators across all rows and columns.
+     - **Native Bridge Integration**: Fully synchronized with native Android OCR shield drop state and battle timeline events via `setPlayerShields` and `setOpponentShields` JavascriptInterface handlers.
+
 ## v3.03
 **Complete UI Theme Coverage & Dynamic Theme Emblem Icons on Floating Overlay**
 
