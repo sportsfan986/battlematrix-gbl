@@ -470,6 +470,12 @@ class MainActivity : AppCompatActivity() {
         projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as? MediaProjectionManager
 
         initViews()
+        val appVer = try {
+            packageManager.getPackageInfo(packageName, 0).versionName ?: "3.10"
+        } catch (_: Exception) {
+            "3.10"
+        }
+        findViewById<TextView>(R.id.tv_app_main_subtitle)?.text = "Real-Time PvP Floating Overlay • v$appVer"
         ensureDefaultPresets()
         ensureDefaultSeasons()
         migrateExistingBattleLogs()
@@ -756,7 +762,21 @@ class MainActivity : AppCompatActivity() {
             view.id == R.id.view_swatch_overlay ||
             view.id == R.id.root_theme_frame ||
             view.id == R.id.iv_theme_watermark_bg ||
-            view.id == R.id.iv_preset_dialog_watermark
+            view.id == R.id.iv_preset_dialog_watermark ||
+            view.id == R.id.text_dialog_archetype_badge ||
+            view.id == R.id.text_dialog_lead_br_badge ||
+            view.id == R.id.text_dialog_mach_br_badge ||
+            view.id == R.id.text_dialog_autodetect_banner ||
+            view.id == R.id.text_p1_lead_br ||
+            view.id == R.id.text_p2_swap_br ||
+            view.id == R.id.text_p3_swap_br ||
+            view.id == R.id.btn_mode_auto ||
+            view.id == R.id.btn_mode_abb ||
+            view.id == R.id.btn_mode_abc ||
+            view.id == R.id.btn_dialog_auto_detect_style ||
+            view.id == R.id.btn_auto_detect_preset ||
+            view.id == R.id.text_preset_archetype_badge ||
+            view.id == R.id.text_preset_league
         ) {
             return
         }
@@ -3217,18 +3237,20 @@ class MainActivity : AppCompatActivity() {
         val serviceMembers = preset.pokemon.map {
             OverlayService.TeamMember(it.name, it.cp, it.fastMove, it.chargedMove1, it.chargedMove2, it.ivs)
         }
+        val manualOverride = if (preset.isArchetypeManual && !autoReorder) preset.archetype else null
         val eval = OverlayService.evaluateOrAutoOrderTeamStatic(
             slots = serviceMembers,
             league = preset.league,
             seasonLogs = seasonLogs,
-            autoReorder = autoReorder
+            autoReorder = autoReorder,
+            manualArchetypeOverride = manualOverride
         )
         val orderedPokemon = eval.orderedSlots.map {
             PokemonSlot(it.name, it.cp, it.fastMove, it.chargedMove1, it.chargedMove2, it.ivs)
         }
         return preset.copy(
             pokemon = orderedPokemon,
-            archetype = if (preset.isArchetypeManual && !autoReorder) preset.archetype else eval.archetype,
+            archetype = eval.archetype,
             isArchetypeManual = if (autoReorder) false else preset.isArchetypeManual,
             leadAggBr = eval.leadAggBr,
             machineAggBr = eval.machineAggBr,
@@ -3357,8 +3379,21 @@ class MainActivity : AppCompatActivity() {
             isHighlighted = initialTopic == "badges"
         )
 
+        addSectionCard(
+            title = "4. Team Archetype (ABB vs ABC) & Blended Aggregate BR (v3.10)",
+            accentColor = 0xFFC084FC.toInt(),
+            bodyText =
+                "Evaluates your 3-Pokémon presets against a recency-weighted blend of your current-season battle logs (scaling 0% → 70% over 50 matches with exp(-0.05·(k-1)) decay) and the PvPoke top-ranked meta prior (exp(-0.05·(r-1))):\n" +
+                "• ABB vs ABC Auto-Detection: Audits 18-type defensive vulnerabilities across all 3 pairs. If a backline pair shares ≥ 2 weaknesses (or a critical meta weakness) covered by the third Pokémon A, the team is classified as ABB (moving A to Slot 1 Lead, Bait B1 to Slot 2, Sweeper B2 to Slot 3). Otherwise it is ABC (keeping Lead fixed and promoting the higher Swap BR bench Pokémon to Slot 2).\n" +
+                "• Position-Weighted Shield Scenarios:\n" +
+                "  - Lead BR (Slot 1): 45% 1v1 + 35% 2v2 + 10% 0v0 + 5% 1v2 + 5% 2v1 against blended Opponent Leads.\n" +
+                "  - Swap BR (Slots 2 & 3): Volatility-adjusted μ_Swap - 0.5·σ_Swap using 40% 1v1 + 20% 1v0 + 20% 0v1 + 10% 2v1 + 10% 0v0 against all seen Opponent Pokémon.\n" +
+                "  - Machine Agg BR: Team ceiling Σ P_field(p) · max(Lead, Swap, Closer) across the field, color-coded by your Machine BR Thresholds in Settings.",
+            isHighlighted = initialTopic == "team_br"
+        )
+
         val dialog = AlertDialog.Builder(this)
-            .setTitle("📖 Help & Metric Guide (v3.01)")
+            .setTitle("📖 Help & Metric Guide (v3.10)")
             .setView(scroll)
             .setNeutralButton("Open Full Help Tab") { _, _ ->
                 switchMainPage("help")
@@ -4690,6 +4725,8 @@ class MainActivity : AppCompatActivity() {
             val btnMoveUp = itemView.findViewById<TextView>(R.id.btn_move_preset_up)
             val btnMoveDown = itemView.findViewById<TextView>(R.id.btn_move_preset_down)
             val btnAutoDetect = itemView.findViewById<Button>(R.id.btn_auto_detect_preset)
+            val btnSwap12 = itemView.findViewById<Button>(R.id.btn_preset_swap_1_2)
+            val btnSwap23 = itemView.findViewById<Button>(R.id.btn_preset_swap_2_3)
             val btnEdit = itemView.findViewById<ImageButton>(R.id.btn_edit_preset)
             val btnDelete = itemView.findViewById<ImageButton>(R.id.btn_delete_preset)
 
@@ -4698,7 +4735,7 @@ class MainActivity : AppCompatActivity() {
             textName.text = preset.name
 
             val isAbb = preset.archetype.equals("ABB", ignoreCase = true)
-            textArchetype?.text = if (isAbb) "ABB" else "ABC"
+            textArchetype?.text = if (preset.isArchetypeManual) "${preset.archetype}*" else preset.archetype
 
             val maxCp = preset.pokemon.maxOfOrNull { it.cp } ?: 0
             val resolvedLeague = when {
@@ -4714,6 +4751,9 @@ class MainActivity : AppCompatActivity() {
             val (swap2Tier, swap2Hex) = getMatchupTierCodeAndHex(preset.safeSwapBr)
             val (swap3Tier, swap3Hex) = getMatchupTierCodeAndHex(preset.closerSwapBr)
 
+            applyCurrentAppThemeToSubtree(itemView)
+            val activeTheme = getActiveAppTheme()
+
             val metricsHtml = "Lead BR: <font color='$leadHex'>${preset.leadAggBr} ($leadTier)</font>  •  " +
                 "Mach BR: <font color='$machHex'>${preset.machineAggBr} ($machTier)</font>  •  " +
                 "Swap BR: <font color='$swap2Hex'>#2 ${preset.safeSwapBr} ($swap2Tier)</font> / <font color='$swap3Hex'>#3 ${preset.closerSwapBr} ($swap3Tier)</font>"
@@ -4724,20 +4764,20 @@ class MainActivity : AppCompatActivity() {
             } else {
                 listOf("Lead", "Safe Swap", "Closer")
             }
-            val slotBrLabels = listOf(
-                "Lead BR ${preset.leadAggBr} ($leadTier)",
-                "Swap BR ${preset.safeSwapBr} ($swap2Tier)",
-                "Swap BR ${preset.closerSwapBr} ($swap3Tier)"
+            val slotBrHtmlLabels = listOf(
+                "<font color='$leadHex'>Lead BR ${preset.leadAggBr} ($leadTier)</font>",
+                "<font color='$swap2Hex'>Swap BR ${preset.safeSwapBr} ($swap2Tier)</font>",
+                "<font color='$swap3Hex'>Swap BR ${preset.closerSwapBr} ($swap3Tier)</font>"
             )
 
-            textPokemon.text = preset.pokemon.mapIndexed { sIdx, slot ->
+            val pokemonHtml = preset.pokemon.mapIndexed { sIdx, slot ->
                 val ivLabel = if (!slot.ivs.isNullOrBlank()) " · IV ${slot.ivs}" else ""
                 val rTag = roleLabels.getOrElse(sIdx) { "Slot ${sIdx + 1}" }
-                val brTag = slotBrLabels.getOrElse(sIdx) { "" }
-                "• [$rTag · $brTag] ${slot.name} (CP ${slot.cp}$ivLabel) — ${slot.fastMove} | ${slot.chargedMove1}, ${slot.chargedMove2}"
-            }.joinToString("\n")
-            applyCurrentAppThemeToSubtree(itemView)
-            val activeTheme = getActiveAppTheme()
+                val brTag = slotBrHtmlLabels.getOrElse(sIdx) { "" }
+                "• <b>[$rTag · $brTag]</b> ${slot.name} (CP ${slot.cp}$ivLabel) — ${slot.fastMove} | ${slot.chargedMove1}, ${slot.chargedMove2}"
+            }.joinToString("<br>")
+            textPokemon.text = android.text.Html.fromHtml(pokemonHtml, android.text.Html.FROM_HTML_MODE_LEGACY)
+
             textArchetype?.setTextColor(if (isAbb) 0xFFFBBF24.toInt() else activeTheme.accentColor)
             textLeague.setTextColor(
                 when (resolvedLeague) {
@@ -4748,27 +4788,62 @@ class MainActivity : AppCompatActivity() {
                 }
             )
 
-            btnAutoDetect?.setOnClickListener {
-                val reordered = evaluatePresetMetrics(preset, autoReorder = true).copy(updatedAt = System.currentTimeMillis())
+            fun saveAndRefreshPresetUpdate(updatedPreset: TeamPreset, toastMessage: String? = null) {
                 val mutableList = loadPresets().toMutableList()
                 val idxInList = mutableList.indexOfFirst { it.id == preset.id }
                 if (idxInList >= 0) {
-                    mutableList[idxInList] = reordered
+                    mutableList[idxInList] = updatedPreset
                     savePresets(mutableList)
                     refreshPresetsUi()
                     if (isCurrent && isOverlayRunning) {
                         val updateIntent = Intent(this, OverlayService::class.java).apply {
                             action = OverlayService.ACTION_UPDATE_PRESET
-                            putExtra(OverlayService.EXTRA_PRESET_JSON, gson.toJson(reordered))
+                            putExtra(OverlayService.EXTRA_PRESET_JSON, gson.toJson(updatedPreset))
                         }
                         startService(updateIntent)
                     }
-                    val orderSummary = reordered.pokemon.joinToString(" → ") { it.name }
-                    Toast.makeText(
-                        this,
-                        "⚡ Auto-Detected ${reordered.archetype}: $orderSummary (Swap BR: ${reordered.safeSwapBr})",
-                        Toast.LENGTH_LONG
-                    ).show()
+                    triggerTwoDeviceCloudSync(silent = true)
+                    if (!toastMessage.isNullOrBlank()) {
+                        Toast.makeText(this, toastMessage, Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+
+            btnAutoDetect?.setOnClickListener {
+                val reordered = evaluatePresetMetrics(preset.copy(isArchetypeManual = false), autoReorder = true)
+                    .copy(updatedAt = System.currentTimeMillis())
+                val orderSummary = reordered.pokemon.joinToString(" → ") { it.name }
+                saveAndRefreshPresetUpdate(
+                    reordered,
+                    "⚡ Auto-Detected ${reordered.archetype}: $orderSummary (Lead BR ${reordered.leadAggBr} • Slot 2 Swap BR ${reordered.safeSwapBr})"
+                )
+            }
+
+            btnSwap12?.setOnClickListener {
+                if (preset.pokemon.size >= 3) {
+                    val swappedSlots = listOf(preset.pokemon[1], preset.pokemon[0], preset.pokemon[2])
+                    val reevaluated = evaluatePresetMetrics(
+                        preset.copy(pokemon = swappedSlots, updatedAt = System.currentTimeMillis()),
+                        autoReorder = false
+                    )
+                    saveAndRefreshPresetUpdate(
+                        reevaluated,
+                        "Swapped #1 ⇄ #2: ${reevaluated.pokemon[0].name} (Lead BR ${reevaluated.leadAggBr}) • ${reevaluated.pokemon[1].name} (Swap BR ${reevaluated.safeSwapBr})"
+                    )
+                }
+            }
+
+            btnSwap23?.setOnClickListener {
+                if (preset.pokemon.size >= 3) {
+                    val swappedSlots = listOf(preset.pokemon[0], preset.pokemon[2], preset.pokemon[1])
+                    val reevaluated = evaluatePresetMetrics(
+                        preset.copy(pokemon = swappedSlots, updatedAt = System.currentTimeMillis()),
+                        autoReorder = false
+                    )
+                    saveAndRefreshPresetUpdate(
+                        reevaluated,
+                        "Swapped #2 ⇄ #3: ${reevaluated.pokemon[1].name} (Swap BR ${reevaluated.safeSwapBr}) • ${reevaluated.pokemon[2].name} (Swap BR ${reevaluated.closerSwapBr})"
+                    )
                 }
             }
 
@@ -4863,7 +4938,6 @@ class MainActivity : AppCompatActivity() {
 
             presetsContainer.addView(itemView)
         }
-        applyCurrentAppThemeToSubtree(presetsContainer)
     }
 
     private inner class PokemonAutocompleteAdapter(
@@ -4990,132 +5064,66 @@ class MainActivity : AppCompatActivity() {
             spinnerLeague.selectedItem?.toString() ?: "GREAT LEAGUE"
         }
 
-        fun bindSlotAutocomplete(
-            nameAuto: AutoCompleteTextView,
-            cpEdit: EditText,
-            ivsEdit: EditText,
-            fastEdit: EditText,
-            c1Edit: EditText,
-            c2Edit: EditText
-        ) {
-            val adapter = PokemonAutocompleteAdapter(currentLeagueProvider)
-            nameAuto.setAdapter(adapter)
-            nameAuto.threshold = 1
-            nameAuto.setOnItemClickListener { parent, _, position, _ ->
-                val chosen = parent.getItemAtPosition(position) as? OverlayService.Companion.PokemonAutocompleteSuggestion ?: return@setOnItemClickListener
-                nameAuto.setText(chosen.name, false)
-                val customIvs = ivsEdit.text.toString().trim().takeIf { it.isNotEmpty() }
-                val rec = OverlayService.resolveRecommendedMovesForSpecies(chosen.name, currentLeagueProvider())
-                if (rec != null) {
-                    val scaled = OverlayService.computeEffectiveCombatStats(rec, currentLeagueProvider(), null, customIvs)
-                    fastEdit.setText(scaled.defaultFastMove)
-                    c1Edit.setText(scaled.chargedMove1)
-                    c2Edit.setText(scaled.chargedMove2)
-                    cpEdit.setText(scaled.defaultCp.toString())
-                } else {
-                    fastEdit.setText(chosen.fastMove)
-                    c1Edit.setText(chosen.chargedMove1)
-                    c2Edit.setText(chosen.chargedMove2)
-                    cpEdit.setText(chosen.cp.toString())
-                }
+        // Apply active theme & optional background watermark logo to the Team Edit dialog FIRST
+        val activeTheme = getActiveAppTheme()
+        val showWatermark = prefs.getBoolean(OverlayService.PREFS_KEY_SHOW_THEME_WATERMARK, true) && activeTheme.emblemDrawableRes != null
+        dialogView.findViewById<android.view.View>(R.id.root_preset_dialog_frame)?.setBackgroundColor(activeTheme.bgColor)
+        dialogView.findViewById<ImageView>(R.id.iv_preset_dialog_watermark)?.let { iv ->
+            if (showWatermark && activeTheme.emblemDrawableRes != null) {
+                iv.setImageResource(activeTheme.emblemDrawableRes)
+                iv.alpha = if (activeTheme.isLight) 0.24f else 0.20f
+                iv.visibility = android.view.View.VISIBLE
+            } else {
+                iv.visibility = android.view.View.GONE
             }
         }
+        applyThemeRecursively(dialogView, activeTheme, showWatermark)
 
-        bindSlotAutocomplete(editP1, editP1Cp, editP1Ivs, editP1Fast, editP1C1, editP1C2)
-        bindSlotAutocomplete(editP2, editP2Cp, editP2Ivs, editP2Fast, editP2C1, editP2C2)
-        bindSlotAutocomplete(editP3, editP3Cp, editP3Ivs, editP3Fast, editP3C1, editP3C2)
+        // Team Style (ABB vs ABC), Style Mode Override, Aggregate BR & Slot Swap Views
+        val textDialogArchetypeBadge = dialogView.findViewById<TextView>(R.id.text_dialog_archetype_badge)
+        val textDialogLeadBrBadge = dialogView.findViewById<TextView>(R.id.text_dialog_lead_br_badge)
+        val textDialogMachBrBadge = dialogView.findViewById<TextView>(R.id.text_dialog_mach_br_badge)
+        val btnModeAuto = dialogView.findViewById<Button>(R.id.btn_mode_auto)
+        val btnModeAbb = dialogView.findViewById<Button>(R.id.btn_mode_abb)
+        val btnModeAbc = dialogView.findViewById<Button>(R.id.btn_mode_abc)
+        val textDialogArchetypeSummary = dialogView.findViewById<TextView>(R.id.text_dialog_archetype_summary)
+        val textDialogMetaBlendInfo = dialogView.findViewById<TextView>(R.id.text_dialog_meta_blend_info)
+        val textDialogAutoDetectBanner = dialogView.findViewById<TextView>(R.id.text_dialog_autodetect_banner)
+        val btnDialogAutoDetect = dialogView.findViewById<Button>(R.id.btn_dialog_auto_detect_style)
+        val btnSwapSlot12 = dialogView.findViewById<Button>(R.id.btn_swap_slot_1_2)
+        val btnSwapSlot23 = dialogView.findViewById<Button>(R.id.btn_swap_slot_2_3)
+        val textP1RoleTitle = dialogView.findViewById<TextView>(R.id.text_p1_role_title)
+        val textP2RoleTitle = dialogView.findViewById<TextView>(R.id.text_p2_role_title)
+        val textP3RoleTitle = dialogView.findViewById<TextView>(R.id.text_p3_role_title)
+        val textP1LeadBr = dialogView.findViewById<TextView>(R.id.text_p1_lead_br)
+        val textP2SwapBr = dialogView.findViewById<TextView>(R.id.text_p2_swap_br)
+        val textP3SwapBr = dialogView.findViewById<TextView>(R.id.text_p3_swap_br)
+        val btnP1AutoFillMoves = dialogView.findViewById<Button>(R.id.btn_p1_autofill_moves)
+        val btnP2AutoFillMoves = dialogView.findViewById<Button>(R.id.btn_p2_autofill_moves)
+        val btnP3AutoFillMoves = dialogView.findViewById<Button>(R.id.btn_p3_autofill_moves)
 
-        fun updateLeagueTemplateHints(selectedLeague: String) {
-            val top3 = getLeagueTop3Defaults(selectedLeague)
-            editP1.hint = "Name (e.g. ${top3[0].name})"
-            editP2.hint = "Name (e.g. ${top3[1].name})"
-            editP3.hint = "Name (e.g. ${top3[2].name})"
-            val ivHint = if (selectedLeague.contains("MASTER", ignoreCase = true)) "IVs (def 15/15/15)" else "IVs (PvPoke def)"
-            editP1Ivs.hint = ivHint
-            editP2Ivs.hint = ivHint
-            editP3Ivs.hint = ivHint
-        }
+        var dialogManualArchetypeOverride: String? =
+            if (existingPreset?.isArchetypeManual == true) existingPreset.archetype else null
 
-        fun autoFillMovesForSlot(
-            nameEdit: EditText,
-            cpEdit: EditText,
-            ivsEdit: EditText,
-            fastEdit: EditText,
-            c1Edit: EditText,
-            c2Edit: EditText
-        ) {
-            val enteredName = nameEdit.text.toString().trim()
-            if (enteredName.isEmpty()) return
-            val selectedLeague = currentLeagueProvider()
-            val rec = OverlayService.resolveRecommendedMovesForSpecies(enteredName, selectedLeague) ?: return
-            val customIvs = ivsEdit.text.toString().trim().takeIf { it.isNotEmpty() }
-            val scaled = OverlayService.computeEffectiveCombatStats(rec, selectedLeague, null, customIvs)
+        fun updateStyleModeButtonsUi() {
+            val activeTint = android.content.res.ColorStateList.valueOf(0xFF0284C7.toInt())
+            val activeAbbTint = android.content.res.ColorStateList.valueOf(0xFFD97706.toInt())
+            val inactiveTint = android.content.res.ColorStateList.valueOf(0xFF334155.toInt())
+            val activeText = 0xFFFFFFFF.toInt()
+            val inactiveText = 0xFFCBD5E1.toInt()
 
-            if (fastEdit.text.toString().trim().isEmpty()) {
-                fastEdit.setText(scaled.defaultFastMove)
-            }
-            if (c1Edit.text.toString().trim().isEmpty()) {
-                c1Edit.setText(scaled.chargedMove1)
-            }
-            if (c2Edit.text.toString().trim().isEmpty()) {
-                c2Edit.setText(scaled.chargedMove2)
-            }
-            if (cpEdit.text.toString().trim().isEmpty()) {
-                cpEdit.setText(scaled.defaultCp.toString())
-            }
-        }
+            val isAuto = dialogManualArchetypeOverride == null
+            val isAbb = dialogManualArchetypeOverride.equals("ABB", ignoreCase = true)
+            val isAbc = dialogManualArchetypeOverride.equals("ABC", ignoreCase = true)
 
-        editP1.setOnFocusChangeListener { _, hasFocus ->
-            if (!hasFocus) autoFillMovesForSlot(editP1, editP1Cp, editP1Ivs, editP1Fast, editP1C1, editP1C2)
-        }
-        editP2.setOnFocusChangeListener { _, hasFocus ->
-            if (!hasFocus) autoFillMovesForSlot(editP2, editP2Cp, editP2Ivs, editP2Fast, editP2C1, editP2C2)
-        }
-        editP3.setOnFocusChangeListener { _, hasFocus ->
-            if (!hasFocus) autoFillMovesForSlot(editP3, editP3Cp, editP3Ivs, editP3Fast, editP3C1, editP3C2)
-        }
+            btnModeAuto?.backgroundTintList = if (isAuto) activeTint else inactiveTint
+            btnModeAuto?.setTextColor(if (isAuto) activeText else inactiveText)
 
-        spinnerLeague.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
-                val lg = leagues.getOrElse(position) { "GREAT LEAGUE" }
-                updateLeagueTemplateHints(lg)
-            }
-            override fun onNothingSelected(parent: AdapterView<*>?) {}
-        }
+            btnModeAbb?.backgroundTintList = if (isAbb) activeAbbTint else inactiveTint
+            btnModeAbb?.setTextColor(if (isAbb) activeText else inactiveText)
 
-        if (existingPreset != null) {
-            editName.setText(existingPreset.name)
-            val leagueIdx = leagues.indexOfFirst { existingPreset.league.equals(it, ignoreCase = true) }
-                .takeIf { it >= 0 } ?: 0
-            spinnerLeague.setSelection(leagueIdx)
-            updateLeagueTemplateHints(leagues[leagueIdx])
-
-            existingPreset.pokemon.getOrNull(0)?.let {
-                editP1.setText(it.name, false)
-                editP1Cp.setText(it.cp.toString())
-                editP1Ivs.setText(it.ivs ?: "")
-                editP1Fast.setText(it.fastMove)
-                editP1C1.setText(it.chargedMove1)
-                editP1C2.setText(it.chargedMove2)
-            }
-            existingPreset.pokemon.getOrNull(1)?.let {
-                editP2.setText(it.name, false)
-                editP2Cp.setText(it.cp.toString())
-                editP2Ivs.setText(it.ivs ?: "")
-                editP2Fast.setText(it.fastMove)
-                editP2C1.setText(it.chargedMove1)
-                editP2C2.setText(it.chargedMove2)
-            }
-            existingPreset.pokemon.getOrNull(2)?.let {
-                editP3.setText(it.name, false)
-                editP3Cp.setText(it.cp.toString())
-                editP3Ivs.setText(it.ivs ?: "")
-                editP3Fast.setText(it.fastMove)
-                editP3C1.setText(it.chargedMove1)
-                editP3C2.setText(it.chargedMove2)
-            }
-        } else {
-            updateLeagueTemplateHints("GREAT LEAGUE")
+            btnModeAbc?.backgroundTintList = if (isAbc) activeTint else inactiveTint
+            btnModeAbc?.setTextColor(if (isAbc) activeText else inactiveText)
         }
 
         fun buildResolvedSlot(
@@ -5156,19 +5164,6 @@ class MainActivity : AppCompatActivity() {
                 ivs = enteredIvs
             )
         }
-
-        // Team Style (ABB vs ABC), Aggregate BR & Slot Swap Wiring inside Create/Edit Dialog
-        val textDialogArchetypeSummary = dialogView.findViewById<TextView>(R.id.text_dialog_archetype_summary)
-        val textDialogMetaBlendInfo = dialogView.findViewById<TextView>(R.id.text_dialog_meta_blend_info)
-        val btnDialogAutoDetect = dialogView.findViewById<Button>(R.id.btn_dialog_auto_detect_style)
-        val btnSwapSlot12 = dialogView.findViewById<Button>(R.id.btn_swap_slot_1_2)
-        val btnSwapSlot23 = dialogView.findViewById<Button>(R.id.btn_swap_slot_2_3)
-        val textP1RoleTitle = dialogView.findViewById<TextView>(R.id.text_p1_role_title)
-        val textP2RoleTitle = dialogView.findViewById<TextView>(R.id.text_p2_role_title)
-        val textP3RoleTitle = dialogView.findViewById<TextView>(R.id.text_p3_role_title)
-        val textP1LeadBr = dialogView.findViewById<TextView>(R.id.text_p1_lead_br)
-        val textP2SwapBr = dialogView.findViewById<TextView>(R.id.text_p2_swap_br)
-        val textP3SwapBr = dialogView.findViewById<TextView>(R.id.text_p3_swap_br)
 
         fun applySlotsToDialogInputs(slots: List<PokemonSlot>) {
             slots.getOrNull(0)?.let {
@@ -5212,7 +5207,8 @@ class MainActivity : AppCompatActivity() {
                 ),
                 league = lg,
                 seasonLogs = seasonLogs,
-                autoReorder = autoReorder
+                autoReorder = autoReorder,
+                manualArchetypeOverride = dialogManualArchetypeOverride
             )
             if (autoReorder) {
                 val orderedSlots = eval.orderedSlots.map {
@@ -5221,23 +5217,40 @@ class MainActivity : AppCompatActivity() {
                 applySlotsToDialogInputs(orderedSlots)
             }
 
+            updateStyleModeButtonsUi()
+
             val isAbb = eval.archetype.equals("ABB", ignoreCase = true)
             val (leadTier, leadHex) = getMatchupTierCodeAndHex(eval.leadAggBr)
             val (machTier, machHex) = getMachineBrTierLabelAndHex(eval.machineAggBr)
             val (swap2Tier, swap2Hex) = getMatchupTierCodeAndHex(eval.safeSwapBr)
             val (swap3Tier, swap3Hex) = getMatchupTierCodeAndHex(eval.closerSwapBr)
 
-            val weakNote = if (eval.sharedWeaknesses.isNotEmpty()) " (Shared: ${eval.sharedWeaknesses.joinToString("/")})" else ""
-            val summaryHtml = "Style: <font color='${if (isAbb) "#fbbf24" else "#38bdf8"}'>${eval.archetype}$weakNote</font>  •  " +
-                "Lead BR: <font color='$leadHex'>${eval.leadAggBr} ($leadTier)</font>  •  " +
-                "Mach BR: <font color='$machHex'>${eval.machineAggBr} ($machTier)</font>"
+            val overrideSuffix = if (dialogManualArchetypeOverride != null) " • OVERRIDDEN" else ""
+            textDialogArchetypeBadge?.text = "Style: [${eval.archetype}$overrideSuffix]"
+            textDialogArchetypeBadge?.setTextColor(if (isAbb) 0xFFFBBF24.toInt() else 0xFF38BDF8.toInt())
+
+            textDialogLeadBrBadge?.text = "Lead Agg BR: ${eval.leadAggBr} ($leadTier)"
+            textDialogLeadBrBadge?.setTextColor(android.graphics.Color.parseColor(leadHex))
+
+            textDialogMachBrBadge?.text = "Mach Agg BR: ${eval.machineAggBr} ($machTier)"
+            textDialogMachBrBadge?.setTextColor(android.graphics.Color.parseColor(machHex))
+
+            val weakHtml = if (eval.sharedWeaknesses.isNotEmpty()) {
+                "  •  <font color='#fbbf24'>Shared B-Pair Weaknesses: ${eval.sharedWeaknesses.joinToString(", ").uppercase()}</font>"
+            } else {
+                ""
+            }
+            val summaryHtml = "Slot 2 Swap BR: <font color='$swap2Hex'>${eval.safeSwapBr} ($swap2Tier)</font>  •  " +
+                "Slot 3 Swap BR: <font color='$swap3Hex'>${eval.closerSwapBr} ($swap3Tier)</font>  •  " +
+                "Closer BR: <font color='#cbd5e1'>${eval.closerBr}</font>$weakHtml"
             textDialogArchetypeSummary?.text = android.text.Html.fromHtml(summaryHtml, android.text.Html.FROM_HTML_MODE_LEGACY)
+
             textDialogMetaBlendInfo?.text =
                 "Current Season Meta Blend: ${eval.histWeightPct}% Recency-Weighted Logs (${eval.seasonMatchCount} matches) / ${100 - eval.histWeightPct}% PvPoke"
 
-            textP1RoleTitle?.text = if (isAbb) "⚔️ Lead Pokémon (Slot 1 · A) & Moveset" else "⚔️ Lead Pokémon (Slot 1) & Moveset"
-            textP2RoleTitle?.text = if (isAbb) "🔄 Bait Swap (Slot 2 · B1) & Moveset" else "🔄 Safe Swap (Slot 2) & Moveset"
-            textP3RoleTitle?.text = if (isAbb) "🛡️ Sweeper (Slot 3 · B2) & Moveset" else "🛡️ Closer (Slot 3) & Moveset"
+            textP1RoleTitle?.text = if (isAbb) "⚔️ Slot 1 (Lead A) & Moveset" else "⚔️ Slot 1 (Lead) & Moveset"
+            textP2RoleTitle?.text = if (isAbb) "🔄 Slot 2 (Bait Swap B1) & Moveset" else "🔄 Slot 2 (Safe Swap) & Moveset"
+            textP3RoleTitle?.text = if (isAbb) "🛡️ Slot 3 (Sweeper B2) & Moveset" else "🛡️ Slot 3 (Closer) & Moveset"
 
             textP1LeadBr?.text = "Lead BR: ${eval.leadAggBr} ($leadTier)"
             textP1LeadBr?.setTextColor(android.graphics.Color.parseColor(leadHex))
@@ -5251,12 +5264,185 @@ class MainActivity : AppCompatActivity() {
             return eval
         }
 
+        fun bindSlotAutocomplete(
+            nameAuto: AutoCompleteTextView,
+            cpEdit: EditText,
+            ivsEdit: EditText,
+            fastEdit: EditText,
+            c1Edit: EditText,
+            c2Edit: EditText
+        ) {
+            val adapter = PokemonAutocompleteAdapter(currentLeagueProvider)
+            nameAuto.setAdapter(adapter)
+            nameAuto.threshold = 1
+            nameAuto.setOnItemClickListener { parent, _, position, _ ->
+                val chosen = parent.getItemAtPosition(position) as? OverlayService.Companion.PokemonAutocompleteSuggestion ?: return@setOnItemClickListener
+                nameAuto.setText(chosen.name, false)
+                val customIvs = ivsEdit.text.toString().trim().takeIf { it.isNotEmpty() }
+                val rec = OverlayService.resolveRecommendedMovesForSpecies(chosen.name, currentLeagueProvider())
+                if (rec != null) {
+                    val scaled = OverlayService.computeEffectiveCombatStats(rec, currentLeagueProvider(), null, customIvs)
+                    fastEdit.setText(scaled.defaultFastMove)
+                    c1Edit.setText(scaled.chargedMove1)
+                    c2Edit.setText(scaled.chargedMove2)
+                    cpEdit.setText(scaled.defaultCp.toString())
+                } else {
+                    fastEdit.setText(chosen.fastMove)
+                    c1Edit.setText(chosen.chargedMove1)
+                    c2Edit.setText(chosen.chargedMove2)
+                    cpEdit.setText(chosen.cp.toString())
+                }
+                refreshDialogTeamEvaluation(autoReorder = false)
+            }
+        }
+
+        bindSlotAutocomplete(editP1, editP1Cp, editP1Ivs, editP1Fast, editP1C1, editP1C2)
+        bindSlotAutocomplete(editP2, editP2Cp, editP2Ivs, editP2Fast, editP2C1, editP2C2)
+        bindSlotAutocomplete(editP3, editP3Cp, editP3Ivs, editP3Fast, editP3C1, editP3C2)
+
+        fun updateLeagueTemplateHints(selectedLeague: String) {
+            val top3 = getLeagueTop3Defaults(selectedLeague)
+            editP1.hint = "Name (e.g. ${top3[0].name})"
+            editP2.hint = "Name (e.g. ${top3[1].name})"
+            editP3.hint = "Name (e.g. ${top3[2].name})"
+            val ivHint = if (selectedLeague.contains("MASTER", ignoreCase = true)) "IVs (def 15/15/15)" else "IVs (PvPoke def)"
+            editP1Ivs.hint = ivHint
+            editP2Ivs.hint = ivHint
+            editP3Ivs.hint = ivHint
+        }
+
+        fun autoFillMovesForSlot(
+            nameEdit: EditText,
+            cpEdit: EditText,
+            ivsEdit: EditText,
+            fastEdit: EditText,
+            c1Edit: EditText,
+            c2Edit: EditText,
+            forceOverwrite: Boolean = false
+        ) {
+            val enteredName = nameEdit.text.toString().trim()
+            if (enteredName.isEmpty()) return
+            val selectedLeague = currentLeagueProvider()
+            val rec = OverlayService.resolveRecommendedMovesForSpecies(enteredName, selectedLeague) ?: return
+            val customIvs = ivsEdit.text.toString().trim().takeIf { it.isNotEmpty() }
+            val scaled = OverlayService.computeEffectiveCombatStats(rec, selectedLeague, null, customIvs)
+
+            if (forceOverwrite) {
+                nameEdit.setText(rec.name)
+            }
+            if (forceOverwrite || fastEdit.text.toString().trim().isEmpty()) {
+                fastEdit.setText(scaled.defaultFastMove)
+            }
+            if (forceOverwrite || c1Edit.text.toString().trim().isEmpty()) {
+                c1Edit.setText(scaled.chargedMove1)
+            }
+            if (forceOverwrite || c2Edit.text.toString().trim().isEmpty()) {
+                c2Edit.setText(scaled.chargedMove2)
+            }
+            if (forceOverwrite || cpEdit.text.toString().trim().isEmpty()) {
+                cpEdit.setText(scaled.defaultCp.toString())
+            }
+            refreshDialogTeamEvaluation(autoReorder = false)
+        }
+
+        editP1.setOnFocusChangeListener { _, hasFocus ->
+            if (!hasFocus) autoFillMovesForSlot(editP1, editP1Cp, editP1Ivs, editP1Fast, editP1C1, editP1C2, false)
+        }
+        editP2.setOnFocusChangeListener { _, hasFocus ->
+            if (!hasFocus) autoFillMovesForSlot(editP2, editP2Cp, editP2Ivs, editP2Fast, editP2C1, editP2C2, false)
+        }
+        editP3.setOnFocusChangeListener { _, hasFocus ->
+            if (!hasFocus) autoFillMovesForSlot(editP3, editP3Cp, editP3Ivs, editP3Fast, editP3C1, editP3C2, false)
+        }
+
+        listOf(
+            editP1Cp, editP1Ivs, editP1Fast, editP1C1, editP1C2,
+            editP2Cp, editP2Ivs, editP2Fast, editP2C1, editP2C2,
+            editP3Cp, editP3Ivs, editP3Fast, editP3C1, editP3C2
+        ).forEach { field ->
+            field.setOnFocusChangeListener { _, hasFocus ->
+                if (!hasFocus) refreshDialogTeamEvaluation(autoReorder = false)
+            }
+        }
+
+        btnP1AutoFillMoves?.setOnClickListener {
+            autoFillMovesForSlot(editP1, editP1Cp, editP1Ivs, editP1Fast, editP1C1, editP1C2, forceOverwrite = true)
+        }
+        btnP2AutoFillMoves?.setOnClickListener {
+            autoFillMovesForSlot(editP2, editP2Cp, editP2Ivs, editP2Fast, editP2C1, editP2C2, forceOverwrite = true)
+        }
+        btnP3AutoFillMoves?.setOnClickListener {
+            autoFillMovesForSlot(editP3, editP3Cp, editP3Ivs, editP3Fast, editP3C1, editP3C2, forceOverwrite = true)
+        }
+
+        if (existingPreset != null) {
+            editName.setText(existingPreset.name)
+            val leagueIdx = leagues.indexOfFirst { existingPreset.league.equals(it, ignoreCase = true) }
+                .takeIf { it >= 0 } ?: 0
+            spinnerLeague.setSelection(leagueIdx)
+            updateLeagueTemplateHints(leagues[leagueIdx])
+
+            existingPreset.pokemon.getOrNull(0)?.let {
+                editP1.setText(it.name, false)
+                editP1Cp.setText(it.cp.toString())
+                editP1Ivs.setText(it.ivs ?: "")
+                editP1Fast.setText(it.fastMove)
+                editP1C1.setText(it.chargedMove1)
+                editP1C2.setText(it.chargedMove2)
+            }
+            existingPreset.pokemon.getOrNull(1)?.let {
+                editP2.setText(it.name, false)
+                editP2Cp.setText(it.cp.toString())
+                editP2Ivs.setText(it.ivs ?: "")
+                editP2Fast.setText(it.fastMove)
+                editP2C1.setText(it.chargedMove1)
+                editP2C2.setText(it.chargedMove2)
+            }
+            existingPreset.pokemon.getOrNull(2)?.let {
+                editP3.setText(it.name, false)
+                editP3Cp.setText(it.cp.toString())
+                editP3Ivs.setText(it.ivs ?: "")
+                editP3Fast.setText(it.fastMove)
+                editP3C1.setText(it.chargedMove1)
+                editP3C2.setText(it.chargedMove2)
+            }
+        } else {
+            updateLeagueTemplateHints("GREAT LEAGUE")
+        }
+
+        spinnerLeague.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
+                val lg = leagues.getOrElse(position) { "GREAT LEAGUE" }
+                updateLeagueTemplateHints(lg)
+                refreshDialogTeamEvaluation(autoReorder = false)
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
+
+        btnModeAuto?.setOnClickListener {
+            dialogManualArchetypeOverride = null
+            textDialogAutoDetectBanner?.visibility = android.view.View.GONE
+            refreshDialogTeamEvaluation(autoReorder = false)
+        }
+        btnModeAbb?.setOnClickListener {
+            dialogManualArchetypeOverride = "ABB"
+            textDialogAutoDetectBanner?.visibility = android.view.View.GONE
+            refreshDialogTeamEvaluation(autoReorder = false)
+        }
+        btnModeAbc?.setOnClickListener {
+            dialogManualArchetypeOverride = "ABC"
+            textDialogAutoDetectBanner?.visibility = android.view.View.GONE
+            refreshDialogTeamEvaluation(autoReorder = false)
+        }
+
         btnDialogAutoDetect?.setOnClickListener {
+            dialogManualArchetypeOverride = null
             val eval = refreshDialogTeamEvaluation(autoReorder = true)
-            val orderNames = eval.orderedSlots.joinToString(" → ") { it.name }
+            textDialogAutoDetectBanner?.text = eval.reasonSummary
+            textDialogAutoDetectBanner?.visibility = android.view.View.VISIBLE
             Toast.makeText(
                 this,
-                "⚡ Auto-Detected ${eval.archetype}: $orderNames (Slot 2 Swap BR: ${eval.safeSwapBr})",
+                eval.reasonSummary,
                 Toast.LENGTH_LONG
             ).show()
         }
@@ -5268,7 +5454,10 @@ class MainActivity : AppCompatActivity() {
             val s2 = buildResolvedSlot(editP2, editP2Cp, editP2Ivs, editP2Fast, editP2C1, editP2C2, lg, top3Defaults[1])
             val s3 = buildResolvedSlot(editP3, editP3Cp, editP3Ivs, editP3Fast, editP3C1, editP3C2, lg, top3Defaults[2])
             applySlotsToDialogInputs(listOf(s2, s1, s3))
-            refreshDialogTeamEvaluation(autoReorder = false)
+            val eval = refreshDialogTeamEvaluation(autoReorder = false)
+            textDialogAutoDetectBanner?.text =
+                "Swapped Slot 1 ⇄ Slot 2: #1 Lead ${s2.name} (Lead BR ${eval.leadAggBr}) • #2 Safe Swap ${s1.name} (Swap BR ${eval.safeSwapBr})"
+            textDialogAutoDetectBanner?.visibility = android.view.View.VISIBLE
         }
 
         btnSwapSlot23?.setOnClickListener {
@@ -5278,25 +5467,13 @@ class MainActivity : AppCompatActivity() {
             val s2 = buildResolvedSlot(editP2, editP2Cp, editP2Ivs, editP2Fast, editP2C1, editP2C2, lg, top3Defaults[1])
             val s3 = buildResolvedSlot(editP3, editP3Cp, editP3Ivs, editP3Fast, editP3C1, editP3C2, lg, top3Defaults[2])
             applySlotsToDialogInputs(listOf(s1, s3, s2))
-            refreshDialogTeamEvaluation(autoReorder = false)
+            val eval = refreshDialogTeamEvaluation(autoReorder = false)
+            textDialogAutoDetectBanner?.text =
+                "Swapped Slot 2 ⇄ Slot 3: #2 Safe Swap ${s3.name} (Swap BR ${eval.safeSwapBr}) • #3 Closer ${s2.name} (Swap BR ${eval.closerSwapBr})"
+            textDialogAutoDetectBanner?.visibility = android.view.View.VISIBLE
         }
 
         refreshDialogTeamEvaluation(autoReorder = false)
-
-        // Apply active theme & optional background watermark logo to the Team Edit dialog
-        val activeTheme = getActiveAppTheme()
-        val showWatermark = prefs.getBoolean(OverlayService.PREFS_KEY_SHOW_THEME_WATERMARK, true) && activeTheme.emblemDrawableRes != null
-        dialogView.findViewById<android.view.View>(R.id.root_preset_dialog_frame)?.setBackgroundColor(activeTheme.bgColor)
-        dialogView.findViewById<ImageView>(R.id.iv_preset_dialog_watermark)?.let { iv ->
-            if (showWatermark && activeTheme.emblemDrawableRes != null) {
-                iv.setImageResource(activeTheme.emblemDrawableRes)
-                iv.alpha = if (activeTheme.isLight) 0.24f else 0.20f
-                iv.visibility = android.view.View.VISIBLE
-            } else {
-                iv.visibility = android.view.View.GONE
-            }
-        }
-        applyThemeRecursively(dialogView, activeTheme, showWatermark)
 
         val dialog = AlertDialog.Builder(this)
             .setTitle(if (existingPreset != null) "⚔️ Edit Team & Moves" else "➕ Create Custom GBL Team")
@@ -5316,7 +5493,9 @@ class MainActivity : AppCompatActivity() {
                     league = league,
                     pokemon = listOf(p1, p2, p3),
                     isSelected = existingPreset?.isSelected ?: false,
-                    updatedAt = System.currentTimeMillis()
+                    updatedAt = System.currentTimeMillis(),
+                    archetype = dialogManualArchetypeOverride ?: "ABC",
+                    isArchetypeManual = dialogManualArchetypeOverride != null
                 )
                 val savedPreset = evaluatePresetMetrics(rawPreset, autoReorder = false)
 

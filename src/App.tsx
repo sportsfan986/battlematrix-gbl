@@ -6011,7 +6011,7 @@ export default function App() {
                           'Content-Type': 'application/json'
                         },
                         body: JSON.stringify({
-                          description: 'SilphScope PvP v3.08 Multi-Device Delta Sync Vault',
+                          description: 'SilphScope PvP v3.10 Multi-Device Delta Sync Vault',
                           public: false,
                           files: {
                             'gbl_delta_sync_v2.json': { content: bundleStr }
@@ -7645,7 +7645,7 @@ export default function App() {
               <div>
                 <h2 className="text-lg font-bold text-white flex items-center gap-2">
                   <Info className="w-5 h-5 text-sky-400" />
-                  <span>📖 Complete Help, HUD Instructions, Tips &amp; Tactics Guide (v3.08)</span>
+                  <span>📖 Complete Help, HUD Instructions, Tips &amp; Tactics Guide (v3.10)</span>
                 </h2>
                 <p className="text-xs text-slate-400">
                   Everything you need to master the floating PvP overlay, 3x3 matchup &amp; shield matrix, bottom 3-column damage grid, 50s swap clocks, move pacing, Battle Log analytics, and Tasker automation.
@@ -8294,7 +8294,7 @@ export default function App() {
                 <div>
                   <h3 className="font-bold text-base text-white flex items-center gap-2">
                     <Info className="w-4 h-4 text-sky-400" />
-                    <span>Help &amp; Metric Guide (v3.00 Analytics Reference)</span>
+                    <span>Help &amp; Metric Guide (v3.10 Analytics Reference)</span>
                   </h3>
                   <p className="text-xs text-slate-400 mt-0.5">
                     How SilphScope PvP separates micro-execution skill from matchmaking alignment RNG
@@ -8549,7 +8549,7 @@ export default function App() {
               <div className="flex items-center justify-between border-b border-slate-800 pb-3 shrink-0">
                 <div>
                   <h3 className="font-bold text-base text-white flex items-center gap-2">
-                    <span>🎯 Overlay HUD &amp; Battle Flow Guide (v3.08)</span>
+                    <span>🎯 Overlay HUD &amp; Battle Flow Guide (v3.10)</span>
                   </h3>
                   <p className="text-xs text-slate-400 mt-0.5">
                     How to interact with the floating overlay, read 3x3 damage % &amp; shield dots, track 50s swap clocks, and log battles

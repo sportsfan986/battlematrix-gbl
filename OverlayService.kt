@@ -3539,7 +3539,8 @@ class OverlayService : LifecycleService() {
             val closerBr: Int,
             val sharedWeaknesses: List<String>,
             val histWeightPct: Int,
-            val seasonMatchCount: Int
+            val seasonMatchCount: Int,
+            val reasonSummary: String = ""
         )
 
         private val ALL_18_TYPES = listOf(
@@ -3664,7 +3665,8 @@ class OverlayService : LifecycleService() {
             slots: List<TeamMember>,
             league: String,
             seasonLogs: List<Pair<Long, List<String>>>,
-            autoReorder: Boolean
+            autoReorder: Boolean,
+            manualArchetypeOverride: String? = null
         ): TeamArchetypeEvaluationResult {
             val padded = if (slots.size >= 3) slots.take(3) else {
                 val top = getTopMetaPoolForLeagueStatic(league)
@@ -3690,9 +3692,13 @@ class OverlayService : LifecycleService() {
 
             fun resistsAll(types: List<String>, sharedWeaknesses: Set<String>): Boolean {
                 if (sharedWeaknesses.isEmpty()) return false
-                return sharedWeaknesses.all { wType ->
+                val resistedCount = sharedWeaknesses.count { wType ->
                     getTypeEffectivenessStatic(wType, types) < 0.95
                 }
+                val notWeakToAny = sharedWeaknesses.all { wType ->
+                    getTypeEffectivenessStatic(wType, types) <= 1.05
+                }
+                return resistedCount == sharedWeaknesses.size || (resistedCount >= 1 && notWeakToAny && sharedWeaknesses.size >= 2)
             }
 
             fun computeSwapStats(slot: TeamMember): Pair<Double, Double> {
@@ -3735,7 +3741,7 @@ class OverlayService : LifecycleService() {
             }
 
             val typesList = padded.map { getTypesFor(it) }
-            val weakList = typesList.map { getWeaknesses(it) }
+            val weakList = padded.indices.map { getWeaknesses(typesList[it]) }
 
             // Check candidate B-pairs: (1,2) with Lead 0, (0,2) with Lead 1, (0,1) with Lead 2
             val candidatePairs = listOf(
@@ -3764,13 +3770,18 @@ class OverlayService : LifecycleService() {
             val swapScores = padded.map { computeSwapStats(it).first }
             val closerMeans = padded.map { computeCloserStats(it) }
 
-            val finalOrderIndices: List<Int>
-            val archetype: String
+            val cleanOverride = manualArchetypeOverride?.trim()?.uppercase()?.takeIf { it == "ABB" || it == "ABC" }
+            val archetype: String = cleanOverride ?: if (detectedAbbTriplet != null) "ABB" else "ABC"
 
-            if (detectedAbbTriplet != null) {
-                archetype = "ABB"
+            if (archetype == "ABB" && detectedSharedWeaknesses.isEmpty()) {
+                val backShared = weakList[1].intersect(weakList[2])
+                detectedSharedWeaknesses = backShared.map { it.replaceFirstChar { c -> c.uppercase() } }
+            }
+
+            val finalOrderIndices: List<Int>
+            if (archetype == "ABB") {
                 if (autoReorder) {
-                    val (aIdx, bA, bB) = detectedAbbTriplet
+                    val (aIdx, bA, bB) = detectedAbbTriplet ?: Triple(0, 1, 2)
                     val (baitA, sweepA) = computeBaitVsSweeperScore(padded[bA], swapScores[bA], closerMeans[bA])
                     val (baitB, sweepB) = computeBaitVsSweeperScore(padded[bB], swapScores[bB], closerMeans[bB])
                     val b1First = (baitA + sweepB) >= (baitB + sweepA)
@@ -3779,7 +3790,6 @@ class OverlayService : LifecycleService() {
                     finalOrderIndices = listOf(0, 1, 2)
                 }
             } else {
-                archetype = "ABC"
                 if (autoReorder) {
                     // Keep Slot 1 (index 0) fixed; place higher Swap BR backline member in Slot 2
                     finalOrderIndices = if (swapScores[1] >= swapScores[2]) listOf(0, 1, 2) else listOf(0, 2, 1)
@@ -3808,21 +3818,31 @@ class OverlayService : LifecycleService() {
                 machAgg += prob * max(r1, max(r2, r3))
             }
 
+            val leadAggVal = leadAgg.roundToInt().coerceIn(150, 850)
+            val machAggVal = machAgg.roundToInt().coerceIn(150, 850)
             val safeSwapBrVal = computeSwapStats(slot2).first.roundToInt().coerceIn(150, 850)
             val closerSwapBrVal = computeSwapStats(slot3).first.roundToInt().coerceIn(150, 850)
             val closerBrVal = computeCloserStats(slot3).roundToInt().coerceIn(150, 850)
 
+            val reasonSummary = if (archetype == "ABB") {
+                val sharedStr = if (detectedSharedWeaknesses.isNotEmpty()) detectedSharedWeaknesses.joinToString("/") else "Backline"
+                "⚡ Auto-Detected ABB Lineup (Shared $sharedStr weakness covered by ${slot1.name}) → #1 Lead (A): ${slot1.name} (Lead BR $leadAggVal) • #2 Bait Swap (B1): ${slot2.name} (Swap BR $safeSwapBrVal) • #3 Sweeper (B2): ${slot3.name} (Swap BR $closerSwapBrVal)"
+            } else {
+                "⚡ Auto-Detected ABC Balanced Core → #1 Lead kept: ${slot1.name} (Lead BR $leadAggVal) • #2 Safe Swap moved to Slot 2: ${slot2.name} (Swap BR $safeSwapBrVal) • #3 Closer: ${slot3.name} (Swap BR $closerSwapBrVal)"
+            }
+
             return TeamArchetypeEvaluationResult(
                 orderedSlots = ordered,
                 archetype = archetype,
-                leadAggBr = leadAgg.roundToInt().coerceIn(150, 850),
-                machineAggBr = machAgg.roundToInt().coerceIn(150, 850),
+                leadAggBr = leadAggVal,
+                machineAggBr = machAggVal,
                 safeSwapBr = safeSwapBrVal,
                 closerSwapBr = closerSwapBrVal,
                 closerBr = closerBrVal,
                 sharedWeaknesses = detectedSharedWeaknesses,
                 histWeightPct = dist.histWeightPct,
-                seasonMatchCount = dist.seasonMatchCount
+                seasonMatchCount = dist.seasonMatchCount,
+                reasonSummary = reasonSummary
             )
         }
     }

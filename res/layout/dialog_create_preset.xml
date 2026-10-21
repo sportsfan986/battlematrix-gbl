@@ -19,7 +19,7 @@
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:padding="14dp">
+        android:padding="12dp">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -82,7 +82,7 @@
                     android:textColor="#94a3b8" />
             </LinearLayout>
 
-            <!-- Team Style (ABB vs ABC), Aggregate BR & Slot Ordering Controls -->
+            <!-- ABB / ABC Team Style Auto-Detection, Aggregate BR & Safe Swap Reordering Panel -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -91,37 +91,133 @@
                 android:padding="10dp"
                 android:layout_marginBottom="10dp">
 
-                <TextView
-                    android:id="@+id/text_dialog_archetype_summary"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Style: ABC  •  Lead BR: 500 (N)  •  Mach BR: 600"
-                    android:textColor="#f8fafc"
-                    android:textStyle="bold"
-                    android:textSize="11.5sp" />
-
-                <TextView
-                    android:id="@+id/text_dialog_meta_blend_info"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Blended Current-Season Meta (Recency-weighted logs + PvPoke prior)"
-                    android:textColor="#94a3b8"
-                    android:textSize="10sp"
-                    android:layout_marginTop="2dp"
-                    android:layout_marginBottom="6dp" />
-
+                <!-- Top Badges Row: Style [ABB/ABC], Lead Agg BR (SW/W/N/L/SL), Machine Agg BR -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal">
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="6dp">
+
+                    <TextView
+                        android:id="@+id/text_dialog_archetype_badge"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Style: [ABC]"
+                        android:textColor="#38bdf8"
+                        android:textStyle="bold"
+                        android:textSize="10sp"
+                        android:background="#0f172a"
+                        android:paddingHorizontal="6dp"
+                        android:paddingVertical="3dp"
+                        android:layout_marginEnd="4dp" />
+
+                    <TextView
+                        android:id="@+id/text_dialog_lead_br_badge"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Lead Agg BR: 500 (N)"
+                        android:textColor="#f59e0b"
+                        android:textStyle="bold"
+                        android:textSize="10sp"
+                        android:background="#0f172a"
+                        android:paddingHorizontal="6dp"
+                        android:paddingVertical="3dp"
+                        android:layout_marginEnd="4dp" />
+
+                    <TextView
+                        android:id="@+id/text_dialog_mach_br_badge"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Mach Agg BR: 600 (Playable)"
+                        android:textColor="#eab308"
+                        android:textStyle="bold"
+                        android:textSize="10sp"
+                        android:background="#0f172a"
+                        android:paddingHorizontal="6dp"
+                        android:paddingVertical="3dp" />
+                </LinearLayout>
+
+                <!-- Style Mode Override Selector (Style Mode: AUTO | ABB | ABC) -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="6dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Style Mode:"
+                        android:textColor="#94a3b8"
+                        android:textStyle="bold"
+                        android:textSize="10.5sp"
+                        android:layout_marginEnd="6dp" />
+
+                    <Button
+                        android:id="@+id/btn_mode_auto"
+                        android:layout_width="wrap_content"
+                        android:layout_height="28dp"
+                        android:minWidth="0dp"
+                        android:minHeight="0dp"
+                        android:paddingHorizontal="10dp"
+                        android:paddingVertical="0dp"
+                        android:text="AUTO"
+                        android:textSize="9.5sp"
+                        android:textStyle="bold"
+                        android:backgroundTint="#0284c7"
+                        android:textColor="#ffffff"
+                        android:layout_marginEnd="4dp" />
+
+                    <Button
+                        android:id="@+id/btn_mode_abb"
+                        android:layout_width="wrap_content"
+                        android:layout_height="28dp"
+                        android:minWidth="0dp"
+                        android:minHeight="0dp"
+                        android:paddingHorizontal="10dp"
+                        android:paddingVertical="0dp"
+                        android:text="ABB"
+                        android:textSize="9.5sp"
+                        android:textStyle="bold"
+                        android:backgroundTint="#334155"
+                        android:textColor="#cbd5e1"
+                        android:layout_marginEnd="4dp" />
+
+                    <Button
+                        android:id="@+id/btn_mode_abc"
+                        android:layout_width="wrap_content"
+                        android:layout_height="28dp"
+                        android:minWidth="0dp"
+                        android:minHeight="0dp"
+                        android:paddingHorizontal="10dp"
+                        android:paddingVertical="0dp"
+                        android:text="ABC"
+                        android:textSize="9.5sp"
+                        android:textStyle="bold"
+                        android:backgroundTint="#334155"
+                        android:textColor="#cbd5e1" />
+                </LinearLayout>
+
+                <!-- Auto-Detect & Manual Slot Swap Buttons Row -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="6dp">
 
                     <Button
                         android:id="@+id/btn_dialog_auto_detect_style"
                         android:layout_width="0dp"
                         android:layout_height="36dp"
-                        android:layout_weight="1.5"
-                        android:text="⚡ Auto-Detect &amp; Order"
-                        android:textSize="10.5sp"
+                        android:layout_weight="1.6"
+                        android:minWidth="0dp"
+                        android:paddingHorizontal="6dp"
+                        android:text="⚡ Auto-Detect Style &amp; Move Safe Swap"
+                        android:textSize="10sp"
                         android:textStyle="bold"
                         android:backgroundTint="#d97706"
                         android:textColor="#ffffff"
@@ -133,8 +229,9 @@
                         android:layout_height="36dp"
                         android:minWidth="0dp"
                         android:paddingHorizontal="8dp"
-                        android:text="#1 ⇄ #2"
-                        android:textSize="10.5sp"
+                        android:text="Slot 1 ⇄ 2"
+                        android:textSize="10sp"
+                        android:textStyle="bold"
                         android:backgroundTint="#334155"
                         android:textColor="#e2e8f0"
                         android:layout_marginEnd="4dp" />
@@ -145,11 +242,45 @@
                         android:layout_height="36dp"
                         android:minWidth="0dp"
                         android:paddingHorizontal="8dp"
-                        android:text="#2 ⇄ #3"
-                        android:textSize="10.5sp"
+                        android:text="Slot 2 ⇄ 3"
+                        android:textSize="10sp"
+                        android:textStyle="bold"
                         android:backgroundTint="#334155"
                         android:textColor="#e2e8f0" />
                 </LinearLayout>
+
+                <!-- Backline Swap BR & Shared Weaknesses Breakdown -->
+                <TextView
+                    android:id="@+id/text_dialog_archetype_summary"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Slot 2 Swap BR: 500 (N)  •  Slot 3 Swap BR: 500 (N)"
+                    android:textColor="#e2e8f0"
+                    android:textStyle="bold"
+                    android:textSize="10.5sp" />
+
+                <!-- Current Season Meta Blend Info -->
+                <TextView
+                    android:id="@+id/text_dialog_meta_blend_info"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Current Season Meta Blend: 0% Recency-Weighted Logs (0 matches) / 100% PvPoke"
+                    android:textColor="#94a3b8"
+                    android:textSize="9.5sp"
+                    android:layout_marginTop="2dp" />
+
+                <!-- Auto-Detect Result Confirmation Banner -->
+                <TextView
+                    android:id="@+id/text_dialog_autodetect_banner"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:background="#064e3b"
+                    android:padding="7dp"
+                    android:textColor="#a7f3d0"
+                    android:textSize="10sp"
+                    android:textStyle="bold"
+                    android:visibility="gone" />
             </LinearLayout>
 
             <!-- Pokemon 1 (Lead) Card -->
@@ -173,10 +304,10 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="⚔️ Lead Pokémon (Slot 1) &amp; Moveset"
+                        android:text="⚔️ Slot 1 (Lead) &amp; Moveset"
                         android:textStyle="bold"
                         android:textColor="#38bdf8"
-                        android:textSize="12.5sp" />
+                        android:textSize="11.5sp" />
 
                     <TextView
                         android:id="@+id/text_p1_lead_br"
@@ -184,11 +315,26 @@
                         android:layout_height="wrap_content"
                         android:text="Lead BR: 500 (N)"
                         android:textStyle="bold"
-                        android:textColor="#cbd5e1"
-                        android:textSize="10.5sp"
+                        android:textColor="#f59e0b"
+                        android:textSize="10sp"
                         android:background="#0f172a"
                         android:paddingHorizontal="6dp"
-                        android:paddingVertical="2dp" />
+                        android:paddingVertical="2dp"
+                        android:layout_marginEnd="4dp" />
+
+                    <Button
+                        android:id="@+id/btn_p1_autofill_moves"
+                        android:layout_width="wrap_content"
+                        android:layout_height="24dp"
+                        android:minWidth="0dp"
+                        android:minHeight="0dp"
+                        android:paddingHorizontal="6dp"
+                        android:paddingVertical="0dp"
+                        android:text="Auto-Fill Moves"
+                        android:textSize="9sp"
+                        android:textStyle="bold"
+                        android:backgroundTint="#0f172a"
+                        android:textColor="#38bdf8" />
                 </LinearLayout>
 
                 <LinearLayout
@@ -307,10 +453,10 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="🔄 Safe Swap (Slot 2) &amp; Moveset"
+                        android:text="🔄 Slot 2 (Safe Swap) &amp; Moveset"
                         android:textStyle="bold"
-                        android:textColor="#f59e0b"
-                        android:textSize="12.5sp" />
+                        android:textColor="#c084fc"
+                        android:textSize="11.5sp" />
 
                     <TextView
                         android:id="@+id/text_p2_swap_br"
@@ -318,11 +464,26 @@
                         android:layout_height="wrap_content"
                         android:text="Swap BR: 500 (N)"
                         android:textStyle="bold"
-                        android:textColor="#cbd5e1"
-                        android:textSize="10.5sp"
+                        android:textColor="#f59e0b"
+                        android:textSize="10sp"
                         android:background="#0f172a"
                         android:paddingHorizontal="6dp"
-                        android:paddingVertical="2dp" />
+                        android:paddingVertical="2dp"
+                        android:layout_marginEnd="4dp" />
+
+                    <Button
+                        android:id="@+id/btn_p2_autofill_moves"
+                        android:layout_width="wrap_content"
+                        android:layout_height="24dp"
+                        android:minWidth="0dp"
+                        android:minHeight="0dp"
+                        android:paddingHorizontal="6dp"
+                        android:paddingVertical="0dp"
+                        android:text="Auto-Fill Moves"
+                        android:textSize="9sp"
+                        android:textStyle="bold"
+                        android:backgroundTint="#0f172a"
+                        android:textColor="#c084fc" />
                 </LinearLayout>
 
                 <LinearLayout
@@ -440,10 +601,10 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="🛡️ Closer (Slot 3) &amp; Moveset"
+                        android:text="🛡️ Slot 3 (Closer) &amp; Moveset"
                         android:textStyle="bold"
-                        android:textColor="#38bdf8"
-                        android:textSize="12.5sp" />
+                        android:textColor="#f59e0b"
+                        android:textSize="11.5sp" />
 
                     <TextView
                         android:id="@+id/text_p3_swap_br"
@@ -451,11 +612,26 @@
                         android:layout_height="wrap_content"
                         android:text="Swap BR: 500 (N)"
                         android:textStyle="bold"
-                        android:textColor="#cbd5e1"
-                        android:textSize="10.5sp"
+                        android:textColor="#f59e0b"
+                        android:textSize="10sp"
                         android:background="#0f172a"
                         android:paddingHorizontal="6dp"
-                        android:paddingVertical="2dp" />
+                        android:paddingVertical="2dp"
+                        android:layout_marginEnd="4dp" />
+
+                    <Button
+                        android:id="@+id/btn_p3_autofill_moves"
+                        android:layout_width="wrap_content"
+                        android:layout_height="24dp"
+                        android:minWidth="0dp"
+                        android:minHeight="0dp"
+                        android:paddingHorizontal="6dp"
+                        android:paddingVertical="0dp"
+                        android:text="Auto-Fill Moves"
+                        android:textSize="9sp"
+                        android:textStyle="bold"
+                        android:backgroundTint="#0f172a"
+                        android:textColor="#f59e0b" />
                 </LinearLayout>
 
                 <LinearLayout
