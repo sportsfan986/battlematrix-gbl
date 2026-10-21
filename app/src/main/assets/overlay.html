@@ -218,9 +218,9 @@
         }
 
         .hud-btn.btn-form {
-            background: rgba(56, 189, 248, 0.28);
-            border-color: rgba(125, 211, 252, 0.6);
-            color: #bae6fd;
+            background: rgba(var(--header-accent-rgb), 0.25);
+            border-color: rgba(var(--header-accent-rgb), 0.65);
+            color: #ffffff;
         }
 
         .hud-btn.btn-form:disabled,
@@ -255,8 +255,8 @@
         }
 
         .matrix-row.active-lead {
-            background: rgba(56, 189, 248, 0.18);
-            box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.35);
+            background: rgba(var(--header-accent-rgb), 0.18);
+            box-shadow: inset 0 0 0 1px rgba(var(--header-accent-rgb), 0.42);
         }
 
         .matrix-row:hover {
@@ -404,11 +404,11 @@
         }
 
         .dmg-col-hdr.active-col {
-            background: rgba(56, 189, 248, 0.22);
-            color: #7dd3fc;
-            border-top: 1px solid rgba(56, 189, 248, 0.65);
-            border-left: 1px solid rgba(56, 189, 248, 0.55);
-            border-right: 1px solid rgba(56, 189, 248, 0.55);
+            background: rgba(var(--header-accent-rgb), 0.22);
+            color: var(--header-accent-hex);
+            border-top: 1px solid rgba(var(--header-accent-rgb), 0.65);
+            border-left: 1px solid rgba(var(--header-accent-rgb), 0.55);
+            border-right: 1px solid rgba(var(--header-accent-rgb), 0.55);
             border-top-left-radius: 3px;
             border-top-right-radius: 3px;
         }
@@ -561,14 +561,14 @@
         }
 
         .dmg-cell.active-col {
-            background: rgba(56, 189, 248, 0.16);
-            border-left: 1px solid rgba(56, 189, 248, 0.55);
-            border-right: 1px solid rgba(56, 189, 248, 0.55);
+            background: rgba(var(--header-accent-rgb), 0.16);
+            border-left: 1px solid rgba(var(--header-accent-rgb), 0.55);
+            border-right: 1px solid rgba(var(--header-accent-rgb), 0.55);
             font-weight: 900;
         }
 
         .move-timing-row:last-child .dmg-cell.active-col {
-            border-bottom: 1px solid rgba(56, 189, 248, 0.65);
+            border-bottom: 1px solid rgba(var(--header-accent-rgb), 0.65);
             border-bottom-left-radius: 3px;
             border-bottom-right-radius: 3px;
         }
@@ -695,8 +695,8 @@
             align-items: center;
             justify-content: space-between;
             gap: 3px;
-            background: rgba(15, 23, 42, 0.94);
-            border: 1px solid rgba(56, 189, 248, 0.45);
+            background: rgba(var(--panel-bg-rgb), 0.94);
+            border: 1px solid rgba(var(--header-accent-rgb), 0.55);
             border-radius: 5px;
             padding: 3px 4px;
             margin-bottom: 3px;
@@ -1194,21 +1194,78 @@
         }
 
         const OVERLAY_THEME_PRESETS = {
-            "slate":         { bgRgb: "10, 14, 22",  borderRgb: "56, 189, 248",  accentRgb: "56, 189, 248",  accentHex: "#38bdf8" },
-            "amoled_cyan":   { bgRgb: "0, 4, 10",    borderRgb: "0, 245, 212",   accentRgb: "0, 245, 212",   accentHex: "#00f5d4" },
-            "amoled_matrix": { bgRgb: "0, 8, 3",     borderRgb: "0, 255, 102",   accentRgb: "0, 255, 102",   accentHex: "#00ff66" },
-            "instinct_dark": { bgRgb: "18, 14, 4",   borderRgb: "250, 204, 21",  accentRgb: "250, 204, 21",  accentHex: "#facc15" },
-            "instinct_light":{ bgRgb: "22, 17, 5",   borderRgb: "250, 204, 21",  accentRgb: "250, 204, 21",  accentHex: "#facc15" },
-            "mystic_dark":   { bgRgb: "6, 14, 34",   borderRgb: "56, 189, 248",  accentRgb: "56, 189, 248",  accentHex: "#38bdf8" },
-            "mystic_light":  { bgRgb: "8, 18, 38",   borderRgb: "56, 189, 248",  accentRgb: "56, 189, 248",  accentHex: "#38bdf8" },
-            "valor_dark":    { bgRgb: "24, 7, 12",   borderRgb: "244, 63, 94",   accentRgb: "244, 63, 94",   accentHex: "#f43f5e" },
-            "valor_light":   { bgRgb: "26, 8, 14",   borderRgb: "251, 113, 133", accentRgb: "251, 113, 133", accentHex: "#fb7185" },
-            "sylveon_pink":  { bgRgb: "27, 11, 22",  borderRgb: "244, 114, 182", accentRgb: "244, 114, 182", accentHex: "#f472b6" }
+            "slate":          { bgRgb: "10, 14, 22",  borderRgb: "56, 189, 248",  accentRgb: "56, 189, 248",  accentHex: "#38bdf8", emblem: "slate" },
+            "amoled_cyan":    { bgRgb: "0, 4, 10",    borderRgb: "0, 245, 212",   accentRgb: "0, 245, 212",   accentHex: "#00f5d4", emblem: "cyan" },
+            "amoled_matrix":  { bgRgb: "0, 8, 3",     borderRgb: "0, 255, 102",   accentRgb: "0, 255, 102",   accentHex: "#00ff66", emblem: "matrix" },
+            "instinct_dark":  { bgRgb: "18, 14, 4",   borderRgb: "250, 204, 21",  accentRgb: "250, 204, 21",  accentHex: "#facc15", emblem: "instinct" },
+            "instinct_light": { bgRgb: "22, 17, 5",   borderRgb: "250, 204, 21",  accentRgb: "250, 204, 21",  accentHex: "#facc15", emblem: "instinct" },
+            "mystic_dark":    { bgRgb: "6, 14, 34",   borderRgb: "56, 189, 248",  accentRgb: "56, 189, 248",  accentHex: "#38bdf8", emblem: "mystic" },
+            "mystic_light":   { bgRgb: "8, 18, 38",   borderRgb: "56, 189, 248",  accentRgb: "56, 189, 248",  accentHex: "#38bdf8", emblem: "mystic" },
+            "valor_dark":     { bgRgb: "24, 7, 12",   borderRgb: "244, 63, 94",   accentRgb: "244, 63, 94",   accentHex: "#f43f5e", emblem: "valor" },
+            "valor_light":    { bgRgb: "26, 8, 14",   borderRgb: "251, 113, 133", accentRgb: "251, 113, 133", accentHex: "#fb7185", emblem: "valor" },
+            "sylveon_pink":   { bgRgb: "27, 11, 22",  borderRgb: "244, 114, 182", accentRgb: "244, 114, 182", accentHex: "#f472b6", emblem: "sylveon" },
+            "sylveon_light":  { bgRgb: "27, 11, 22",  borderRgb: "244, 114, 182", accentRgb: "244, 114, 182", accentHex: "#f472b6", emblem: "sylveon" }
         };
+
+        let activeOverlayThemeId = "slate";
+
+        function getOverlayThemeIconSvg(themeId, sizePx) {
+            const t = OVERLAY_THEME_PRESETS[themeId] || OVERLAY_THEME_PRESETS["slate"];
+            const s = sizePx || 13;
+            const styleStr = `width:${s}px;height:${s}px;display:inline-block;vertical-align:middle;flex-shrink:0;`;
+            if (t.emblem === "instinct") {
+                return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" style="${styleStr}">
+                    <path fill="#FACC15" d="M120,8 L224,120 L120,232 L16,120 Z M120,28 L36,120 L120,212 L204,120 Z"/>
+                    <path fill="#F59E0B" d="M120,40 L134,76 L172,50 L154,92 L210,70 L170,114 L222,110 L168,140 L200,164 L148,154 L164,194 L128,166 L120,216 L112,166 L76,194 L92,154 L40,164 L72,140 L18,110 L70,114 L30,70 L86,92 L68,50 L106,76 Z"/>
+                </svg>`;
+            }
+            if (t.emblem === "mystic") {
+                return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" style="${styleStr}">
+                    <path fill="#38BDF8" d="M120,10 L208,58 L208,162 L120,230 L32,162 L32,58 Z M120,28 L48,68 L48,154 L120,212 L192,154 L192,68 Z"/>
+                    <path fill="#60A5FA" d="M120,52 L136,80 L196,60 L166,112 L206,122 L154,144 L170,178 L132,160 L120,224 L108,160 L70,178 L86,144 L34,122 L74,112 L44,60 L104,80 Z"/>
+                </svg>`;
+            }
+            if (t.emblem === "valor") {
+                return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" style="${styleStr}">
+                    <path fill="#EF4444" d="M120,12 C168,46 212,92 212,144 C212,190 172,226 120,232 C68,226 28,190 28,144 C28,92 72,46 120,12 Z M120,34 C82,62 48,100 48,144 C48,180 78,208 120,214 C162,208 192,180 192,144 C192,100 158,62 120,34 Z"/>
+                    <path fill="#F97316" d="M120,40 L134,68 L158,50 L148,86 L200,64 L172,108 L208,102 L168,136 L194,158 L148,154 L162,190 L128,170 L120,216 L112,170 L78,190 L92,154 L46,158 L72,136 L32,102 L68,108 L40,64 L92,86 L82,50 L106,68 Z"/>
+                </svg>`;
+            }
+            if (t.emblem === "sylveon") {
+                return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" style="${styleStr}">
+                    <path fill="#38BDF8" d="M96,126 C74,156 44,178 22,202 L44,210 C68,188 92,164 110,138 Z M144,126 C166,156 196,178 218,202 L196,210 C172,188 148,164 130,138 Z"/>
+                    <path fill="#F472B6" d="M112,106 C80,66 34,60 22,90 C10,120 44,154 112,126 Z M128,106 C160,66 206,60 218,90 C230,120 196,154 128,126 Z"/>
+                    <path fill="#38BDF8" d="M106,112 C84,84 52,80 44,98 C36,116 60,136 106,120 Z M134,112 C156,84 188,80 196,98 C204,116 180,136 134,120 Z"/>
+                    <circle cx="120" cy="118" r="26" fill="#EC4899" stroke="#FDF2F8" stroke-width="8"/>
+                    <path fill="#38BDF8" d="M120,22 L128,44 L150,52 L128,60 L120,82 L112,60 L90,52 L112,44 Z"/>
+                </svg>`;
+            }
+            if (t.emblem === "matrix") {
+                return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" style="${styleStr}">
+                    <polygon points="54,10 92,32 92,76 54,98 16,76 16,32" fill="#031208" stroke="#00FF66" stroke-width="7"/>
+                    <polygon points="54,26 78,40 78,68 54,82 30,68 30,40" fill="none" stroke="#10B981" stroke-width="4" stroke-dasharray="6 4"/>
+                    <circle cx="54" cy="54" r="11" fill="#00FF66"/>
+                </svg>`;
+            }
+            if (t.emblem === "cyan") {
+                return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" style="${styleStr}">
+                    <polygon points="54,10 92,30 92,74 54,98 16,74 16,30" fill="#04101C" stroke="#00F5D4" stroke-width="7"/>
+                    <path d="M28,46 L54,62 L80,46" fill="none" stroke="#38BDF8" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+                    <circle cx="54" cy="36" r="7" fill="#00F5D4"/>
+                </svg>`;
+            }
+            return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" style="${styleStr}">
+                <polygon points="54,12 88,28 88,64 54,94 20,64 20,28" fill="#101827" stroke="#38BDF8" stroke-width="7" stroke-linejoin="round"/>
+                <circle cx="42" cy="46" r="6" fill="#22C55E"/>
+                <circle cx="66" cy="46" r="6" fill="#EF4444"/>
+                <circle cx="54" cy="66" r="6" fill="#F59E0B"/>
+            </svg>`;
+        }
 
         window.setOverlayTheme = function(themeId) {
             try {
-                const t = OVERLAY_THEME_PRESETS[themeId] || OVERLAY_THEME_PRESETS["slate"];
+                activeOverlayThemeId = OVERLAY_THEME_PRESETS[themeId] ? themeId : "slate";
+                const t = OVERLAY_THEME_PRESETS[activeOverlayThemeId];
                 const root = document.documentElement;
                 root.style.setProperty("--panel-bg-rgb", t.bgRgb);
                 root.style.setProperty("--panel-border-rgb", t.borderRgb);
@@ -1216,6 +1273,11 @@
                 root.style.setProperty("--header-accent-hex", t.accentHex);
                 const myShortEl = document.getElementById("sky-my-short");
                 if (myShortEl) myShortEl.style.color = t.accentHex;
+                const minBtn = document.getElementById("btn-minimize-sword");
+                if (minBtn) minBtn.innerHTML = getOverlayThemeIconSvg(activeOverlayThemeId, 13);
+                const bubbleEl = document.getElementById("minimized-bubble");
+                if (bubbleEl) bubbleEl.innerHTML = getOverlayThemeIconSvg(activeOverlayThemeId, 34);
+                updateBattleButtonUi();
             } catch (e) {}
         };
 
@@ -1382,13 +1444,14 @@
             if (buttonToastActive) return;
             const btn = document.getElementById("btn-start-battle");
             const horizonBtn = document.getElementById("btn-horizon-start-battle");
+            const iconSvg = getOverlayThemeIconSvg(activeOverlayThemeId, 10);
             if (btn) {
-                btn.textContent = isBattleActive ? "🛑 Stop Battle" : "⚔️ Start Battle";
+                btn.innerHTML = isBattleActive ? "🛑 Stop Battle" : `${iconSvg} <span style="margin-left:2px;">Start Battle</span>`;
                 if (isBattleActive) btn.classList.add("stop-mode");
                 else btn.classList.remove("stop-mode");
             }
             if (horizonBtn) {
-                horizonBtn.textContent = isBattleActive ? "🛑 Stop Battle" : "⚔️ Start Battle";
+                horizonBtn.innerHTML = isBattleActive ? "🛑 Stop Battle" : `${iconSvg} <span style="margin-left:2px;">Start Battle</span>`;
                 if (isBattleActive) horizonBtn.classList.add("stop-mode");
                 else horizonBtn.classList.remove("stop-mode");
             }

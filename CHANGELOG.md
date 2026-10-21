@@ -1,5 +1,21 @@
 # Changelog
 
+## v3.03
+**Complete UI Theme Coverage & Dynamic Theme Emblem Icons on Floating Overlay**
+
+1. **Dynamic Theme Emblem Icon on Floating Overlay (`overlay.html`, `src/App.tsx`)**
+   - Replaced the static crossed-swords (`⚔️`) battle icon on the floating overlay's upper-left minimize button (`#btn-minimize-sword`), minimized floating bubble (`#minimized-bubble`), and `Start Battle` button with a dynamic vector SVG emblem matching the currently selected theme:
+     - **Team Instinct (Dark & Light)**: Electric jagged diamond + Zapdos silhouette crest (`#FACC15` / `#EAB308`).
+     - **Team Mystic (Dark & Light)**: Hexagonal ice crystal + Articuno silhouette crest (`#38BDF8` / `#0284C7`).
+     - **Team Valor (Dark & Light)**: Fiery phoenix crest + Moltres silhouette (`#F87171` / `#DC2626`).
+     - **Sylveon Fairy Ribbon (Light)**: Sylveon pastel pink/sky ribbon bow & fairy sparkle crest (`#EC4899` / `#38BDF8`).
+     - **AMOLED Matrix Phosphor**: Phosphor lime terminal diamond reticle (`#00FF41`).
+     - **AMOLED Cyber Cyan**: Electric cyan hexagonal HUD reticle (`#00F0FF`).
+     - **SilphScope Slate (Default)**: Tactical sky-cyan & amber target reticle (`#38BDF8`).
+2. **Eliminated Remaining Unthemed Blue Elements Across App & Overlay (`MainActivity.kt`, `overlay.html`, `OverlayService.kt`, `src/App.tsx`)**
+   - **Android App**: Extended `applyThemeRecursively` and `applyCurrentAppTheme` to dynamically theme all `Button`s (`Start Battle Overlay`, `+ New Team`, `My Fasts`, `3 Moves`, `Toasts On`, `Save 5-Tier Thresholds`, `Sync Now`, `Reparse`, `Download PvPoke`, `Copy/Share`), `ImageButton`s (`Edit Team`), `Switch`es, `RadioButton`s / `CheckBox`es (`item_team_preset`), `Spinner` closed & dropdown views (`createThemedSpinnerAdapter`), top header app badge, Battle Log empty state cards, and all modal dialogs (Preset Editor, Battle Log Interactive Replay WebView, GitHub Sync, and Trash Bins).
+   - **Floating Overlay**: Replaced remaining hardcoded sky-blue (`#38bdf8`) borders, highlights, and glows on `.matrix-row.active-lead`, `.opp-col.active-col`, `.hud-btn.btn-form`, and `#start-battle-menu` with `var(--header-accent-rgb)` and `var(--panel-border-rgb)` while keeping all tactical damage, shield, and timer colors untouched.
+
 ## v3.02
 **App & Overlay Theme Engine, Pokémon GO Team & Sylveon Emblem Watermarks, & Settings Reorganization**
 

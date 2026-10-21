@@ -3658,11 +3658,23 @@ class OverlayService : LifecycleService() {
         mainToastHandler.post {
             try {
                 val density = resources.displayMetrics.density
+                val themeAccentHex = when (appThemeId) {
+                    "instinct_dark" -> "#EAB308"
+                    "instinct_light" -> "#CA8A04"
+                    "mystic_dark" -> "#38BDF8"
+                    "mystic_light" -> "#0284C7"
+                    "valor_dark" -> "#F87171"
+                    "valor_light" -> "#DC2626"
+                    "sylveon_pink", "sylveon_light" -> "#EC4899"
+                    "amoled_matrix" -> "#10B981"
+                    "amoled_cyan" -> "#06B6D4"
+                    else -> "#38BDF8"
+                }
                 val borderColor = when {
                     message.contains("💀") -> Color.parseColor("#F43F5E")
                     message.contains("🛡️") -> Color.parseColor("#FBBF24")
                     message.contains("✓") -> Color.parseColor("#4ADE80")
-                    else -> Color.parseColor("#38BDF8")
+                    else -> Color.parseColor(themeAccentHex)
                 }
 
                 if (statusToastView == null) {
@@ -4044,7 +4056,7 @@ class OverlayService : LifecycleService() {
         }
         recalculateAndPushBattleData()
         startForegroundNotification()
-        showStatusBarToast("⚔️ Overlay restored & OCR resumed", Toast.LENGTH_SHORT)
+        showStatusBarToast("✓ Overlay restored & OCR resumed", Toast.LENGTH_SHORT)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {

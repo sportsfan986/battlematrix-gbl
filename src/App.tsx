@@ -395,6 +395,68 @@ export const WEB_APP_THEMES: WebAppThemePalette[] = [
   }
 ];
 
+function renderThemeOverlayIcon(themeId: string, sizePx: number = 14) {
+  const s = `${sizePx}px`;
+  const styleObj = { width: s, height: s, display: 'inline-block', verticalAlign: 'middle', flexShrink: 0 };
+  if (themeId === 'instinct_dark' || themeId === 'instinct_light') {
+    return (
+      <svg viewBox="0 0 240 240" style={styleObj}>
+        <path fill="#FACC15" d="M120,8 L224,120 L120,232 L16,120 Z M120,28 L36,120 L120,212 L204,120 Z" />
+        <path fill="#F59E0B" d="M120,44 L132,78 L168,52 L152,92 L206,72 L168,114 L218,110 L166,138 L198,162 L148,154 L164,192 L128,166 L120,212 L112,166 L76,192 L92,154 L42,162 L74,138 L22,110 L72,114 L34,72 L88,92 L72,52 L108,78 Z" />
+      </svg>
+    );
+  }
+  if (themeId === 'mystic_dark' || themeId === 'mystic_light') {
+    return (
+      <svg viewBox="0 0 240 240" style={styleObj}>
+        <path fill="#38BDF8" d="M120,10 L208,58 L208,162 L120,230 L32,162 L32,58 Z M120,28 L48,68 L48,152 L120,210 L192,152 L192,68 Z" />
+        <path fill="#60A5FA" d="M120,56 L134,82 L192,62 L164,112 L202,122 L152,144 L168,176 L132,160 L120,222 L108,160 L72,176 L88,144 L38,122 L76,112 L48,62 L106,82 Z" />
+      </svg>
+    );
+  }
+  if (themeId === 'valor_dark' || themeId === 'valor_light') {
+    return (
+      <svg viewBox="0 0 240 240" style={styleObj}>
+        <path fill="#EF4444" d="M120,12 C168,46 212,92 212,144 C212,190 172,226 120,232 C68,226 28,190 28,144 C28,92 72,46 120,12 Z M120,34 C82,62 48,100 48,144 C48,180 78,208 120,214 C162,208 192,180 192,144 C192,100 158,62 120,34 Z" />
+        <path fill="#F97316" d="M120,42 L134,68 L156,52 L148,86 L198,64 L172,108 L206,102 L168,136 L192,158 L148,154 L162,188 L128,170 L120,214 L112,170 L78,188 L92,154 L48,158 L72,136 L34,102 L68,108 L42,64 L92,86 L84,52 L106,68 Z" />
+      </svg>
+    );
+  }
+  if (themeId === 'sylveon_pink' || themeId === 'sylveon_light') {
+    return (
+      <svg viewBox="0 0 240 240" style={styleObj}>
+        <path fill="#38BDF8" d="M96,126 C76,154 48,176 26,198 L44,206 C66,186 90,164 108,138 Z M144,126 C164,154 192,176 214,198 L196,206 C174,186 150,164 132,138 Z" />
+        <path fill="#EC4899" d="M112,108 C84,72 42,66 30,92 C18,118 48,148 112,124 Z M128,108 C156,72 198,66 210,92 C222,118 192,148 128,124 Z" />
+        <circle cx="120" cy="118" r="24" fill="#F9A8D4" />
+        <path fill="#38BDF8" d="M120,24 L127,44 L147,51 L127,58 L120,78 L113,58 L93,51 L113,44 Z" />
+      </svg>
+    );
+  }
+  if (themeId === 'amoled_matrix') {
+    return (
+      <svg viewBox="0 0 240 240" style={styleObj}>
+        <path fill="#00FF41" d="M120,16 L224,120 L120,224 L16,120 Z M120,40 L40,120 L120,200 L200,120 Z" />
+        <path fill="#34D399" d="M76,88 L116,120 L76,152 L64,138 L88,120 L64,102 Z M124,140 L176,140 L176,158 L124,158 Z" />
+      </svg>
+    );
+  }
+  if (themeId === 'amoled_cyan') {
+    return (
+      <svg viewBox="0 0 240 240" style={styleObj}>
+        <path fill="#00F0FF" d="M120,14 L214,68 L214,172 L120,226 L26,172 L26,68 Z M120,36 L46,78 L46,162 L120,204 L194,162 L194,78 Z" />
+        <circle cx="120" cy="120" r="34" fill="#22D3EE" />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 240 240" style={styleObj}>
+      <circle cx="120" cy="120" r="88" fill="none" stroke="#38BDF8" strokeWidth="22" />
+      <path fill="#F59E0B" d="M120,12 L134,64 L106,64 Z M120,228 L134,176 L106,176 Z M12,120 L64,134 L64,106 Z M228,120 L176,134 L176,106 Z" />
+      <circle cx="120" cy="120" r="28" fill="#38BDF8" />
+    </svg>
+  );
+}
+
 export default function App() {
   // Navigation tabs (reordered: Teams, Battle Logs, Settings, Help)
   const [activeTab, setActiveTab] = useState<'simulator' | 'presets' | 'battle_log' | 'settings' | 'help' | 'turn_matrix' | 'android_code'>('simulator');
@@ -2155,7 +2217,7 @@ export default function App() {
 
   return (
     <div
-      className="min-h-screen flex flex-col font-sans selection:bg-sky-500 selection:text-white relative overflow-x-hidden transition-colors duration-200"
+      className="theme-surface min-h-screen flex flex-col font-sans selection:bg-sky-500 selection:text-white relative overflow-x-hidden transition-colors duration-200"
       style={{
         backgroundColor: activeTheme.bgHex,
         color: activeTheme.textPrimaryHex
@@ -2164,25 +2226,67 @@ export default function App() {
       {/* Dynamic CSS Theme Surface Overrides for Light / AMOLED / Team / Sylveon Themes */}
       {activeTheme.id !== 'slate' && (
         <style>{`
-          .theme-surface .bg-slate-900, .theme-surface .bg-slate-900\\/80, .theme-surface .bg-slate-900\\/90 {
+          .theme-surface .bg-slate-900:not(.overlay-hud-preserve *),
+          .theme-surface .bg-slate-900\\/80:not(.overlay-hud-preserve *),
+          .theme-surface .bg-slate-900\\/90:not(.overlay-hud-preserve *),
+          .theme-surface .bg-slate-900\\/70:not(.overlay-hud-preserve *),
+          .theme-surface .bg-slate-900\\/60:not(.overlay-hud-preserve *) {
             background-color: ${activeTheme.cardHex} !important;
           }
-          .theme-surface .bg-slate-950, .theme-surface .bg-slate-950\\/70, .theme-surface .bg-slate-950\\/80 {
+          .theme-surface .bg-slate-950:not(.overlay-hud-preserve *),
+          .theme-surface .bg-slate-950\\/70:not(.overlay-hud-preserve *),
+          .theme-surface .bg-slate-950\\/80:not(.overlay-hud-preserve *),
+          .theme-surface .bg-slate-950\\/60:not(.overlay-hud-preserve *),
+          .theme-surface .bg-slate-950\\/90:not(.overlay-hud-preserve *) {
             background-color: ${activeTheme.cardAltHex} !important;
           }
-          .theme-surface .border-slate-800, .theme-surface .border-slate-700, .theme-surface .border-slate-800\\/80 {
+          .theme-surface .border-slate-800:not(.overlay-hud-preserve *),
+          .theme-surface .border-slate-700:not(.overlay-hud-preserve *),
+          .theme-surface .border-slate-800\\/80:not(.overlay-hud-preserve *),
+          .theme-surface .border-slate-700\\/60:not(.overlay-hud-preserve *) {
             border-color: ${activeTheme.borderHex} !important;
+          }
+          .theme-surface .bg-sky-500:not(.overlay-hud-preserve *),
+          .theme-surface .bg-sky-600:not(.overlay-hud-preserve *),
+          .theme-surface .bg-blue-600:not(.overlay-hud-preserve *) {
+            background-color: ${activeTheme.accentHex} !important;
+            color: ${activeTheme.isLight ? '#FFFFFF' : '#080C14'} !important;
+          }
+          .theme-surface .bg-sky-500\\/20:not(.overlay-hud-preserve *),
+          .theme-surface .bg-sky-500\\/15:not(.overlay-hud-preserve *),
+          .theme-surface .bg-sky-500\\/10:not(.overlay-hud-preserve *) {
+            background-color: rgba(${activeTheme.overlayHeaderRgb}, 0.16) !important;
+          }
+          .theme-surface .text-sky-400:not(.overlay-hud-preserve *),
+          .theme-surface .text-sky-300:not(.overlay-hud-preserve *),
+          .theme-surface .text-sky-200:not(.overlay-hud-preserve *) {
+            color: ${activeTheme.accentHex} !important;
+          }
+          .theme-surface .border-sky-400:not(.overlay-hud-preserve *),
+          .theme-surface .border-sky-500:not(.overlay-hud-preserve *),
+          .theme-surface .border-sky-400\\/40:not(.overlay-hud-preserve *),
+          .theme-surface .border-sky-500\\/40:not(.overlay-hud-preserve *),
+          .theme-surface .border-sky-500\\/30:not(.overlay-hud-preserve *) {
+            border-color: ${activeTheme.accentHex} !important;
+          }
+          .theme-surface input[type="range"] {
+            accent-color: ${activeTheme.accentHex} !important;
           }
           ${
             activeTheme.isLight
               ? `
-          .theme-surface .text-white, .theme-surface .text-slate-100, .theme-surface .text-slate-200 {
+          .theme-surface .text-white:not(.overlay-hud-preserve *),
+          .theme-surface .text-slate-100:not(.overlay-hud-preserve *),
+          .theme-surface .text-slate-200:not(.overlay-hud-preserve *) {
             color: ${activeTheme.textPrimaryHex} !important;
           }
-          .theme-surface .text-slate-300, .theme-surface .text-slate-400, .theme-surface .text-slate-500 {
+          .theme-surface .text-slate-300:not(.overlay-hud-preserve *),
+          .theme-surface .text-slate-400:not(.overlay-hud-preserve *),
+          .theme-surface .text-slate-500:not(.overlay-hud-preserve *) {
             color: ${activeTheme.textSecondaryHex} !important;
           }
-          .theme-surface .bg-slate-800, .theme-surface .bg-slate-800\\/60 {
+          .theme-surface .bg-slate-800:not(.overlay-hud-preserve *),
+          .theme-surface .bg-slate-800\\/60:not(.overlay-hud-preserve *) {
             background-color: ${activeTheme.cardAltHex} !important;
           }
           `
@@ -2297,7 +2401,7 @@ export default function App() {
                     backgroundColor: `${activeTheme.accentHex}1A`
                   }}
                 >
-                  v3.02 • Android Native Overlay
+                  v3.03 • Android Native Overlay
                 </span>
               </div>
               <p className="text-xs hidden sm:block" style={{ color: activeTheme.textSecondaryHex }}>
@@ -2554,7 +2658,7 @@ export default function App() {
                 onMouseLeave={onDragEnd}
                 onTouchMove={onDragMove}
                 onTouchEnd={onDragEnd}
-                className="relative w-full max-w-[390px] h-[780px] rounded-[38px] border-[6px] border-slate-800 bg-slate-900 shadow-2xl overflow-hidden flex flex-col justify-between select-none"
+                className="overlay-hud-preserve relative w-full max-w-[390px] h-[780px] rounded-[38px] border-[6px] border-slate-800 bg-slate-900 shadow-2xl overflow-hidden flex flex-col justify-between select-none"
               >
                 
                 {/* Pokémon GO Battle Background with Sky & Rain Atmosphere */}
@@ -2680,17 +2784,15 @@ export default function App() {
                       title="Drag bubble anywhere • Tap to restore overlay & resume 1 Hz OCR"
                       style={{
                         top: `${overlayPos.y}px`,
-                        left: `${overlayPos.x}px`
+                        left: `${overlayPos.x}px`,
+                        borderColor: `rgb(${activeTheme.overlayHeaderRgb})`,
+                        boxShadow: `0 4px 16px rgba(0,0,0,0.85), 0 0 10px rgba(${activeTheme.overlayHeaderRgb}, 0.55)`
                       }}
-                      className={`absolute z-30 w-12 h-12 rounded-full bg-slate-950 border-2 border-sky-400 shadow-[0_4px_16px_rgba(0,0,0,0.85),0_0_10px_rgba(56,189,248,0.5)] flex items-center justify-center cursor-pointer active:scale-95 transition-transform ${
+                      className={`absolute z-30 w-12 h-12 rounded-full bg-slate-950 border-2 flex items-center justify-center cursor-pointer active:scale-95 transition-transform ${
                         isDragging ? 'ring-2 ring-amber-400' : ''
                       }`}
                     >
-                      <img
-                        src={`${import.meta.env.BASE_URL}favicon.svg`}
-                        alt="SilphScope PvP Minimized Bubble"
-                        className="w-9 h-9 rounded-full pointer-events-none select-none"
-                      />
+                      {renderThemeOverlayIcon(activeTheme.id, 28)}
                       <span className="absolute -bottom-2 px-1 py-0.2 rounded bg-amber-500 text-slate-950 font-black text-[7px] uppercase tracking-tighter shadow">
                         OCR Paused
                       </span>
@@ -2700,7 +2802,7 @@ export default function App() {
                   {isOverlayVisible && !isOverlayMinimized && (
                     <div 
                       className={`absolute z-30 rounded-lg p-1.5 shadow-lg transition-all ${
-                        isDragging ? 'ring-2 ring-sky-400' : ''
+                        isDragging ? 'ring-2 ring-amber-400' : ''
                       }`}
                       style={{
                         top: `${overlayPos.y}px`,
@@ -2717,7 +2819,7 @@ export default function App() {
                         textShadow: '0 1px 2px rgba(0, 0, 0, 0.98), 0 0 4px rgba(0, 0, 0, 0.95)'
                       }}
                     >
-                      {/* Header row (Upper-left sword icon minimizes to bubble & pauses OCR) */}
+                      {/* Header row (Upper-left theme emblem icon minimizes to bubble & pauses OCR) */}
                       <div
                         className="flex items-center justify-between pb-1 border-b gap-1 px-1 pt-0.5 rounded-t"
                         style={{
@@ -2732,14 +2834,14 @@ export default function App() {
                               e.stopPropagation();
                               setIsOverlayMinimized(true);
                             }}
-                            className="px-1 py-0.2 rounded text-white text-[10px] leading-tight shrink-0 shadow-sm active:scale-90 transition border"
+                            className="px-1 py-0.5 rounded text-white text-[10px] leading-tight shrink-0 shadow-sm active:scale-90 transition border flex items-center justify-center"
                             style={{
                               backgroundColor: `rgba(${activeTheme.overlayHeaderRgb}, 0.28)`,
                               borderColor: `rgba(${activeTheme.overlayHeaderRgb}, 0.75)`
                             }}
-                            title="Minimize overlay to floating app-icon bubble & pause OCR"
+                            title="Minimize overlay to floating theme-emblem bubble & pause OCR"
                           >
-                            ⚔️
+                            {renderThemeOverlayIcon(activeTheme.id, 13)}
                           </button>
                           {isWaitingOpponent || scannedOpponents.length === 0 ? (
                             <>
@@ -2789,7 +2891,7 @@ export default function App() {
                                 handleStartBattle();
                               }
                             }}
-                            className={`font-bold text-[8px] px-1.5 py-0.5 rounded border transition active:scale-95 ${
+                            className={`font-bold text-[8px] px-1.5 py-0.5 rounded border transition active:scale-95 flex items-center gap-1 ${
                               isBattleActive
                                 ? 'bg-red-600/60 hover:bg-red-600/75 text-white border-red-300 shadow-[0_0_5px_rgba(239,68,68,0.5)]'
                                 : 'bg-emerald-500/35 hover:bg-emerald-500/50 text-emerald-100 border-emerald-400/75'
@@ -2800,7 +2902,16 @@ export default function App() {
                                 : 'Immediately reset opponent list & empty matrix to start a new battle'
                             }
                           >
-                            {startBattleToast || (isBattleActive ? '🛑 Stop Battle' : '⚔️ Start Battle')}
+                            {startBattleToast ? (
+                              <span>{startBattleToast}</span>
+                            ) : isBattleActive ? (
+                              <span>🛑 Stop Battle</span>
+                            ) : (
+                              <>
+                                {renderThemeOverlayIcon(activeTheme.id, 10)}
+                                <span>Start Battle</span>
+                              </>
+                            )}
                           </button>
                           <button
                             onClick={() => {
@@ -2814,7 +2925,7 @@ export default function App() {
                             }`}
                             title="Swap opponent from PvPoke Top 10 Meta"
                           >
-                            ⚔️ Swap ▾
+                            🔄 Swap ▾
                           </button>
                           <button
                             onClick={() => setIsOpponentShadow(!isOpponentShadow)}
@@ -5251,7 +5362,7 @@ export default function App() {
                           'Content-Type': 'application/json'
                         },
                         body: JSON.stringify({
-                          description: 'SilphScope PvP v3.02 Multi-Device Delta Sync Vault',
+                          description: 'SilphScope PvP v3.03 Multi-Device Delta Sync Vault',
                           public: false,
                           files: {
                             'gbl_delta_sync_v2.json': { content: bundleStr }
@@ -6783,7 +6894,7 @@ export default function App() {
               <div>
                 <h2 className="text-lg font-bold text-white flex items-center gap-2">
                   <Info className="w-5 h-5 text-sky-400" />
-                  <span>📖 Complete Help, HUD Instructions, Tips &amp; Tactics Guide (v3.02)</span>
+                  <span>📖 Complete Help, HUD Instructions, Tips &amp; Tactics Guide (v3.03)</span>
                 </h2>
                 <p className="text-xs text-slate-400">
                   Everything you need to master the floating PvP overlay, 3x3 matchup &amp; shield matrix, bottom 3-column damage grid, 50s swap clocks, move pacing, Battle Log analytics, and Tasker automation.
@@ -7687,7 +7798,7 @@ export default function App() {
               <div className="flex items-center justify-between border-b border-slate-800 pb-3 shrink-0">
                 <div>
                   <h3 className="font-bold text-base text-white flex items-center gap-2">
-                    <span>🎯 Overlay HUD &amp; Battle Flow Guide (v3.02)</span>
+                    <span>🎯 Overlay HUD &amp; Battle Flow Guide (v3.03)</span>
                   </h3>
                   <p className="text-xs text-slate-400 mt-0.5">
                     How to interact with the floating overlay, read 3x3 damage % &amp; shield dots, track 50s swap clocks, and log battles
@@ -7712,7 +7823,7 @@ export default function App() {
                       <strong>Select or Switch Teams (Main App):</strong> Choose your active team preset in the main app&apos;s <strong>⚔️ Teams</strong> page before or between sets. To switch teams, return to the main app and select another preset (it pushes immediately to the running overlay).
                     </li>
                     <li>
-                      <strong>Launch, Drag &amp; Minimize (⚔️ Icon):</strong> Tap <strong>Start Battle Overlay</strong> to launch the HUD. Drag the header bar to reposition it anywhere. Tap the <strong>⚔️</strong> icon in the top-left between matches to collapse the HUD into a tiny floating bubble and pause OCR scanning.
+                      <strong>Launch, Drag &amp; Minimize (Theme Emblem Icon):</strong> Tap <strong>Start Battle Overlay</strong> to launch the HUD. Drag the header bar to reposition it anywhere. Tap the theme emblem icon in the top-left between matches to collapse the HUD into a tiny floating bubble and pause OCR scanning.
                     </li>
                     <li>
                       <strong>Manual Opponent Override (&apos;Opponents (Tap to Edit)&apos;):</strong> Tap the <strong>Opponents (Tap to Edit)</strong> header bar inside the overlay if OCR misreads a name or form to manually override any of the 3 opponent slots (with Shadow &amp; Regional/Form support).
@@ -7827,7 +7938,7 @@ export default function App() {
           color: activeTheme.textSecondaryHex
         }}
       >
-        SilphScope PvP v3.02 Overlay • Built with Kotlin, WindowManager TYPE_APPLICATION_OVERLAY, MediaProjection in-memory frame capture, and ML Kit Text Recognition.
+        SilphScope PvP v3.03 Overlay • Built with Kotlin, WindowManager TYPE_APPLICATION_OVERLAY, MediaProjection in-memory frame capture, and ML Kit Text Recognition.
       </footer>
     </div>
   );

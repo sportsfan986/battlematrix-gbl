@@ -123,8 +123,25 @@ jobs:
           tag_name: ${{ steps.version.outputs.tag }}
           name: "SilphScope PvP ${{ steps.version.outputs.tag }}"
           body: |
-            ## SilphScope PvP ${{ steps.version.outputs.tag }} — Official v3.01 Release (Consolidating All v2.9x & v3.00 Milestones + Further Documentation Enhancements)
+            ## SilphScope PvP ${{ steps.version.outputs.tag }} — Official v3.03 Release (Complete UI Theme Coverage & Dynamic Theme Emblem Icons on Floating Overlay)
             
+            ### What's New in v3.03 (Complete UI Theme Coverage & Floating Overlay Emblem Icons)
+            - **Replaced Battle Icon (`⚔️`) with Active Theme Emblem Icon on Overlay (`overlay.html`, `src/App.tsx`)**: The upper-left overlay minimize button (`#btn-minimize-sword`), floating minimized bubble (`#minimized-bubble`), and `Start Battle` button now dynamically display a crisp custom SVG emblem matching your active theme (Zapdos Lightning crest for Instinct, Articuno Ice crest for Mystic, Moltres Flame crest for Valor, Sylveon Fairy Bow for Sylveon, Matrix Phosphor Terminal symbol for AMOLED Matrix, Cyber Cyan Hexagon for AMOLED Cyan, and SilphScope Reticle for Slate).
+            - **Fixed All Remaining Unthemed Blue Elements Across App & Overlay (`MainActivity.kt`, `overlay.html`, `OverlayService.kt`, `src/App.tsx`)**:
+              - Extended recursive Android view theming to cover all `Button`s (`Start Battle Overlay`, `+ New Team`, `My Fasts`, `3 Moves`, `Toasts On`, `Save 5-Tier Thresholds`, `Sync Now`, `Reparse`, `Download PvPoke`, `Copy/Share`), `ImageButton`s (`Edit Team`), `Switch`es, `RadioButton`s / `CheckBox`es (`item_team_preset`), `Spinner` dropdown menus, top header logo badge, Battle Log empty state cards, and all modal dialogs (Preset Editor, Battle Log Replay WebView, GitHub Sync, and Trash Bins).
+              - Replaced hardcoded sky-blue (`#38bdf8`) borders and glows on the floating overlay's active Pokémon row, active opponent column, Form button, and Start Battle menu with dynamic `var(--header-accent-rgb)` and `var(--panel-border-rgb)` theme variables while preserving 100% of tactical combat colors (5-tier matchup dots, 9-state shield matrix tags, move-type dots, `KO!` badges, and 50s swap timers).
+            
+            ### Included from v3.02 (10-Theme Engine & Pokémon GO Team / Sylveon Watermarks)
+            - **10 Distinct Themes (`MainActivity.kt`, `OverlayService.kt`, `overlay.html`, `activity_main.xml`, `src/App.tsx`)**:
+              1. **SilphScope Slate (Default Dark)** — Deep tactical navy (`#080C14`) with Sky Cyan (`#38BDF8`) and Amber (`#F59E0B`) accents.
+              2. **AMOLED Cyber Cyan** — True `#000000` black canvas with Electric Cyan (`#00F0FF`) accents for zero OLED pixel draw.
+              3. **AMOLED Matrix Phosphor** — True `#000000` black canvas with terminal phosphor Matrix Lime (`#00FF41`) accents.
+              4. **Team Instinct Dark (Storm Gold)** & **5. Team Instinct Light (Spark Daylight)** — Thunder charcoal / warm ivory palettes with Zapdos Lightning Gold (`#FACC15` / `#CA8A04`) and custom centered Zapdos electric diamond vector watermark (`bg_emblem_instinct.xml`).
+              6. **Team Mystic Dark (Blizzard Navy)** & **7. Team Mystic Light (Glacier Frost)** — Deep glacial abyss / crisp ice white palettes with Articuno Ice Blue (`#38BDF8` / `#0284C7`) and custom centered Articuno hexagonal ice crest vector watermark (`bg_emblem_mystic.xml`).
+              7. **Team Valor Dark (Magma Crimson)** & **8. Team Valor Light (Phoenix Sun)** — Smoldering obsidian / warm blush white palettes with Moltres Flame Red (`#F87171` / `#DC2626`) and custom centered Moltres fiery phoenix crest vector watermark (`bg_emblem_valor.xml`).
+              8. **Sylveon Fairy Ribbon (Light)** — Soft pastel cream-blush (`#FFF5F8`) with Sylveon ribbon pink (`#EC4899`) + nymph sky-blue (`#38BDF8`) accents and custom Sylveon bow, feeler ribbons, and fairy sparkles watermark (`bg_emblem_sylveon.xml`).
+            - **Settings Page Reorganization**: Grouped **App & Overlay Theme, Size & Transparency** together in Card 1 at the very top of Settings.
+
             ### Highlights in v3.00 / v3.01 & All 2.9x Releases (`v2.90` – `v3.01`)
             - **Phase 1 (v2.90) — Asymmetric 9-Shield Matrix & Blind Matchup Favorability (BMF)**:
               - Evaluates all 9 discrete shield permutations (`0v0`, `0v1`, `0v2`, `1v0`, `1v1`, `1v2`, `2v0`, `2v1`, `2v2`) for any head-to-head matchup.
@@ -135,17 +152,8 @@ jobs:
             - **Phase 3 (v2.93) — 5-Stat Analytics Dashboard, Performance Badges, Event Pills & Historical Migration**:
               - Upgraded the Battle Log summary to a 5-stat grid (`RECORD`, `LEAD MATCHUPS`, `WIN RATE`, `EXEC WAE`, `MATCHUP LUCK`).
               - Added the **6 Primary Performance Badges** (`Clutch Win`, `Skill Win`, `Expected Win`, `Blunder Loss`, `Tough Loss`, `Expected Loss`) and **5 Contextual Event Pills** (`⚠️ Double Shield Pocket`, `⚠️ Shield in Pocket`, `🧹 Clean Sweep`, `🛡️ Shield Advantage`, `⚡ 75% Conf`), Interactive Battle Recap / Timeline Replay, and automatic retroactive migration of existing battle logs.
-            - **v2.94–v2.96 — Faint Detection, Top Statusbar Toasts & Battle Recap Stability**:
-              - Reliable opponent faint detection, preserved swap clock timers on faint swap-ins, dedicated toast alerts for shields and faint swaps rendered in the top statusbar/clock strip (away from charged move buttons), and crash-free Battle Recap replay dialogs.
-            - **v2.97–v3.00 — Standardized Go Battle Log Export Formatting, Share Line Format & Tasker Automation Hooks**:
-              - Standardized Pokémon names in **Copy GBL** and **Share / Copy Summary** outputs (`basename_form`, `_` for spaces/hyphens, trailing `S` for Shadows such as `ninetales_alolanS` and `laprasS`, and `_MEGA` / `_MEGA_X` / `_MEGA_Y` / `_PRIMAL` suffixes such as `charizard_MEGA_Y`) while keeping in-app display names unchanged.
-              - Updated Share individual battle output rows to `W/L (L->F/N/U, M->F/N/U) opponent1 opponent2 opponent3`.
-              - Added headless Tasker intent hooks (`com.gbl.overlay.ACTION_START_OVERLAY`, `com.gbl.overlay.ACTION_STOP_OVERLAY`, `com.gbl.overlay.ACTION_TOGGLE_OVERLAY`, and `com.gbl.overlay.ACTION_OPEN_BATTLE_LOG` / `BattleLogActivity`) to start/stop the overlay without switching apps or launch straight to the Battle Log page.
-            - **Phase 4 (v3.00–v3.01) — In-App `Help & Metric Guide`, Dedicated `❓ Help` Page & Streamlined 3-Page Navigation**:
-              - Added interactive `(i)` info buttons next to `EXEC WAE` and `MATCHUP LUCK` on both Android and Web to open the **Help & Metric Guide**, plus full mathematical documentation in `README.md`.
-              - **v3.01 Further Documentation Enhancements for Users**:
-                - Added an in-app **❓ Help** button right in the **Start Battle Overlay / Status: [status]** top bar (removing redundant tip text below `Status: [status]`) that opens the full **📖 Help & Overlay Guide** page covering the general battle flow, how to switch teams in the main app's `⚔️ Teams` page, how to use the **3x3 Matchup & Shield Matrix** (single-number PvPoke ratings, 5-tier colored dots, `0S/1S/2S` shield flip tags, and 9-state `0v0–2v2` engine), how to read **Charged Move Damage `%` & `KO!` badges** in the bottom 3-column Opponent Attacks grid, **Dual 50s Swap Clocks** with faint swap-in preservation, multi-cycle fast move counting (`C1-C2-C3`), sneak prevention, and top statusbar toasts.
-                - Kept the main navigation bar as 3 clean page selectors (**⚔️ Teams • 📜 Battle Log • ⚙️ Settings**) so labels never wrap or truncate on narrow screens, with the top **❓ Help** button opening the full Help page directly.
+            - **v2.94–v3.01 — Faint Detection, Top Statusbar Toasts, Standardized GBL Export, Tasker Hooks & In-App Help Guide**:
+              - Reliable opponent faint detection, preserved swap clock timers on faint swap-ins, dedicated top statusbar toasts, standardized Go Battle Log export formatting, Share individual battle line format (`W/L (L->F/N/U, M->F/N/U) opponent1 opponent2 opponent3`), Tasker automation hooks, and dedicated in-app **❓ Help** page with 3-tab bottom/top navigation.
             
             ### Download & Install
             Download **`silphscope-pvp-${{ steps.version.outputs.tag }}.apk`** from the **Assets** section below and install on your Android device.

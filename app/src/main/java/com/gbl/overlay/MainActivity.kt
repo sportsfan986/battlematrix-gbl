@@ -584,6 +584,30 @@ class MainActivity : AppCompatActivity() {
         return APP_THEME_COLLECTION.find { it.id == savedId } ?: APP_THEME_COLLECTION.first()
     }
 
+    private fun createThemedSpinnerAdapter(items: List<String>): ArrayAdapter<String> {
+        return object : ArrayAdapter<String>(this, android.R.layout.simple_spinner_dropdown_item, items) {
+            override fun getView(position: Int, convertView: android.view.View?, parent: android.view.ViewGroup): android.view.View {
+                val v = super.getView(position, convertView, parent)
+                if (v is TextView) {
+                    val theme = if (::prefs.isInitialized) getActiveAppTheme() else APP_THEME_COLLECTION.first()
+                    v.setTextColor(theme.primaryTextColor)
+                    v.textSize = 12.5f
+                }
+                return v
+            }
+
+            override fun getDropDownView(position: Int, convertView: android.view.View?, parent: android.view.ViewGroup): android.view.View {
+                val v = super.getDropDownView(position, convertView, parent)
+                if (v is TextView) {
+                    val theme = if (::prefs.isInitialized) getActiveAppTheme() else APP_THEME_COLLECTION.first()
+                    v.setTextColor(theme.primaryTextColor)
+                    v.setBackgroundColor(theme.surfaceColor)
+                }
+                return v
+            }
+        }
+    }
+
     private fun switchMainPage(page: String) {
         currentActivePage = page
         pageTeams.visibility = if (page == "teams") android.view.View.VISIBLE else android.view.View.GONE
@@ -649,24 +673,91 @@ class MainActivity : AppCompatActivity() {
             val innerAlpha = if (hasWatermark) 0xD4 else 0xFF
             when (rgb) {
                 0x020617 -> view.setBackgroundColor(withAlpha(theme.navBarColor, surfaceAlpha))
-                0x0F172A -> view.setBackgroundColor(withAlpha(theme.innerCardColor, innerAlpha))
+                0x0F172A, 0x111827, 0x0B1325 -> view.setBackgroundColor(withAlpha(theme.innerCardColor, innerAlpha))
                 0x1E293B -> view.setBackgroundColor(withAlpha(theme.surfaceColor, surfaceAlpha))
-                0x334155 -> view.setBackgroundColor(withAlpha(theme.elevatedColor, surfaceAlpha))
+                0x334155, 0x475569 -> view.setBackgroundColor(withAlpha(theme.elevatedColor, surfaceAlpha))
+                0x2563EB, 0x0284C7, 0x38BDF8 -> view.setBackgroundColor(theme.accentColor)
             }
         }
 
-        if (view is TextView && view !is Button) {
+        if (view is Switch) {
+            val states = arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf(-android.R.attr.state_checked))
+            view.thumbTintList = android.content.res.ColorStateList(
+                states,
+                intArrayOf(theme.accentColor, theme.secondaryTextColor)
+            )
+            view.trackTintList = android.content.res.ColorStateList(
+                states,
+                intArrayOf(withAlpha(theme.accentColor, 0x80), theme.elevatedColor)
+            )
+        } else if (view is CompoundButton) {
+            val states = arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf(-android.R.attr.state_checked))
+            view.buttonTintList = android.content.res.ColorStateList(
+                states,
+                intArrayOf(theme.accentColor, theme.secondaryTextColor)
+            )
+            view.setTextColor(theme.primaryTextColor)
+        } else if (view is Button) {
+            val currentTint = view.backgroundTintList?.defaultColor ?: 0xFF2563EB.toInt()
+            val origTint = (view.getTag(R.id.view_swatch_bg) as? Int) ?: currentTint.also {
+                view.setTag(R.id.view_swatch_bg, it)
+            }
+            val origText = (view.getTag(R.id.iv_theme_watermark_bg) as? Int) ?: view.currentTextColor.also {
+                view.setTag(R.id.iv_theme_watermark_bg, it)
+            }
+            when (origTint and 0x00FFFFFF) {
+                0x2563EB, 0x0284C7, 0x0369A1, 0x3B82F6, 0x1D4ED8, 0x0EA5E9, 0x38BDF8 -> {
+                    view.backgroundTintList = android.content.res.ColorStateList.valueOf(theme.buttonAccentColor)
+                    view.setTextColor(0xFFFFFFFF.toInt())
+                }
+                0x334155, 0x475569, 0x64748B -> {
+                    view.backgroundTintList = android.content.res.ColorStateList.valueOf(theme.elevatedColor)
+                    when (origText and 0x00FFFFFF) {
+                        0x38BDF8, 0x7DD3FC -> view.setTextColor(theme.accentColor)
+                        else -> view.setTextColor(theme.primaryTextColor)
+                    }
+                }
+                0x1E293B, 0x0F172A -> {
+                    view.backgroundTintList = android.content.res.ColorStateList.valueOf(theme.surfaceColor)
+                    when (origText and 0x00FFFFFF) {
+                        0x38BDF8, 0x7DD3FC -> view.setTextColor(theme.accentColor)
+                        0xCBD5E1, 0x94A3B8, 0x64748B -> view.setTextColor(theme.secondaryTextColor)
+                        0xF8FAFC, 0xFFFFFF, 0xE2E8F0 -> view.setTextColor(theme.primaryTextColor)
+                    }
+                }
+            }
+        } else if (view is TextView) {
             val origText = (view.getTag(R.id.iv_theme_watermark_bg) as? Int) ?: view.currentTextColor.also {
                 view.setTag(R.id.iv_theme_watermark_bg, it)
             }
             when (origText and 0x00FFFFFF) {
                 0xF8FAFC, 0xFFFFFF, 0xE2E8F0 -> view.setTextColor(theme.primaryTextColor)
                 0xCBD5E1, 0x94A3B8, 0x64748B -> view.setTextColor(theme.secondaryTextColor)
-                0x38BDF8, 0x7DD3FC -> view.setTextColor(theme.accentColor)
+                0x38BDF8, 0x7DD3FC, 0x0284C7, 0x2563EB -> view.setTextColor(theme.accentColor)
             }
             if (view is EditText) {
                 view.setHintTextColor(withAlpha(theme.secondaryTextColor, 0x99))
             }
+        }
+
+        if (view is SeekBar) {
+            val accentState = android.content.res.ColorStateList.valueOf(theme.accentColor)
+            view.progressTintList = accentState
+            view.thumbTintList = accentState
+            view.progressBackgroundTintList = android.content.res.ColorStateList.valueOf(theme.elevatedColor)
+        }
+
+        if (view is ImageButton) {
+            if (view.id == R.id.btn_delete_preset) {
+                view.imageTintList = android.content.res.ColorStateList.valueOf(0xFFF87171.toInt())
+            } else {
+                view.imageTintList = android.content.res.ColorStateList.valueOf(theme.accentColor)
+            }
+        }
+
+        if (view is Spinner) {
+            view.backgroundTintList = android.content.res.ColorStateList.valueOf(theme.accentColor)
+            (view.selectedView as? TextView)?.setTextColor(theme.primaryTextColor)
         }
 
         if (view is android.view.ViewGroup) {
@@ -726,6 +817,12 @@ class MainActivity : AppCompatActivity() {
 
         findViewById<android.view.View>(R.id.root_main_layout)?.let { mainRoot ->
             applyThemeRecursively(mainRoot, theme, showWatermark && theme.emblemDrawableRes != null)
+        }
+        if (::btnToggleOppCountBasis.isInitialized) updateOppCountBasisUi()
+        if (::btnToggleOppChargedMoves.isInitialized) updateOppChargedMovesUi()
+        if (::btnToggleBattleToasts.isInitialized) updateBattleToastsUi()
+        if (::presetsContainer.isInitialized && presetsContainer.childCount > 0) {
+            refreshPresetsUi()
         }
         switchMainPage(currentActivePage)
 
@@ -812,7 +909,7 @@ class MainActivity : AppCompatActivity() {
 
         isUpdatingThemeSpinner = true
         val themeLabels = APP_THEME_COLLECTION.map { it.label }
-        spinnerAppTheme.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, themeLabels)
+        spinnerAppTheme.adapter = createThemedSpinnerAdapter(themeLabels)
         val savedThemeId = prefs.getString(OverlayService.PREFS_KEY_APP_THEME_ID, "slate") ?: "slate"
         val themeIdx = APP_THEME_COLLECTION.indexOfFirst { it.id == savedThemeId }.takeIf { it >= 0 } ?: 0
         spinnerAppTheme.setSelection(themeIdx, false)
@@ -1325,6 +1422,8 @@ class MainActivity : AppCompatActivity() {
             setPadding(pad, pad, pad, pad)
         }
 
+        applyCurrentAppThemeToSubtree(statusLabel)
+
         val dialog = AlertDialog.Builder(this)
             .setTitle("🔑 Code: ${deviceResp.userCode}")
             .setView(statusLabel)
@@ -1446,6 +1545,7 @@ class MainActivity : AppCompatActivity() {
             val pad = (10 * resources.displayMetrics.density).toInt()
             setPadding(pad, pad, pad, pad)
         }
+        applyCurrentAppThemeToSubtree(input)
         AlertDialog.Builder(this)
             .setTitle("📦 Two-Device Delta Sync Bundle")
             .setMessage("Copy this device's Sync Bundle to share with your second device, or paste a Sync Bundle below to reconcile deltas (Logs + Teams):")
@@ -2098,6 +2198,8 @@ class MainActivity : AppCompatActivity() {
             container.addView(card)
         }
 
+        applyCurrentAppThemeToSubtree(scroll)
+
         dialogRef = AlertDialog.Builder(this)
             .setTitle("🗑️ Deleted Teams (${trashList.size})")
             .setView(scroll)
@@ -2198,6 +2300,8 @@ class MainActivity : AppCompatActivity() {
             container.addView(card)
         }
 
+        applyCurrentAppThemeToSubtree(scroll)
+
         dialogRef = AlertDialog.Builder(this)
             .setTitle("🗑️ Deleted Battles (${trashList.size})")
             .setView(scroll)
@@ -2232,7 +2336,7 @@ class MainActivity : AppCompatActivity() {
             "MASTER LEAGUE",
             "MEGA MASTER LEAGUE"
         )
-        spinnerLogFilterLeague.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, leagueLabels)
+        spinnerLogFilterLeague.adapter = createThemedSpinnerAdapter(leagueLabels)
         val lgIdx = leagueKeys.indexOf(selectedLogLeagueFilter).takeIf { it >= 0 } ?: 0
         spinnerLogFilterLeague.setSelection(lgIdx, false)
 
@@ -2244,7 +2348,7 @@ class MainActivity : AppCompatActivity() {
         }
         val teamLabels = listOf("All Teams") + matchingPresets.map { it.name }
         val teamKeys = listOf("ALL") + matchingPresets.map { it.name }
-        spinnerLogFilterTeam.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, teamLabels)
+        spinnerLogFilterTeam.adapter = createThemedSpinnerAdapter(teamLabels)
         val tmIdx = teamKeys.indexOf(selectedLogTeamFilter).takeIf { it >= 0 } ?: 0
         if (tmIdx == 0) selectedLogTeamFilter = "ALL"
         spinnerLogFilterTeam.setSelection(tmIdx, false)
@@ -2265,7 +2369,7 @@ class MainActivity : AppCompatActivity() {
             "CURRENT_SEASON",
             "PREVIOUS_SEASON"
         )
-        spinnerLogFilterTimeframe.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, timeframeLabels)
+        spinnerLogFilterTimeframe.adapter = createThemedSpinnerAdapter(timeframeLabels)
         val tfIdx = timeframeKeys.indexOf(selectedLogTimeframeFilter).takeIf { it >= 0 } ?: 0
         spinnerLogFilterTimeframe.setSelection(tfIdx, false)
 
@@ -3077,7 +3181,7 @@ class MainActivity : AppCompatActivity() {
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
             }
             val descTv = TextView(this).apply {
-                text = "• Tap '⚔️ Start Battle' on the floating overlay during battle to log 🏆 Win or 💀 Loss with automatic Lead Matchup (${selectedPreset?.name ?: "Active Team"}).\n" +
+                text = "• Tap 'Start Battle' on the floating overlay during battle to log 🏆 Win or 💀 Loss with automatic Lead Matchup (${selectedPreset?.name ?: "Active Team"}).\n" +
                     "• Active Season (ScrapedDuck API): ${currSeason.name}\n" +
                     "• Tap any logged battle card to open the Interactive Overlay Matchup Replay!"
                 setTextColor(0xFF94A3B8.toInt())
@@ -3087,6 +3191,7 @@ class MainActivity : AppCompatActivity() {
             emptyCard.addView(titleTv)
             emptyCard.addView(descTv)
             battleLogContainer.addView(emptyCard)
+            applyCurrentAppThemeToSubtree(battleLogContainer)
             return
         }
 
@@ -3707,9 +3812,11 @@ class MainActivity : AppCompatActivity() {
             val pushReplayStateToWeb: () -> Unit = {
                 try {
                     val payloadJson = replayEngine.buildBattlePayloadJson(isReplayMode = true)
+                    val activeThemeId = getActiveAppTheme().id
                     replayWebView.post {
                         try {
                             replayWebView.evaluateJavascript("if (window.setOverlayTransparencyPct) setOverlayTransparencyPct(15);", null)
+                            replayWebView.evaluateJavascript("if (window.setOverlayTheme) setOverlayTheme('$activeThemeId');", null)
                             replayWebView.evaluateJavascript("if (window.updateBattleData) updateBattleData($payloadJson);", null)
                         } catch (_: Exception) {}
                     }
@@ -3730,6 +3837,7 @@ class MainActivity : AppCompatActivity() {
 
             dialogContainer.addView(hintTv)
             dialogContainer.addView(replayWebView)
+            applyCurrentAppThemeToSubtree(dialogContainer)
 
             AlertDialog.Builder(this)
                 .setView(dialogContainer)
@@ -3752,6 +3860,10 @@ class MainActivity : AppCompatActivity() {
             btnToggleOppCountBasis.text = "My Fasts"
             textOppCountBasisDesc.text = "Default: Counts & 50e/Xf relative to My Fast Moves"
         }
+        if (::prefs.isInitialized) {
+            btnToggleOppCountBasis.backgroundTintList = android.content.res.ColorStateList.valueOf(getActiveAppTheme().buttonAccentColor)
+            btnToggleOppCountBasis.setTextColor(0xFFFFFFFF.toInt())
+        }
     }
 
     private fun updateOppChargedMovesUi() {
@@ -3763,17 +3875,24 @@ class MainActivity : AppCompatActivity() {
             btnToggleOppChargedMoves.text = "3 Moves"
             textOppChargedMovesDesc.text = "Default: 3 Charged Moves (Official + Top Usage)"
         }
+        if (::prefs.isInitialized) {
+            btnToggleOppChargedMoves.backgroundTintList = android.content.res.ColorStateList.valueOf(getActiveAppTheme().buttonAccentColor)
+            btnToggleOppChargedMoves.setTextColor(0xFFFFFFFF.toInt())
+        }
     }
 
     private fun updateBattleToastsUi() {
         val disableToasts = prefs.getBoolean(PREFS_KEY_DISABLE_BATTLE_TOASTS, false)
+        val theme = if (::prefs.isInitialized) getActiveAppTheme() else APP_THEME_COLLECTION.first()
         if (disableToasts) {
             btnToggleBattleToasts.text = "Toasts Off"
-            btnToggleBattleToasts.backgroundTintList = android.content.res.ColorStateList.valueOf(0xFF64748B.toInt())
+            btnToggleBattleToasts.backgroundTintList = android.content.res.ColorStateList.valueOf(theme.elevatedColor)
+            btnToggleBattleToasts.setTextColor(theme.primaryTextColor)
             textBattleToastsDesc.text = "Active: In-game Battle Toast popups disabled"
         } else {
             btnToggleBattleToasts.text = "Toasts On"
-            btnToggleBattleToasts.backgroundTintList = android.content.res.ColorStateList.valueOf(0xFF0284C7.toInt())
+            btnToggleBattleToasts.backgroundTintList = android.content.res.ColorStateList.valueOf(theme.buttonAccentColor)
+            btnToggleBattleToasts.setTextColor(0xFFFFFFFF.toInt())
             textBattleToastsDesc.text = "Default: Popups shown for Battle Start/Stop, Switches & Logs"
         }
     }
@@ -4070,18 +4189,20 @@ class MainActivity : AppCompatActivity() {
                 else -> "MASTER LEAGUE"
             }
             textLeague.text = resolvedLeague
+            textPokemon.text = preset.pokemon.joinToString("\n") {
+                val ivLabel = if (!it.ivs.isNullOrBlank()) " · IV ${it.ivs}" else ""
+                "• ${it.name} (CP ${it.cp}$ivLabel) — ${it.fastMove} | ${it.chargedMove1}, ${it.chargedMove2}"
+            }
+            applyCurrentAppThemeToSubtree(itemView)
+            val activeTheme = getActiveAppTheme()
             textLeague.setTextColor(
                 when (resolvedLeague) {
-                    "GREAT LEAGUE" -> 0xFF38BDF8.toInt()
+                    "GREAT LEAGUE" -> activeTheme.accentColor
                     "ULTRA LEAGUE" -> 0xFFFBBF24.toInt()
                     "MEGA MASTER LEAGUE" -> 0xFFE879F9.toInt()
                     else -> 0xFFC084FC.toInt()
                 }
             )
-            textPokemon.text = preset.pokemon.joinToString("\n") {
-                val ivLabel = if (!it.ivs.isNullOrBlank()) " · IV ${it.ivs}" else ""
-                "• ${it.name} (CP ${it.cp}$ivLabel) — ${it.fastMove} | ${it.chargedMove1}, ${it.chargedMove2}"
-            }
 
             btnMoveUp?.alpha = if (index == 0) 0.3f else 1.0f
             btnMoveDown?.alpha = if (index == presets.lastIndex) 0.3f else 1.0f
@@ -4232,6 +4353,7 @@ class MainActivity : AppCompatActivity() {
 
             container.addView(topRow)
             container.addView(movesTv)
+            applyCurrentAppThemeToSubtree(container)
             return container
         }
 
@@ -4293,8 +4415,8 @@ class MainActivity : AppCompatActivity() {
         val editP3C1 = dialogView.findViewById<EditText>(R.id.edit_p3_c1)
         val editP3C2 = dialogView.findViewById<EditText>(R.id.edit_p3_c2)
 
-        val leagues = arrayOf("GREAT LEAGUE", "ULTRA LEAGUE", "MASTER LEAGUE", "MEGA MASTER LEAGUE")
-        spinnerLeague.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, leagues)
+        val leagues = listOf("GREAT LEAGUE", "ULTRA LEAGUE", "MASTER LEAGUE", "MEGA MASTER LEAGUE")
+        spinnerLeague.adapter = createThemedSpinnerAdapter(leagues)
 
         val currentLeagueProvider = {
             spinnerLeague.selectedItem?.toString() ?: "GREAT LEAGUE"
