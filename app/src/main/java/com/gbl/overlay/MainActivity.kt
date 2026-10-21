@@ -478,7 +478,6 @@ class MainActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.tv_app_main_subtitle)?.text = "Real-Time PvP Floating Overlay • v$appVer"
         ensureDefaultPresets()
         ensureDefaultSeasons()
-        migrateExistingBattleLogs()
         refreshPresetsUi()
         setupBattleLogFilters()
         renderBattleLogPage()
@@ -486,6 +485,14 @@ class MainActivity : AppCompatActivity() {
         fetchSeasonsFromScrapedDuck()
         syncOverlayRunningUiState()
         handleIncomingNavigationAndTaskerIntent(intent)
+        lifecycleScope.launch(Dispatchers.Default) {
+            migrateExistingBattleLogs()
+            recalculateAllPresetsWithSeasonMetaBlocking()
+            withContext(Dispatchers.Main) {
+                refreshPresetsUi()
+                renderBattleLogPage()
+            }
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -498,7 +505,6 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         if (::prefs.isInitialized) {
             syncOverlayRunningUiState()
-            migrateExistingBattleLogs()
             setupBattleLogFilters()
             renderBattleLogPage()
             updateSyncStatusUi()
@@ -774,7 +780,6 @@ class MainActivity : AppCompatActivity() {
             view.id == R.id.btn_mode_abb ||
             view.id == R.id.btn_mode_abc ||
             view.id == R.id.btn_dialog_auto_detect_style ||
-            view.id == R.id.btn_auto_detect_preset ||
             view.id == R.id.text_preset_archetype_badge ||
             view.id == R.id.text_preset_league
         ) {
@@ -2091,93 +2096,105 @@ class MainActivity : AppCompatActivity() {
      * Dynamic Execution WAE (Delta_Q_final), Primary Performance Badges, and Contextual Flags.
      */
     private fun reparseAllCompletedBattles(silent: Boolean) {
-        try {
-            val cacheFile = File(filesDir, "pvpoke_gamemaster.json")
-            if (cacheFile.exists() && cacheFile.length() > 1000 && OverlayService.DYNAMIC_POKEMON_DATABASE.isEmpty()) {
-                OverlayService.parseGamemasterJsonStatic(cacheFile.readText())
+        if (!silent && ::btnReparseBattlesSettings.isInitialized) {
+            btnReparseBattlesSettings.isEnabled = false
+        }
+        lifecycleScope.launch(Dispatchers.Default) {
+            try {
+                val cacheFile = File(filesDir, "pvpoke_gamemaster.json")
+                if (cacheFile.exists() && cacheFile.length() > 1000 && OverlayService.DYNAMIC_POKEMON_DATABASE.isEmpty()) {
+                    OverlayService.parseGamemasterJsonStatic(cacheFile.readText())
+                }
+                for ((leagueKey, fileName, _) in RANKINGS_ENDPOINTS) {
+                    val rFile = File(filesDir, fileName)
+                    if (rFile.exists() && rFile.length() > 200 && OverlayService.getLeagueRankingsCount(leagueKey) == 0) {
+                        OverlayService.parseRankingsJsonStatic(leagueKey, rFile.readText())
+                    }
+                }
+            } catch (_: Exception) {}
+
+            val presets = loadPresets()
+            val nowMs = System.currentTimeMillis()
+
+            fun reparseEntry(entry: BattleLogEntry): BattleLogEntry {
+                val matchedPreset = presets.find {
+                    (entry.presetId.isNotBlank() && it.id == entry.presetId) ||
+                        it.name.equals(entry.userTeamName, ignoreCase = true)
+                }
+                val myMons = if (entry.userPokemon.size >= 3) {
+                    entry.userPokemon
+                } else if (matchedPreset != null && matchedPreset.pokemon.isNotEmpty()) {
+                    matchedPreset.pokemon.map { it.name }
+                } else {
+                    entry.userPokemon
+                }
+                val leadSlot = matchedPreset?.pokemon?.firstOrNull()
+                val myLeadName = myMons.firstOrNull()?.trim().orEmpty()
+                val oppLeadName = entry.opponents.firstOrNull()?.trim().orEmpty()
+                val updatedLead = if (myLeadName.isNotEmpty() && oppLeadName.isNotEmpty()) {
+                    OverlayService.calculateAutoLeadMatchupStatic(
+                        myLead = myLeadName,
+                        oppLead = oppLeadName,
+                        league = entry.league,
+                        myFastMove = leadSlot?.fastMove,
+                        myCharged1 = leadSlot?.chargedMove1,
+                        myCharged2 = leadSlot?.chargedMove2,
+                        myCp = leadSlot?.cp,
+                        myIvs = leadSlot?.ivs
+                    )
+                } else {
+                    entry.leadMatchup
+                }
+                val freshQuality = resolveEntryQuality(entry, presets, forceRecalculate = true)
+                return entry.copy(
+                    userPokemon = if (entry.userPokemon.isEmpty() && myMons.isNotEmpty()) myMons else entry.userPokemon,
+                    leadMatchup = updatedLead,
+                    bmfScore = freshQuality?.pPre,
+                    execWae = freshQuality?.execWae,
+                    badges = freshQuality?.badges ?: if (freshQuality != null) listOf(freshQuality.badgeLabel) else emptyList(),
+                    flags = freshQuality?.contextualFlags ?: emptyList(),
+                    quality = freshQuality,
+                    qualityEvaluated = true,
+                    updatedAt = nowMs
+                )
             }
-            for ((leagueKey, fileName, _) in RANKINGS_ENDPOINTS) {
-                val rFile = File(filesDir, fileName)
-                if (rFile.exists() && rFile.length() > 200 && OverlayService.getLeagueRankingsCount(leagueKey) == 0) {
-                    OverlayService.parseRankingsJsonStatic(leagueKey, rFile.readText())
+
+            val activeLogs = loadBattleLogs()
+            val reparsedActive = activeLogs.map { reparseEntry(it) }
+            if (reparsedActive.isNotEmpty()) {
+                saveBattleLogs(reparsedActive)
+            }
+
+            val trashLogs = loadDeletedBattlesTrash()
+            if (trashLogs.isNotEmpty()) {
+                val reparsedTrash = trashLogs.map { reparseEntry(it) }
+                saveDeletedBattlesTrash(reparsedTrash)
+            }
+
+            recalculateAllPresetsWithSeasonMetaBlocking(reparsedActive)
+            val aggWae = OverlayService.calculateAggregateWAEStatic(reparsedActive.map { it.quality })
+
+            withContext(Dispatchers.Main) {
+                if (::btnReparseBattlesSettings.isInitialized) {
+                    btnReparseBattlesSettings.isEnabled = true
+                }
+                if (::textReparseBattlesStatus.isInitialized) {
+                    val timeFmt = java.text.SimpleDateFormat("h:mm a", java.util.Locale.US).format(java.util.Date(nowMs))
+                    textReparseBattlesStatus.text = "✅ Reparsed ${reparsedActive.size} battle(s) at $timeFmt • Ranked: ${aggWae.rankedCount} • Exec WAE: ${aggWae.formatted} • Luck: ${aggWae.luckFormatted}"
+                }
+                refreshPresetsUi()
+                renderBattleLogPage()
+                updateSyncStatusUi()
+
+                if (!silent) {
+                    Toast.makeText(
+                        this@MainActivity,
+                        "✅ Reparsed ${reparsedActive.size} completed battle(s) (Exec WAE: ${aggWae.formatted} • Luck: ${aggWae.luckFormatted})!",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    triggerTwoDeviceCloudSync(silent = true)
                 }
             }
-        } catch (_: Exception) {}
-
-        val presets = loadPresets()
-        val nowMs = System.currentTimeMillis()
-
-        fun reparseEntry(entry: BattleLogEntry): BattleLogEntry {
-            val matchedPreset = presets.find {
-                (entry.presetId.isNotBlank() && it.id == entry.presetId) ||
-                    it.name.equals(entry.userTeamName, ignoreCase = true)
-            }
-            val myMons = if (entry.userPokemon.size >= 3) {
-                entry.userPokemon
-            } else if (matchedPreset != null && matchedPreset.pokemon.isNotEmpty()) {
-                matchedPreset.pokemon.map { it.name }
-            } else {
-                entry.userPokemon
-            }
-            val leadSlot = matchedPreset?.pokemon?.firstOrNull()
-            val myLeadName = myMons.firstOrNull()?.trim().orEmpty()
-            val oppLeadName = entry.opponents.firstOrNull()?.trim().orEmpty()
-            val updatedLead = if (myLeadName.isNotEmpty() && oppLeadName.isNotEmpty()) {
-                OverlayService.calculateAutoLeadMatchupStatic(
-                    myLead = myLeadName,
-                    oppLead = oppLeadName,
-                    league = entry.league,
-                    myFastMove = leadSlot?.fastMove,
-                    myCharged1 = leadSlot?.chargedMove1,
-                    myCharged2 = leadSlot?.chargedMove2,
-                    myCp = leadSlot?.cp,
-                    myIvs = leadSlot?.ivs
-                )
-            } else {
-                entry.leadMatchup
-            }
-            val freshQuality = resolveEntryQuality(entry, presets, forceRecalculate = true)
-            return entry.copy(
-                userPokemon = if (entry.userPokemon.isEmpty() && myMons.isNotEmpty()) myMons else entry.userPokemon,
-                leadMatchup = updatedLead,
-                bmfScore = freshQuality?.pPre,
-                execWae = freshQuality?.execWae,
-                badges = freshQuality?.badges ?: if (freshQuality != null) listOf(freshQuality.badgeLabel) else emptyList(),
-                flags = freshQuality?.contextualFlags ?: emptyList(),
-                quality = freshQuality,
-                qualityEvaluated = true,
-                updatedAt = nowMs
-            )
-        }
-
-        val activeLogs = loadBattleLogs()
-        val reparsedActive = activeLogs.map { reparseEntry(it) }
-        if (reparsedActive.isNotEmpty()) {
-            saveBattleLogs(reparsedActive)
-        }
-
-        val trashLogs = loadDeletedBattlesTrash()
-        if (trashLogs.isNotEmpty()) {
-            val reparsedTrash = trashLogs.map { reparseEntry(it) }
-            saveDeletedBattlesTrash(reparsedTrash)
-        }
-
-        val aggWae = OverlayService.calculateAggregateWAEStatic(reparsedActive.map { it.quality })
-        if (::textReparseBattlesStatus.isInitialized) {
-            val timeFmt = java.text.SimpleDateFormat("h:mm a", java.util.Locale.US).format(java.util.Date(nowMs))
-            textReparseBattlesStatus.text = "✅ Reparsed ${reparsedActive.size} battle(s) at $timeFmt • Ranked: ${aggWae.rankedCount} • Exec WAE: ${aggWae.formatted} • Luck: ${aggWae.luckFormatted}"
-        }
-
-        renderBattleLogPage()
-        updateSyncStatusUi()
-
-        if (!silent) {
-            Toast.makeText(
-                this,
-                "✅ Reparsed ${reparsedActive.size} completed battle(s) (Exec WAE: ${aggWae.formatted} • Luck: ${aggWae.luckFormatted})!",
-                Toast.LENGTH_LONG
-            ).show()
-            triggerTwoDeviceCloudSync(silent = true)
         }
     }
 
@@ -3223,17 +3240,24 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun getCurrentSeasonLogsForLeague(league: String): List<Pair<Long, List<String>>> {
+    private fun getCurrentSeasonLogsForLeague(
+        league: String,
+        preloadedLogs: List<BattleLogEntry>? = null
+    ): List<Pair<Long, List<String>>> {
         val (currSeason, _) = getCurrentAndPreviousSeason()
-        val allLogs = loadBattleLogs()
+        val allLogs = preloadedLogs ?: loadBattleLogs()
         return allLogs.filter { entry ->
             entry.timestampMs in currSeason.startMs..currSeason.endMs &&
                 entry.league.equals(league, ignoreCase = true)
         }.map { it.timestampMs to it.opponents }
     }
 
-    private fun evaluatePresetMetrics(preset: TeamPreset, autoReorder: Boolean): TeamPreset {
-        val seasonLogs = getCurrentSeasonLogsForLeague(preset.league)
+    private fun evaluatePresetMetrics(
+        preset: TeamPreset,
+        autoReorder: Boolean,
+        preloadedLogs: List<BattleLogEntry>? = null
+    ): TeamPreset {
+        val seasonLogs = getCurrentSeasonLogsForLeague(preset.league, preloadedLogs)
         val serviceMembers = preset.pokemon.map {
             OverlayService.TeamMember(it.name, it.cp, it.fastMove, it.chargedMove1, it.chargedMove2, it.ivs)
         }
@@ -3261,13 +3285,35 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
-    private fun recalculateAllPresetsWithSeasonMeta() {
+    private val isRecalculatingPresets = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    private fun recalculateAllPresetsWithSeasonMetaBlocking(preloadedLogs: List<BattleLogEntry>? = null): Boolean {
         val existing = loadPresets()
-        if (existing.isEmpty()) return
-        val updated = existing.map { evaluatePresetMetrics(it, autoReorder = false) }
-        savePresets(updated)
-        if (::presetsContainer.isInitialized) {
-            refreshPresetsUi()
+        if (existing.isEmpty()) return false
+        val logs = preloadedLogs ?: loadBattleLogs()
+        val updated = existing.map { evaluatePresetMetrics(it, autoReorder = false, preloadedLogs = logs) }
+        if (updated != existing) {
+            savePresets(updated)
+            return true
+        }
+        return false
+    }
+
+    private fun recalculateAllPresetsWithSeasonMetaAsync() {
+        if (!isRecalculatingPresets.compareAndSet(false, true)) return
+        lifecycleScope.launch(Dispatchers.Default) {
+            try {
+                val changed = recalculateAllPresetsWithSeasonMetaBlocking()
+                if (changed) {
+                    withContext(Dispatchers.Main) {
+                        if (::presetsContainer.isInitialized) {
+                            refreshPresetsUi()
+                        }
+                    }
+                }
+            } finally {
+                isRecalculatingPresets.set(false)
+            }
         }
     }
 
@@ -4553,8 +4599,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun launchOverlayServiceNow(resultCode: Int, data: Intent?) {
-        // Recalculate all saved team presets' Lead BR, Swap BR, and Machine BR against latest current-season logs + PvPoke meta
-        recalculateAllPresetsWithSeasonMeta()
+        // Recalculate all saved team presets' Lead BR, Swap BR, and Machine BR in background
+        recalculateAllPresetsWithSeasonMetaAsync()
         val serviceIntent = Intent(this, OverlayService::class.java).apply {
             action = OverlayService.ACTION_START_OVERLAY
             putExtra(OverlayService.EXTRA_RESULT_CODE, resultCode)
@@ -4712,8 +4758,12 @@ class MainActivity : AppCompatActivity() {
         val presets = loadPresets()
         val selectedId = prefs.getString(PREFS_KEY_SELECTED_PRESET, null) ?: presets.firstOrNull()?.id
 
-        presets.forEachIndexed { index, rawPreset ->
-            val preset = evaluatePresetMetrics(rawPreset, autoReorder = false)
+        var hasUncomputedMetrics = false
+
+        presets.forEachIndexed { index, preset ->
+            if (preset.leadAggBr <= 0 || preset.machineAggBr <= 0 || preset.safeSwapBr <= 0) {
+                hasUncomputedMetrics = true
+            }
             val itemView = layoutInflater.inflate(R.layout.item_team_preset, presetsContainer, false)
             val dragHandle = itemView.findViewById<TextView>(R.id.drag_handle_preset)
             val textName = itemView.findViewById<TextView>(R.id.text_preset_name)
@@ -4724,9 +4774,6 @@ class MainActivity : AppCompatActivity() {
             val radioSelected = itemView.findViewById<RadioButton>(R.id.radio_selected)
             val btnMoveUp = itemView.findViewById<TextView>(R.id.btn_move_preset_up)
             val btnMoveDown = itemView.findViewById<TextView>(R.id.btn_move_preset_down)
-            val btnAutoDetect = itemView.findViewById<Button>(R.id.btn_auto_detect_preset)
-            val btnSwap12 = itemView.findViewById<Button>(R.id.btn_preset_swap_1_2)
-            val btnSwap23 = itemView.findViewById<Button>(R.id.btn_preset_swap_2_3)
             val btnEdit = itemView.findViewById<ImageButton>(R.id.btn_edit_preset)
             val btnDelete = itemView.findViewById<ImageButton>(R.id.btn_delete_preset)
 
@@ -4787,65 +4834,6 @@ class MainActivity : AppCompatActivity() {
                     else -> 0xFFC084FC.toInt()
                 }
             )
-
-            fun saveAndRefreshPresetUpdate(updatedPreset: TeamPreset, toastMessage: String? = null) {
-                val mutableList = loadPresets().toMutableList()
-                val idxInList = mutableList.indexOfFirst { it.id == preset.id }
-                if (idxInList >= 0) {
-                    mutableList[idxInList] = updatedPreset
-                    savePresets(mutableList)
-                    refreshPresetsUi()
-                    if (isCurrent && isOverlayRunning) {
-                        val updateIntent = Intent(this, OverlayService::class.java).apply {
-                            action = OverlayService.ACTION_UPDATE_PRESET
-                            putExtra(OverlayService.EXTRA_PRESET_JSON, gson.toJson(updatedPreset))
-                        }
-                        startService(updateIntent)
-                    }
-                    triggerTwoDeviceCloudSync(silent = true)
-                    if (!toastMessage.isNullOrBlank()) {
-                        Toast.makeText(this, toastMessage, Toast.LENGTH_LONG).show()
-                    }
-                }
-            }
-
-            btnAutoDetect?.setOnClickListener {
-                val reordered = evaluatePresetMetrics(preset.copy(isArchetypeManual = false), autoReorder = true)
-                    .copy(updatedAt = System.currentTimeMillis())
-                val orderSummary = reordered.pokemon.joinToString(" → ") { it.name }
-                saveAndRefreshPresetUpdate(
-                    reordered,
-                    "⚡ Auto-Detected ${reordered.archetype}: $orderSummary (Lead BR ${reordered.leadAggBr} • Slot 2 Swap BR ${reordered.safeSwapBr})"
-                )
-            }
-
-            btnSwap12?.setOnClickListener {
-                if (preset.pokemon.size >= 3) {
-                    val swappedSlots = listOf(preset.pokemon[1], preset.pokemon[0], preset.pokemon[2])
-                    val reevaluated = evaluatePresetMetrics(
-                        preset.copy(pokemon = swappedSlots, updatedAt = System.currentTimeMillis()),
-                        autoReorder = false
-                    )
-                    saveAndRefreshPresetUpdate(
-                        reevaluated,
-                        "Swapped #1 ⇄ #2: ${reevaluated.pokemon[0].name} (Lead BR ${reevaluated.leadAggBr}) • ${reevaluated.pokemon[1].name} (Swap BR ${reevaluated.safeSwapBr})"
-                    )
-                }
-            }
-
-            btnSwap23?.setOnClickListener {
-                if (preset.pokemon.size >= 3) {
-                    val swappedSlots = listOf(preset.pokemon[0], preset.pokemon[2], preset.pokemon[1])
-                    val reevaluated = evaluatePresetMetrics(
-                        preset.copy(pokemon = swappedSlots, updatedAt = System.currentTimeMillis()),
-                        autoReorder = false
-                    )
-                    saveAndRefreshPresetUpdate(
-                        reevaluated,
-                        "Swapped #2 ⇄ #3: ${reevaluated.pokemon[1].name} (Swap BR ${reevaluated.safeSwapBr}) • ${reevaluated.pokemon[2].name} (Swap BR ${reevaluated.closerSwapBr})"
-                    )
-                }
-            }
 
             btnMoveUp?.alpha = if (index == 0) 0.3f else 1.0f
             btnMoveDown?.alpha = if (index == presets.lastIndex) 0.3f else 1.0f
@@ -4937,6 +4925,10 @@ class MainActivity : AppCompatActivity() {
             }
 
             presetsContainer.addView(itemView)
+        }
+
+        if (hasUncomputedMetrics) {
+            recalculateAllPresetsWithSeasonMetaAsync()
         }
     }
 
@@ -5192,13 +5184,15 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        val preloadedDialogLogs = loadBattleLogs()
+
         fun refreshDialogTeamEvaluation(autoReorder: Boolean): OverlayService.Companion.TeamArchetypeEvaluationResult {
             val lg = currentLeagueProvider()
             val top3Defaults = getLeagueTop3Defaults(lg)
             val s1 = buildResolvedSlot(editP1, editP1Cp, editP1Ivs, editP1Fast, editP1C1, editP1C2, lg, top3Defaults[0])
             val s2 = buildResolvedSlot(editP2, editP2Cp, editP2Ivs, editP2Fast, editP2C1, editP2C2, lg, top3Defaults[1])
             val s3 = buildResolvedSlot(editP3, editP3Cp, editP3Ivs, editP3Fast, editP3C1, editP3C2, lg, top3Defaults[2])
-            val seasonLogs = getCurrentSeasonLogsForLeague(lg)
+            val seasonLogs = getCurrentSeasonLogsForLeague(lg, preloadedDialogLogs)
             val eval = OverlayService.evaluateOrAutoOrderTeamStatic(
                 slots = listOf(
                     OverlayService.TeamMember(s1.name, s1.cp, s1.fastMove, s1.chargedMove1, s1.chargedMove2, s1.ivs),
@@ -5574,7 +5568,7 @@ class MainActivity : AppCompatActivity() {
                 } catch (_: Exception) {}
                 withContext(Dispatchers.Main) {
                     dbStatusText.text = formatDbAndLeagueStatusText()
-                    reparseAllCompletedBattles(silent = true)
+                    recalculateAllPresetsWithSeasonMetaAsync()
                 }
             }
         } else {

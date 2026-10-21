@@ -4454,14 +4454,6 @@ export default function App() {
                         <div className="flex items-center gap-1">
                           <button
                             type="button"
-                            onClick={() => handleAutoDetectSavedPreset(preset.id)}
-                            className="px-2 py-0.5 rounded bg-amber-500/15 hover:bg-amber-500/30 border border-amber-400/40 text-amber-300 text-[10px] font-extrabold transition"
-                            title="Auto-detect ABB vs ABC style and move recommended Safe Swap / Bait to Slot 2"
-                          >
-                            ⚡ Auto
-                          </button>
-                          <button
-                            type="button"
                             disabled={presetIdx === 0}
                             onClick={() => handleMovePreset(presetIdx, presetIdx - 1)}
                             className="p-1 rounded bg-slate-800/80 hover:bg-slate-700 text-slate-300 disabled:opacity-30 disabled:cursor-not-allowed transition"
@@ -4528,7 +4520,7 @@ export default function App() {
                         </div>
                       </div>
 
-                      {/* 3 Pokémon Slots with Role Tags, Swap BR & Quick Slot Reordering */}
+                      {/* 3 Pokémon Slots with Role Tags & Swap BR */}
                       <div className="space-y-2">
                         {preset.pokemon.map((member, index) => {
                           const roleTag =
@@ -4598,16 +4590,6 @@ export default function App() {
                                   <strong className="text-amber-300">{member.chargedMove1}</strong> /{' '}
                                   <strong className="text-sky-300">{member.chargedMove2}</strong>
                                 </span>
-                                {index < 2 && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleSwapSavedPresetSlots(preset.id, index, index + 1)}
-                                    className="px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white text-[9.5px] font-mono font-bold shrink-0 transition"
-                                    title={`Swap Slot #${index + 1} and Slot #${index + 2}`}
-                                  >
-                                    #{index + 1}⇄#{index + 2}
-                                  </button>
-                                )}
                               </div>
                             </div>
                           );
@@ -4621,13 +4603,6 @@ export default function App() {
                         <strong className="text-amber-300">{arch}</strong>
                       </span>
                       <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleAutoDetectSavedPreset(preset.id)}
-                          className="text-amber-300 hover:text-amber-200 font-semibold text-[11px]"
-                        >
-                          ⚡ Auto-Order Safe Swap
-                        </button>
                         <button
                           onClick={() => openEditPresetModal(preset)}
                           className="text-sky-400 hover:text-sky-300 font-semibold text-[11px]"

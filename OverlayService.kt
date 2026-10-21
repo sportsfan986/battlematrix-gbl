@@ -1699,13 +1699,31 @@ class OverlayService : LifecycleService() {
             "Gyro Ball" to 60
         )
 
+        @Volatile
+        private var CACHED_ALL_POKEMON_META: List<PokemonMeta>? = null
+        private val RESOLVED_SPECIES_CACHE = java.util.concurrent.ConcurrentHashMap<String, PokemonMeta>()
+        private val TOP_META_POOL_CACHE = java.util.concurrent.ConcurrentHashMap<String, List<String>>()
+        private val TOP_30_RANKED_POOL_CACHE = java.util.concurrent.ConcurrentHashMap<String, List<String>>()
+
+        fun clearSimulationCachesStatic() {
+            CACHED_ALL_POKEMON_META = null
+            RESOLVED_SPECIES_CACHE.clear()
+            TOP_META_POOL_CACHE.clear()
+            TOP_30_RANKED_POOL_CACHE.clear()
+        }
+
         fun getAllPokemonMeta(): List<PokemonMeta> {
-            return if (DYNAMIC_POKEMON_DATABASE.isEmpty()) {
+            CACHED_ALL_POKEMON_META?.let { return it }
+            val merged = if (DYNAMIC_POKEMON_DATABASE.isEmpty()) {
                 POKEMON_META_DATABASE
             } else {
                 val dynIds = DYNAMIC_POKEMON_DATABASE.map { it.speciesId.lowercase() }.toSet()
                 DYNAMIC_POKEMON_DATABASE + POKEMON_META_DATABASE.filter { !dynIds.contains(it.speciesId.lowercase()) }
             }
+            if (DYNAMIC_POKEMON_DATABASE.isNotEmpty()) {
+                CACHED_ALL_POKEMON_META = merged
+            }
+            return merged
         }
 
         /**
@@ -2087,6 +2105,7 @@ class OverlayService : LifecycleService() {
                     }
                 }
                 LIVE_RANKINGS_MAP[leagueKey.uppercase()] = leagueMap
+                clearSimulationCachesStatic()
                 leagueMap.size
             } catch (_: Exception) {
                 0
@@ -2329,6 +2348,15 @@ class OverlayService : LifecycleService() {
         ): PokemonMeta? {
             val trimmed = rawName.trim()
             if (trimmed.isEmpty()) return null
+            val normLeague = when {
+                league.contains("MEGA", ignoreCase = true) -> "MEGA MASTER LEAGUE"
+                league.contains("GREAT", ignoreCase = true) -> "GREAT LEAGUE"
+                league.contains("ULTRA", ignoreCase = true) -> "ULTRA LEAGUE"
+                else -> "MASTER LEAGUE"
+            }
+            val cacheKey = "${trimmed.lowercase()}|$normLeague|${customCp ?: -1}|${customIvs?.trim()?.lowercase().orEmpty()}"
+            RESOLVED_SPECIES_CACHE[cacheKey]?.let { return it }
+
             val isShadowInput = trimmed.startsWith("Shadow ", ignoreCase = true) || trimmed.contains("(Shadow)", ignoreCase = true)
             val cleanNoShadow = trimmed
                 .replace(Regex("^Shadow\\s+", RegexOption.IGNORE_CASE), "")
@@ -2336,30 +2364,38 @@ class OverlayService : LifecycleService() {
                 .trim()
             val allMeta = getAllPokemonMeta()
 
+            fun cacheAndReturn(resolved: PokemonMeta?): PokemonMeta? {
+                if (resolved != null) {
+                    if (RESOLVED_SPECIES_CACHE.size > 6000) RESOLVED_SPECIES_CACHE.clear()
+                    RESOLVED_SPECIES_CACHE[cacheKey] = resolved
+                }
+                return resolved
+            }
+
             val exactByName = allMeta.find {
                 it.name.equals(trimmed, ignoreCase = true) ||
                     it.name.equals(cleanNoShadow, ignoreCase = true) ||
                     (cleanNoShadow.contains("zygarde", ignoreCase = true) && cleanNoShadow.contains("complete", ignoreCase = true) && it.speciesId.equals("zygarde_complete", ignoreCase = true))
             }
             if (exactByName != null) {
-                val withRankMoves = applyRankingMovesForLeague(applyRecommendedMoves(exactByName), league, isShadowInput)
-                return computeEffectiveCombatStats(withRankMoves, league, customCp, customIvs)
+                val withRankMoves = applyRankingMovesForLeague(applyRecommendedMoves(exactByName), normLeague, isShadowInput)
+                return cacheAndReturn(computeEffectiveCombatStats(withRankMoves, normLeague, customCp, customIvs))
             }
 
             val base = FormResolver.extractBaseSpecies(cleanNoShadow)
-            val variants = FormResolver.getVariantsForSpecies(base, league)
+            val variants = FormResolver.getVariantsForSpecies(base, normLeague)
             if (variants.isNotEmpty()) {
-                val chosen = FormResolver.resolveBestDefaultVariant(variants.first(), cleanNoShadow, league)
-                val withRankMoves = applyRankingMovesForLeague(applyRecommendedMoves(chosen), league, isShadowInput)
-                return computeEffectiveCombatStats(withRankMoves, league, customCp, customIvs)
+                val chosen = FormResolver.resolveBestDefaultVariant(variants.first(), cleanNoShadow, normLeague)
+                val withRankMoves = applyRankingMovesForLeague(applyRecommendedMoves(chosen), normLeague, isShadowInput)
+                return cacheAndReturn(computeEffectiveCombatStats(withRankMoves, normLeague, customCp, customIvs))
             }
 
             val exactById = allMeta.find {
                 it.speciesId.equals(cleanNoShadow.replace(" ", "_"), ignoreCase = true)
             }
             if (exactById != null) {
-                val withRankMoves = applyRankingMovesForLeague(applyRecommendedMoves(exactById), league, isShadowInput)
-                return computeEffectiveCombatStats(withRankMoves, league, customCp, customIvs)
+                val withRankMoves = applyRankingMovesForLeague(applyRecommendedMoves(exactById), normLeague, isShadowInput)
+                return cacheAndReturn(computeEffectiveCombatStats(withRankMoves, normLeague, customCp, customIvs))
             }
 
             val partial = allMeta.firstOrNull {
@@ -2372,10 +2408,10 @@ class OverlayService : LifecycleService() {
                         cleanNoShadow.lowercase().contains(candBase)
                 }
             }
-            return partial?.let {
-                val withRankMoves = applyRankingMovesForLeague(applyRecommendedMoves(it), league, isShadowInput)
-                computeEffectiveCombatStats(withRankMoves, league, customCp, customIvs)
-            }
+            return cacheAndReturn(partial?.let {
+                val withRankMoves = applyRankingMovesForLeague(applyRecommendedMoves(it), normLeague, isShadowInput)
+                computeEffectiveCombatStats(withRankMoves, normLeague, customCp, customIvs)
+            })
         }
 
         /**
@@ -2673,6 +2709,7 @@ class OverlayService : LifecycleService() {
                     }
                     DYNAMIC_POKEMON_DATABASE.clear()
                     DYNAMIC_POKEMON_DATABASE.addAll(parsedList)
+                    clearSimulationCachesStatic()
                 }
             } catch (_: Exception) {}
         }
@@ -2943,6 +2980,12 @@ class OverlayService : LifecycleService() {
         fun getTopMetaPoolForLeagueStatic(league: String): List<String> {
             val isGreat = league.contains("GREAT", ignoreCase = true)
             val isUltra = league.contains("ULTRA", ignoreCase = true)
+            val normKey = when {
+                isGreat -> "GREAT"
+                isUltra -> "ULTRA"
+                else -> "MASTER"
+            }
+            TOP_META_POOL_CACHE[normKey]?.let { return it }
             val sorted = getAllPokemonMeta()
                 .filter { !it.speciesId.endsWith("_shadow", ignoreCase = true) && !it.name.startsWith("Shadow ", ignoreCase = true) }
                 .sortedBy {
@@ -2954,7 +2997,11 @@ class OverlayService : LifecycleService() {
                 }
                 .take(18)
                 .map { it.name }
-            return if (sorted.isNotEmpty()) sorted else listOf("Azumarill", "Clodsire", "Annihilape", "Feraligatr", "Mandibuzz", "Gastrodon")
+            val result = if (sorted.isNotEmpty()) sorted else listOf("Azumarill", "Clodsire", "Annihilape", "Feraligatr", "Mandibuzz", "Gastrodon")
+            if (DYNAMIC_POKEMON_DATABASE.isNotEmpty()) {
+                TOP_META_POOL_CACHE[normKey] = result
+            }
+            return result
         }
 
         /**
@@ -3585,18 +3632,29 @@ class OverlayService : LifecycleService() {
         ): BlendedSeasonMetaDistribution {
             val isGreat = league.contains("GREAT", ignoreCase = true)
             val isUltra = league.contains("ULTRA", ignoreCase = true)
-            val rankedPool = getAllPokemonMeta()
-                .filter { !it.speciesId.endsWith("_shadow", ignoreCase = true) && !it.name.startsWith("Shadow ", ignoreCase = true) }
-                .sortedBy {
-                    when {
-                        isGreat -> it.glRank
-                        isUltra -> it.ulRank
-                        else -> it.mlRank
+            val normKey = when {
+                isGreat -> "GREAT"
+                isUltra -> "ULTRA"
+                else -> "MASTER"
+            }
+            val rankedPool = TOP_30_RANKED_POOL_CACHE[normKey] ?: run {
+                val computed = getAllPokemonMeta()
+                    .filter { !it.speciesId.endsWith("_shadow", ignoreCase = true) && !it.name.startsWith("Shadow ", ignoreCase = true) }
+                    .sortedBy {
+                        when {
+                            isGreat -> it.glRank
+                            isUltra -> it.ulRank
+                            else -> it.mlRank
+                        }
                     }
+                    .take(30)
+                    .map { it.name }
+                    .ifEmpty { getTopMetaPoolForLeagueStatic(league) }
+                if (DYNAMIC_POKEMON_DATABASE.isNotEmpty()) {
+                    TOP_30_RANKED_POOL_CACHE[normKey] = computed
                 }
-                .take(30)
-                .map { it.name }
-                .ifEmpty { getTopMetaPoolForLeagueStatic(league) }
+                computed
+            }
 
             val rawMeta = LinkedHashMap<String, Double>()
             var rawMetaSum = 0.0
@@ -3701,30 +3759,52 @@ class OverlayService : LifecycleService() {
                 return resistedCount == sharedWeaknesses.size || (resistedCount >= 1 && notWeakToAny && sharedWeaknesses.size >= 2)
             }
 
-            fun computeSwapStats(slot: TeamMember): Pair<Double, Double> {
+            // Single-pass per-slot role BR precomputation against all opponents in dist
+            val allOpps = (dist.leadWeights.keys + dist.fieldWeights.keys).distinct()
+            val slotLeadBrMap = Array(3) { HashMap<String, Double>(allOpps.size) }
+            val slotSwapBrMap = Array(3) { HashMap<String, Double>(allOpps.size) }
+            val slotCloserBrMap = Array(3) { HashMap<String, Double>(allOpps.size) }
+
+            for (i in 0 until 3) {
+                val slot = padded[i]
+                for (opp in allOpps) {
+                    val b00 = calculateMatchupRatingStatic(slot.name, opp, 0, 0, league, slot.fastMove, slot.chargedMove1, slot.chargedMove2, slot.cp, slot.ivs).toDouble()
+                    val b01 = calculateMatchupRatingStatic(slot.name, opp, 0, 1, league, slot.fastMove, slot.chargedMove1, slot.chargedMove2, slot.cp, slot.ivs).toDouble()
+                    val b10 = calculateMatchupRatingStatic(slot.name, opp, 1, 0, league, slot.fastMove, slot.chargedMove1, slot.chargedMove2, slot.cp, slot.ivs).toDouble()
+                    val b11 = calculateMatchupRatingStatic(slot.name, opp, 1, 1, league, slot.fastMove, slot.chargedMove1, slot.chargedMove2, slot.cp, slot.ivs).toDouble()
+                    val b12 = calculateMatchupRatingStatic(slot.name, opp, 1, 2, league, slot.fastMove, slot.chargedMove1, slot.chargedMove2, slot.cp, slot.ivs).toDouble()
+                    val b21 = calculateMatchupRatingStatic(slot.name, opp, 2, 1, league, slot.fastMove, slot.chargedMove1, slot.chargedMove2, slot.cp, slot.ivs).toDouble()
+                    val b22 = calculateMatchupRatingStatic(slot.name, opp, 2, 2, league, slot.fastMove, slot.chargedMove1, slot.chargedMove2, slot.cp, slot.ivs).toDouble()
+
+                    slotLeadBrMap[i][opp] = 0.45 * b11 + 0.35 * b22 + 0.10 * b00 + 0.05 * b12 + 0.05 * b21
+                    slotSwapBrMap[i][opp] = 0.40 * b11 + 0.20 * b10 + 0.20 * b01 + 0.10 * b21 + 0.10 * b00
+                    slotCloserBrMap[i][opp] = 0.50 * b00 + 0.20 * b10 + 0.15 * b01 + 0.15 * b11
+                }
+            }
+
+            fun computeSwapStatsForIndex(idx: Int): Pair<Double, Double> {
                 var mu = 0.0
-                val perOpp = HashMap<String, Double>()
+                val map = slotSwapBrMap[idx]
                 for ((opp, prob) in dist.fieldWeights) {
                     if (prob <= 0.0) continue
-                    val br = computePositionWeightedBrStatic(slot, opp, league, "SWAP")
-                    perOpp[opp] = br
-                    mu += prob * br
+                    mu += prob * (map[opp] ?: 500.0)
                 }
                 var variance = 0.0
                 for ((opp, prob) in dist.fieldWeights) {
                     if (prob <= 0.0) continue
-                    val diff = (perOpp[opp] ?: mu) - mu
+                    val diff = (map[opp] ?: mu) - mu
                     variance += prob * diff * diff
                 }
                 val sigma = kotlin.math.sqrt(max(0.0, variance))
                 return (mu - 0.5 * sigma) to mu
             }
 
-            fun computeCloserStats(slot: TeamMember): Double {
+            fun computeCloserStatsForIndex(idx: Int): Double {
                 var mu = 0.0
+                val map = slotCloserBrMap[idx]
                 for ((opp, prob) in dist.fieldWeights) {
                     if (prob <= 0.0) continue
-                    mu += prob * computePositionWeightedBrStatic(slot, opp, league, "CLOSER")
+                    mu += prob * (map[opp] ?: 500.0)
                 }
                 return mu
             }
@@ -3767,8 +3847,8 @@ class OverlayService : LifecycleService() {
                 }
             }
 
-            val swapScores = padded.map { computeSwapStats(it).first }
-            val closerMeans = padded.map { computeCloserStats(it) }
+            val swapScores = (0 until 3).map { computeSwapStatsForIndex(it).first }
+            val closerMeans = (0 until 3).map { computeCloserStatsForIndex(it) }
 
             val cleanOverride = manualArchetypeOverride?.trim()?.uppercase()?.takeIf { it == "ABB" || it == "ABC" }
             val archetype: String = cleanOverride ?: if (detectedAbbTriplet != null) "ABB" else "ABC"
@@ -3798,6 +3878,9 @@ class OverlayService : LifecycleService() {
                 }
             }
 
+            val i1 = finalOrderIndices[0]
+            val i2 = finalOrderIndices[1]
+            val i3 = finalOrderIndices[2]
             val ordered = finalOrderIndices.map { padded[it] }
             val slot1 = ordered[0]
             val slot2 = ordered[1]
@@ -3806,23 +3889,23 @@ class OverlayService : LifecycleService() {
             var leadAgg = 0.0
             for ((opp, prob) in dist.leadWeights) {
                 if (prob <= 0.0) continue
-                leadAgg += prob * computePositionWeightedBrStatic(slot1, opp, league, "LEAD")
+                leadAgg += prob * (slotLeadBrMap[i1][opp] ?: 500.0)
             }
 
             var machAgg = 0.0
             for ((opp, prob) in dist.fieldWeights) {
                 if (prob <= 0.0) continue
-                val r1 = computePositionWeightedBrStatic(slot1, opp, league, "LEAD")
-                val r2 = computePositionWeightedBrStatic(slot2, opp, league, "SWAP")
-                val r3 = computePositionWeightedBrStatic(slot3, opp, league, "CLOSER")
+                val r1 = slotLeadBrMap[i1][opp] ?: 500.0
+                val r2 = slotSwapBrMap[i2][opp] ?: 500.0
+                val r3 = slotCloserBrMap[i3][opp] ?: 500.0
                 machAgg += prob * max(r1, max(r2, r3))
             }
 
             val leadAggVal = leadAgg.roundToInt().coerceIn(150, 850)
             val machAggVal = machAgg.roundToInt().coerceIn(150, 850)
-            val safeSwapBrVal = computeSwapStats(slot2).first.roundToInt().coerceIn(150, 850)
-            val closerSwapBrVal = computeSwapStats(slot3).first.roundToInt().coerceIn(150, 850)
-            val closerBrVal = computeCloserStats(slot3).roundToInt().coerceIn(150, 850)
+            val safeSwapBrVal = swapScores[i2].roundToInt().coerceIn(150, 850)
+            val closerSwapBrVal = swapScores[i3].roundToInt().coerceIn(150, 850)
+            val closerBrVal = closerMeans[i3].roundToInt().coerceIn(150, 850)
 
             val reasonSummary = if (archetype == "ABB") {
                 val sharedStr = if (detectedSharedWeaknesses.isNotEmpty()) detectedSharedWeaknesses.joinToString("/") else "Backline"
