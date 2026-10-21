@@ -1362,6 +1362,60 @@ export const POKEMON_DATABASE: Record<string, PokemonStats> = {
       { name: "Disarming Voice", code: "DV", type: "fairy", power: 70, energyCost: 45 }
     ],
     color: "#ef4444"
+  },
+  Mimikyu: {
+    speciesId: "mimikyu",
+    name: "Mimikyu",
+    baseSpecies: "mimikyu",
+    formLabel: "Disguised",
+    types: ["ghost", "fairy"],
+    baseStats: { atk: 177, def: 199, hp: 146 },
+    isRawBaseStats: true,
+    defaultIvsGl: "4/15/15",
+    defaultIvsUl: "15/15/15",
+    defaultFastMove: { name: "Shadow Claw", type: "ghost", turns: 2, power: 6, energyGain: 8 },
+    chargedMoves: [
+      { name: "Play Rough", code: "PR", type: "fairy", power: 90, energyCost: 60 },
+      { name: "Shadow Ball", code: "SB", type: "ghost", power: 90, energyCost: 50 },
+      { name: "Shadow Sneak", code: "SS", type: "ghost", power: 75, energyCost: 45 }
+    ],
+    color: "#a855f7"
+  },
+  Aegislash: {
+    speciesId: "aegislash",
+    name: "Aegislash",
+    baseSpecies: "aegislash",
+    formLabel: "Shield",
+    types: ["steel", "ghost"],
+    baseStats: { atk: 97, def: 291, hp: 155 },
+    isRawBaseStats: true,
+    defaultIvsGl: "6/15/15",
+    defaultIvsUl: "15/15/15",
+    defaultFastMove: { name: "Psycho Cut", type: "psychic", turns: 2, power: 1, energyGain: 9 },
+    chargedMoves: [
+      { name: "Shadow Ball", code: "SB", type: "ghost", power: 90, energyCost: 50 },
+      { name: "Flash Cannon", code: "FC", type: "steel", power: 110, energyCost: 65 },
+      { name: "Gyro Ball", code: "GB", type: "steel", power: 80, energyCost: 60 }
+    ],
+    color: "#64748b"
+  },
+  Cramorant: {
+    speciesId: "cramorant",
+    name: "Cramorant",
+    baseSpecies: "cramorant",
+    formLabel: "Gulp Missile",
+    types: ["flying", "water"],
+    baseStats: { atk: 173, def: 163, hp: 172 },
+    isRawBaseStats: true,
+    defaultIvsGl: "4/15/15",
+    defaultIvsUl: "15/15/15",
+    defaultFastMove: { name: "Wing Attack", type: "flying", turns: 2, power: 5, energyGain: 7 },
+    chargedMoves: [
+      { name: "Surf", code: "Surf", type: "water", power: 75, energyCost: 45 },
+      { name: "Fly", code: "Fly", type: "flying", power: 80, energyCost: 45 },
+      { name: "Brave Bird", code: "BB", type: "flying", power: 130, energyCost: 55 }
+    ],
+    color: "#0ea5e9"
   }
 };
 
@@ -1897,13 +1951,49 @@ export function calculateChargedDamage(
   isAttackerShadow: boolean = false,
   isDefenderShadow: boolean = false
 ): { damage: number; percentage: number; isStab: boolean; mult: number } {
-  const isStab = attacker.types.includes(move.type);
-  const stabMult = isStab ? 1.2 : 1.0;
-  const typeMult = getTypeMultiplier(move.type, defender.types);
+  const atkSpeciesLower = (attacker.baseSpecies || attacker.speciesId || attacker.name).toLowerCase();
+  const defSpeciesLower = (defender.baseSpecies || defender.speciesId || defender.name).toLowerCase();
+  const moveLower = (move.name || "").toLowerCase();
 
-  const atk = attacker.baseStats.atk * (isAttackerShadow ? 1.2 : 1.0);
-  const def = defender.baseStats.def * (isDefenderShadow ? 0.8333333 : 1.0);
-  const maxHp = defender.baseStats.hp;
+  const isMorpekoAuraWheel =
+    atkSpeciesLower.includes("morpeko") && moveLower.includes("aura wheel");
+  const isAttackerAegislash = atkSpeciesLower.includes("aegislash");
+  const isDefenderAegislash = defSpeciesLower.includes("aegislash");
+  const isAttackerCramorant = atkSpeciesLower.includes("cramorant");
+
+  const isStab = isMorpekoAuraWheel || attacker.types.includes(move.type);
+  const stabMult = isStab ? 1.2 : 1.0;
+
+  let typeMult: number;
+  if (isMorpekoAuraWheel) {
+    const effElectric = getTypeMultiplier("electric", defender.types);
+    const effDark = getTypeMultiplier("dark", defender.types);
+    typeMult = 0.65 * Math.max(effElectric, effDark) + 0.35 * Math.min(effElectric, effDark);
+  } else {
+    typeMult = getTypeMultiplier(move.type, defender.types);
+  }
+
+  let atk = attacker.baseStats.atk * (isAttackerShadow ? 1.2 : 1.0);
+  if (isMorpekoAuraWheel) {
+    // Aura Wheel guaranteed +1 Attack stage self-buff
+    atk *= 1.15;
+  }
+  if (isAttackerAegislash) {
+    // Stance Change: Aegislash transforms from Shield Forme (97 Atk) into Blade Forme (291 Atk) right before Charged Moves
+    if (attacker.baseStats.atk < attacker.baseStats.def) {
+      atk *= 2.85;
+    }
+  }
+  if (isAttackerCramorant) {
+    // Gulp Missile: Surf loads Arrokuda (-1 Def stage on target) or Pikachu (-1 Atk stage) + retaliation counter-damage
+    atk *= moveLower.includes("surf") ? 1.14 : 1.10;
+  }
+
+  let def = defender.baseStats.def * (isDefenderShadow ? 0.8333333 : 1.0);
+  if (isDefenderAegislash && defender.baseStats.def > defender.baseStats.atk) {
+    def *= 0.78;
+  }
+  const maxHp = Math.max(1, defender.baseStats.hp);
 
   const baseDamage = Math.floor(0.5 * move.power * (atk / def) * stabMult * typeMult * 1.3) + 1;
   const percentage = Math.min(100, Math.max(5, Math.round((baseDamage / maxHp) * 100)));
@@ -3851,45 +3941,11 @@ export function calculateShieldMatrix(
     Object.values(POKEMON_DATABASE)[0];
   const oppStats = computeEffectiveStatsForLeague(rawOppStats, league, undefined, undefined, effectiveOppShadow);
 
-  teamMembers.forEach((member, idx) => {
+    teamMembers.forEach((member, idx) => {
     const key = `p${idx + 1}`;
-    const isMyShadow = member.toLowerCase().startsWith("shadow ") || member.toLowerCase().includes("(shadow)");
-    const cleanMyName = member.replace(/^Shadow\s+/i, "").replace(/\s*\(Shadow\)/i, "").trim();
-    const rawMyStats =
-      POKEMON_DATABASE[member] ||
-      POKEMON_DATABASE[cleanMyName] ||
-      Object.values(POKEMON_DATABASE).find((p) => p.name.toLowerCase() === cleanMyName.toLowerCase()) ||
-      Object.values(POKEMON_DATABASE)[0];
-    const myStats = computeEffectiveStatsForLeague(rawMyStats, league, undefined, undefined, isMyShadow);
-
-    const myChargedDamages = myStats.chargedMoves.slice(0, 2).map(
-      (cm) => calculateChargedDamage(myStats, oppStats, cm, isMyShadow, effectiveOppShadow).percentage
-    );
-    const bestUserCharged = myChargedDamages.length ? Math.max(...myChargedDamages) : 45;
-    const minUserCharged = myChargedDamages.length ? Math.min(...myChargedDamages) : 35;
-
-    const oppChargedDamages = oppStats.chargedMoves.slice(0, 2).map(
-      (cm) => calculateChargedDamage(oppStats, myStats, cm, effectiveOppShadow, isMyShadow).percentage
-    );
-    const bestOppCharged = oppChargedDamages.length ? Math.max(...oppChargedDamages) : 45;
-    const minOppCharged = oppChargedDamages.length ? Math.min(...oppChargedDamages) : 35;
-
-    const userFastEff = getTypeMultiplier(myStats.defaultFastMove.type, oppStats.types);
-    const oppFastEff = getTypeMultiplier(oppStats.defaultFastMove.type, myStats.types);
-    const shadowBulkDelta = (isMyShadow ? -12 : 0) + (effectiveOppShadow ? 12 : 0);
-
-    const rating0s = Math.round(
-      500 + (bestUserCharged - bestOppCharged) * 3.4 + (userFastEff - oppFastEff) * 95 + shadowBulkDelta
-    );
-    const rating1s = Math.round(
-      500 +
-        ((bestUserCharged + minUserCharged) * 0.5 - (bestOppCharged + minOppCharged) * 0.5) * 2.8 +
-        (userFastEff - oppFastEff) * 120 +
-        shadowBulkDelta
-    );
-    const rating2s = Math.round(
-      500 + (minUserCharged - minOppCharged) * 2.0 + (userFastEff - oppFastEff) * 155 + shadowBulkDelta * 2
-    );
+    const rating0s = evaluateDiscreteShieldBattleRating(member, effectiveOppShadow ? `Shadow ${cleanOppName}` : cleanOppName, 0, 0, league);
+    const rating1s = evaluateDiscreteShieldBattleRating(member, effectiveOppShadow ? `Shadow ${cleanOppName}` : cleanOppName, 1, 1, league);
+    const rating2s = evaluateDiscreteShieldBattleRating(member, effectiveOppShadow ? `Shadow ${cleanOppName}` : cleanOppName, 2, 2, league);
 
     const toTier = (r: number): string => {
       if (r >= thresholds.swMin) return "SW";
@@ -3943,6 +3999,7 @@ export interface BrTierBadgeStyle {
   tier: string;
   label: string;
   colorHex: string;
+  colorClass: string;
   badgeClass: string;
   textClass: string;
 }
@@ -3962,6 +4019,7 @@ export function getSingleSlotBrTierInfo(
       tier: "SW",
       label: "Strong Win",
       colorHex: "#10b981",
+      colorClass: "text-emerald-300 bg-emerald-500/20 border-emerald-500/50",
       badgeClass: "bg-emerald-500/20 text-emerald-300 border-emerald-500/50",
       textClass: "text-emerald-400"
     };
@@ -3971,6 +4029,7 @@ export function getSingleSlotBrTierInfo(
       tier: "W",
       label: "Favorable",
       colorHex: "#4ade80",
+      colorClass: "text-green-300 bg-green-500/20 border-green-500/40",
       badgeClass: "bg-green-500/20 text-green-300 border-green-500/40",
       textClass: "text-green-400"
     };
@@ -3980,6 +4039,7 @@ export function getSingleSlotBrTierInfo(
       tier: "N",
       label: "Neutral",
       colorHex: "#94a3b8",
+      colorClass: "text-slate-200 bg-slate-700/60 border-slate-500/40",
       badgeClass: "bg-slate-700/60 text-slate-200 border-slate-500/40",
       textClass: "text-slate-300"
     };
@@ -3989,6 +4049,7 @@ export function getSingleSlotBrTierInfo(
       tier: "L",
       label: "Unfavorable",
       colorHex: "#f87171",
+      colorClass: "text-red-300 bg-red-500/20 border-red-500/40",
       badgeClass: "bg-red-500/20 text-red-300 border-red-500/40",
       textClass: "text-red-400"
     };
@@ -3997,6 +4058,7 @@ export function getSingleSlotBrTierInfo(
     tier: "SL",
     label: "Strong Loss",
     colorHex: "#f43f5e",
+    colorClass: "text-rose-300 bg-rose-600/25 border-rose-500/50",
     badgeClass: "bg-rose-600/25 text-rose-300 border-rose-500/50",
     textClass: "text-rose-400"
   };
@@ -4017,6 +4079,7 @@ export function getMachineBrTierInfo(
       tier: "ELITE",
       label: "Well-Rounded Core",
       colorHex: "#10b981",
+      colorClass: "text-emerald-300 bg-emerald-500/20 border-emerald-500/50",
       badgeClass: "bg-emerald-500/20 text-emerald-300 border-emerald-500/50",
       textClass: "text-emerald-400"
     };
@@ -4026,6 +4089,7 @@ export function getMachineBrTierInfo(
       tier: "SOLID",
       label: "Solid Coverage",
       colorHex: "#4ade80",
+      colorClass: "text-green-300 bg-green-500/20 border-green-500/40",
       badgeClass: "bg-green-500/20 text-green-300 border-green-500/40",
       textClass: "text-green-400"
     };
@@ -4035,6 +4099,7 @@ export function getMachineBrTierInfo(
       tier: "PLAYABLE",
       label: "Playable / Moderate Gaps",
       colorHex: "#fbbf24",
+      colorClass: "text-amber-300 bg-amber-500/20 border-amber-500/45",
       badgeClass: "bg-amber-500/20 text-amber-300 border-amber-500/45",
       textClass: "text-amber-300"
     };
@@ -4044,6 +4109,7 @@ export function getMachineBrTierInfo(
       tier: "VULNERABLE",
       label: "Core Vulnerability",
       colorHex: "#fb923c",
+      colorClass: "text-orange-300 bg-orange-500/20 border-orange-500/45",
       badgeClass: "bg-orange-500/20 text-orange-300 border-orange-500/45",
       textClass: "text-orange-400"
     };
@@ -4052,6 +4118,7 @@ export function getMachineBrTierInfo(
     tier: "BLINDSPOT",
     label: "Severe Blindspot",
     colorHex: "#f43f5e",
+    colorClass: "text-rose-300 bg-rose-600/25 border-rose-500/50",
     badgeClass: "bg-rose-600/25 text-rose-300 border-rose-500/50",
     textClass: "text-rose-400"
   };
@@ -4153,6 +4220,18 @@ export function evaluateDiscreteShieldBattleRating(
   const myStats = userResolved.stats;
   const oppStats = oppResolved.stats;
 
+  const userSpeciesLower = (myStats.baseSpecies || myStats.speciesId || myStats.name).toLowerCase();
+  const oppSpeciesLower = (oppStats.baseSpecies || oppStats.speciesId || oppStats.name).toLowerCase();
+
+  const isUserMorpeko = userSpeciesLower.includes("morpeko");
+  const isOppMorpeko = oppSpeciesLower.includes("morpeko");
+  const isUserMimikyu = userSpeciesLower.includes("mimikyu");
+  const isOppMimikyu = oppSpeciesLower.includes("mimikyu");
+  const isUserAegislash = userSpeciesLower.includes("aegislash");
+  const isOppAegislash = oppSpeciesLower.includes("aegislash");
+  const isUserCramorant = userSpeciesLower.includes("cramorant");
+  const isOppCramorant = oppSpeciesLower.includes("cramorant");
+
   const myChargedDamages = userResolved.chargedMoves.slice(0, 2).map(
     (cm) => calculateChargedDamage(myStats, oppStats, cm, userResolved.isShadow, oppResolved.isShadow).percentage
   );
@@ -4165,19 +4244,27 @@ export function evaluateDiscreteShieldBattleRating(
   const bestOppCharged = oppChargedDamages.length ? Math.max(...oppChargedDamages) : 45;
   const minOppCharged = oppChargedDamages.length ? Math.min(...oppChargedDamages) : 35;
 
-  const userFastEff = getTypeMultiplier(userResolved.fastMove.type, oppStats.types);
-  const oppFastEff = getTypeMultiplier(oppResolved.fastMove.type, myStats.types);
+  // Aegislash Shield Forme fast moves deal 1 damage while generating high energy
+  const rawUserFastEff = getTypeMultiplier(userResolved.fastMove.type, oppStats.types);
+  const rawOppFastEff = getTypeMultiplier(oppResolved.fastMove.type, myStats.types);
+  const userFastEff = isUserAegislash ? rawUserFastEff * 0.22 : rawUserFastEff;
+  const oppFastEff = isOppAegislash ? rawOppFastEff * 0.22 : rawOppFastEff;
 
   const shadowBulkDelta = (userResolved.isShadow ? -12 : 0) + (oppResolved.isShadow ? 12 : 0);
 
   const chargedPressure = (bestPct: number, minPct: number, defShields: number): number => {
-    if (defShields === 0) return bestPct * 1.7;
+    if (defShields <= 0) return bestPct * 1.7;
     if (defShields === 1) return ((bestPct + minPct) * 0.5) * 1.4;
-    return minPct * 1.0;
+    if (defShields === 2) return minPct * 1.0;
+    return minPct * 0.65;
   };
 
-  const userChargedImpact = chargedPressure(bestUserCharged, minUserCharged, sOpp);
-  const oppChargedImpact = chargedPressure(bestOppCharged, minOppCharged, sUser);
+  // Mimikyu Disguise absorbs the first unshielded Charged Attack like an extra free shield
+  const effectiveOppShieldsForCharged = sOpp + (isOppMimikyu ? 1 : 0);
+  const effectiveUserShieldsForCharged = sUser + (isUserMimikyu ? 1 : 0);
+
+  const userChargedImpact = chargedPressure(bestUserCharged, minUserCharged, effectiveOppShieldsForCharged);
+  const oppChargedImpact = chargedPressure(bestOppCharged, minOppCharged, effectiveUserShieldsForCharged);
   const chargedDelta = 2.0 * (userChargedImpact - oppChargedImpact);
 
   const avgShields = (sUser + sOpp) * 0.5;
@@ -4191,8 +4278,36 @@ export function evaluateDiscreteShieldBattleRating(
   const shieldAdvantageDelta =
     shieldDiff * (85 + 0.65 * ((bestOppCharged + bestUserCharged) * 0.5));
 
+  // Special form-changing & ability PvP mechanics delta (Morpeko, Mimikyu, Aegislash, Cramorant)
+  let specialMechanicsDelta = 0;
+  if (isUserMorpeko) {
+    specialMechanicsDelta += 14 + sOpp * 6;
+  }
+  if (isOppMorpeko) {
+    specialMechanicsDelta -= 14 + sUser * 6;
+  }
+  if (isUserMimikyu) {
+    specialMechanicsDelta += (sUser === 0 ? 22 : 12) - 8;
+  }
+  if (isOppMimikyu) {
+    specialMechanicsDelta -= (sOpp === 0 ? 22 : 12) - 8;
+  }
+  if (isUserAegislash) {
+    specialMechanicsDelta += sUser > 0 ? 18 + sUser * 8 : -16;
+  }
+  if (isOppAegislash) {
+    specialMechanicsDelta -= sOpp > 0 ? 18 + sOpp * 8 : -16;
+  }
+  if (isUserCramorant) {
+    // Gulp Missile: Surf loads Arrokuda (-1 Def stage on opponent) or Pikachu (-1 Atk stage on opponent) + retaliation damage
+    specialMechanicsDelta += 15 + sUser * 4;
+  }
+  if (isOppCramorant) {
+    specialMechanicsDelta -= 15 + sOpp * 4;
+  }
+
   const rawRating = Math.round(
-    500 + chargedDelta + fastDelta + effectiveShadowDelta + shieldAdvantageDelta
+    500 + chargedDelta + fastDelta + effectiveShadowDelta + shieldAdvantageDelta + specialMechanicsDelta
   );
 
   return Math.max(150, Math.min(850, rawRating));
@@ -4619,14 +4734,33 @@ export interface TeamDetectionResult {
 export function evaluateOrAutoOrderTeam(
   members: TeamMember[],
   league: string,
-  options?: {
-    reorderSlots?: boolean;
-    manualArchetypeOverride?: "ABB" | "ABC";
-    seasonBattleLogs?: Array<{ timestampMs: number; league: string; opponents: string[] }>;
-    currentSeason?: { startMs: number; endMs: number };
-    cachedBlendedMeta?: BlendedSeasonMetaDistribution;
-  }
+  optionsOrLogs?:
+    | {
+        reorderSlots?: boolean;
+        manualArchetypeOverride?: "ABB" | "ABC";
+        seasonBattleLogs?: Array<{ timestampMs: number; league: string; opponents: string[] }>;
+        currentSeason?: { startMs: number; endMs: number };
+        cachedBlendedMeta?: BlendedSeasonMetaDistribution;
+      }
+    | Array<{ timestampMs: number; league: string; opponents: string[] }>,
+  seasonStartMs?: number,
+  seasonEndMs?: number,
+  reorderSlotsArg?: boolean,
+  manualArchetypeOverrideArg?: "ABB" | "ABC"
 ): TeamDetectionResult {
+  const isArrayArg = Array.isArray(optionsOrLogs);
+  const options = isArrayArg
+    ? {
+        seasonBattleLogs: optionsOrLogs,
+        currentSeason:
+          typeof seasonStartMs === "number" && typeof seasonEndMs === "number"
+            ? { startMs: seasonStartMs, endMs: seasonEndMs }
+            : undefined,
+        reorderSlots: reorderSlotsArg ?? false,
+        manualArchetypeOverride: manualArchetypeOverrideArg
+      }
+    : optionsOrLogs;
+
   const reorderSlots = options?.reorderSlots ?? false;
   const blendedMeta =
     options?.cachedBlendedMeta ||
@@ -4813,19 +4947,36 @@ export function evaluateOrAutoOrderTeam(
 export function evaluateTeamPresetMetrics(
   preset: TeamPreset,
   seasonBattleLogs?: Array<{ timestampMs: number; league: string; opponents: string[] }>,
-  currentSeason?: { startMs: number; endMs: number },
-  cachedBlendedMeta?: BlendedSeasonMetaDistribution
+  currentSeasonOrStartMs?: { startMs: number; endMs: number } | number,
+  cachedBlendedMetaOrEndMs?: BlendedSeasonMetaDistribution | number,
+  reorderSlotsArg?: boolean
 ): TeamPreset {
+  const currentSeason =
+    typeof currentSeasonOrStartMs === "number" && typeof cachedBlendedMetaOrEndMs === "number"
+      ? { startMs: currentSeasonOrStartMs, endMs: cachedBlendedMetaOrEndMs }
+      : typeof currentSeasonOrStartMs === "object"
+      ? currentSeasonOrStartMs
+      : undefined;
+  const cachedBlendedMeta =
+    typeof cachedBlendedMetaOrEndMs === "object" ? cachedBlendedMetaOrEndMs : undefined;
+  const reorderSlots = reorderSlotsArg ?? false;
+
   const res = evaluateOrAutoOrderTeam(preset.pokemon, preset.league, {
-    reorderSlots: false,
-    manualArchetypeOverride: preset.isArchetypeManual ? preset.archetype : undefined,
+    reorderSlots,
+    manualArchetypeOverride: reorderSlots
+      ? undefined
+      : preset.isArchetypeManual
+      ? preset.archetype
+      : undefined,
     seasonBattleLogs,
     currentSeason,
     cachedBlendedMeta
   });
   return {
     ...preset,
+    pokemon: reorderSlots ? res.orderedPokemon : preset.pokemon,
     archetype: res.archetype,
+    isArchetypeManual: reorderSlots ? false : preset.isArchetypeManual,
     leadAggBr: res.leadAggBr,
     machineAggBr: res.machineAggBr,
     safeSwapBr: res.safeSwapBr,
@@ -4843,8 +4994,15 @@ export function evaluateTeamPresetMetrics(
 export function recalculateAllPresetsMetrics(
   presets: TeamPreset[],
   seasonBattleLogs?: Array<{ timestampMs: number; league: string; opponents: string[] }>,
-  currentSeason?: { startMs: number; endMs: number }
+  currentSeasonOrStartMs?: { startMs: number; endMs: number } | number,
+  seasonEndMs?: number
 ): TeamPreset[] {
+  const currentSeason =
+    typeof currentSeasonOrStartMs === "number" && typeof seasonEndMs === "number"
+      ? { startMs: currentSeasonOrStartMs, endMs: seasonEndMs }
+      : typeof currentSeasonOrStartMs === "object"
+      ? currentSeasonOrStartMs
+      : undefined;
   const metaCacheByLeague = new Map<string, BlendedSeasonMetaDistribution>();
   return (presets || []).map((preset) => {
     const lg = (preset.league || "GREAT LEAGUE").toUpperCase();
@@ -4878,5 +5036,356 @@ export const INITIAL_PRESETS: TeamPreset[] = recalculateAllPresetsMetrics([
     pokemon: getLeagueTop3Template("GREAT LEAGUE")
   }
 ]);
+
+export interface RoleUpgradeSuggestion {
+  roleIndex: 0 | 1 | 2;
+  roleLabel: string;
+  candidate: TeamMember;
+  newMachineBr: number;
+  deltaMachineBr: number;
+  newRoleBr: number;
+  deltaRoleBr: number;
+  compositeUpgradeScore: number;
+  newArchetype: "ABB" | "ABC";
+  synergyNote: string;
+}
+
+export interface TeamRoleRecommendationsResult {
+  baselineEval: TeamDetectionResult;
+  leadUpgrades: RoleUpgradeSuggestion[];
+  safeSwapUpgrades: RoleUpgradeSuggestion[];
+  closerUpgrades: RoleUpgradeSuggestion[];
+  candidatePoolSize: number;
+}
+
+function isShadowEligibleForTop100(name: string, baseSpecies: string): boolean {
+  const lower = name.toLowerCase();
+  const baseLower = baseSpecies.toLowerCase();
+  if (lower.startsWith("shadow ") || lower.startsWith("mega ") || lower.startsWith("primal ")) return false;
+  const nonShadowBases = new Set([
+    "zygarde", "zacian", "zamazenta", "palkia", "dialga", "giratina", "necrozma",
+    "xerneas", "yveltal", "solgaleo", "lunala", "meloetta", "keldeo", "marshadow",
+    "zarude", "rayquaza", "kyurem", "reshiram", "zekrom", "cobalion", "virizion",
+    "terrakion", "tapu", "azumarill", "clodsire", "mandibuzz", "annihilape",
+    "dunsparce", "malamar", "gastrodon", "lickilicky", "talonflame", "corviknight",
+    "wigglytuff", "clefable", "skeledirge", "greninja", "morpeko", "mimikyu",
+    "aegislash", "cramorant", "florges", "primarina", "deoxys", "urshifu"
+  ]);
+  return !nonShadowBases.has(baseLower);
+}
+
+export function getTop100MetaCandidatesForLeague(league: string, maxCount: number = 100): TeamMember[] {
+  const upper = (league || "GREAT LEAGUE").toUpperCase();
+  const normLeague = upper.includes("MEGA")
+    ? "MEGA MASTER LEAGUE"
+    : upper.includes("GREAT")
+    ? "GREAT LEAGUE"
+    : upper.includes("ULTRA")
+    ? "ULTRA LEAGUE"
+    : "MASTER LEAGUE";
+
+  const results: TeamMember[] = [];
+  const seenNames = new Set<string>();
+
+  const tryAddCandidate = (rawName: string) => {
+    if (results.length >= maxCount) return;
+    const trimmed = (rawName || "").trim();
+    if (!trimmed) return;
+    if (normLeague !== "MEGA MASTER LEAGUE" && /^Mega\s+|^Primal\s+/i.test(trimmed)) return;
+    const rec = getRecommendedMovesForPokemon(trimmed, normLeague);
+    if (!rec) return;
+    const key = rec.name.toLowerCase();
+    if (seenNames.has(key)) return;
+    seenNames.add(key);
+    results.push({
+      id: `cand-${results.length + 1}`,
+      name: rec.name,
+      cp: rec.cp,
+      fastMove: rec.fastMove,
+      chargedMove1: rec.chargedMove1,
+      chargedMove2: rec.chargedMove2,
+      ivs: rec.defaultIvs
+    });
+  };
+
+  // 1. Live PvPoke Top-100 Rankings for the league (includes both normal and Shadow entries in Top 100)
+  const liveMap = LIVE_RANKINGS_MAP[normLeague];
+  if (liveMap && liveMap.size > 0) {
+    const sorted = Array.from(liveMap.values()).sort((a, b) => b.score - a.score);
+    for (const entry of sorted) {
+      if (results.length >= maxCount) break;
+      const sid = entry.speciesId.toLowerCase();
+      const isShad = sid.endsWith("_shadow");
+      const cleanSid = sid.replace(/_shadow$/i, "");
+      const matchedMon =
+        Object.values(POKEMON_DATABASE).find((p) => p.speciesId.toLowerCase() === sid) ||
+        Object.values(POKEMON_DATABASE).find((p) => p.speciesId.toLowerCase() === cleanSid);
+      if (matchedMon) {
+        const displayName =
+          isShad && !matchedMon.name.toLowerCase().startsWith("shadow ")
+            ? `Shadow ${matchedMon.name}`
+            : matchedMon.name;
+        tryAddCandidate(displayName);
+      }
+    }
+  }
+
+  // 2. Fallback curated league meta + POKEMON_DATABASE species + eligible Shadow variants up to 100
+  if (results.length < maxCount) {
+    for (const name of getLeagueTopMetaSpeciesNames(normLeague, maxCount)) {
+      tryAddCandidate(name);
+      const dbEntry = POKEMON_DATABASE[name];
+      const baseSp = extractBaseSpeciesKey(name, dbEntry?.speciesId, dbEntry?.baseSpecies);
+      if (isShadowEligibleForTop100(name, baseSp)) {
+        tryAddCandidate(`Shadow ${name}`);
+      }
+    }
+  }
+
+  if (results.length < maxCount) {
+    for (const mon of Object.values(POKEMON_DATABASE)) {
+      if (results.length >= maxCount) break;
+      const cap = normLeague === "GREAT LEAGUE" ? 1500 : normLeague === "ULTRA LEAGUE" ? 2500 : 10000;
+      const scaled = computeEffectiveStatsForLeague(mon, normLeague);
+      if (cap >= 9000 && scaled.resolvedCp < 2900) continue;
+      tryAddCandidate(mon.name);
+      const baseSp = extractBaseSpeciesKey(mon.name, mon.speciesId, mon.baseSpecies);
+      if (isShadowEligibleForTop100(mon.name, baseSp)) {
+        tryAddCandidate(`Shadow ${mon.name}`);
+      }
+    }
+  }
+
+  return results.slice(0, maxCount);
+}
+
+/**
+ * Simulates the Top 100 Meta Pokémon for the selected league across each of the 3 team roles
+ * (Lead, Safe Swap, Closer), enforcing the GBL Species Clause and including Shadow variants,
+ * and returns the Top 3 recommended upgrades for each role ranked by Full Team Synergy + Role Rating Delta.
+ */
+export function recommendTop3UpgradesPerRole(
+  members: TeamMember[],
+  league: string,
+  options?: {
+    manualArchetypeOverride?: "ABB" | "ABC";
+    seasonBattleLogs?: Array<{ timestampMs: number; league: string; opponents: string[] }>;
+    currentSeason?: { startMs: number; endMs: number };
+  }
+): TeamRoleRecommendationsResult {
+  const blendedMeta = computeBlendedSeasonMeta(league, options?.seasonBattleLogs, options?.currentSeason);
+  const safeSlots = (members || []).slice(0, 3);
+  const baselineEval = evaluateOrAutoOrderTeam(safeSlots, league, {
+    reorderSlots: false,
+    manualArchetypeOverride: options?.manualArchetypeOverride,
+    cachedBlendedMeta: blendedMeta
+  });
+
+  if (safeSlots.length < 3) {
+    return {
+      baselineEval,
+      leadUpgrades: [],
+      safeSwapUpgrades: [],
+      closerUpgrades: [],
+      candidatePoolSize: 0
+    };
+  }
+
+  const candidates = getTop100MetaCandidatesForLeague(league, 100);
+  if (candidates.length === 0) {
+    return {
+      baselineEval,
+      leadUpgrades: [],
+      safeSwapUpgrades: [],
+      closerUpgrades: [],
+      candidatePoolSize: 0
+    };
+  }
+
+  // Precompute single-slot metrics and position-weighted BR against the field for all Top-100 candidates + current 3 slots
+  const singleMetricsCache = new Map<string, SlotEvaluatedMetrics>();
+  const pwMatrixCache = new Map<string, Map<string, PositionWeightedMatchupRatings>>();
+
+  const getSingleMetrics = (m: TeamMember): SlotEvaluatedMetrics => {
+    const key = `${m.name.toLowerCase()}|${m.fastMove}|${m.chargedMove1}|${m.chargedMove2}`;
+    const existing = singleMetricsCache.get(key);
+    if (existing) return existing;
+    const computed = evaluateSingleSlotAgainstBlendedMeta(m, league, blendedMeta);
+    singleMetricsCache.set(key, computed);
+    return computed;
+  };
+
+  const getPwMap = (m: TeamMember): Map<string, PositionWeightedMatchupRatings> => {
+    const key = `${m.name.toLowerCase()}|${m.fastMove}|${m.chargedMove1}|${m.chargedMove2}`;
+    const existing = pwMatrixCache.get(key);
+    if (existing) return existing;
+    const map = new Map<string, PositionWeightedMatchupRatings>();
+    for (const oppName of blendedMeta.fieldProbabilities.keys()) {
+      map.set(oppName, evaluatePositionWeightedBr(m, oppName, league));
+    }
+    pwMatrixCache.set(key, map);
+    return map;
+  };
+
+  safeSlots.forEach((s) => {
+    getSingleMetrics(s);
+    getPwMap(s);
+  });
+  candidates.forEach((c) => {
+    getSingleMetrics(c);
+    getPwMap(c);
+  });
+
+  const getBaseSpeciesForMember = (m: TeamMember): string => {
+    const clean = m.name.replace(/^Shadow\s+/i, "").trim();
+    const dbEntry = POKEMON_DATABASE[m.name] || POKEMON_DATABASE[clean];
+    return extractBaseSpeciesKey(m.name, dbEntry?.speciesId, dbEntry?.baseSpecies);
+  };
+
+  const evaluateRoleCandidates = (roleIndex: 0 | 1 | 2): RoleUpgradeSuggestion[] => {
+    const currentMember = safeSlots[roleIndex];
+    const otherIndices = [0, 1, 2].filter((idx) => idx !== roleIndex);
+    const otherBaseSpecies = otherIndices.map((idx) => getBaseSpeciesForMember(safeSlots[idx]));
+    const otherHasMega = otherIndices.some((idx) => /^Mega\s+|^Primal\s+/i.test(safeSlots[idx].name));
+
+    const baselineRoleBr =
+      roleIndex === 0
+        ? baselineEval.leadAggBr
+        : roleIndex === 1
+        ? baselineEval.safeSwapBr
+        : baselineEval.closerBr;
+
+    const roleLabel =
+      roleIndex === 0
+        ? baselineEval.archetype === "ABB"
+          ? "Lead A"
+          : "Lead"
+        : roleIndex === 1
+        ? baselineEval.archetype === "ABB"
+          ? "Bait Swap B1"
+          : "Safe Swap"
+        : baselineEval.archetype === "ABB"
+        ? "Sweeper B2"
+        : "Closer";
+
+    const scoredList: RoleUpgradeSuggestion[] = [];
+
+    for (const cand of candidates) {
+      if (cand.name.toLowerCase() === currentMember.name.toLowerCase()) continue;
+      const candBase = getBaseSpeciesForMember(cand);
+      // GBL Species Clause: cannot duplicate baseSpecies of either of the other two teammates
+      if (otherBaseSpecies.includes(candBase)) continue;
+      // Single Mega/Primal rule
+      if (otherHasMega && /^Mega\s+|^Primal\s+/i.test(cand.name)) continue;
+
+      const trialTeam: [TeamMember, TeamMember, TeamMember] = [
+        roleIndex === 0 ? cand : safeSlots[0],
+        roleIndex === 1 ? cand : safeSlots[1],
+        roleIndex === 2 ? cand : safeSlots[2]
+      ];
+
+      const m0 = getSingleMetrics(trialTeam[0]);
+      const m1 = getSingleMetrics(trialTeam[1]);
+      const m2 = getSingleMetrics(trialTeam[2]);
+
+      const pw0 = getPwMap(trialTeam[0]);
+      const pw1 = getPwMap(trialTeam[1]);
+      const pw2 = getPwMap(trialTeam[2]);
+
+      let machSum = 0;
+      for (const [oppName, prob] of blendedMeta.fieldProbabilities.entries()) {
+        const r0 = pw0.get(oppName)?.leadBr ?? 500;
+        const r1 = pw1.get(oppName)?.swapBr ?? 500;
+        const r2 = pw2.get(oppName)?.closerBr ?? 500;
+        machSum += prob * Math.max(r0, r1, r2);
+      }
+      const newMachineBr = Math.round(machSum);
+      const newRoleBr =
+        roleIndex === 0 ? m0.leadBr : roleIndex === 1 ? m1.swapBr : m2.closerBr;
+
+      const deltaMachineBr = newMachineBr - baselineEval.machineAggBr;
+      const deltaRoleBr = newRoleBr - baselineRoleBr;
+
+      // Defensive coverage synergy bonus
+      const w0 = new Set(m0.weaknesses);
+      const w1 = new Set(m1.weaknesses);
+      const w2 = new Set(m2.weaknesses);
+      const r0 = new Set(m0.resistances);
+      const r1 = new Set(m1.resistances);
+      const r2 = new Set(m2.resistances);
+
+      let uncoveredTripleOrDoubleWeaknesses = 0;
+      let coveredWeaknessesCount = 0;
+      for (const t of ALL_18_TYPES) {
+        const weakCount = (w0.has(t) ? 1 : 0) + (w1.has(t) ? 1 : 0) + (w2.has(t) ? 1 : 0);
+        const resistCount = (r0.has(t) ? 1 : 0) + (r1.has(t) ? 1 : 0) + (r2.has(t) ? 1 : 0);
+        if (weakCount >= 2 && resistCount === 0) {
+          uncoveredTripleOrDoubleWeaknesses += weakCount;
+        } else if (weakCount >= 1 && resistCount >= 1) {
+          coveredWeaknessesCount += 1;
+        }
+      }
+
+      const backShared = m1.weaknesses.filter((w) => w2.has(w));
+      const leadCoversBack = backShared.length >= 2 && backShared.every((w) => r0.has(w) || !w0.has(w));
+      const newArchetype: "ABB" | "ABC" =
+        options?.manualArchetypeOverride || (leadCoversBack ? "ABB" : "ABC");
+
+      const coverageBonus = coveredWeaknessesCount * 1.5 - uncoveredTripleOrDoubleWeaknesses * 6.0;
+      const compositeUpgradeScore = Number(
+        (0.55 * deltaMachineBr + 0.45 * deltaRoleBr + coverageBonus).toFixed(2)
+      );
+
+      let synergyNote = "";
+      if (roleIndex === 0) {
+        const coveredForBack = [...w1, ...w2].filter((w, i, a) => a.indexOf(w) === i && r0.has(w));
+        synergyNote =
+          coveredForBack.length > 0
+            ? `Covers backline ${coveredForBack.slice(0, 2).map((x) => x.toUpperCase()).join("/")} weakness`
+            : `Stronger ${newArchetype} Lead pressure`;
+      } else if (roleIndex === 1) {
+        const coveredForLead = m0.weaknesses.filter((w) => r1.has(w));
+        synergyNote =
+          coveredForLead.length > 0
+            ? `Pivots into Lead's ${coveredForLead.slice(0, 2).map((x) => x.toUpperCase()).join("/")} threats`
+            : `Higher volatility-adjusted Safe Swap consistency`;
+      } else {
+        const coveredForCore = [...w0, ...w1].filter((w, i, a) => a.indexOf(w) === i && r2.has(w));
+        synergyNote =
+          coveredForCore.length > 0
+            ? `Walls core ${coveredForCore.slice(0, 2).map((x) => x.toUpperCase()).join("/")} threats in 0s endgame`
+            : `Superior 0-shield Closer sweep rating`;
+      }
+
+      scoredList.push({
+        roleIndex,
+        roleLabel,
+        candidate: {
+          ...cand,
+          id: currentMember.id || `slot-${roleIndex + 1}`
+        },
+        newMachineBr,
+        deltaMachineBr,
+        newRoleBr,
+        deltaRoleBr,
+        compositeUpgradeScore,
+        newArchetype,
+        synergyNote
+      });
+    }
+
+    scoredList.sort((a, b) => b.compositeUpgradeScore - a.compositeUpgradeScore);
+    return scoredList.slice(0, 3);
+  };
+
+  return {
+    baselineEval,
+    leadUpgrades: evaluateRoleCandidates(0),
+    safeSwapUpgrades: evaluateRoleCandidates(1),
+    closerUpgrades: evaluateRoleCandidates(2),
+    candidatePoolSize: candidates.length
+  };
+}
+
 
 

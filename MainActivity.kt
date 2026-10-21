@@ -471,9 +471,9 @@ class MainActivity : AppCompatActivity() {
 
         initViews()
         val appVer = try {
-            packageManager.getPackageInfo(packageName, 0).versionName ?: "3.10"
+            packageManager.getPackageInfo(packageName, 0).versionName ?: "3.11"
         } catch (_: Exception) {
-            "3.10"
+            "3.11"
         }
         findViewById<TextView>(R.id.tv_app_main_subtitle)?.text = "Real-Time PvP Floating Overlay • v$appVer"
         ensureDefaultPresets()
@@ -780,6 +780,19 @@ class MainActivity : AppCompatActivity() {
             view.id == R.id.btn_mode_abb ||
             view.id == R.id.btn_mode_abc ||
             view.id == R.id.btn_dialog_auto_detect_style ||
+            view.id == R.id.btn_dialog_suggest_upgrades ||
+            view.id == R.id.text_p1_rec_header ||
+            view.id == R.id.text_p2_rec_header ||
+            view.id == R.id.text_p3_rec_header ||
+            view.id == R.id.btn_p1_rec_1 ||
+            view.id == R.id.btn_p1_rec_2 ||
+            view.id == R.id.btn_p1_rec_3 ||
+            view.id == R.id.btn_p2_rec_1 ||
+            view.id == R.id.btn_p2_rec_2 ||
+            view.id == R.id.btn_p2_rec_3 ||
+            view.id == R.id.btn_p3_rec_1 ||
+            view.id == R.id.btn_p3_rec_2 ||
+            view.id == R.id.btn_p3_rec_3 ||
             view.id == R.id.text_preset_archetype_badge ||
             view.id == R.id.text_preset_league
         ) {
@@ -5082,6 +5095,7 @@ class MainActivity : AppCompatActivity() {
         val textDialogMetaBlendInfo = dialogView.findViewById<TextView>(R.id.text_dialog_meta_blend_info)
         val textDialogAutoDetectBanner = dialogView.findViewById<TextView>(R.id.text_dialog_autodetect_banner)
         val btnDialogAutoDetect = dialogView.findViewById<Button>(R.id.btn_dialog_auto_detect_style)
+        val btnDialogSuggestUpgrades = dialogView.findViewById<Button>(R.id.btn_dialog_suggest_upgrades)
         val btnSwapSlot12 = dialogView.findViewById<Button>(R.id.btn_swap_slot_1_2)
         val btnSwapSlot23 = dialogView.findViewById<Button>(R.id.btn_swap_slot_2_3)
         val textP1RoleTitle = dialogView.findViewById<TextView>(R.id.text_p1_role_title)
@@ -5093,6 +5107,27 @@ class MainActivity : AppCompatActivity() {
         val btnP1AutoFillMoves = dialogView.findViewById<Button>(R.id.btn_p1_autofill_moves)
         val btnP2AutoFillMoves = dialogView.findViewById<Button>(R.id.btn_p2_autofill_moves)
         val btnP3AutoFillMoves = dialogView.findViewById<Button>(R.id.btn_p3_autofill_moves)
+        val layoutP1Recs = dialogView.findViewById<LinearLayout>(R.id.layout_p1_recommendations)
+        val layoutP2Recs = dialogView.findViewById<LinearLayout>(R.id.layout_p2_recommendations)
+        val layoutP3Recs = dialogView.findViewById<LinearLayout>(R.id.layout_p3_recommendations)
+        val textP1RecHeader = dialogView.findViewById<TextView>(R.id.text_p1_rec_header)
+        val textP2RecHeader = dialogView.findViewById<TextView>(R.id.text_p2_rec_header)
+        val textP3RecHeader = dialogView.findViewById<TextView>(R.id.text_p3_rec_header)
+        val btnP1Recs = listOf(
+            dialogView.findViewById<Button>(R.id.btn_p1_rec_1),
+            dialogView.findViewById<Button>(R.id.btn_p1_rec_2),
+            dialogView.findViewById<Button>(R.id.btn_p1_rec_3)
+        )
+        val btnP2Recs = listOf(
+            dialogView.findViewById<Button>(R.id.btn_p2_rec_1),
+            dialogView.findViewById<Button>(R.id.btn_p2_rec_2),
+            dialogView.findViewById<Button>(R.id.btn_p2_rec_3)
+        )
+        val btnP3Recs = listOf(
+            dialogView.findViewById<Button>(R.id.btn_p3_rec_1),
+            dialogView.findViewById<Button>(R.id.btn_p3_rec_2),
+            dialogView.findViewById<Button>(R.id.btn_p3_rec_3)
+        )
 
         var dialogManualArchetypeOverride: String? =
             if (existingPreset?.isArchetypeManual == true) existingPreset.archetype else null
@@ -5465,6 +5500,142 @@ class MainActivity : AppCompatActivity() {
             textDialogAutoDetectBanner?.text =
                 "Swapped Slot 2 ⇄ Slot 3: #2 Safe Swap ${s3.name} (Swap BR ${eval.safeSwapBr}) • #3 Closer ${s2.name} (Swap BR ${eval.closerSwapBr})"
             textDialogAutoDetectBanner?.visibility = android.view.View.VISIBLE
+        }
+
+        var roleUpgradeJob: kotlinx.coroutines.Job? = null
+        fun runTop100RoleUpgradesSimulation(showBannerOnComplete: Boolean) {
+            val lg = currentLeagueProvider()
+            val top3Defaults = getLeagueTop3Defaults(lg)
+            val s1 = buildResolvedSlot(editP1, editP1Cp, editP1Ivs, editP1Fast, editP1C1, editP1C2, lg, top3Defaults[0])
+            val s2 = buildResolvedSlot(editP2, editP2Cp, editP2Ivs, editP2Fast, editP2C1, editP2C2, lg, top3Defaults[1])
+            val s3 = buildResolvedSlot(editP3, editP3Cp, editP3Ivs, editP3Fast, editP3C1, editP3C2, lg, top3Defaults[2])
+            val seasonLogs = getCurrentSeasonLogsForLeague(lg, preloadedDialogLogs)
+            val manualArch = dialogManualArchetypeOverride
+
+            btnDialogSuggestUpgrades?.isEnabled = false
+            btnDialogSuggestUpgrades?.text = "⏳ Simulating Top-100 Meta for Role Upgrades..."
+
+            roleUpgradeJob?.cancel()
+            roleUpgradeJob = lifecycleScope.launch(Dispatchers.Default) {
+                val recResult = OverlayService.recommendTop3UpgradesPerRoleStatic(
+                    slots = listOf(
+                        OverlayService.TeamMember(s1.name, s1.cp, s1.fastMove, s1.chargedMove1, s1.chargedMove2, s1.ivs),
+                        OverlayService.TeamMember(s2.name, s2.cp, s2.fastMove, s2.chargedMove1, s2.chargedMove2, s2.ivs),
+                        OverlayService.TeamMember(s3.name, s3.cp, s3.fastMove, s3.chargedMove1, s3.chargedMove2, s3.ivs)
+                    ),
+                    league = lg,
+                    seasonLogs = seasonLogs,
+                    manualArchetypeOverride = manualArch
+                )
+
+                withContext(Dispatchers.Main) {
+                    btnDialogSuggestUpgrades?.isEnabled = true
+                    btnDialogSuggestUpgrades?.text = "✨ Refresh Top-100 Role Upgrades (3 Per Role)"
+
+                    fun formatSignedDelta(delta: Int): String = if (delta >= 0) "+$delta" else "$delta"
+
+                    fun bindRoleUpgradeChips(
+                        slotIndex: Int,
+                        roleLabel: String,
+                        roleMetricName: String,
+                        container: LinearLayout?,
+                        headerView: TextView?,
+                        buttons: List<Button?>,
+                        upgrades: List<OverlayService.Companion.RoleUpgradeSuggestion>
+                    ) {
+                        if (upgrades.isEmpty()) {
+                            container?.visibility = android.view.View.GONE
+                            return
+                        }
+                        container?.visibility = android.view.View.VISIBLE
+                        headerView?.text = "✨ Top-100 $roleLabel Upgrades (Tap to Replace Slot ${slotIndex + 1}):"
+                        buttons.forEachIndexed { idx, btn ->
+                            val upg = upgrades.getOrNull(idx)
+                            if (upg == null) {
+                                btn?.visibility = android.view.View.GONE
+                            } else {
+                                btn?.visibility = android.view.View.VISIBLE
+                                val cand = upg.candidate
+                                val machDeltaStr = formatSignedDelta(upg.machineBrDelta)
+                                val roleDeltaStr = formatSignedDelta(upg.roleBrDelta)
+                                btn?.text = "${idx + 1}. ${cand.name} (${cand.fastMove} / ${cand.chargedMove1} + ${cand.chargedMove2})  •  Mach ${upg.newMachineAggBr} ($machDeltaStr) • $roleMetricName ${upg.newRoleBr} ($roleDeltaStr)"
+                                btn?.setOnClickListener {
+                                    val newSlot = PokemonSlot(
+                                        name = cand.name,
+                                        cp = cand.cp,
+                                        fastMove = cand.fastMove,
+                                        chargedMove1 = cand.chargedMove1,
+                                        chargedMove2 = cand.chargedMove2,
+                                        ivs = cand.ivs
+                                    )
+                                    val curLg = currentLeagueProvider()
+                                    val curDefs = getLeagueTop3Defaults(curLg)
+                                    val cur1 = buildResolvedSlot(editP1, editP1Cp, editP1Ivs, editP1Fast, editP1C1, editP1C2, curLg, curDefs[0])
+                                    val cur2 = buildResolvedSlot(editP2, editP2Cp, editP2Ivs, editP2Fast, editP2C1, editP2C2, curLg, curDefs[1])
+                                    val cur3 = buildResolvedSlot(editP3, editP3Cp, editP3Ivs, editP3Fast, editP3C1, editP3C2, curLg, curDefs[2])
+                                    val replacedName = when (slotIndex) {
+                                        0 -> cur1.name
+                                        1 -> cur2.name
+                                        else -> cur3.name
+                                    }
+                                    val updatedSlots = listOf(
+                                        if (slotIndex == 0) newSlot else cur1,
+                                        if (slotIndex == 1) newSlot else cur2,
+                                        if (slotIndex == 2) newSlot else cur3
+                                    )
+                                    applySlotsToDialogInputs(updatedSlots)
+                                    val evalAfter = refreshDialogTeamEvaluation(autoReorder = false)
+                                    textDialogAutoDetectBanner?.text =
+                                        "Replaced Slot ${slotIndex + 1} ($replacedName → ${cand.name}): Mach Agg BR ${evalAfter.machineAggBr} ($machDeltaStr) • ${upg.synergyTag}"
+                                    textDialogAutoDetectBanner?.visibility = android.view.View.VISIBLE
+                                    runTop100RoleUpgradesSimulation(showBannerOnComplete = false)
+                                }
+                            }
+                        }
+                    }
+
+                    bindRoleUpgradeChips(
+                        slotIndex = 0,
+                        roleLabel = "Lead",
+                        roleMetricName = "Lead BR",
+                        container = layoutP1Recs,
+                        headerView = textP1RecHeader,
+                        buttons = btnP1Recs,
+                        upgrades = recResult.leadUpgrades
+                    )
+                    bindRoleUpgradeChips(
+                        slotIndex = 1,
+                        roleLabel = "Safe Swap",
+                        roleMetricName = "Swap BR",
+                        container = layoutP2Recs,
+                        headerView = textP2RecHeader,
+                        buttons = btnP2Recs,
+                        upgrades = recResult.safeSwapUpgrades
+                    )
+                    bindRoleUpgradeChips(
+                        slotIndex = 2,
+                        roleLabel = "Closer",
+                        roleMetricName = "Closer BR",
+                        container = layoutP3Recs,
+                        headerView = textP3RecHeader,
+                        buttons = btnP3Recs,
+                        upgrades = recResult.closerUpgrades
+                    )
+
+                    if (showBannerOnComplete) {
+                        val bestLead = recResult.leadUpgrades.firstOrNull()?.candidate?.name ?: "—"
+                        val bestSwap = recResult.safeSwapUpgrades.firstOrNull()?.candidate?.name ?: "—"
+                        val bestCloser = recResult.closerUpgrades.firstOrNull()?.candidate?.name ?: "—"
+                        textDialogAutoDetectBanner?.text =
+                            "Top-100 Meta Sim (${recResult.candidatePoolSize} candidates • GBL Species Clause + Shadows): Best #1 Lead: $bestLead • #2 Swap: $bestSwap • #3 Closer: $bestCloser"
+                        textDialogAutoDetectBanner?.visibility = android.view.View.VISIBLE
+                    }
+                }
+            }
+        }
+
+        btnDialogSuggestUpgrades?.setOnClickListener {
+            runTop100RoleUpgradesSimulation(showBannerOnComplete = true)
         }
 
         refreshDialogTeamEvaluation(autoReorder = false)

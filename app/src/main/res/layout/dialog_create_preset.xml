@@ -249,6 +249,19 @@
                         android:textColor="#e2e8f0" />
                 </LinearLayout>
 
+                <!-- Top-100 Role Upgrade Recommendations Button -->
+                <Button
+                    android:id="@+id/btn_dialog_suggest_upgrades"
+                    android:layout_width="match_parent"
+                    android:layout_height="36dp"
+                    android:layout_marginBottom="6dp"
+                    android:paddingHorizontal="8dp"
+                    android:text="✨ Suggest Top-100 Role Upgrades (3 Per Role)"
+                    android:textSize="10.5sp"
+                    android:textStyle="bold"
+                    android:backgroundTint="#059669"
+                    android:textColor="#ffffff" />
+
                 <!-- Backline Swap BR & Shared Weaknesses Breakdown -->
                 <TextView
                     android:id="@+id/text_dialog_archetype_summary"
@@ -430,6 +443,75 @@
                         android:textSize="11.5sp"
                         android:hint="Charged 2" />
                 </LinearLayout>
+
+                <!-- Slot 1 (Lead) Top-3 Role Upgrade Chips -->
+                <LinearLayout
+                    android:id="@+id/layout_p1_recommendations"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:layout_marginTop="7dp"
+                    android:background="#0f172a"
+                    android:padding="7dp"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:id="@+id/text_p1_rec_header"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="✨ Top-100 Lead Upgrades (Tap to Replace Slot 1):"
+                        android:textColor="#34d399"
+                        android:textStyle="bold"
+                        android:textSize="9.5sp"
+                        android:layout_marginBottom="4dp" />
+
+                    <Button
+                        android:id="@+id/btn_p1_rec_1"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:minHeight="32dp"
+                        android:paddingHorizontal="8dp"
+                        android:paddingVertical="4dp"
+                        android:gravity="start|center_vertical"
+                        android:textAllCaps="false"
+                        android:text="1. Upgrade 1"
+                        android:textSize="9.5sp"
+                        android:textStyle="bold"
+                        android:backgroundTint="#064e3b"
+                        android:textColor="#ecfdf5"
+                        android:layout_marginBottom="3dp" />
+
+                    <Button
+                        android:id="@+id/btn_p1_rec_2"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:minHeight="32dp"
+                        android:paddingHorizontal="8dp"
+                        android:paddingVertical="4dp"
+                        android:gravity="start|center_vertical"
+                        android:textAllCaps="false"
+                        android:text="2. Upgrade 2"
+                        android:textSize="9.5sp"
+                        android:textStyle="bold"
+                        android:backgroundTint="#064e3b"
+                        android:textColor="#ecfdf5"
+                        android:layout_marginBottom="3dp" />
+
+                    <Button
+                        android:id="@+id/btn_p1_rec_3"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:minHeight="32dp"
+                        android:paddingHorizontal="8dp"
+                        android:paddingVertical="4dp"
+                        android:gravity="start|center_vertical"
+                        android:textAllCaps="false"
+                        android:text="3. Upgrade 3"
+                        android:textSize="9.5sp"
+                        android:textStyle="bold"
+                        android:backgroundTint="#064e3b"
+                        android:textColor="#ecfdf5" />
+                </LinearLayout>
             </LinearLayout>
 
             <!-- Pokemon 2 (Safe Swap) Card -->
@@ -579,6 +661,75 @@
                         android:textSize="11.5sp"
                         android:hint="Charged 2" />
                 </LinearLayout>
+
+                <!-- Slot 2 (Safe Swap) Top-3 Role Upgrade Chips -->
+                <LinearLayout
+                    android:id="@+id/layout_p2_recommendations"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:layout_marginTop="7dp"
+                    android:background="#0f172a"
+                    android:padding="7dp"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:id="@+id/text_p2_rec_header"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="✨ Top-100 Safe Swap Upgrades (Tap to Replace Slot 2):"
+                        android:textColor="#34d399"
+                        android:textStyle="bold"
+                        android:textSize="9.5sp"
+                        android:layout_marginBottom="4dp" />
+
+                    <Button
+                        android:id="@+id/btn_p2_rec_1"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:minHeight="32dp"
+                        android:paddingHorizontal="8dp"
+                        android:paddingVertical="4dp"
+                        android:gravity="start|center_vertical"
+                        android:textAllCaps="false"
+                        android:text="1. Upgrade 1"
+                        android:textSize="9.5sp"
+                        android:textStyle="bold"
+                        android:backgroundTint="#064e3b"
+                        android:textColor="#ecfdf5"
+                        android:layout_marginBottom="3dp" />
+
+                    <Button
+                        android:id="@+id/btn_p2_rec_2"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:minHeight="32dp"
+                        android:paddingHorizontal="8dp"
+                        android:paddingVertical="4dp"
+                        android:gravity="start|center_vertical"
+                        android:textAllCaps="false"
+                        android:text="2. Upgrade 2"
+                        android:textSize="9.5sp"
+                        android:textStyle="bold"
+                        android:backgroundTint="#064e3b"
+                        android:textColor="#ecfdf5"
+                        android:layout_marginBottom="3dp" />
+
+                    <Button
+                        android:id="@+id/btn_p2_rec_3"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:minHeight="32dp"
+                        android:paddingHorizontal="8dp"
+                        android:paddingVertical="4dp"
+                        android:gravity="start|center_vertical"
+                        android:textAllCaps="false"
+                        android:text="3. Upgrade 3"
+                        android:textSize="9.5sp"
+                        android:textStyle="bold"
+                        android:backgroundTint="#064e3b"
+                        android:textColor="#ecfdf5" />
+                </LinearLayout>
             </LinearLayout>
 
             <!-- Pokemon 3 (Closer) Card -->
@@ -726,6 +877,75 @@
                         android:textColorHint="#94a3b8"
                         android:textSize="11.5sp"
                         android:hint="Charged 2" />
+                </LinearLayout>
+
+                <!-- Slot 3 (Closer) Top-3 Role Upgrade Chips -->
+                <LinearLayout
+                    android:id="@+id/layout_p3_recommendations"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:layout_marginTop="7dp"
+                    android:background="#0f172a"
+                    android:padding="7dp"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:id="@+id/text_p3_rec_header"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="✨ Top-100 Closer Upgrades (Tap to Replace Slot 3):"
+                        android:textColor="#34d399"
+                        android:textStyle="bold"
+                        android:textSize="9.5sp"
+                        android:layout_marginBottom="4dp" />
+
+                    <Button
+                        android:id="@+id/btn_p3_rec_1"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:minHeight="32dp"
+                        android:paddingHorizontal="8dp"
+                        android:paddingVertical="4dp"
+                        android:gravity="start|center_vertical"
+                        android:textAllCaps="false"
+                        android:text="1. Upgrade 1"
+                        android:textSize="9.5sp"
+                        android:textStyle="bold"
+                        android:backgroundTint="#064e3b"
+                        android:textColor="#ecfdf5"
+                        android:layout_marginBottom="3dp" />
+
+                    <Button
+                        android:id="@+id/btn_p3_rec_2"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:minHeight="32dp"
+                        android:paddingHorizontal="8dp"
+                        android:paddingVertical="4dp"
+                        android:gravity="start|center_vertical"
+                        android:textAllCaps="false"
+                        android:text="2. Upgrade 2"
+                        android:textSize="9.5sp"
+                        android:textStyle="bold"
+                        android:backgroundTint="#064e3b"
+                        android:textColor="#ecfdf5"
+                        android:layout_marginBottom="3dp" />
+
+                    <Button
+                        android:id="@+id/btn_p3_rec_3"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:minHeight="32dp"
+                        android:paddingHorizontal="8dp"
+                        android:paddingVertical="4dp"
+                        android:gravity="start|center_vertical"
+                        android:textAllCaps="false"
+                        android:text="3. Upgrade 3"
+                        android:textSize="9.5sp"
+                        android:textStyle="bold"
+                        android:backgroundTint="#064e3b"
+                        android:textColor="#ecfdf5" />
                 </LinearLayout>
             </LinearLayout>
 

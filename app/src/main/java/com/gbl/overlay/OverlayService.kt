@@ -869,6 +869,11 @@ class OverlayService : LifecycleService() {
             "walrein" to Triple("Icicle Spear", "Earthquake", "Blizzard"),
             "Mimikyu" to Triple("Play Rough", "Shadow Sneak", "Shadow Ball"),
             "mimikyu" to Triple("Play Rough", "Shadow Sneak", "Shadow Ball"),
+            "Aegislash" to Triple("Shadow Ball", "Flash Cannon", "Gyro Ball"),
+            "aegislash" to Triple("Shadow Ball", "Flash Cannon", "Gyro Ball"),
+            "aegislash_shield" to Triple("Shadow Ball", "Flash Cannon", "Gyro Ball"),
+            "Cramorant" to Triple("Surf", "Fly", "Brave Bird"),
+            "cramorant" to Triple("Surf", "Fly", "Brave Bird"),
             "Gholdengo" to Triple("Shadow Ball", "Focus Blast", "Dazzling Gleam"),
             "gholdengo" to Triple("Shadow Ball", "Focus Blast", "Dazzling Gleam"),
             "Baxcalibur" to Triple("Avalanche", "Dragon Claw", "Blizzard"),
@@ -948,6 +953,8 @@ class OverlayService : LifecycleService() {
             "Enamorus" to "Grass Knot",
             "Corviknight" to "Payback",
             "Mimikyu" to "Shadow Ball",
+            "Aegislash" to "Gyro Ball",
+            "Cramorant" to "Brave Bird",
             "Kanto Ninetales" to "Overheat",
             "Ninetales (Alolan)" to "Psyshock",
             "Fearow" to "Sky Attack",
@@ -1338,6 +1345,8 @@ class OverlayService : LifecycleService() {
             PokemonMeta("Zygarde", "zygarde_complete", "zygarde", "Complete", listOf("dragon", "ground"), 2472, "Dragon Tail", 3, "Crunch", "Earthquake", 32, 52, atk = 184.0, def = 207.0, hp = 389, glRank = 80, ulRank = 1, mlRank = 5, isRawBaseStats = true, defaultIvsGl = "0/0/0", defaultIvsUl = "13/10/15"),
             PokemonMeta("Corviknight", "corviknight", "corviknight", "Base", listOf("flying", "steel"), 2499, "Sand Attack", 1, "Air Cutter", "Iron Head", 32, 34, atk = 163.0, def = 192.0, hp = 221, glRank = 14, ulRank = 7, mlRank = 120, chargedMove3 = "Sky Attack", isRawBaseStats = true, defaultIvsGl = "4/12/14", defaultIvsUl = "4/14/13"),
             PokemonMeta("Mimikyu", "mimikyu", "mimikyu", "Disguised", listOf("ghost", "fairy"), 2497, "Shadow Claw", 2, "Play Rough", "Shadow Sneak", 44, 28, atk = 177.0, def = 199.0, hp = 146, glRank = 40, ulRank = 25, mlRank = 210, isRawBaseStats = true, defaultIvsGl = "4/14/15", defaultIvsUl = "13/15/15"),
+            PokemonMeta("Aegislash", "aegislash", "aegislash", "Shield", listOf("steel", "ghost"), 1499, "Psycho Cut", 2, "Shadow Ball", "Flash Cannon", 46, 52, atk = 97.0, def = 291.0, hp = 155, glRank = 16, ulRank = 30, mlRank = 240, chargedMove3 = "Gyro Ball", isRawBaseStats = true, defaultIvsGl = "4/15/15", defaultIvsUl = "15/15/15"),
+            PokemonMeta("Cramorant", "cramorant", "cramorant", "Gulping", listOf("flying", "water"), 1499, "Wing Attack", 2, "Surf", "Fly", 34, 42, atk = 173.0, def = 163.0, hp = 172, glRank = 26, ulRank = 38, mlRank = 320, chargedMove3 = "Brave Bird", isRawBaseStats = true, defaultIvsGl = "4/15/14", defaultIvsUl = "15/15/15"),
 
             // --- Master League Core Meta ---
             PokemonMeta("Lugia", "lugia", "lugia", "Base", listOf("psychic", "flying"), 4179, "Dragon Tail", 3, "Aeroblast", "Earth Power", 54, 34, atk = 193.0, def = 310.0, hp = 235, glRank = 75, ulRank = 45, mlRank = 12, isRawBaseStats = true, defaultIvsGl = "5/13/12", defaultIvsUl = "5/13/12"),
@@ -1745,7 +1754,7 @@ class OverlayService : LifecycleService() {
                 val nameLower = variant.name.lowercase()
                 if (idLower == "mewtwo_armored" || nameLower.contains("armored")) return false
                 if (idLower.contains("_mega") || idLower.contains("_primal") || nameLower.startsWith("mega ") || nameLower.startsWith("primal ")) return false
-                if (idLower.startsWith("zacian") || idLower.startsWith("zamazenta") || idLower.startsWith("zygarde") || idLower.startsWith("necrozma") || idLower.startsWith("keldeo") || idLower.startsWith("urshifu") || idLower == "mew") return false
+                if (idLower.startsWith("zacian") || idLower.startsWith("zamazenta") || idLower.startsWith("zygarde") || idLower.startsWith("necrozma") || idLower.startsWith("keldeo") || idLower.startsWith("urshifu") || idLower == "mew" || idLower.startsWith("morpeko") || idLower.startsWith("mimikyu") || idLower.startsWith("aegislash") || idLower.startsWith("cramorant")) return false
                 return true
             }
 
@@ -2773,10 +2782,36 @@ class OverlayService : LifecycleService() {
             isDefenderShadow: Boolean
         ): Int {
             val moveStats = resolveChargedMoveStatsStatic(moveName, attacker.types.firstOrNull() ?: "normal")
-            val stab = if (attacker.types.any { it.equals(moveStats.type, ignoreCase = true) }) 1.2 else 1.0
-            val typeEff = getTypeEffectivenessStatic(moveStats.type, defender.types)
-            val effectiveAtk = attacker.atk * (if (isAttackerShadow) 1.2 else 1.0)
-            val effectiveDef = defender.def * (if (isDefenderShadow) 0.8333333 else 1.0)
+            val isMorpeko = attacker.baseSpecies.equals("morpeko", ignoreCase = true)
+            val isAuraWheel = isMorpeko && moveName.equals("Aura Wheel", ignoreCase = true)
+            val isAegislash = attacker.baseSpecies.equals("aegislash", ignoreCase = true)
+            val isAttackerCramorant = attacker.baseSpecies.equals("cramorant", ignoreCase = true)
+            val isDefenderCramorant = defender.baseSpecies.equals("cramorant", ignoreCase = true)
+
+            val stab = if (isAuraWheel || attacker.types.any { it.equals(moveStats.type, ignoreCase = true) }) 1.2 else 1.0
+            val typeEff = if (isAuraWheel) {
+                // Hunger Switch alternates Aura Wheel between Electric (Full Belly) and Dark (Hangry) every Charged Attack
+                val effElectric = getTypeEffectivenessStatic("electric", defender.types)
+                val effDark = getTypeEffectivenessStatic("dark", defender.types)
+                0.60 * max(effElectric, effDark) + 0.40 * min(effElectric, effDark)
+            } else {
+                getTypeEffectivenessStatic(moveStats.type, defender.types)
+            }
+
+            // Aegislash Stance Change: Transforms from Shield Forme (97 Base Atk) into Blade Forme (291 Base Atk) when firing Charged Moves
+            val stanceAtkMultiplier = if (isAegislash && attacker.atk < attacker.def * 0.65) 2.85 else 1.0
+            // Morpeko Aura Wheel (+1 Atk stage) & Cramorant Gulp Missile Gulping Form (-1 Opp Def stage after Surf catch)
+            val buffAtkMultiplier = when {
+                isAuraWheel -> 1.20
+                isMorpeko -> 1.12
+                isAttackerCramorant -> 1.12
+                else -> 1.0
+            }
+            // Cramorant Gulp Missile Gorging Form (-1 Opp Atk stage at <=50% HP)
+            val defenderGulpMultiplier = if (isDefenderCramorant) 1.08 else 1.0
+
+            val effectiveAtk = attacker.atk * (if (isAttackerShadow) 1.2 else 1.0) * stanceAtkMultiplier * buffAtkMultiplier
+            val effectiveDef = defender.def * (if (isDefenderShadow) 0.8333333 else 1.0) * defenderGulpMultiplier
             val rawDamage = floor(0.5 * moveStats.power * (effectiveAtk / effectiveDef) * stab * typeEff * 1.3) + 1.0
             return ((rawDamage / defender.hp.toDouble()) * 100.0).roundToInt().coerceIn(5, 100)
         }
@@ -2796,6 +2831,9 @@ class OverlayService : LifecycleService() {
         /**
          * Phase 1: Evaluates discrete battle rating across all 9 shield permutations
          * (s_user v s_opp in {0, 1, 2}^2): 0v0, 0v1, 0v2, 1v0, 1v1, 1v2, 2v0, 2v1, 2v2.
+         * Explicitly models unique PvP mechanics for Morpeko (Hunger Switch + Aura Wheel),
+         * Mimikyu (Disguise free 1st unshielded charged block + Busted Form -1 Def stage),
+         * Aegislash (Stance Change Shield ⇄ Blade Forme), and Cramorant (Gulp Missile Gulping/Gorging Form).
          */
         fun calculateMatchupRatingStatic(
             myName: String,
@@ -2820,6 +2858,15 @@ class OverlayService : LifecycleService() {
             val oppMeta = resolveRecommendedMovesForSpecies(oppName, league)
                 ?: POKEMON_META_DATABASE.first().let { computeEffectiveCombatStats(it, league) }
 
+            val myIsMorpeko = myMeta.baseSpecies.equals("morpeko", ignoreCase = true)
+            val oppIsMorpeko = oppMeta.baseSpecies.equals("morpeko", ignoreCase = true)
+            val myIsMimikyu = myMeta.baseSpecies.equals("mimikyu", ignoreCase = true)
+            val oppIsMimikyu = oppMeta.baseSpecies.equals("mimikyu", ignoreCase = true)
+            val myIsAegislash = myMeta.baseSpecies.equals("aegislash", ignoreCase = true)
+            val oppIsAegislash = oppMeta.baseSpecies.equals("aegislash", ignoreCase = true)
+            val myIsCramorant = myMeta.baseSpecies.equals("cramorant", ignoreCase = true)
+            val oppIsCramorant = oppMeta.baseSpecies.equals("cramorant", ignoreCase = true)
+
             val uFast = myFastMove?.takeIf { it.isNotBlank() } ?: myMeta.defaultFastMove
             val uC1 = myCharged1?.takeIf { it.isNotBlank() } ?: myMeta.chargedMove1
             val uC2 = myCharged2?.takeIf { it.isNotBlank() } ?: myMeta.chargedMove2
@@ -2836,8 +2883,12 @@ class OverlayService : LifecycleService() {
 
             val userFastType = DYNAMIC_FAST_TYPE[uFast.lowercase()] ?: fastMoveTypeMapStatic[uFast.lowercase()] ?: myMeta.types.firstOrNull() ?: "normal"
             val oppFastType = DYNAMIC_FAST_TYPE[oppMeta.defaultFastMove.lowercase()] ?: fastMoveTypeMapStatic[oppMeta.defaultFastMove.lowercase()] ?: oppMeta.types.firstOrNull() ?: "normal"
-            val userFastEff = getTypeEffectivenessStatic(userFastType, oppMeta.types)
-            val oppFastEff = getTypeEffectivenessStatic(oppFastType, myMeta.types)
+            val rawUserFastEff = getTypeEffectivenessStatic(userFastType, oppMeta.types)
+            val rawOppFastEff = getTypeEffectivenessStatic(oppFastType, myMeta.types)
+
+            // Aegislash Shield Forme fast moves deal fixed 1 damage (minimal fast pressure) while generating 6 energy
+            val userFastEff = if (myIsAegislash) rawUserFastEff * 0.35 else rawUserFastEff
+            val oppFastEff = if (oppIsAegislash) rawOppFastEff * 0.35 else rawOppFastEff
 
             val shadowBulkDelta = (if (myShadow) -12 else 0) + (if (oppShadow) 12 else 0)
 
@@ -2847,8 +2898,15 @@ class OverlayService : LifecycleService() {
                 else -> minPct * 1.0
             }
 
-            val userChargedImpact = chargedPressureAgainstShields(bestUserCharged, minUserCharged, sOpp)
-            val oppChargedImpact = chargedPressureAgainstShields(bestOppCharged, minOppCharged, sUser)
+            // Mimikyu Disguise absorbs the first unshielded Charged Move with 0 HP damage (acting like an extra shield vs charged moves)
+            val effSOppForCharged = if (oppIsMimikyu) (sOpp + 1).coerceAtMost(2) else sOpp
+            val effSUserForCharged = if (myIsMimikyu) (sUser + 1).coerceAtMost(2) else sUser
+
+            val userChargedFreqMult = if (myIsAegislash) 1.18 else 1.0
+            val oppChargedFreqMult = if (oppIsAegislash) 1.18 else 1.0
+
+            val userChargedImpact = chargedPressureAgainstShields(bestUserCharged, minUserCharged, effSOppForCharged) * userChargedFreqMult
+            val oppChargedImpact = chargedPressureAgainstShields(bestOppCharged, minOppCharged, effSUserForCharged) * oppChargedFreqMult
             val chargedDelta = 2.0 * (userChargedImpact - oppChargedImpact)
 
             val avgShields = (sUser + sOpp) * 0.5
@@ -2865,7 +2923,45 @@ class OverlayService : LifecycleService() {
             val shieldDiff = (sUser - sOpp).toDouble()
             val shieldAdvantageDelta = shieldDiff * (85.0 + 0.65 * ((bestOppCharged + bestUserCharged) * 0.5))
 
-            val totalDelta = chargedDelta + fastDelta + effectiveShadowDelta + shieldAdvantageDelta
+            // Unique form & ability adjustments:
+            // 1. Mimikyu Disguise free charged-move negation minus Busted Form -1 Def stage drop
+            val myMimikyuDelta = if (myIsMimikyu) {
+                (when (sUser) { 0 -> 34.0; 1 -> 24.0; else -> 15.0 }) + bestOppCharged * 0.22 - 8.0
+            } else 0.0
+            val oppMimikyuDelta = if (oppIsMimikyu) {
+                (when (sOpp) { 0 -> 34.0; 1 -> 24.0; else -> 15.0 }) + bestUserCharged * 0.22 - 8.0
+            } else 0.0
+
+            // 2. Aegislash Stance Change: Excels with shields (reverts Blade -> Shield Forme on shield use), vulnerable in 0S
+            val myAegislashDelta = if (myIsAegislash) {
+                when (sUser) { 2 -> 26.0; 1 -> 12.0; else -> -28.0 }
+            } else 0.0
+            val oppAegislashDelta = if (oppIsAegislash) {
+                when (sOpp) { 2 -> 26.0; 1 -> 12.0; else -> -28.0 }
+            } else 0.0
+
+            // 3. Morpeko Hunger Switch + Aura Wheel snowballing in shielded scenarios
+            val myMorpekoDelta = if (myIsMorpeko) {
+                when (sUser) { 2 -> 18.0; 1 -> 10.0; else -> 4.0 }
+            } else 0.0
+            val oppMorpekoDelta = if (oppIsMorpeko) {
+                when (sOpp) { 2 -> 18.0; 1 -> 10.0; else -> 4.0 }
+            } else 0.0
+
+            // 4. Cramorant Gulp Missile (Gulping Arrokuda: retaliation chip + -1 Opp Def stage; Gorging Pikachu: retaliation chip + -1 Opp Atk stage)
+            val myCramorantDelta = if (myIsCramorant) {
+                when (sUser) { 2 -> 22.0; 1 -> 18.0; else -> 12.0 }
+            } else 0.0
+            val oppCramorantDelta = if (oppIsCramorant) {
+                when (sOpp) { 2 -> 22.0; 1 -> 18.0; else -> 12.0 }
+            } else 0.0
+
+            val uniqueMechanicsDelta = (myMimikyuDelta - oppMimikyuDelta) +
+                (myAegislashDelta - oppAegislashDelta) +
+                (myMorpekoDelta - oppMorpekoDelta) +
+                (myCramorantDelta - oppCramorantDelta)
+
+            val totalDelta = chargedDelta + fastDelta + effectiveShadowDelta + shieldAdvantageDelta + uniqueMechanicsDelta
             val roundedDelta = if (totalDelta >= 0.0) totalDelta.roundToInt() else -((-totalDelta).roundToInt())
             return (500 + roundedDelta).coerceIn(150, 850)
         }
@@ -3926,6 +4022,403 @@ class OverlayService : LifecycleService() {
                 histWeightPct = dist.histWeightPct,
                 seasonMatchCount = dist.seasonMatchCount,
                 reasonSummary = reasonSummary
+            )
+        }
+
+        data class RoleUpgradeSuggestion(
+            val slotIndex: Int, // 0 = Lead, 1 = Safe Swap, 2 = Closer
+            val roleTitle: String,
+            val candidate: TeamMember,
+            val newRoleBr: Int,
+            val roleBrDelta: Int,
+            val newMachineAggBr: Int,
+            val machineBrDelta: Int,
+            val newLeadAggBr: Int,
+            val newArchetype: String,
+            val compositeScore: Double,
+            val synergyTag: String
+        )
+
+        data class TeamRoleRecommendationsResult(
+            val baselineEval: TeamArchetypeEvaluationResult,
+            val candidatePoolSize: Int,
+            val leadUpgrades: List<RoleUpgradeSuggestion>,
+            val safeSwapUpgrades: List<RoleUpgradeSuggestion>,
+            val closerUpgrades: List<RoleUpgradeSuggestion>
+        )
+
+        fun getTop100MetaCandidatesForLeagueStatic(league: String): List<TeamMember> {
+            val normLeague = when {
+                league.contains("MEGA", ignoreCase = true) -> "MEGA MASTER LEAGUE"
+                league.contains("GREAT", ignoreCase = true) -> "GREAT LEAGUE"
+                league.contains("ULTRA", ignoreCase = true) -> "ULTRA LEAGUE"
+                else -> "MASTER LEAGUE"
+            }
+            val allowMega = normLeague == "MEGA MASTER LEAGUE"
+            val isGreat = normLeague == "GREAT LEAGUE"
+            val isUltra = normLeague == "ULTRA LEAGUE"
+
+            val allMeta = getAllPokemonMeta()
+            val bySpeciesId = allMeta.associateBy { it.speciesId.lowercase() }
+            val result = ArrayList<TeamMember>(100)
+            val seenNames = HashSet<String>()
+
+            fun isMegaOrPrimal(name: String, speciesId: String): Boolean {
+                val n = name.lowercase()
+                val s = speciesId.lowercase()
+                return n.startsWith("mega ") || n.startsWith("primal ") || s.contains("_mega") || s.contains("_primal")
+            }
+
+            fun addCandidateFromName(candidateName: String) {
+                if (result.size >= 100) return
+                val cleanKey = candidateName.trim().lowercase()
+                if (cleanKey.isEmpty() || !seenNames.add(cleanKey)) return
+                val resolved = resolveRecommendedMovesForSpecies(candidateName, normLeague) ?: return
+                if (!allowMega && isMegaOrPrimal(resolved.name, resolved.speciesId)) {
+                    seenNames.remove(cleanKey)
+                    return
+                }
+                val scaled = computeEffectiveCombatStats(resolved, normLeague)
+                val finalDisplayName = if (candidateName.startsWith("Shadow ", ignoreCase = true) && !scaled.name.startsWith("Shadow ", ignoreCase = true)) {
+                    "Shadow ${scaled.name}"
+                } else {
+                    scaled.name
+                }
+                val ivDefault = when {
+                    isGreat -> scaled.defaultIvsGl
+                    isUltra -> scaled.defaultIvsUl
+                    else -> "15/15/15"
+                }
+                result.add(
+                    TeamMember(
+                        name = finalDisplayName,
+                        cp = scaled.defaultCp,
+                        fastMove = scaled.defaultFastMove,
+                        chargedMove1 = scaled.chargedMove1,
+                        chargedMove2 = scaled.chargedMove2,
+                        ivs = ivDefault
+                    )
+                )
+            }
+
+            val rankingsMap = LIVE_RANKINGS_MAP[normLeague]
+            if (rankingsMap != null && rankingsMap.isNotEmpty()) {
+                val sortedEntries = rankingsMap.values.sortedBy { it.rank }
+                for (entry in sortedEntries) {
+                    if (result.size >= 100) break
+                    val rawId = entry.speciesId.lowercase()
+                    val isShad = rawId.endsWith("_shadow")
+                    val baseId = rawId.removeSuffix("_shadow")
+                    val meta = bySpeciesId[rawId] ?: bySpeciesId[baseId]
+                    if (meta != null) {
+                        if (isShad && !FormResolver.isShadowEligibleVariant(meta)) continue
+                        val displayName = if (isShad && !meta.name.startsWith("Shadow ", ignoreCase = true)) {
+                            "Shadow ${meta.name}"
+                        } else {
+                            meta.name
+                        }
+                        addCandidateFromName(displayName)
+                    }
+                }
+            }
+
+            if (result.size < 100) {
+                val sortedFallback = allMeta
+                    .filter { !it.speciesId.endsWith("_shadow", ignoreCase = true) && !it.name.startsWith("Shadow ", ignoreCase = true) }
+                    .sortedBy {
+                        when {
+                            isGreat -> it.glRank
+                            isUltra -> it.ulRank
+                            else -> it.mlRank
+                        }
+                    }
+                for (meta in sortedFallback) {
+                    if (result.size >= 100) break
+                    val (_, shadowPreferred) = FormResolver.getEffectiveRankAndShadowForVariant(meta, normLeague)
+                    if (shadowPreferred && FormResolver.isShadowEligibleVariant(meta)) {
+                        addCandidateFromName("Shadow ${meta.name}")
+                        if (result.size < 100) addCandidateFromName(meta.name)
+                    } else {
+                        addCandidateFromName(meta.name)
+                        if (result.size < 100 && FormResolver.isShadowEligibleVariant(meta)) {
+                            addCandidateFromName("Shadow ${meta.name}")
+                        }
+                    }
+                }
+            }
+
+            return result.take(100)
+        }
+
+        /**
+         * Simulates the Top 100 Meta Pokémon for the active league across all 3 team roles
+         * (#1 Lead, #2 Safe Swap, #3 Closer) and returns the top 3 upgrades per role ranked by
+         * full team synergy (ΔMachine Agg BR + defensive weakness coverage) and role rating delta (ΔRole BR),
+         * while enforcing the GBL Species Clause and including Shadow variants.
+         */
+        fun recommendTop3UpgradesPerRoleStatic(
+            slots: List<TeamMember>,
+            league: String,
+            seasonLogs: List<Pair<Long, List<String>>>,
+            manualArchetypeOverride: String? = null
+        ): TeamRoleRecommendationsResult {
+            val baselineEval = evaluateOrAutoOrderTeamStatic(
+                slots = slots,
+                league = league,
+                seasonLogs = seasonLogs,
+                autoReorder = false,
+                manualArchetypeOverride = manualArchetypeOverride
+            )
+            val currentSlots = baselineEval.orderedSlots
+            val dist = computeBlendedSeasonMetaStatic(league, seasonLogs)
+            val allOpps = (dist.leadWeights.keys + dist.fieldWeights.keys).distinct()
+
+            fun getTypesFor(name: String): List<String> {
+                val meta = resolveRecommendedMovesForSpecies(name, league)
+                return meta?.types?.map { it.lowercase() }?.ifEmpty { listOf("normal") } ?: listOf("normal")
+            }
+
+            fun getWeaknesses(types: List<String>): Set<String> {
+                return ALL_18_TYPES.filter { atkType ->
+                    getTypeEffectivenessStatic(atkType, types) > 1.05
+                }.toSet()
+            }
+
+            fun getResistances(types: List<String>): Set<String> {
+                return ALL_18_TYPES.filter { atkType ->
+                    getTypeEffectivenessStatic(atkType, types) < 0.95
+                }.toSet()
+            }
+
+            // Precompute current 3 slots' per-opponent BR maps and type profiles
+            val curLeadMap = Array(3) { HashMap<String, Double>(allOpps.size) }
+            val curSwapMap = Array(3) { HashMap<String, Double>(allOpps.size) }
+            val curCloserMap = Array(3) { HashMap<String, Double>(allOpps.size) }
+            val curTypes = currentSlots.map { getTypesFor(it.name) }
+            val curWeaks = curTypes.map { getWeaknesses(it) }
+            val curResists = curTypes.map { getResistances(it) }
+
+            for (i in 0 until 3) {
+                val s = currentSlots[i]
+                for (opp in allOpps) {
+                    val b00 = calculateMatchupRatingStatic(s.name, opp, 0, 0, league, s.fastMove, s.chargedMove1, s.chargedMove2, s.cp, s.ivs).toDouble()
+                    val b01 = calculateMatchupRatingStatic(s.name, opp, 0, 1, league, s.fastMove, s.chargedMove1, s.chargedMove2, s.cp, s.ivs).toDouble()
+                    val b10 = calculateMatchupRatingStatic(s.name, opp, 1, 0, league, s.fastMove, s.chargedMove1, s.chargedMove2, s.cp, s.ivs).toDouble()
+                    val b11 = calculateMatchupRatingStatic(s.name, opp, 1, 1, league, s.fastMove, s.chargedMove1, s.chargedMove2, s.cp, s.ivs).toDouble()
+                    val b12 = calculateMatchupRatingStatic(s.name, opp, 1, 2, league, s.fastMove, s.chargedMove1, s.chargedMove2, s.cp, s.ivs).toDouble()
+                    val b21 = calculateMatchupRatingStatic(s.name, opp, 2, 1, league, s.fastMove, s.chargedMove1, s.chargedMove2, s.cp, s.ivs).toDouble()
+                    val b22 = calculateMatchupRatingStatic(s.name, opp, 2, 2, league, s.fastMove, s.chargedMove1, s.chargedMove2, s.cp, s.ivs).toDouble()
+
+                    curLeadMap[i][opp] = 0.45 * b11 + 0.35 * b22 + 0.10 * b00 + 0.05 * b12 + 0.05 * b21
+                    curSwapMap[i][opp] = 0.40 * b11 + 0.20 * b10 + 0.20 * b01 + 0.10 * b21 + 0.10 * b00
+                    curCloserMap[i][opp] = 0.50 * b00 + 0.20 * b10 + 0.15 * b01 + 0.15 * b11
+                }
+            }
+
+            val candidates = getTop100MetaCandidatesForLeagueStatic(league)
+
+            data class PrecomputedCandidate(
+                val member: TeamMember,
+                val baseSpecies: String,
+                val isMega: Boolean,
+                val types: List<String>,
+                val weaknesses: Set<String>,
+                val resistances: Set<String>,
+                val leadMap: Map<String, Double>,
+                val swapMap: Map<String, Double>,
+                val closerMap: Map<String, Double>,
+                val leadAggBr: Int,
+                val safeSwapBr: Int,
+                val closerMeanBr: Int
+            )
+
+            val precomputedPool = candidates.map { cand ->
+                val lMap = HashMap<String, Double>(allOpps.size)
+                val sMap = HashMap<String, Double>(allOpps.size)
+                val cMap = HashMap<String, Double>(allOpps.size)
+
+                for (opp in allOpps) {
+                    val b00 = calculateMatchupRatingStatic(cand.name, opp, 0, 0, league, cand.fastMove, cand.chargedMove1, cand.chargedMove2, cand.cp, cand.ivs).toDouble()
+                    val b01 = calculateMatchupRatingStatic(cand.name, opp, 0, 1, league, cand.fastMove, cand.chargedMove1, cand.chargedMove2, cand.cp, cand.ivs).toDouble()
+                    val b10 = calculateMatchupRatingStatic(cand.name, opp, 1, 0, league, cand.fastMove, cand.chargedMove1, cand.chargedMove2, cand.cp, cand.ivs).toDouble()
+                    val b11 = calculateMatchupRatingStatic(cand.name, opp, 1, 1, league, cand.fastMove, cand.chargedMove1, cand.chargedMove2, cand.cp, cand.ivs).toDouble()
+                    val b12 = calculateMatchupRatingStatic(cand.name, opp, 1, 2, league, cand.fastMove, cand.chargedMove1, cand.chargedMove2, cand.cp, cand.ivs).toDouble()
+                    val b21 = calculateMatchupRatingStatic(cand.name, opp, 2, 1, league, cand.fastMove, cand.chargedMove1, cand.chargedMove2, cand.cp, cand.ivs).toDouble()
+                    val b22 = calculateMatchupRatingStatic(cand.name, opp, 2, 2, league, cand.fastMove, cand.chargedMove1, cand.chargedMove2, cand.cp, cand.ivs).toDouble()
+
+                    lMap[opp] = 0.45 * b11 + 0.35 * b22 + 0.10 * b00 + 0.05 * b12 + 0.05 * b21
+                    sMap[opp] = 0.40 * b11 + 0.20 * b10 + 0.20 * b01 + 0.10 * b21 + 0.10 * b00
+                    cMap[opp] = 0.50 * b00 + 0.20 * b10 + 0.15 * b01 + 0.15 * b11
+                }
+
+                var lMean = 0.0
+                for ((opp, prob) in dist.leadWeights) {
+                    if (prob > 0.0) lMean += prob * (lMap[opp] ?: 500.0)
+                }
+
+                var sMean = 0.0
+                var cMean = 0.0
+                for ((opp, prob) in dist.fieldWeights) {
+                    if (prob > 0.0) {
+                        sMean += prob * (sMap[opp] ?: 500.0)
+                        cMean += prob * (cMap[opp] ?: 500.0)
+                    }
+                }
+                var sVar = 0.0
+                for ((opp, prob) in dist.fieldWeights) {
+                    if (prob > 0.0) {
+                        val d = (sMap[opp] ?: sMean) - sMean
+                        sVar += prob * d * d
+                    }
+                }
+                val sSigma = kotlin.math.sqrt(max(0.0, sVar))
+                val safeSwapVal = (sMean - 0.5 * sSigma).roundToInt().coerceIn(150, 850)
+
+                val cTypes = getTypesFor(cand.name)
+                val nLower = cand.name.lowercase()
+                PrecomputedCandidate(
+                    member = cand,
+                    baseSpecies = FormResolver.extractBaseSpecies(cand.name),
+                    isMega = nLower.startsWith("mega ") || nLower.startsWith("primal "),
+                    types = cTypes,
+                    weaknesses = getWeaknesses(cTypes),
+                    resistances = getResistances(cTypes),
+                    leadMap = lMap,
+                    swapMap = sMap,
+                    closerMap = cMap,
+                    leadAggBr = lMean.roundToInt().coerceIn(150, 850),
+                    safeSwapBr = safeSwapVal,
+                    closerMeanBr = cMean.roundToInt().coerceIn(150, 850)
+                )
+            }
+
+            fun rankUpgradesForSlot(slotIdx: Int): List<RoleUpgradeSuggestion> {
+                val otherIdx1 = (slotIdx + 1) % 3
+                val otherIdx2 = (slotIdx + 2) % 3
+                val otherBase1 = FormResolver.extractBaseSpecies(currentSlots[otherIdx1].name)
+                val otherBase2 = FormResolver.extractBaseSpecies(currentSlots[otherIdx2].name)
+                val otherHasMega = listOf(currentSlots[otherIdx1].name, currentSlots[otherIdx2].name).any {
+                    it.startsWith("Mega ", ignoreCase = true) || it.startsWith("Primal ", ignoreCase = true)
+                }
+                val currentSlotMember = currentSlots[slotIdx]
+                val isAbb = baselineEval.archetype == "ABB"
+                val roleTitle = when (slotIdx) {
+                    0 -> if (isAbb) "Lead (A)" else "Lead"
+                    1 -> if (isAbb) "Bait Swap (B1)" else "Safe Swap"
+                    else -> if (isAbb) "Sweeper (B2)" else "Closer"
+                }
+                val baselineRoleBr = when (slotIdx) {
+                    0 -> baselineEval.leadAggBr
+                    1 -> baselineEval.safeSwapBr
+                    else -> baselineEval.closerSwapBr
+                }
+
+                val scored = ArrayList<RoleUpgradeSuggestion>()
+
+                for (cand in precomputedPool) {
+                    // Enforce GBL Species Clause against the other 2 slots
+                    if (cand.baseSpecies.equals(otherBase1, ignoreCase = true) ||
+                        cand.baseSpecies.equals(otherBase2, ignoreCase = true)
+                    ) continue
+                    // Exclude identical Pokemon already in this slot
+                    if (cand.member.name.equals(currentSlotMember.name, ignoreCase = true)) continue
+                    // Enforce 1-Mega limit
+                    if (cand.isMega && otherHasMega) continue
+
+                    val newRoleBr = when (slotIdx) {
+                        0 -> cand.leadAggBr
+                        1 -> cand.safeSwapBr
+                        else -> ((cand.safeSwapBr * 0.55) + (cand.closerMeanBr * 0.45)).roundToInt()
+                    }
+                    val roleDelta = newRoleBr - baselineRoleBr
+
+                    var newMachSum = 0.0
+                    for ((opp, prob) in dist.fieldWeights) {
+                        if (prob <= 0.0) continue
+                        val r0 = if (slotIdx == 0) (cand.leadMap[opp] ?: 500.0) else (curLeadMap[0][opp] ?: 500.0)
+                        val r1 = if (slotIdx == 1) (cand.swapMap[opp] ?: 500.0) else (curSwapMap[1][opp] ?: 500.0)
+                        val r2 = if (slotIdx == 2) (cand.closerMap[opp] ?: 500.0) else (curCloserMap[2][opp] ?: 500.0)
+                        newMachSum += prob * max(r0, max(r1, r2))
+                    }
+                    val newMachBr = newMachSum.roundToInt().coerceIn(150, 850)
+                    val machDelta = newMachBr - baselineEval.machineAggBr
+                    val newLeadBr = if (slotIdx == 0) cand.leadAggBr else baselineEval.leadAggBr
+
+                    // Evaluate defensive coverage synergy with the other two teammates
+                    val otherWeaksUnion = curWeaks[otherIdx1].union(curWeaks[otherIdx2])
+                    val otherWeaksShared = curWeaks[otherIdx1].intersect(curWeaks[otherIdx2])
+                    val coveredSharedCount = otherWeaksShared.count { it in cand.resistances }
+                    val coveredUnionCount = otherWeaksUnion.count { it in cand.resistances }
+                    val tripleWeakCount = cand.weaknesses.intersect(otherWeaksShared).size
+
+                    val (synergyBonus, synergyTag) = when {
+                        slotIdx == 0 && otherWeaksShared.isNotEmpty() && coveredSharedCount == otherWeaksShared.size ->
+                            12.0 to "Covers ${otherWeaksShared.take(2).joinToString("/").uppercase()} Core"
+                        slotIdx != 0 && curWeaks[0].any { it in cand.resistances } && tripleWeakCount == 0 -> {
+                            val coveredLeadTypes = curWeaks[0].filter { it in cand.resistances }.take(2).joinToString("/").uppercase()
+                            9.0 to "Covers $coveredLeadTypes"
+                        }
+                        coveredUnionCount >= 2 && tripleWeakCount == 0 ->
+                            6.0 to "Strong Core Synergy"
+                        tripleWeakCount > 0 ->
+                            (-14.0 * tripleWeakCount) to "Shared Weakness Risk"
+                        else ->
+                            0.0 to "Meta Upgrade"
+                    }
+
+                    val composite = 0.55 * machDelta.toDouble() + 0.45 * roleDelta.toDouble() + synergyBonus
+                    val newArch = if (slotIdx == 0 && otherWeaksShared.isNotEmpty() && coveredSharedCount == otherWeaksShared.size) {
+                        "ABB"
+                    } else {
+                        baselineEval.archetype
+                    }
+
+                    scored.add(
+                        RoleUpgradeSuggestion(
+                            slotIndex = slotIdx,
+                            roleTitle = roleTitle,
+                            candidate = cand.member,
+                            newRoleBr = newRoleBr,
+                            roleBrDelta = roleDelta,
+                            newMachineAggBr = newMachBr,
+                            machineBrDelta = machDelta,
+                            newLeadAggBr = newLeadBr,
+                            newArchetype = newArch,
+                            compositeScore = composite,
+                            synergyTag = synergyTag
+                        )
+                    )
+                }
+
+                scored.sortByDescending { it.compositeScore }
+
+                // Pick top 3 distinct baseSpecies so the 3 chips give diverse species options
+                val picked = ArrayList<RoleUpgradeSuggestion>(3)
+                val usedBase = HashSet<String>()
+                for (item in scored) {
+                    val b = FormResolver.extractBaseSpecies(item.candidate.name)
+                    if (usedBase.add(b)) {
+                        picked.add(item)
+                        if (picked.size >= 3) break
+                    }
+                }
+                if (picked.size < 3) {
+                    for (item in scored) {
+                        if (picked.none { it.candidate.name.equals(item.candidate.name, ignoreCase = true) }) {
+                            picked.add(item)
+                            if (picked.size >= 3) break
+                        }
+                    }
+                }
+                return picked
+            }
+
+            return TeamRoleRecommendationsResult(
+                baselineEval = baselineEval,
+                candidatePoolSize = precomputedPool.size,
+                leadUpgrades = rankUpgradesForSlot(0),
+                safeSwapUpgrades = rankUpgradesForSlot(1),
+                closerUpgrades = rankUpgradesForSlot(2)
             )
         }
     }

@@ -66,7 +66,10 @@ import {
   getMachineBrTierInfo,
   evaluateOrAutoOrderTeam,
   evaluateTeamPresetMetrics,
-  recalculateAllPresetsMetrics
+  recalculateAllPresetsMetrics,
+  RoleUpgradeSuggestion,
+  TeamRoleRecommendationsResult,
+  recommendTop3UpgradesPerRole
 } from './data/gblData';
 import {
   BattleQualityMetadata,
@@ -2118,6 +2121,9 @@ export default function App() {
     [activeAutocompleteSlot, p3Name, newPresetLeague]
   );
 
+  const [modalRoleRecommendations, setModalRoleRecommendations] = useState<TeamRoleRecommendationsResult | null>(null);
+  const [isSuggestingUpgrades, setIsSuggestingUpgrades] = useState<boolean>(false);
+
   const openCreatePresetModal = () => {
     const defaultLeague = activePreset?.league || 'GREAT LEAGUE';
     setEditingPresetId(null);
@@ -2125,6 +2131,7 @@ export default function App() {
     setNewPresetLeague(defaultLeague);
     setManualArchetypeOverride(undefined);
     setModalAutoDetectSummary(null);
+    setModalRoleRecommendations(null);
     applyLeagueTop3TemplateToForm(defaultLeague);
     setIsNewPresetOpen(true);
   };
@@ -2135,6 +2142,7 @@ export default function App() {
     setNewPresetLeague(preset.league);
     setManualArchetypeOverride(preset.isArchetypeManual ? preset.archetype : undefined);
     setModalAutoDetectSummary(null);
+    setModalRoleRecommendations(null);
     const s1 = preset.pokemon[0];
     const s2 = preset.pokemon[1];
     const s3 = preset.pokemon[2];
@@ -2286,6 +2294,50 @@ export default function App() {
     setModalAutoDetectSummary(`⇄ Swapped Slot ${slotA} (${next[idxA].name}) and Slot ${slotB} (${next[idxB].name})`);
   };
 
+  const handleSuggestRoleUpgradesModal = () => {
+    setIsSuggestingUpgrades(true);
+    setTimeout(() => {
+      try {
+        const members = buildModalMembersArray();
+        const res = recommendTop3UpgradesPerRole(
+          members,
+          newPresetLeague,
+          battleLogs,
+          activeSeasonBounds.startMs,
+          activeSeasonBounds.endMs,
+          manualArchetypeOverride
+        );
+        setModalRoleRecommendations(res);
+        setModalAutoDetectSummary(
+          `✨ Top-100 Role Upgrades Ready (${res.candidatesEvaluated} meta candidates simulated for ${newPresetLeague}) — Tap any green chip below Slot 1, Slot 2, or Slot 3 to apply!`
+        );
+      } finally {
+        setIsSuggestingUpgrades(false);
+      }
+    }, 10);
+  };
+
+  const handleApplyRoleUpgradeChip = (slotIdx: 1 | 2 | 3, sug: RoleUpgradeSuggestion) => {
+    const members = buildModalMembersArray();
+    const next = [...members];
+    next[slotIdx - 1] = { ...sug.candidate, id: `p${slotIdx}` };
+    applyOrderedMembersToModalForm(next);
+    const updatedRecs = recommendTop3UpgradesPerRole(
+      next,
+      newPresetLeague,
+      battleLogs,
+      activeSeasonBounds.startMs,
+      activeSeasonBounds.endMs,
+      manualArchetypeOverride
+    );
+    setModalRoleRecommendations(updatedRecs);
+    const machSign = sug.deltaMachBr >= 0 ? `+${sug.deltaMachBr}` : `${sug.deltaMachBr}`;
+    const roleSign = sug.deltaRoleBr >= 0 ? `+${sug.deltaRoleBr}` : `${sug.deltaRoleBr}`;
+    setModalAutoDetectSummary(
+      `✅ Replaced Slot ${slotIdx} (${sug.roleLabel}) with ${sug.candidate.name} (${roleSign} Role BR • ${machSign} Team Mach BR)`
+    );
+  };
+
   const handleAutoDetectSavedPreset = (presetId: string) => {
     setPresets((prev) =>
       prev.map((p) => {
@@ -2400,7 +2452,7 @@ export default function App() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'SilphScope_PvP_v3.10_Android_Project.zip';
+      a.download = 'SilphScope_PvP_v3.11_Android_Project.zip';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -2648,7 +2700,7 @@ export default function App() {
                     backgroundColor: `${activeTheme.accentHex}1A`
                   }}
                 >
-                  v3.10 • Android Native Overlay
+                  v3.11 • Android Native Overlay
                 </span>
               </div>
               <p className="text-xs hidden sm:block" style={{ color: activeTheme.textSecondaryHex }}>
@@ -4762,6 +4814,20 @@ export default function App() {
                               <ArrowLeftRight className="w-3 h-3" />
                               <span>Slot 2 ⇄ 3</span>
                             </button>
+                            <button
+                              type="button"
+                              onClick={handleSuggestRoleUpgradesModal}
+                              disabled={isSuggestingUpgrades}
+                              className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-md transition"
+                              title="Simulate Top 100 league meta (including Shadows & species clause) to suggest 3 better upgrades for Lead, Safe Swap, and Closer"
+                            >
+                              <Sparkles className="w-3.5 h-3.5" />
+                              <span>
+                                {isSuggestingUpgrades
+                                  ? '⏳ Simulating Top-100 Meta...'
+                                  : '✨ Suggest Top-100 Role Upgrades (3 Per Role)'}
+                              </span>
+                            </button>
                           </div>
 
                           <div className="text-[10.5px] text-slate-300 font-mono flex flex-wrap items-center justify-between gap-2">
@@ -4956,6 +5022,43 @@ export default function App() {
                           className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white"
                         />
                       </div>
+                      {modalRoleRecommendations && (
+                        <div className="pt-1.5 border-t border-slate-800/80 space-y-1.5">
+                          <div className="flex items-center justify-between text-[10px] font-bold text-emerald-300">
+                            <span>✨ Top 3 Recommended Lead Upgrades (One-Tap Replace):</span>
+                            <span className="text-slate-400 font-mono">Current Lead BR: {modalRoleRecommendations.currentLeadBr}</span>
+                          </div>
+                          {modalRoleRecommendations.slot1LeadUpgrades.length === 0 ? (
+                            <div className="text-[10.5px] text-emerald-400 font-semibold">
+                              ✅ Optimal Lead — No higher-scoring Top-100 upgrade found!
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+                              {modalRoleRecommendations.slot1LeadUpgrades.map((sug, idx) => (
+                                <button
+                                  key={sug.candidate.name}
+                                  type="button"
+                                  onClick={() => handleApplyRoleUpgradeChip(1, sug)}
+                                  className="px-2 py-1.5 rounded-lg bg-emerald-950/70 hover:bg-emerald-900/80 border border-emerald-500/50 text-left transition flex flex-col justify-between gap-0.5"
+                                  title={`${sug.summaryBadge} • Moves: ${sug.candidate.fastMove} + ${sug.candidate.chargedMove1}/${sug.candidate.chargedMove2}`}
+                                >
+                                  <div className="flex items-center justify-between gap-1">
+                                    <span className="text-[11px] font-extrabold text-emerald-200 truncate">
+                                      #{idx + 1} {sug.candidate.name}
+                                    </span>
+                                    <span className="text-[9.5px] font-mono font-bold text-emerald-300 shrink-0">
+                                      {sug.deltaMachBr >= 0 ? `+${sug.deltaMachBr}` : sug.deltaMachBr} Mach
+                                    </span>
+                                  </div>
+                                  <div className="text-[9.5px] font-mono text-slate-300 truncate">
+                                    Lead BR {sug.newRoleBr} ({sug.deltaRoleBr >= 0 ? `+${sug.deltaRoleBr}` : sug.deltaRoleBr}) • [{sug.newArchetype}]
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {/* Slot 2 */}
@@ -5123,6 +5226,43 @@ export default function App() {
                           className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white"
                         />
                       </div>
+                      {modalRoleRecommendations && (
+                        <div className="pt-1.5 border-t border-slate-800/80 space-y-1.5">
+                          <div className="flex items-center justify-between text-[10px] font-bold text-emerald-300">
+                            <span>✨ Top 3 Recommended Safe Swap Upgrades (One-Tap Replace):</span>
+                            <span className="text-slate-400 font-mono">Current Swap BR: {modalRoleRecommendations.currentSafeSwapBr}</span>
+                          </div>
+                          {modalRoleRecommendations.slot2SafeSwapUpgrades.length === 0 ? (
+                            <div className="text-[10.5px] text-emerald-400 font-semibold">
+                              ✅ Optimal Safe Swap — No higher-scoring Top-100 upgrade found!
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+                              {modalRoleRecommendations.slot2SafeSwapUpgrades.map((sug, idx) => (
+                                <button
+                                  key={sug.candidate.name}
+                                  type="button"
+                                  onClick={() => handleApplyRoleUpgradeChip(2, sug)}
+                                  className="px-2 py-1.5 rounded-lg bg-emerald-950/70 hover:bg-emerald-900/80 border border-emerald-500/50 text-left transition flex flex-col justify-between gap-0.5"
+                                  title={`${sug.summaryBadge} • Moves: ${sug.candidate.fastMove} + ${sug.candidate.chargedMove1}/${sug.candidate.chargedMove2}`}
+                                >
+                                  <div className="flex items-center justify-between gap-1">
+                                    <span className="text-[11px] font-extrabold text-emerald-200 truncate">
+                                      #{idx + 1} {sug.candidate.name}
+                                    </span>
+                                    <span className="text-[9.5px] font-mono font-bold text-emerald-300 shrink-0">
+                                      {sug.deltaMachBr >= 0 ? `+${sug.deltaMachBr}` : sug.deltaMachBr} Mach
+                                    </span>
+                                  </div>
+                                  <div className="text-[9.5px] font-mono text-slate-300 truncate">
+                                    Swap BR {sug.newRoleBr} ({sug.deltaRoleBr >= 0 ? `+${sug.deltaRoleBr}` : sug.deltaRoleBr}) • [{sug.newArchetype}]
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {/* Slot 3 */}
@@ -5290,6 +5430,43 @@ export default function App() {
                           className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white"
                         />
                       </div>
+                      {modalRoleRecommendations && (
+                        <div className="pt-1.5 border-t border-slate-800/80 space-y-1.5">
+                          <div className="flex items-center justify-between text-[10px] font-bold text-emerald-300">
+                            <span>✨ Top 3 Recommended Closer Upgrades (One-Tap Replace):</span>
+                            <span className="text-slate-400 font-mono">Current Closer BR: {modalRoleRecommendations.currentCloserBr}</span>
+                          </div>
+                          {modalRoleRecommendations.slot3CloserUpgrades.length === 0 ? (
+                            <div className="text-[10.5px] text-emerald-400 font-semibold">
+                              ✅ Optimal Closer — No higher-scoring Top-100 upgrade found!
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+                              {modalRoleRecommendations.slot3CloserUpgrades.map((sug, idx) => (
+                                <button
+                                  key={sug.candidate.name}
+                                  type="button"
+                                  onClick={() => handleApplyRoleUpgradeChip(3, sug)}
+                                  className="px-2 py-1.5 rounded-lg bg-emerald-950/70 hover:bg-emerald-900/80 border border-emerald-500/50 text-left transition flex flex-col justify-between gap-0.5"
+                                  title={`${sug.summaryBadge} • Moves: ${sug.candidate.fastMove} + ${sug.candidate.chargedMove1}/${sug.candidate.chargedMove2}`}
+                                >
+                                  <div className="flex items-center justify-between gap-1">
+                                    <span className="text-[11px] font-extrabold text-emerald-200 truncate">
+                                      #{idx + 1} {sug.candidate.name}
+                                    </span>
+                                    <span className="text-[9.5px] font-mono font-bold text-emerald-300 shrink-0">
+                                      {sug.deltaMachBr >= 0 ? `+${sug.deltaMachBr}` : sug.deltaMachBr} Mach
+                                    </span>
+                                  </div>
+                                  <div className="text-[9.5px] font-mono text-slate-300 truncate">
+                                    Swap BR {sug.newRoleBr} ({sug.deltaRoleBr >= 0 ? `+${sug.deltaRoleBr}` : sug.deltaRoleBr}) • [{sug.newArchetype}]
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex justify-end gap-3 pt-3 border-t border-slate-800">
@@ -7620,7 +7797,7 @@ export default function App() {
               <div>
                 <h2 className="text-lg font-bold text-white flex items-center gap-2">
                   <Info className="w-5 h-5 text-sky-400" />
-                  <span>📖 Complete Help, HUD Instructions, Tips &amp; Tactics Guide (v3.10)</span>
+                  <span>📖 Complete Help, HUD Instructions, Tips &amp; Tactics Guide (v3.11)</span>
                 </h2>
                 <p className="text-xs text-slate-400">
                   Everything you need to master the floating PvP overlay, 3x3 matchup &amp; shield matrix, bottom 3-column damage grid, 50s swap clocks, move pacing, Battle Log analytics, and Tasker automation.
