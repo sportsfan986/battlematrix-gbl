@@ -1917,6 +1917,10 @@ export function calculateFastDamage(
   telemetry: string;
 } {
   const move = resolveFastMove(attacker, fastMoveOverride);
+  const atkSpeciesLower = (attacker.baseSpecies || attacker.speciesId || attacker.name).toLowerCase();
+  const isAttackerAegislash = atkSpeciesLower.includes("aegislash");
+  const isShieldFormeAegislash = isAttackerAegislash && attacker.baseStats.atk < attacker.baseStats.def;
+
   const isStab = attacker.types.includes(move.type);
   const stabMult = isStab ? 1.2 : 1.0;
   const typeMult = getTypeMultiplier(move.type, defender.types);
@@ -1925,13 +1929,18 @@ export function calculateFastDamage(
   const def = defender.baseStats.def * (isDefenderShadow ? 0.8333333 : 1.0);
   const maxHp = Math.max(1, defender.baseStats.hp);
 
-  const baseDamage = Math.floor(0.5 * (move.power || 4) * (atk / def) * stabMult * typeMult * 1.3) + 1;
+  // Aegislash Shield Forme fast moves deal fixed 1 HP damage while generating boosted 6 energy per fast move;
+  // in Sword/Blade Forme, fast moves deal full 291 Base Atk damage with standard energy generation.
+  const baseDamage = isShieldFormeAegislash
+    ? 1
+    : Math.floor(0.5 * (move.power || 4) * (atk / def) * stabMult * typeMult * 1.3) + 1;
+  const effectiveEnergyGain = isShieldFormeAegislash ? Math.max(move.energyGain, 6) : move.energyGain;
   const percentage = Math.min(100, Math.max(1, Math.round((baseDamage / maxHp) * 100)));
   const abbr = abbrMove5(move.name);
-  const telemetry = `${abbr} ${move.turns}t/${move.energyGain}e/${percentage}%`;
+  const telemetry = `${abbr} ${move.turns}t/${effectiveEnergyGain}e/${percentage}%`;
 
   return {
-    move,
+    move: isShieldFormeAegislash ? { ...move, power: 1, energyGain: effectiveEnergyGain } : move,
     abbr,
     damage: baseDamage,
     percentage,
@@ -1979,7 +1988,7 @@ export function calculateChargedDamage(
     atk *= 1.15;
   }
   if (isAttackerAegislash) {
-    // Stance Change: Aegislash transforms from Shield Forme (97 Atk) into Blade Forme (291 Atk) right before Charged Moves
+    // Stance Change: Aegislash transforms from Shield Forme (97 Atk) into Sword/Blade Forme (291 Atk) right before Charged Moves
     if (attacker.baseStats.atk < attacker.baseStats.def) {
       atk *= 2.85;
     }
@@ -4200,9 +4209,37 @@ function resolveCombatPokemonForEngine(
   };
 }
 
+const DISCRETE_SHIELD_BR_CACHE = new Map<string, number>();
+const POSITION_WEIGHTED_BR_CACHE = new Map<string, PositionWeightedMatchupRatings>();
+
+function buildCombatantCacheKey(input: TeamMember | string): string {
+  if (typeof input === "string") return input.trim().toLowerCase();
+  return `${(input.name || "").trim().toLowerCase()}|${input.cp || ""}|${input.ivs || ""}|${input.fastMove || ""}|${input.chargedMove1 || ""}|${input.chargedMove2 || ""}`;
+}
+
 /**
  * Evaluates a discrete head-to-head Battle Rating (150..850, 500 neutral)
  * for any shield combination (userShields in 0..2, oppShields in 0..2).
+ *
+ * Includes explicit PvP battle math for:
+ * 1. Mimikyu (Disguise):
+ *    - Until Mimikyu's Disguise is busted, the opponent always throws their fastest (lowest-energy)
+ *      Charged Attack knowing it must be absorbed by either a Protect Shield or Disguise.
+ *    - Takes the exact average of:
+ *      (a) Using all Protect Shields before busting Disguise (delays Busted Form -1 Defense drop
+ *          and forces opponent to throw fastest/cheapest charged attacks across s + 1 cycles), and
+ *      (b) Using Disguise first on the opponent's 1st fastest Charged Attack before using Protect Shields
+ *          (triggers Busted Form -1 Defense / +25% incoming fast & unshielded damage early while
+ *          allowing opponent to threaten heavier charged moves against remaining shields).
+ * 2. Aegislash (Stance Change: Shield Forme ⇄ Sword/Blade Forme):
+ *    - Models both the damage shift AND energy generation shift between Shield Forme (97 Atk / 291 Def:
+ *      1-damage fast moves with boosted 1.28x high energy generation) and Sword/Blade Forme (291 Atk / 97 Def:
+ *      2.85x Attack on Charged & Fast moves, 0.78x lower fast energy generation rate, and 0.34x Defense
+ *      until reverting to Shield Forme by spending a Protect Shield).
+ * 3. Morpeko (Hunger Switch + Aura Wheel):
+ *    - Alternating Electric/Dark STAB Aura Wheel cycles with guaranteed +1 Attack stage self-buff.
+ * 4. Cramorant (Gulp Missile: Gulping / Gorging Form):
+ *    - Surf loads Arrokuda (-1 Def stage on target) or Pikachu (-1 Atk stage on target) + 12.5% HP retaliation.
  */
 export function evaluateDiscreteShieldBattleRating(
   userInput: TeamMember | string,
@@ -4213,6 +4250,10 @@ export function evaluateDiscreteShieldBattleRating(
 ): number {
   const sUser = Math.max(0, Math.min(2, Math.round(userShields)));
   const sOpp = Math.max(0, Math.min(2, Math.round(oppShields)));
+  const normLg = (league || "GREAT LEAGUE").toUpperCase();
+  const cacheKey = `${normLg}||${buildCombatantCacheKey(userInput)}||${buildCombatantCacheKey(oppInput)}||${sUser}v${sOpp}`;
+  const cached = DISCRETE_SHIELD_BR_CACHE.get(cacheKey);
+  if (cached !== undefined) return cached;
 
   const userResolved = resolveCombatPokemonForEngine(userInput, league);
   const oppResolved = resolveCombatPokemonForEngine(oppInput, league);
@@ -4232,39 +4273,152 @@ export function evaluateDiscreteShieldBattleRating(
   const isUserCramorant = userSpeciesLower.includes("cramorant");
   const isOppCramorant = oppSpeciesLower.includes("cramorant");
 
-  const myChargedDamages = userResolved.chargedMoves.slice(0, 2).map(
-    (cm) => calculateChargedDamage(myStats, oppStats, cm, userResolved.isShadow, oppResolved.isShadow).percentage
-  );
-  const bestUserCharged = myChargedDamages.length ? Math.max(...myChargedDamages) : 45;
-  const minUserCharged = myChargedDamages.length ? Math.min(...myChargedDamages) : 35;
+  const userChargedEval = userResolved.chargedMoves.slice(0, 2).map((cm) => ({
+    pct: calculateChargedDamage(myStats, oppStats, cm, userResolved.isShadow, oppResolved.isShadow).percentage,
+    energy: Math.max(35, cm.energyCost || 50)
+  }));
+  const bestUserCharged = userChargedEval.length ? Math.max(...userChargedEval.map((c) => c.pct)) : 45;
+  const minUserCharged = userChargedEval.length ? Math.min(...userChargedEval.map((c) => c.pct)) : 35;
+  const fastestUserMove = userChargedEval.length
+    ? userChargedEval.reduce((prev, curr) => (curr.energy < prev.energy ? curr : prev), userChargedEval[0])
+    : { pct: minUserCharged, energy: 45 };
 
-  const oppChargedDamages = oppResolved.chargedMoves.slice(0, 2).map(
-    (cm) => calculateChargedDamage(oppStats, myStats, cm, oppResolved.isShadow, userResolved.isShadow).percentage
-  );
-  const bestOppCharged = oppChargedDamages.length ? Math.max(...oppChargedDamages) : 45;
-  const minOppCharged = oppChargedDamages.length ? Math.min(...oppChargedDamages) : 35;
+  const oppChargedEval = oppResolved.chargedMoves.slice(0, 2).map((cm) => ({
+    pct: calculateChargedDamage(oppStats, myStats, cm, oppResolved.isShadow, userResolved.isShadow).percentage,
+    energy: Math.max(35, cm.energyCost || 50)
+  }));
+  const bestOppCharged = oppChargedEval.length ? Math.max(...oppChargedEval.map((c) => c.pct)) : 45;
+  const minOppCharged = oppChargedEval.length ? Math.min(...oppChargedEval.map((c) => c.pct)) : 35;
+  const fastestOppMove = oppChargedEval.length
+    ? oppChargedEval.reduce((prev, curr) => (curr.energy < prev.energy ? curr : prev), oppChargedEval[0])
+    : { pct: minOppCharged, energy: 45 };
 
-  // Aegislash Shield Forme fast moves deal 1 damage while generating high energy
   const rawUserFastEff = getTypeMultiplier(userResolved.fastMove.type, oppStats.types);
   const rawOppFastEff = getTypeMultiplier(oppResolved.fastMove.type, myStats.types);
-  const userFastEff = isUserAegislash ? rawUserFastEff * 0.22 : rawUserFastEff;
-  const oppFastEff = isOppAegislash ? rawOppFastEff * 0.22 : rawOppFastEff;
+
+  // Aegislash Stance Change:
+  // - Shield Forme (97 Atk / 291 Def): Fast moves deal 1 HP (0.22x fast damage) but generate boosted high energy (1.28x EPT).
+  // - Sword/Blade Forme (291 Atk / 97 Def): Fast moves deal full 291 Atk damage (1.05x fast damage) but energy generation
+  //   drops (0.78x EPT relative to Shield Forme) until Aegislash spends a Protect Shield to revert to Shield Forme.
+  const getAegislashFastDmgMult = (shields: number): number => {
+    if (shields === 2) return 0.32; // Mostly Shield Forme (reverts twice via shields)
+    if (shields === 1) return 0.50; // Blended Shield -> Sword Forme after 1 shield
+    return 0.86; // 0 shields: stays in Sword Forme after 1st Charged Move (high fast dmg, low bulk)
+  };
+  const getAegislashEnergyGenMult = (shields: number): number => {
+    if (shields === 2) return 1.24; // High Shield Forme energy generation sustained across 2 shield reversions
+    if (shields === 1) return 1.12; // Boosted Shield Forme energy early, lower Sword Forme energy after shield spent
+    return 0.88; // 0 shields: loses Shield Forme energy bonus after 1st Charged Attack
+  };
+
+  const userFastEff = isUserAegislash ? rawUserFastEff * getAegislashFastDmgMult(sUser) : rawUserFastEff;
+  const oppFastEff = isOppAegislash ? rawOppFastEff * getAegislashFastDmgMult(sOpp) : rawOppFastEff;
+
+  const userEnergyMult = isUserAegislash ? getAegislashEnergyGenMult(sUser) : 1.0;
+  const oppEnergyMult = isOppAegislash ? getAegislashEnergyGenMult(sOpp) : 1.0;
 
   const shadowBulkDelta = (userResolved.isShadow ? -12 : 0) + (oppResolved.isShadow ? 12 : 0);
 
-  const chargedPressure = (bestPct: number, minPct: number, defShields: number): number => {
+  const standardChargedPressure = (bestPct: number, minPct: number, defShields: number): number => {
     if (defShields <= 0) return bestPct * 1.7;
     if (defShields === 1) return ((bestPct + minPct) * 0.5) * 1.4;
     if (defShields === 2) return minPct * 1.0;
     return minPct * 0.65;
   };
 
-  // Mimikyu Disguise absorbs the first unshielded Charged Attack like an extra free shield
-  const effectiveOppShieldsForCharged = sOpp + (isOppMimikyu ? 1 : 0);
-  const effectiveUserShieldsForCharged = sUser + (isUserMimikyu ? 1 : 0);
+  /**
+   * Mimikyu Incoming Pressure & Disguise Shield-Ordering Model:
+   * Until Mimikyu's Disguise is busted, the attacker ALWAYS throws their fastest (lowest-energy) Charged Move
+   * knowing it must be blocked by a Protect Shield or Disguise.
+   * Computes the average of:
+   * - Strategy A (Use all Protect Shields BEFORE Disguise):
+   *   Attacker throws fastest move for all (s + 1) blocks (s shields + 1 Disguise). Mimikyu stays in Disguise Forme
+   *   (no -1 Def drop) throughout all s shields, only entering Busted Form (-1 Def) after s + 1 blocks.
+   * - Strategy B (Use Disguise FIRST before Protect Shields):
+   *   Attacker's 1st fastest Charged Move busts Disguise immediately (0 HP damage, but triggers Busted Form -1 Def
+   *   stage drop / +25% incoming damage for the rest of the match). With Disguise now busted, attacker threatens
+   *   full best/bait mix against Mimikyu's remaining s shields, and unshielded hits deal 1.25x Busted Form damage.
+   */
+  const computeMimikyuIncomingEvaluation = (
+    attackerBestPct: number,
+    attackerMinPct: number,
+    attackerFastestPct: number,
+    attackerFastestEnergy: number,
+    attackerFastEff: number,
+    mimikyuShields: number
+  ): { avgIncomingChargedPressure: number; avgMimikyuNetBonus: number } => {
+    // Faster energy pacing factor when attacker spams their lowest-energy Charged Attack to strip shields/Disguise
+    const fastestPaceFactor = Math.min(1.25, Math.max(0.95, 48.0 / Math.max(35, attackerFastestEnergy)));
+    const totalBlocks = mimikyuShields + 1; // s shields + 1 Disguise
 
-  const userChargedImpact = chargedPressure(bestUserCharged, minUserCharged, effectiveOppShieldsForCharged);
-  const oppChargedImpact = chargedPressure(bestOppCharged, minOppCharged, effectiveUserShieldsForCharged);
+    // Strategy A: All s shields used first, then Disguise used on move #(s+1)
+    // Attacker is forced to throw fastest/cheapest move for all (s+1) cycles because Disguise is still intact!
+    const residualUnblockedAfterA =
+      totalBlocks === 1
+        ? (attackerBestPct * 0.65 + attackerFastestPct * 0.35) * 1.12
+        : totalBlocks === 2
+        ? attackerFastestPct * 0.85 * fastestPaceFactor
+        : attackerFastestPct * 0.58 * fastestPaceFactor;
+    // Busted Form (-1 Def) is delayed until after all shields AND Disguise are exhausted
+    const lateBustedDefPenaltyA =
+      (mimikyuShields === 0 ? 14 : mimikyuShields === 1 ? 7 : 3) * (0.85 + 0.3 * attackerFastEff);
+    const disguiseSavedValueA = attackerFastestPct * 0.42 + (mimikyuShields === 0 ? 24 : 16);
+    const netBonusA = disguiseSavedValueA - lateBustedDefPenaltyA;
+
+    // Strategy B: Disguise used FIRST on move #1 (attacker throws fastest move to bust Disguise),
+    // then Mimikyu uses s shields while already in Busted Form (-1 Def = 1.25x incoming damage)
+    const postDisguisePressureB =
+      mimikyuShields === 0
+        ? attackerBestPct * 1.22 // Busted Form 1.25x Def drop on subsequent unshielded charged move
+        : mimikyuShields === 1
+        ? ((attackerBestPct + attackerMinPct) * 0.5) * 1.02 * 1.15
+        : attackerMinPct * 0.72 * 1.15;
+    // Early Busted Form (-1 Def) increases incoming fast-move damage across the entire match
+    const earlyBustedDefPenaltyB =
+      (mimikyuShields === 0 ? 14 : mimikyuShields === 1 ? 19 : 23) * (0.85 + 0.35 * attackerFastEff);
+    const disguiseSavedValueB = attackerFastestPct * 0.38 + (mimikyuShields === 0 ? 24 : 14);
+    const netBonusB = disguiseSavedValueB - earlyBustedDefPenaltyB;
+
+    return {
+      avgIncomingChargedPressure: 0.5 * (residualUnblockedAfterA + postDisguisePressureB),
+      avgMimikyuNetBonus: 0.5 * (netBonusA + netBonusB)
+    };
+  };
+
+  let userChargedImpact: number;
+  let oppMimikyuBonus = 0;
+  if (isOppMimikyu) {
+    const evalOppMimi = computeMimikyuIncomingEvaluation(
+      bestUserCharged,
+      minUserCharged,
+      fastestUserMove.pct,
+      fastestUserMove.energy,
+      userFastEff,
+      sOpp
+    );
+    userChargedImpact = evalOppMimi.avgIncomingChargedPressure * userEnergyMult;
+    oppMimikyuBonus = evalOppMimi.avgMimikyuNetBonus;
+  } else {
+    userChargedImpact = standardChargedPressure(bestUserCharged, minUserCharged, sOpp) * userEnergyMult;
+  }
+
+  let oppChargedImpact: number;
+  let userMimikyuBonus = 0;
+  if (isUserMimikyu) {
+    const evalUserMimi = computeMimikyuIncomingEvaluation(
+      bestOppCharged,
+      minOppCharged,
+      fastestOppMove.pct,
+      fastestOppMove.energy,
+      oppFastEff,
+      sUser
+    );
+    oppChargedImpact = evalUserMimi.avgIncomingChargedPressure * oppEnergyMult;
+    userMimikyuBonus = evalUserMimi.avgMimikyuNetBonus;
+  } else {
+    oppChargedImpact = standardChargedPressure(bestOppCharged, minOppCharged, sUser) * oppEnergyMult;
+  }
+
   const chargedDelta = 2.0 * (userChargedImpact - oppChargedImpact);
 
   const avgShields = (sUser + sOpp) * 0.5;
@@ -4279,24 +4433,19 @@ export function evaluateDiscreteShieldBattleRating(
     shieldDiff * (85 + 0.65 * ((bestOppCharged + bestUserCharged) * 0.5));
 
   // Special form-changing & ability PvP mechanics delta (Morpeko, Mimikyu, Aegislash, Cramorant)
-  let specialMechanicsDelta = 0;
+  let specialMechanicsDelta = userMimikyuBonus - oppMimikyuBonus;
   if (isUserMorpeko) {
     specialMechanicsDelta += 14 + sOpp * 6;
   }
   if (isOppMorpeko) {
     specialMechanicsDelta -= 14 + sUser * 6;
   }
-  if (isUserMimikyu) {
-    specialMechanicsDelta += (sUser === 0 ? 22 : 12) - 8;
-  }
-  if (isOppMimikyu) {
-    specialMechanicsDelta -= (sOpp === 0 ? 22 : 12) - 8;
-  }
   if (isUserAegislash) {
-    specialMechanicsDelta += sUser > 0 ? 18 + sUser * 8 : -16;
+    // Shield Forme (291 Def + high energy gen) vs Sword/Blade Forme (97 Def + lower energy gen when unshielded)
+    specialMechanicsDelta += sUser === 2 ? 28 : sUser === 1 ? 12 : -26;
   }
   if (isOppAegislash) {
-    specialMechanicsDelta -= sOpp > 0 ? 18 + sOpp * 8 : -16;
+    specialMechanicsDelta -= sOpp === 2 ? 28 : sOpp === 1 ? 12 : -26;
   }
   if (isUserCramorant) {
     // Gulp Missile: Surf loads Arrokuda (-1 Def stage on opponent) or Pikachu (-1 Atk stage on opponent) + retaliation damage
@@ -4310,7 +4459,12 @@ export function evaluateDiscreteShieldBattleRating(
     500 + chargedDelta + fastDelta + effectiveShadowDelta + shieldAdvantageDelta + specialMechanicsDelta
   );
 
-  return Math.max(150, Math.min(850, rawRating));
+  const finalRating = Math.max(150, Math.min(850, rawRating));
+  if (DISCRETE_SHIELD_BR_CACHE.size > 40000) {
+    DISCRETE_SHIELD_BR_CACHE.clear();
+  }
+  DISCRETE_SHIELD_BR_CACHE.set(cacheKey, finalRating);
+  return finalRating;
 }
 
 export interface PositionWeightedMatchupRatings {
@@ -4330,6 +4484,11 @@ export function evaluatePositionWeightedBr(
   oppInput: TeamMember | string,
   league: string = "GREAT LEAGUE"
 ): PositionWeightedMatchupRatings {
+  const normLg = (league || "GREAT LEAGUE").toUpperCase();
+  const pwKey = `${normLg}||${buildCombatantCacheKey(userInput)}||${buildCombatantCacheKey(oppInput)}`;
+  const cached = POSITION_WEIGHTED_BR_CACHE.get(pwKey);
+  if (cached) return cached;
+
   const r0v0 = evaluateDiscreteShieldBattleRating(userInput, oppInput, 0, 0, league);
   const r0v1 = evaluateDiscreteShieldBattleRating(userInput, oppInput, 0, 1, league);
   const r1v0 = evaluateDiscreteShieldBattleRating(userInput, oppInput, 1, 0, league);
@@ -4358,7 +4517,12 @@ export function evaluatePositionWeightedBr(
     0.15 * r0v1 +
     0.15 * r1v1;
 
-  return { leadBr, swapBr, closerBr };
+  const res = { leadBr, swapBr, closerBr };
+  if (POSITION_WEIGHTED_BR_CACHE.size > 40000) {
+    POSITION_WEIGHTED_BR_CACHE.clear();
+  }
+  POSITION_WEIGHTED_BR_CACHE.set(pwKey, res);
+  return res;
 }
 
 export interface BlendedSeasonMetaDistribution {
@@ -4370,7 +4534,7 @@ export interface BlendedSeasonMetaDistribution {
   fieldProbabilities: Map<string, number>;
 }
 
-function getLeagueTopMetaSpeciesNames(league: string, maxCount: number = 24): string[] {
+export function getLeagueTopMetaSpeciesNames(league: string, maxCount: number = 100): string[] {
   const upper = (league || "GREAT LEAGUE").toUpperCase();
   const normLeague = upper.includes("MEGA")
     ? "MEGA MASTER LEAGUE"
@@ -4380,12 +4544,21 @@ function getLeagueTopMetaSpeciesNames(league: string, maxCount: number = 24): st
     ? "ULTRA LEAGUE"
     : "MASTER LEAGUE";
 
+  const names: string[] = [];
+  const seen = new Set<string>();
+  const addUniqueName = (rawName: string) => {
+    if (!rawName || names.length >= maxCount) return;
+    const key = rawName.trim().toLowerCase();
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    names.push(rawName.trim());
+  };
+
   const liveMap = LIVE_RANKINGS_MAP[normLeague];
   if (liveMap && liveMap.size > 0) {
     const sortedEntries = Array.from(liveMap.values()).sort((a, b) => b.score - a.score);
-    const names: string[] = [];
-    const seen = new Set<string>();
     for (const entry of sortedEntries) {
+      if (names.length >= maxCount) break;
       const sid = entry.speciesId.toLowerCase();
       const matchedMon = Object.values(POKEMON_DATABASE).find(
         (p) => p.speciesId.toLowerCase() === sid
@@ -4404,47 +4577,113 @@ function getLeagueTopMetaSpeciesNames(league: string, maxCount: number = 24): st
         }
       }
       if (displayName) {
-        const key = displayName.toLowerCase();
-        if (!seen.has(key)) {
-          seen.add(key);
-          names.push(displayName);
-          if (names.length >= maxCount) break;
-        }
+        addUniqueName(displayName);
       }
     }
-    if (names.length >= 6) return names;
   }
 
-  // Fallback curated meta pool per league
-  if (normLeague === "GREAT LEAGUE") {
-    return [
-      "Clodsire", "Feraligatr", "Mandibuzz", "Azumarill", "Annihilape",
-      "Gastrodon", "Gatr (Shadow)", "Jumpluff", "Dunsparce", "Drapion",
-      "Talonflame", "Wigglytuff", "Lickilicky", "Toxapex", "Malamar",
-      "Corsola (Galarian)", "Primeape", "Serperior", "Dewgong", "feraligatr"
-    ].filter((v, idx, arr) => arr.findIndex((x) => x.toLowerCase() === v.toLowerCase()) === idx);
+  // Fallback / supplement curated meta pool per league up to maxCount (100 for battle rankings)
+  const curatedSeeds =
+    normLeague === "GREAT LEAGUE"
+      ? [
+          "Clodsire", "Feraligatr", "Mandibuzz", "Azumarill", "Annihilape",
+          "Gastrodon", "Shadow Feraligatr", "Jumpluff", "Dunsparce", "Drapion",
+          "Talonflame", "Wigglytuff", "Lickilicky", "Toxapex", "Malamar",
+          "Corsola (Galarian)", "Primeape", "Serperior", "Dewgong", "Morpeko",
+          "Mimikyu", "Aegislash", "Cramorant", "Corviknight", "Sableye",
+          "Medicham", "Bastiodon", "Carbink", "Skarmory", "Lanturn",
+          "Whiscash", "Swampert", "Quagsire", "Gligar", "Altaria",
+          "Guzzlord", "Goodra", "Dragonair", "Cresselia", "Registeel",
+          "Umbreon", "Pelipper", "Mantine", "Jellicent", "Trevenant",
+          "Skeledirge", "Charjabug", "Galvantula", "Togedemaru", "Magnezone",
+          "Venusaur", "Shadow Venusaur", "Victreebel", "Shadow Victreebel", "Abomasnow",
+          "Sandslash (Alolan)", "Ninetales (Alolan)", "Froslass", "Walrein", "Lapras",
+          "Poliwrath", "Machamp", "Shadow Machamp", "Scrafty", "Obstagoon",
+          "Vigoroth", "Dubwool", "Greedent", "Diggersby", "Pidgeot",
+          "Noctowl", "Golbat", "Crobat", "Nidoqueen", "Toxicroak",
+          "ariados", "Forretress", "Wormadam (Trash)", "Escavalier", "Ferrothorn",
+          "Stunfisk (Galarian)", "Stunfisk", "Steelix", "Marowak (Alolan)", "Drifblim",
+          "Haunter", "Gengar", "Sneasler", "granbull", "Clefable",
+          "Sylveon", "Florges", "Aromatisse", "Slurpuff", "Tinkaton",
+          "Zweilous", "Hakamo-o", "Kommo-o", "Arctibax", "Baxcalibur"
+        ]
+      : normLeague === "ULTRA LEAGUE"
+      ? [
+          "Zygarde", "Feraligatr", "Giratina (Altered)", "Cresselia", "Talonflame",
+          "Clefable", "Drapion", "Tentacruel", "Poliwrath", "Skeledirge",
+          "Annihilape", "Lickilicky", "Virizion", "Cobalion", "Registeel",
+          "Tapu Fini", "Swampert", "Mandibuzz", "Shadow Feraligatr", "Greedent",
+          "Pidgeot", "Jellicent", "Trevenant", "Walrein", "Ninetales (Alolan)",
+          "Sandslash (Alolan)", "Obstagoon", "Scrafty", "Umbreon", "Guzzlord",
+          "Dragonite", "Shadow Dragonite", "Goodra", "Kommo-o", "Baxcalibur",
+          "Ampharos", "Bellibolt", "Regirock", "Steelix", "Gliscor",
+          "Gastrodon", "Quagsire", "Clodsire", "Toxicroak", "Muk (Alolan)",
+          "Weezing (Galarian)", "Nidoqueen", "Venusaur", "Serperior", "Decidueye",
+          "Abomasnow", "Lapras", "Empoleon", "Greninja", "Primarina",
+          "Samurott", "Blastoise", "Gyarados", "Charizard", "Typhlosion",
+          "Incinerate Talonflame", "Ho-Oh", "Moltres (Galarian)", "Zapdos (Galarian)", "Articuno",
+          "Lugia", "Deoxys (Defense)", "Armored Mewtwo", "Necrozma (Dusk Mane)", "Necrozma (Dawn Wings)",
+          "Solgaleo", "Lunala", "Corviknight", "Skarmory", "Forretress",
+          "Escavalier", "Scizor", "Genesect", "Lucario", "Machamp",
+          "Hariyama", "Conkeldurr", "Pangoro", "Malamar", "Drifblim",
+          "Gengar", "Chandelure", "Aegislash", "Mimikyu", "Morpeko",
+          "Cramorant", "Togekiss", "Sylveon", "Florges", "Grimmsnarl",
+          "Snorlax", "Shadow Snorlax", "Dubwool", "Oranguru", "Bewear"
+        ]
+      : normLeague === "MEGA MASTER LEAGUE"
+      ? [
+          "Mega Rayquaza", "Primal Groudon", "Primal Kyogre", "Zacian (Crowned)",
+          "Palkia (Origin)", "Dialga (Origin)", "Necrozma (Dusk Mane)", "Necrozma (Dawn Wings)",
+          "Mewtwo", "Ho-Oh", "Zygarde", "Xerneas", "Yveltal", "Landorus (Therian)",
+          "Mega Gyarados", "Mega Garchomp", "Mega Metagross", "Mega Tyranitar",
+          "Mega Gardevoir", "Mega Swampert", "Mega Charizard Y", "Mega Charizard X",
+          "Mega Blaziken", "Mega Salamence", "Mega Latios", "Mega Latias",
+          "Mega Scizor", "Mega Lucario", "MegaHeracross", "Mega Aggron",
+          "Kyurem (Black)", "Kyurem (White)", "Solgaleo", "Lunala",
+          "Rhyperior", "Groudon", "Kyogre", "Dialga", "Palkia",
+          "Giratina (Origin)", "Giratina (Altered)", "Zamazenta (Crowned)", "Lugia", "Rayquaza",
+          "Reshiram", "Zekrom", "Marshadow", "Zarude", "Meloetta (Aria)",
+          "Enamorus (Incarnate)", "Florges", "Primarina", "Togekiss", "Dragonite",
+          "Garchomp", "Baxcalibur", "Mamoswine", "Excadrill", "Metagross"
+        ]
+      : [
+          "Palkia (Origin)", "Zacian (Crowned)", "Dialga (Origin)", "Necrozma (Dusk Mane)",
+          "Necrozma (Dawn Wings)", "Ho-Oh", "Landorus (Therian)", "Zygarde",
+          "Rhyperior", "Xerneas", "Yveltal", "Kyogre", "Groudon", "Mewtwo",
+          "Solgaleo", "Meloetta (Aria)", "Florges", "Dragonite", "Zamazenta (Crowned)",
+          "Kyurem (Black)", "Kyurem (White)", "Giratina (Origin)", "Giratina (Altered)", "Dialga",
+          "Palkia", "Lugia", "Rayquaza", "Reshiram", "Zekrom", "Lunala",
+          "Marshadow", "Zarude", "Keldeo", "Urshifu (Single Strike)", "Urshifu (Rapid Strike)",
+          "Calyrex (Shadow Rider)", "Calyrex (Ice Rider)", "Enamorus (Incarnate)", "Tapu Bulu", "Tapu Lele",
+          "Tapu Fini", "Tapu Koko", "Primarina", "Togekiss", "Sylveon",
+          "Garchomp", "Baxcalibur", "Goodra", "Kommo-o", "Hydreigon",
+          "Tyranitar", "Metagross", "Excadrill", "Melmetal", "Gholdengo",
+          "Corviknight", "Heatran", "Nihilego", "Kartana", "Xurkitree",
+          "Buzzwole", "Pheromosa", "Guzzlord", "Celesteela", "Mamoswine",
+          "Avalugg (Hisuian)", "Avalugg", "Cetitan", "Ursaluna", "Snorlax",
+          "Gyarados", "Swampert", "Feraligatr", "Annihilape", "Conkeldurr",
+          "Machamp", "Lucario", "Terrakion", "Virizion", "Cobalion",
+          "Genesect", "Volcarona", "Chandelure", "Gengar", "Aegislash",
+          "Mimikyu", "Moltres (Galarian)", "Zapdos (Galarian)", "Articuno (Galarian)", "Landorus (Incarnate)"
+        ];
+
+  for (const s of curatedSeeds) {
+    if (names.length >= maxCount) break;
+    const dbMatch =
+      POKEMON_DATABASE[s] ||
+      Object.values(POKEMON_DATABASE).find((p) => p.name.toLowerCase() === s.toLowerCase());
+    addUniqueName(dbMatch ? dbMatch.name : s);
   }
-  if (normLeague === "ULTRA LEAGUE") {
-    return [
-      "Zygarde", "Feraligatr", "Giratina (Altered)", "Cresselia", "Talonflame",
-      "Clefable", "Drapion", "Tentacruel", "Poliwrath", "Skeledirge",
-      "Annihilape", "Lickilicky", "Virizion", "Cobalion", "Registeel",
-      "Tapu Fini", "Swampert", "Mandibuzz"
-    ];
+
+  if (names.length < maxCount) {
+    for (const mon of Object.values(POKEMON_DATABASE)) {
+      if (names.length >= maxCount) break;
+      if (normLeague !== "MEGA MASTER LEAGUE" && /^Mega\s+|^Primal\s+/i.test(mon.name)) continue;
+      addUniqueName(mon.name);
+    }
   }
-  if (normLeague === "MEGA MASTER LEAGUE") {
-    return [
-      "Mega Rayquaza", "Primal Groudon", "Primal Kyogre", "Zacian (Crowned)",
-      "Palkia (Origin)", "Dialga (Origin)", "Necrozma (Dusk Mane)", "Necrozma (Dawn Wings)",
-      "Mewtwo", "Ho-Oh", "Zygarde", "Xerneas", "Yveltal", "Landorus (Therian)"
-    ];
-  }
-  return [
-    "Palkia (Origin)", "Zacian (Crowned)", "Dialga (Origin)", "Necrozma (Dusk Mane)",
-    "Necrozma (Dawn Wings)", "Ho-Oh", "Landorus (Therian)", "Zygarde",
-    "Rhyperior", "Xerneas", "Yveltal", "Kyogre", "Groudon", "Mewtwo",
-    "Solgaleo", "Meloetta (Aria)", "Florges", "Dragonite"
-  ];
+
+  return names.slice(0, maxCount);
 }
 
 function canonicalizeMetaPokemonName(rawName: string): string {
@@ -4472,9 +4711,9 @@ function canonicalizeMetaPokemonName(rawName: string): string {
 /**
  * Computes the Blended Opponent Distribution P_lead(p) and P_field(p)
  * bound strictly to the current season's battle logs for the specified league,
- * using:
+ * using a Meta Depth of 100 Pokémon for evaluating Battle Rankings:
  * 1. Linear Confidence Ramp (0..50 matches): w_hist = 0.70 * min(1, N / 50), w_meta = 1 - w_hist
- * 2. PvPoke Meta Prior P_meta(p) with rank exponential decay W_meta(r) = exp(-0.05 * (r - 1))
+ * 2. PvPoke Top-100 Meta Prior P_meta(p) with rank exponential decay W_meta(r) = exp(-0.05 * (r - 1))
  * 3. Battle Log Recency Decay P_hist_lead(p) & P_hist_field(p) with newest-first match index k = 1..N
  *    weighted by the identical exponential decay W_hist(k) = exp(-0.05 * (k - 1)).
  */
@@ -4492,7 +4731,8 @@ export function computeBlendedSeasonMeta(
     ? "ULTRA LEAGUE"
     : "MASTER LEAGUE";
 
-  const metaSpecies = getLeagueTopMetaSpeciesNames(normLeague, 24);
+  // Meta depth of 100 for evaluating team and role battle rankings
+  const metaSpecies = getLeagueTopMetaSpeciesNames(normLeague, 100);
   const pMeta = new Map<string, number>();
   let totalMetaWeight = 0;
   metaSpecies.forEach((monName, idx) => {
@@ -4881,7 +5121,7 @@ export function evaluateOrAutoOrderTeam(
   const closerSwapBr = orderedEvals[2].swapBr;
   const closerBr = orderedEvals[2].closerBr;
 
-  // Compute Machine Aggregate BR using position-weighted ratings across the blended field distribution:
+  // Compute Core Coverage BR (Core BR) using position-weighted ratings across the Top-100 blended field distribution:
   // sum_{p in Meta} P_field(p) * max(BR_Lead(U1, p), BR_Swap(U2, p), BR_Closer(U3, p))
   let machineAggSum = 0;
   for (const [oppName, prob] of blendedMeta.fieldProbabilities.entries()) {
@@ -4919,9 +5159,9 @@ export function evaluateOrAutoOrderTeam(
   const reasonSummary =
     resolvedArchetype === "ABB"
       ? detectedSharedWeaknesses.length > 0
-        ? `ABB Backline shares ${detectedSharedWeaknesses.map((t) => t.toUpperCase()).join("/")} weakness covered by ${orderedPokemon[0].name} lead. ${orderedPokemon[1].name} placed in Slot 2 as Bait Swap (Swap BR ${safeSwapBr}).`
-        : `ABB Lineup: ${orderedPokemon[0].name} (Lead A) covers ${orderedPokemon[1].name} (Bait B1, Swap BR ${safeSwapBr}) & ${orderedPokemon[2].name} (Sweeper B2, Swap BR ${closerSwapBr}).`
-      : `ABC Balanced Core: ${orderedPokemon[0].name} Lead (Lead BR ${leadAggBr}), ${orderedPokemon[1].name} selected as Slot 2 Safe Swap (Swap BR ${safeSwapBr} vs ${closerSwapBr}).`;
+        ? `ABB Backline shares ${detectedSharedWeaknesses.map((t) => t.toUpperCase()).join("/")} weakness covered by ${orderedPokemon[0].name} lead. ${orderedPokemon[1].name} placed in Slot 2 as Bait Swap (Swap BR ${safeSwapBr}) • Core BR ${machineAggBr}.`
+        : `ABB Lineup: ${orderedPokemon[0].name} (Lead A) covers ${orderedPokemon[1].name} (Bait B1, Swap BR ${safeSwapBr}) & ${orderedPokemon[2].name} (Sweeper B2, Swap BR ${closerSwapBr}) • Core BR ${machineAggBr}.`
+      : `ABC Balanced Core: ${orderedPokemon[0].name} Lead (Lead BR ${leadAggBr}), ${orderedPokemon[1].name} selected as Slot 2 Safe Swap (Swap BR ${safeSwapBr} vs ${closerSwapBr}) • Core BR ${machineAggBr}.`;
 
   return {
     orderedPokemon,
@@ -4988,8 +5228,8 @@ export function evaluateTeamPresetMetrics(
 }
 
 /**
- * Recalculates Lead Agg BR, Machine Agg BR, Safe Swap BR, Closer Swap BR, and Archetype
- * across all saved team presets using the latest current-season battle logs and PvPoke rankings.
+ * Recalculates Lead Agg BR, Core Coverage BR (Core BR), Safe Swap BR, Closer Swap BR, and Archetype
+ * across all saved team presets using the latest current-season battle logs and PvPoke Top-100 rankings.
  */
 export function recalculateAllPresetsMetrics(
   presets: TeamPreset[],
@@ -5043,11 +5283,13 @@ export interface RoleUpgradeSuggestion {
   candidate: TeamMember;
   newMachineBr: number;
   deltaMachineBr: number;
+  deltaMachBr: number;
   newRoleBr: number;
   deltaRoleBr: number;
   compositeUpgradeScore: number;
   newArchetype: "ABB" | "ABC";
   synergyNote: string;
+  summaryBadge: string;
 }
 
 export interface TeamRoleRecommendationsResult {
@@ -5055,7 +5297,14 @@ export interface TeamRoleRecommendationsResult {
   leadUpgrades: RoleUpgradeSuggestion[];
   safeSwapUpgrades: RoleUpgradeSuggestion[];
   closerUpgrades: RoleUpgradeSuggestion[];
+  slot1LeadUpgrades: RoleUpgradeSuggestion[];
+  slot2SafeSwapUpgrades: RoleUpgradeSuggestion[];
+  slot3CloserUpgrades: RoleUpgradeSuggestion[];
   candidatePoolSize: number;
+  candidatesEvaluated: number;
+  currentLeadBr: number;
+  currentSafeSwapBr: number;
+  currentCloserBr: number;
 }
 
 function isShadowEligibleForTop100(name: string, baseSpecies: string): boolean {
@@ -5074,7 +5323,11 @@ function isShadowEligibleForTop100(name: string, baseSpecies: string): boolean {
   return !nonShadowBases.has(baseLower);
 }
 
-export function getTop100MetaCandidatesForLeague(league: string, maxCount: number = 100): TeamMember[] {
+/**
+ * Returns up to `maxCount` (default 200) Top Meta candidate Pokémon for the selected league,
+ * including eligible Shadow variants, for simulating role upgrades.
+ */
+export function getTop100MetaCandidatesForLeague(league: string, maxCount: number = 200): TeamMember[] {
   const upper = (league || "GREAT LEAGUE").toUpperCase();
   const normLeague = upper.includes("MEGA")
     ? "MEGA MASTER LEAGUE"
@@ -5108,7 +5361,7 @@ export function getTop100MetaCandidatesForLeague(league: string, maxCount: numbe
     });
   };
 
-  // 1. Live PvPoke Top-100 Rankings for the league (includes both normal and Shadow entries in Top 100)
+  // 1. Live PvPoke Top-200 Rankings for the league (includes both normal and Shadow entries)
   const liveMap = LIVE_RANKINGS_MAP[normLeague];
   if (liveMap && liveMap.size > 0) {
     const sorted = Array.from(liveMap.values()).sort((a, b) => b.score - a.score);
@@ -5130,7 +5383,7 @@ export function getTop100MetaCandidatesForLeague(league: string, maxCount: numbe
     }
   }
 
-  // 2. Fallback curated league meta + POKEMON_DATABASE species + eligible Shadow variants up to 100
+  // 2. Fallback curated league meta + POKEMON_DATABASE species + eligible Shadow variants up to maxCount (200)
   if (results.length < maxCount) {
     for (const name of getLeagueTopMetaSpeciesNames(normLeague, maxCount)) {
       tryAddCandidate(name);
@@ -5147,7 +5400,7 @@ export function getTop100MetaCandidatesForLeague(league: string, maxCount: numbe
       if (results.length >= maxCount) break;
       const cap = normLeague === "GREAT LEAGUE" ? 1500 : normLeague === "ULTRA LEAGUE" ? 2500 : 10000;
       const scaled = computeEffectiveStatsForLeague(mon, normLeague);
-      if (cap >= 9000 && scaled.resolvedCp < 2900) continue;
+      if (cap >= 9000 && scaled.resolvedCp < 2600) continue;
       tryAddCandidate(mon.name);
       const baseSp = extractBaseSpeciesKey(mon.name, mon.speciesId, mon.baseSpecies);
       if (isShadowEligibleForTop100(mon.name, baseSp)) {
@@ -5160,19 +5413,36 @@ export function getTop100MetaCandidatesForLeague(league: string, maxCount: numbe
 }
 
 /**
- * Simulates the Top 100 Meta Pokémon for the selected league across each of the 3 team roles
- * (Lead, Safe Swap, Closer), enforcing the GBL Species Clause and including Shadow variants,
- * and returns the Top 3 recommended upgrades for each role ranked by Full Team Synergy + Role Rating Delta.
+ * Simulates the Top 200 Meta Pokémon for the selected league against the Top 100 Blended Meta
+ * across each of the 3 team roles (Lead, Safe Swap, Closer), enforcing the GBL Species Clause
+ * and including Shadow variants, and returns the Top 5 recommended upgrades for each role
+ * ranked by Full Team Synergy (Core BR Delta) + Role Rating Delta.
  */
 export function recommendTop3UpgradesPerRole(
   members: TeamMember[],
   league: string,
-  options?: {
-    manualArchetypeOverride?: "ABB" | "ABC";
-    seasonBattleLogs?: Array<{ timestampMs: number; league: string; opponents: string[] }>;
-    currentSeason?: { startMs: number; endMs: number };
-  }
+  optionsOrLogs?:
+    | {
+        manualArchetypeOverride?: "ABB" | "ABC";
+        seasonBattleLogs?: Array<{ timestampMs: number; league: string; opponents: string[] }>;
+        currentSeason?: { startMs: number; endMs: number };
+      }
+    | Array<{ timestampMs: number; league: string; opponents: string[] }>,
+  seasonStartMs?: number,
+  seasonEndMs?: number,
+  manualArchetypeOverrideArg?: "ABB" | "ABC"
 ): TeamRoleRecommendationsResult {
+  const options = Array.isArray(optionsOrLogs)
+    ? {
+        seasonBattleLogs: optionsOrLogs,
+        currentSeason:
+          typeof seasonStartMs === "number" && typeof seasonEndMs === "number"
+            ? { startMs: seasonStartMs, endMs: seasonEndMs }
+            : undefined,
+        manualArchetypeOverride: manualArchetypeOverrideArg
+      }
+    : optionsOrLogs;
+
   const blendedMeta = computeBlendedSeasonMeta(league, options?.seasonBattleLogs, options?.currentSeason);
   const safeSlots = (members || []).slice(0, 3);
   const baselineEval = evaluateOrAutoOrderTeam(safeSlots, league, {
@@ -5187,22 +5457,37 @@ export function recommendTop3UpgradesPerRole(
       leadUpgrades: [],
       safeSwapUpgrades: [],
       closerUpgrades: [],
-      candidatePoolSize: 0
+      slot1LeadUpgrades: [],
+      slot2SafeSwapUpgrades: [],
+      slot3CloserUpgrades: [],
+      candidatePoolSize: 0,
+      candidatesEvaluated: 0,
+      currentLeadBr: baselineEval.leadAggBr,
+      currentSafeSwapBr: baselineEval.safeSwapBr,
+      currentCloserBr: baselineEval.closerBr
     };
   }
 
-  const candidates = getTop100MetaCandidatesForLeague(league, 100);
+  // Depth of 200 candidates for simulating better options for the team
+  const candidates = getTop100MetaCandidatesForLeague(league, 200);
   if (candidates.length === 0) {
     return {
       baselineEval,
       leadUpgrades: [],
       safeSwapUpgrades: [],
       closerUpgrades: [],
-      candidatePoolSize: 0
+      slot1LeadUpgrades: [],
+      slot2SafeSwapUpgrades: [],
+      slot3CloserUpgrades: [],
+      candidatePoolSize: 0,
+      candidatesEvaluated: 0,
+      currentLeadBr: baselineEval.leadAggBr,
+      currentSafeSwapBr: baselineEval.safeSwapBr,
+      currentCloserBr: baselineEval.closerBr
     };
   }
 
-  // Precompute single-slot metrics and position-weighted BR against the field for all Top-100 candidates + current 3 slots
+  // Precompute single-slot metrics and position-weighted BR against the Top-100 field for all Top-200 candidates + current 3 slots
   const singleMetricsCache = new Map<string, SlotEvaluatedMetrics>();
   const pwMatrixCache = new Map<string, Map<string, PositionWeightedMatchupRatings>>();
 
@@ -5267,6 +5552,9 @@ export function recommendTop3UpgradesPerRole(
         : baselineEval.archetype === "ABB"
         ? "Sweeper B2"
         : "Closer";
+
+    const roleMetricShort =
+      roleIndex === 0 ? "Lead" : roleIndex === 1 ? "Swap" : "Close";
 
     const scoredList: RoleUpgradeSuggestion[] = [];
 
@@ -5357,6 +5645,10 @@ export function recommendTop3UpgradesPerRole(
             : `Superior 0-shield Closer sweep rating`;
       }
 
+      const fmtCoreDelta = deltaMachineBr >= 0 ? `+${deltaMachineBr}` : `${deltaMachineBr}`;
+      const fmtRoleDelta = deltaRoleBr >= 0 ? `+${deltaRoleBr}` : `${deltaRoleBr}`;
+      const summaryBadge = `Core ${newMachineBr} (${fmtCoreDelta}) • ${roleMetricShort} ${newRoleBr} (${fmtRoleDelta})`;
+
       scoredList.push({
         roleIndex,
         roleLabel,
@@ -5366,26 +5658,60 @@ export function recommendTop3UpgradesPerRole(
         },
         newMachineBr,
         deltaMachineBr,
+        deltaMachBr: deltaMachineBr,
         newRoleBr,
         deltaRoleBr,
         compositeUpgradeScore,
         newArchetype,
-        synergyNote
+        synergyNote,
+        summaryBadge
       });
     }
 
     scoredList.sort((a, b) => b.compositeUpgradeScore - a.compositeUpgradeScore);
-    return scoredList.slice(0, 3);
+
+    // Pick Top 5 distinct baseSpecies per role so all 5 replacement chips offer diverse species choices
+    const picked: RoleUpgradeSuggestion[] = [];
+    const usedBases = new Set<string>();
+    for (const item of scoredList) {
+      const b = getBaseSpeciesForMember(item.candidate);
+      if (!usedBases.has(b)) {
+        usedBases.add(b);
+        picked.push(item);
+        if (picked.length >= 5) break;
+      }
+    }
+    if (picked.length < 5) {
+      for (const item of scoredList) {
+        if (!picked.some((p) => p.candidate.name.toLowerCase() === item.candidate.name.toLowerCase())) {
+          picked.push(item);
+          if (picked.length >= 5) break;
+        }
+      }
+    }
+    return picked;
   };
+
+  const leadUpgrades = evaluateRoleCandidates(0);
+  const safeSwapUpgrades = evaluateRoleCandidates(1);
+  const closerUpgrades = evaluateRoleCandidates(2);
 
   return {
     baselineEval,
-    leadUpgrades: evaluateRoleCandidates(0),
-    safeSwapUpgrades: evaluateRoleCandidates(1),
-    closerUpgrades: evaluateRoleCandidates(2),
-    candidatePoolSize: candidates.length
+    leadUpgrades,
+    safeSwapUpgrades,
+    closerUpgrades,
+    slot1LeadUpgrades: leadUpgrades,
+    slot2SafeSwapUpgrades: safeSwapUpgrades,
+    slot3CloserUpgrades: closerUpgrades,
+    candidatePoolSize: candidates.length,
+    candidatesEvaluated: candidates.length,
+    currentLeadBr: baselineEval.leadAggBr,
+    currentSafeSwapBr: baselineEval.safeSwapBr,
+    currentCloserBr: baselineEval.closerBr
   };
 }
+
 
 
 

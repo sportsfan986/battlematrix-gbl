@@ -471,9 +471,9 @@ class MainActivity : AppCompatActivity() {
 
         initViews()
         val appVer = try {
-            packageManager.getPackageInfo(packageName, 0).versionName ?: "3.11"
+            packageManager.getPackageInfo(packageName, 0).versionName ?: "3.12"
         } catch (_: Exception) {
-            "3.11"
+            "3.12"
         }
         findViewById<TextView>(R.id.tv_app_main_subtitle)?.text = "Real-Time PvP Floating Overlay • v$appVer"
         ensureDefaultPresets()
@@ -787,12 +787,18 @@ class MainActivity : AppCompatActivity() {
             view.id == R.id.btn_p1_rec_1 ||
             view.id == R.id.btn_p1_rec_2 ||
             view.id == R.id.btn_p1_rec_3 ||
+            view.id == R.id.btn_p1_rec_4 ||
+            view.id == R.id.btn_p1_rec_5 ||
             view.id == R.id.btn_p2_rec_1 ||
             view.id == R.id.btn_p2_rec_2 ||
             view.id == R.id.btn_p2_rec_3 ||
+            view.id == R.id.btn_p2_rec_4 ||
+            view.id == R.id.btn_p2_rec_5 ||
             view.id == R.id.btn_p3_rec_1 ||
             view.id == R.id.btn_p3_rec_2 ||
             view.id == R.id.btn_p3_rec_3 ||
+            view.id == R.id.btn_p3_rec_4 ||
+            view.id == R.id.btn_p3_rec_5 ||
             view.id == R.id.text_preset_archetype_badge ||
             view.id == R.id.text_preset_league
         ) {
@@ -3208,7 +3214,7 @@ class MainActivity : AppCompatActivity() {
         if (showToast) {
             Toast.makeText(
                 this,
-                "Saved Machine Aggregate BR Scale: Elite>=$elite, Solid>=$solid, Playable>=$playable, Risky>=$risky",
+                "Saved Core Coverage BR Scale: Elite>=$elite, Solid>=$solid, Playable>=$playable, Risky>=$risky",
                 Toast.LENGTH_SHORT
             ).show()
         }
@@ -3226,7 +3232,7 @@ class MainActivity : AppCompatActivity() {
         refreshPresetsUi()
         Toast.makeText(
             this,
-            "Restored default Machine Aggregate BR Thresholds (650 / 610 / 580 / 540)",
+            "Restored default Core Coverage BR Thresholds (650 / 610 / 580 / 540)",
             Toast.LENGTH_SHORT
         ).show()
     }
@@ -4815,7 +4821,7 @@ class MainActivity : AppCompatActivity() {
             val activeTheme = getActiveAppTheme()
 
             val metricsHtml = "Lead BR: <font color='$leadHex'>${preset.leadAggBr} ($leadTier)</font>  •  " +
-                "Mach BR: <font color='$machHex'>${preset.machineAggBr} ($machTier)</font>  •  " +
+                "Core BR: <font color='$machHex'>${preset.machineAggBr} ($machTier)</font>  •  " +
                 "Swap BR: <font color='$swap2Hex'>#2 ${preset.safeSwapBr} ($swap2Tier)</font> / <font color='$swap3Hex'>#3 ${preset.closerSwapBr} ($swap3Tier)</font>"
             textMetricsBadges?.text = android.text.Html.fromHtml(metricsHtml, android.text.Html.FROM_HTML_MODE_LEGACY)
 
@@ -5116,17 +5122,23 @@ class MainActivity : AppCompatActivity() {
         val btnP1Recs = listOf(
             dialogView.findViewById<Button>(R.id.btn_p1_rec_1),
             dialogView.findViewById<Button>(R.id.btn_p1_rec_2),
-            dialogView.findViewById<Button>(R.id.btn_p1_rec_3)
+            dialogView.findViewById<Button>(R.id.btn_p1_rec_3),
+            dialogView.findViewById<Button>(R.id.btn_p1_rec_4),
+            dialogView.findViewById<Button>(R.id.btn_p1_rec_5)
         )
         val btnP2Recs = listOf(
             dialogView.findViewById<Button>(R.id.btn_p2_rec_1),
             dialogView.findViewById<Button>(R.id.btn_p2_rec_2),
-            dialogView.findViewById<Button>(R.id.btn_p2_rec_3)
+            dialogView.findViewById<Button>(R.id.btn_p2_rec_3),
+            dialogView.findViewById<Button>(R.id.btn_p2_rec_4),
+            dialogView.findViewById<Button>(R.id.btn_p2_rec_5)
         )
         val btnP3Recs = listOf(
             dialogView.findViewById<Button>(R.id.btn_p3_rec_1),
             dialogView.findViewById<Button>(R.id.btn_p3_rec_2),
-            dialogView.findViewById<Button>(R.id.btn_p3_rec_3)
+            dialogView.findViewById<Button>(R.id.btn_p3_rec_3),
+            dialogView.findViewById<Button>(R.id.btn_p3_rec_4),
+            dialogView.findViewById<Button>(R.id.btn_p3_rec_5)
         )
 
         var dialogManualArchetypeOverride: String? =
@@ -5261,7 +5273,7 @@ class MainActivity : AppCompatActivity() {
             textDialogLeadBrBadge?.text = "Lead Agg BR: ${eval.leadAggBr} ($leadTier)"
             textDialogLeadBrBadge?.setTextColor(android.graphics.Color.parseColor(leadHex))
 
-            textDialogMachBrBadge?.text = "Mach Agg BR: ${eval.machineAggBr} ($machTier)"
+            textDialogMachBrBadge?.text = "Core BR: ${eval.machineAggBr} ($machTier)"
             textDialogMachBrBadge?.setTextColor(android.graphics.Color.parseColor(machHex))
 
             val weakHtml = if (eval.sharedWeaknesses.isNotEmpty()) {
@@ -5513,7 +5525,7 @@ class MainActivity : AppCompatActivity() {
             val manualArch = dialogManualArchetypeOverride
 
             btnDialogSuggestUpgrades?.isEnabled = false
-            btnDialogSuggestUpgrades?.text = "⏳ Simulating Top-100 Meta for Role Upgrades..."
+            btnDialogSuggestUpgrades?.text = "⏳ Simulating Top-200 Meta for Role Upgrades..."
 
             roleUpgradeJob?.cancel()
             roleUpgradeJob = lifecycleScope.launch(Dispatchers.Default) {
@@ -5530,7 +5542,7 @@ class MainActivity : AppCompatActivity() {
 
                 withContext(Dispatchers.Main) {
                     btnDialogSuggestUpgrades?.isEnabled = true
-                    btnDialogSuggestUpgrades?.text = "✨ Refresh Top-100 Role Upgrades (3 Per Role)"
+                    btnDialogSuggestUpgrades?.text = "✨ Refresh Top-200 Role Upgrades (5 Per Role)"
 
                     fun formatSignedDelta(delta: Int): String = if (delta >= 0) "+$delta" else "$delta"
 
@@ -5548,7 +5560,7 @@ class MainActivity : AppCompatActivity() {
                             return
                         }
                         container?.visibility = android.view.View.VISIBLE
-                        headerView?.text = "✨ Top-100 $roleLabel Upgrades (Tap to Replace Slot ${slotIndex + 1}):"
+                        headerView?.text = "✨ Top 5 $roleLabel Upgrades (Top-200 Meta • Tap to Replace Slot ${slotIndex + 1}):"
                         buttons.forEachIndexed { idx, btn ->
                             val upg = upgrades.getOrNull(idx)
                             if (upg == null) {
@@ -5558,7 +5570,7 @@ class MainActivity : AppCompatActivity() {
                                 val cand = upg.candidate
                                 val machDeltaStr = formatSignedDelta(upg.machineBrDelta)
                                 val roleDeltaStr = formatSignedDelta(upg.roleBrDelta)
-                                btn?.text = "${idx + 1}. ${cand.name} (${cand.fastMove} / ${cand.chargedMove1} + ${cand.chargedMove2})  •  Mach ${upg.newMachineAggBr} ($machDeltaStr) • $roleMetricName ${upg.newRoleBr} ($roleDeltaStr)"
+                                btn?.text = "${idx + 1}. ${cand.name} (${cand.fastMove} / ${cand.chargedMove1} + ${cand.chargedMove2})  •  Core ${upg.newMachineAggBr} ($machDeltaStr) • $roleMetricName ${upg.newRoleBr} ($roleDeltaStr)"
                                 btn?.setOnClickListener {
                                     val newSlot = PokemonSlot(
                                         name = cand.name,
@@ -5586,7 +5598,7 @@ class MainActivity : AppCompatActivity() {
                                     applySlotsToDialogInputs(updatedSlots)
                                     val evalAfter = refreshDialogTeamEvaluation(autoReorder = false)
                                     textDialogAutoDetectBanner?.text =
-                                        "Replaced Slot ${slotIndex + 1} ($replacedName → ${cand.name}): Mach Agg BR ${evalAfter.machineAggBr} ($machDeltaStr) • ${upg.synergyTag}"
+                                        "Replaced Slot ${slotIndex + 1} ($replacedName → ${cand.name}): Core BR ${evalAfter.machineAggBr} ($machDeltaStr) • ${upg.synergyTag}"
                                     textDialogAutoDetectBanner?.visibility = android.view.View.VISIBLE
                                     runTop100RoleUpgradesSimulation(showBannerOnComplete = false)
                                 }
@@ -5627,7 +5639,7 @@ class MainActivity : AppCompatActivity() {
                         val bestSwap = recResult.safeSwapUpgrades.firstOrNull()?.candidate?.name ?: "—"
                         val bestCloser = recResult.closerUpgrades.firstOrNull()?.candidate?.name ?: "—"
                         textDialogAutoDetectBanner?.text =
-                            "Top-100 Meta Sim (${recResult.candidatePoolSize} candidates • GBL Species Clause + Shadows): Best #1 Lead: $bestLead • #2 Swap: $bestSwap • #3 Closer: $bestCloser"
+                            "Top-200 Meta Sim (${recResult.candidatePoolSize} candidates • GBL Species Clause + Shadows): Best #1 Lead: $bestLead • #2 Swap: $bestSwap • #3 Closer: $bestCloser"
                         textDialogAutoDetectBanner?.visibility = android.view.View.VISIBLE
                     }
                 }
@@ -5677,7 +5689,7 @@ class MainActivity : AppCompatActivity() {
                 triggerTwoDeviceCloudSync(silent = true)
                 Toast.makeText(
                     this,
-                    "Saved '${name}' (${savedPreset.archetype} • Lead BR ${savedPreset.leadAggBr} • Mach BR ${savedPreset.machineAggBr})!",
+                    "Saved '${name}' (${savedPreset.archetype} • Lead BR ${savedPreset.leadAggBr} • Core BR ${savedPreset.machineAggBr})!",
                     Toast.LENGTH_SHORT
                 ).show()
             }

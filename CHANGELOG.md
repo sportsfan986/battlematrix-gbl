@@ -1,5 +1,17 @@
 # SilphScope PvP Changelog
 
+## [v3.12] — 2026-10-21 — Top-5 Role Upgrades (Top-200 Candidates vs. Top-100 Meta), Core Coverage BR (Core BR), Enhanced Mimikyu 2-Strategy Disguise Math & Aegislash Shield/Sword Energy + Damage Shift
+- **Top-5 Role Upgrade Recommendations (`Top-200` Candidate Pool vs. `Top-100` Blended Meta)**:
+  - Expanded role upgrade recommendations in both the Android and Web Team Editors to display the **Top 5 distinct-species alternatives per role** (`#1 Lead`, `#2 Safe Swap`, `#3 Closer`) with one-tap replacement chips.
+  - Increased candidate simulation depth to the **Top 200 Meta Pokémon** for the active league (including eligible Shadow variants and enforcing the GBL species clause) evaluated against the **Top 100** blended current-season meta distribution.
+- **Renamed `Mach BR` (`Machine Aggregate BR`) → `Core BR` (`Core Coverage BR`)**:
+  - Renamed unclear `Mach BR` / `Machine Aggregate BR` labels to **`Core BR`** / **`Core Coverage BR (Core BR — 3-Mon Team Ceiling)`** across all team preset cards, Team Editor badges, role upgrade chips, and Settings threshold scales while preserving backward-compatible preference keys.
+- **Enhanced Mimikyu `Disguise` Simulation (Two-Strategy Shield Ordering Average + Opponent Fastest Charged Move Baiting)**:
+  - Updated Mimikyu's discrete shield battle rating math (`0v0` through `2v2`) to compute the exact average of **(a) using all Protect Shields before busting Disguise** (preserving `100%` Defense longer) and **(b) busting Disguise first before using Protect Shields** (absorbing the first throw for `0 HP` and dropping to Busted Form `-1 Defense` stage / `1.20x` incoming damage).
+  - Models intelligent opponent baiting: while Mimikyu's Disguise is intact, the opponent always throws their **fastest (lowest-energy) Charged Attack** knowing it will be negated by either a Protect Shield or Disguise.
+- **Enhanced Aegislash `Stance Change` Simulation (Shield ⇄ Sword Forme Damage AND Energy Generation Shift)**:
+  - Explicitly models the shift in **both Fast/Charged Move damage AND Fast Move energy generation** between **Shield Forme** (`97 Atk / 291 Def`, `1 HP` fast damage, boosted `1.28x` high energy generation) and **Sword/Blade Forme** (`291 Atk / 97 Def`, full `291 Atk` fast & charged damage, `0.78x` lower energy generation rate and `97 Def` vulnerability until reverting to Shield Forme via a Protect Shield).
+
 ## [v3.11] — 2026-10-21 — Top-100 Role Upgrade Recommendations, Unique Ability Battle Ranking Math (Morpeko / Mimikyu / Aegislash / Cramorant), ABB/ABC Auto-Detection & Position-Weighted Shield Ratings
 - **Top-100 Role Upgrade Recommendation Engine (`#1 Lead`, `#2 Safe Swap`, `#3 Closer`)**:
   - Added an on-demand **`✨ Suggest Top-100 Role Upgrades (3 Per Role)`** button inside the Create Team and Edit Team dialogs (Android & Web) with **3 one-tap replacement chips** beneath Slot 1, Slot 2, and Slot 3.

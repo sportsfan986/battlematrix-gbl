@@ -5,6 +5,8 @@ import {
   TeamPreset,
   calculateChargedDamage,
   computeEffectiveStatsForLeague,
+  evaluateDiscreteShieldBattleRating,
+  getLeagueTopMetaSpeciesNames,
   getStoredMatchupTierThresholds,
   getTypeMultiplier
 } from './gblData';
@@ -266,84 +268,7 @@ export function evaluatePvPokeMatchupRating(
     }
   }
 
-  const { stats: myStats, isShadow: isMyShadow } = resolvePokemonStats(myMonName, normLeague);
-  const { stats: oppStats, isShadow: isOppShadow } = resolvePokemonStats(oppMonName, normLeague);
-
-  const userSpeciesLower = (myStats.baseSpecies || myStats.speciesId || myStats.name).toLowerCase();
-  const oppSpeciesLower = (oppStats.baseSpecies || oppStats.speciesId || oppStats.name).toLowerCase();
-
-  const isUserMorpeko = userSpeciesLower.includes('morpeko');
-  const isOppMorpeko = oppSpeciesLower.includes('morpeko');
-  const isUserMimikyu = userSpeciesLower.includes('mimikyu');
-  const isOppMimikyu = oppSpeciesLower.includes('mimikyu');
-  const isUserAegislash = userSpeciesLower.includes('aegislash');
-  const isOppAegislash = oppSpeciesLower.includes('aegislash');
-  const isUserCramorant = userSpeciesLower.includes('cramorant');
-  const isOppCramorant = oppSpeciesLower.includes('cramorant');
-
-  const myChargedDamages = myStats.chargedMoves.slice(0, 2).map(
-    (cm) => calculateChargedDamage(myStats, oppStats, cm, isMyShadow, isOppShadow).percentage
-  );
-  const bestUserCharged = myChargedDamages.length ? Math.max(...myChargedDamages) : 45;
-  const minUserCharged = myChargedDamages.length ? Math.min(...myChargedDamages) : 35;
-
-  const oppChargedDamages = oppStats.chargedMoves.slice(0, 2).map(
-    (cm) => calculateChargedDamage(oppStats, myStats, cm, isOppShadow, isMyShadow).percentage
-  );
-  const bestOppCharged = oppChargedDamages.length ? Math.max(...oppChargedDamages) : 45;
-  const minOppCharged = oppChargedDamages.length ? Math.min(...oppChargedDamages) : 35;
-
-  const rawUserFastEff = getTypeMultiplier(myStats.defaultFastMove.type, oppStats.types);
-  const rawOppFastEff = getTypeMultiplier(oppStats.defaultFastMove.type, myStats.types);
-  const userFastEff = isUserAegislash ? rawUserFastEff * 0.22 : rawUserFastEff;
-  const oppFastEff = isOppAegislash ? rawOppFastEff * 0.22 : rawOppFastEff;
-  const shadowBulkDelta = (isMyShadow ? -12 : 0) + (isOppShadow ? 12 : 0);
-
-  // Unblocked charged impact against opponent's available shields (including Mimikyu Disguise +1 free shield)
-  const chargedPressureAgainstShields = (bestPct: number, minPct: number, defShields: number): number => {
-    if (defShields <= 0) return bestPct * 1.7;
-    if (defShields === 1) return ((bestPct + minPct) * 0.5) * 1.4;
-    if (defShields === 2) return minPct * 1.0;
-    return minPct * 0.65;
-  };
-
-  const effectiveOppShieldsForCharged = sOpp + (isOppMimikyu ? 1 : 0);
-  const effectiveUserShieldsForCharged = sUser + (isUserMimikyu ? 1 : 0);
-
-  const userChargedImpact = chargedPressureAgainstShields(bestUserCharged, minUserCharged, effectiveOppShieldsForCharged);
-  const oppChargedImpact = chargedPressureAgainstShields(bestOppCharged, minOppCharged, effectiveUserShieldsForCharged);
-  const chargedDelta = 2.0 * (userChargedImpact - oppChargedImpact);
-
-  const avgShields = (sUser + sOpp) * 0.5;
-  const fastWeight =
-    avgShields <= 1.0
-      ? 95.0 + avgShields * 25.0 // 0->95, 0.5->107.5, 1.0->120
-      : 120.0 + (avgShields - 1.0) * 35.0; // 1.0->120, 1.5->137.5, 2.0->155
-  const fastDelta = (userFastEff - oppFastEff) * fastWeight;
-
-  const shadowMultiplier = avgShields <= 1.0 ? 1.0 : avgShields;
-  const effectiveShadowDelta = shadowBulkDelta * shadowMultiplier;
-
-  // Direct shield advantage bonus when sUser != sOpp
-  const shieldDiff = sUser - sOpp;
-  const shieldAdvantageDelta =
-    shieldDiff * (85.0 + 0.65 * ((bestOppCharged + bestUserCharged) * 0.5));
-
-  // Special form-changing & ability PvP mechanics delta (Morpeko, Mimikyu, Aegislash, Cramorant)
-  let specialMechanicsDelta = 0;
-  if (isUserMorpeko) specialMechanicsDelta += 14 + sOpp * 6;
-  if (isOppMorpeko) specialMechanicsDelta -= 14 + sUser * 6;
-  if (isUserMimikyu) specialMechanicsDelta += (sUser === 0 ? 22 : 12) - 8;
-  if (isOppMimikyu) specialMechanicsDelta -= (sOpp === 0 ? 22 : 12) - 8;
-  if (isUserAegislash) specialMechanicsDelta += sUser > 0 ? 18 + sUser * 8 : -16;
-  if (isOppAegislash) specialMechanicsDelta -= sOpp > 0 ? 18 + sOpp * 8 : -16;
-  if (isUserCramorant) specialMechanicsDelta += 15 + sUser * 4;
-  if (isOppCramorant) specialMechanicsDelta -= 15 + sOpp * 4;
-
-  const totalDelta = chargedDelta + fastDelta + effectiveShadowDelta + shieldAdvantageDelta + specialMechanicsDelta;
-  const roundedDelta = totalDelta >= 0 ? Math.round(totalDelta) : -Math.round(-totalDelta);
-  const rating = 500 + roundedDelta;
-  return Math.max(150, Math.min(850, rating));
+  return evaluateDiscreteShieldBattleRating(myMonName, oppMonName, sUser, sOpp, normLeague);
 }
 
 /**
@@ -372,7 +297,7 @@ export function evaluateAllShieldPermutations(
 
 /**
  * Computes the unweighted average 1v1 battle rating (R_bar) of a given Pokémon
- * against the active league's top meta list.
+ * against the active league's Top-100 meta list.
  */
 export function computeMetaAverage1v1Rating(
   pokemonName: string,
@@ -384,7 +309,7 @@ export function computeMetaAverage1v1Rating(
   const activeMetaPool =
     metaPool && metaPool.length > 0
       ? metaPool
-      : (PVPOKE_TOP_OPPONENTS[normLeague] || PVPOKE_TOP_OPPONENTS['GREAT LEAGUE'] || []).map((m) => m.name);
+      : getLeagueTopMetaSpeciesNames(normLeague, 100);
 
   if (activeMetaPool.length === 0) return 500.0;
   const sum = activeMetaPool.reduce(

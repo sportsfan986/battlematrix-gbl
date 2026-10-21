@@ -2309,7 +2309,7 @@ export default function App() {
         );
         setModalRoleRecommendations(res);
         setModalAutoDetectSummary(
-          `✨ Top-100 Role Upgrades Ready (${res.candidatesEvaluated} meta candidates simulated for ${newPresetLeague}) — Tap any green chip below Slot 1, Slot 2, or Slot 3 to apply!`
+          `✨ Top-200 Role Upgrades Ready (${res.candidatesEvaluated} meta candidates simulated for ${newPresetLeague}) — Tap any of the Top 5 green chips below Slot 1, Slot 2, or Slot 3 to apply!`
         );
       } finally {
         setIsSuggestingUpgrades(false);
@@ -2334,7 +2334,7 @@ export default function App() {
     const machSign = sug.deltaMachBr >= 0 ? `+${sug.deltaMachBr}` : `${sug.deltaMachBr}`;
     const roleSign = sug.deltaRoleBr >= 0 ? `+${sug.deltaRoleBr}` : `${sug.deltaRoleBr}`;
     setModalAutoDetectSummary(
-      `✅ Replaced Slot ${slotIdx} (${sug.roleLabel}) with ${sug.candidate.name} (${roleSign} Role BR • ${machSign} Team Mach BR)`
+      `✅ Replaced Slot ${slotIdx} (${sug.roleLabel}) with ${sug.candidate.name} (${roleSign} Role BR • ${machSign} Team Core BR)`
     );
   };
 
@@ -2452,7 +2452,7 @@ export default function App() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'SilphScope_PvP_v3.11_Android_Project.zip';
+      a.download = 'SilphScope_PvP_v3.12_Android_Project.zip';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -2700,7 +2700,7 @@ export default function App() {
                     backgroundColor: `${activeTheme.accentHex}1A`
                   }}
                 >
-                  v3.11 • Android Native Overlay
+                  v3.12 • Android Native Overlay
                 </span>
               </div>
               <p className="text-xs hidden sm:block" style={{ color: activeTheme.textSecondaryHex }}>
@@ -4565,9 +4565,9 @@ export default function App() {
                           </span>
                           <span
                             className={`text-[10px] font-mono font-extrabold px-2 py-0.5 rounded border ${machTierInfo.colorClass}`}
-                            title={`Machine Aggregate Battle Rating (${machTierInfo.label}): Theoretical 3-mon ceiling with optimal switch alignment across current-season blended field`}
+                            title={`Core Coverage Battle Rating (${machTierInfo.label}): 3-mon core coverage ceiling with optimal switch alignment across Top-100 current-season blended field`}
                           >
-                            Mach BR: {machBr}
+                            Core BR: {machBr}
                           </span>
                         </div>
                       </div>
@@ -4757,8 +4757,9 @@ export default function App() {
                               </span>
                               <span
                                 className={`text-[10px] font-mono font-extrabold px-2 py-0.5 rounded border ${mMachTier.colorClass}`}
+                                title="Core Coverage BR: 3-mon core coverage ceiling across the Top-100 blended season meta"
                               >
-                                Machine Agg BR: {modalLiveEvaluation.machineAggBr} ({mMachTier.label})
+                                Core BR: {modalLiveEvaluation.machineAggBr} ({mMachTier.label})
                               </span>
                             </div>
                             <div className="flex items-center gap-1 text-[10px]">
@@ -4819,13 +4820,13 @@ export default function App() {
                               onClick={handleSuggestRoleUpgradesModal}
                               disabled={isSuggestingUpgrades}
                               className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-md transition"
-                              title="Simulate Top 100 league meta (including Shadows & species clause) to suggest 3 better upgrades for Lead, Safe Swap, and Closer"
+                              title="Simulate Top 200 league meta candidates (including Shadows & species clause) against the Top 100 meta field to suggest 5 better upgrades for Lead, Safe Swap, and Closer"
                             >
                               <Sparkles className="w-3.5 h-3.5" />
                               <span>
                                 {isSuggestingUpgrades
-                                  ? '⏳ Simulating Top-100 Meta...'
-                                  : '✨ Suggest Top-100 Role Upgrades (3 Per Role)'}
+                                  ? '⏳ Simulating Top-200 Meta...'
+                                  : '✨ Suggest Top-200 Role Upgrades (5 Per Role)'}
                               </span>
                             </button>
                           </div>
@@ -5025,15 +5026,15 @@ export default function App() {
                       {modalRoleRecommendations && (
                         <div className="pt-1.5 border-t border-slate-800/80 space-y-1.5">
                           <div className="flex items-center justify-between text-[10px] font-bold text-emerald-300">
-                            <span>✨ Top 3 Recommended Lead Upgrades (One-Tap Replace):</span>
+                            <span>✨ Top 5 Recommended Lead Upgrades (Top-200 Meta • One-Tap Replace):</span>
                             <span className="text-slate-400 font-mono">Current Lead BR: {modalRoleRecommendations.currentLeadBr}</span>
                           </div>
                           {modalRoleRecommendations.slot1LeadUpgrades.length === 0 ? (
                             <div className="text-[10.5px] text-emerald-400 font-semibold">
-                              ✅ Optimal Lead — No higher-scoring Top-100 upgrade found!
+                              ✅ Optimal Lead — No higher-scoring Top-200 upgrade found!
                             </div>
                           ) : (
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                               {modalRoleRecommendations.slot1LeadUpgrades.map((sug, idx) => (
                                 <button
                                   key={sug.candidate.name}
@@ -5047,11 +5048,11 @@ export default function App() {
                                       #{idx + 1} {sug.candidate.name}
                                     </span>
                                     <span className="text-[9.5px] font-mono font-bold text-emerald-300 shrink-0">
-                                      {sug.deltaMachBr >= 0 ? `+${sug.deltaMachBr}` : sug.deltaMachBr} Mach
+                                      {sug.deltaMachBr >= 0 ? `+${sug.deltaMachBr}` : sug.deltaMachBr} Core BR
                                     </span>
                                   </div>
                                   <div className="text-[9.5px] font-mono text-slate-300 truncate">
-                                    Lead BR {sug.newRoleBr} ({sug.deltaRoleBr >= 0 ? `+${sug.deltaRoleBr}` : sug.deltaRoleBr}) • [{sug.newArchetype}]
+                                    Lead BR {sug.newRoleBr} ({sug.deltaRoleBr >= 0 ? `+${sug.deltaRoleBr}` : sug.deltaRoleBr}) • Core {sug.newMachineAggBr} [{sug.newArchetype}]
                                   </div>
                                 </button>
                               ))}
@@ -5229,15 +5230,15 @@ export default function App() {
                       {modalRoleRecommendations && (
                         <div className="pt-1.5 border-t border-slate-800/80 space-y-1.5">
                           <div className="flex items-center justify-between text-[10px] font-bold text-emerald-300">
-                            <span>✨ Top 3 Recommended Safe Swap Upgrades (One-Tap Replace):</span>
+                            <span>✨ Top 5 Recommended Safe Swap Upgrades (Top-200 Meta • One-Tap Replace):</span>
                             <span className="text-slate-400 font-mono">Current Swap BR: {modalRoleRecommendations.currentSafeSwapBr}</span>
                           </div>
                           {modalRoleRecommendations.slot2SafeSwapUpgrades.length === 0 ? (
                             <div className="text-[10.5px] text-emerald-400 font-semibold">
-                              ✅ Optimal Safe Swap — No higher-scoring Top-100 upgrade found!
+                              ✅ Optimal Safe Swap — No higher-scoring Top-200 upgrade found!
                             </div>
                           ) : (
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                               {modalRoleRecommendations.slot2SafeSwapUpgrades.map((sug, idx) => (
                                 <button
                                   key={sug.candidate.name}
@@ -5251,11 +5252,11 @@ export default function App() {
                                       #{idx + 1} {sug.candidate.name}
                                     </span>
                                     <span className="text-[9.5px] font-mono font-bold text-emerald-300 shrink-0">
-                                      {sug.deltaMachBr >= 0 ? `+${sug.deltaMachBr}` : sug.deltaMachBr} Mach
+                                      {sug.deltaMachBr >= 0 ? `+${sug.deltaMachBr}` : sug.deltaMachBr} Core BR
                                     </span>
                                   </div>
                                   <div className="text-[9.5px] font-mono text-slate-300 truncate">
-                                    Swap BR {sug.newRoleBr} ({sug.deltaRoleBr >= 0 ? `+${sug.deltaRoleBr}` : sug.deltaRoleBr}) • [{sug.newArchetype}]
+                                    Swap BR {sug.newRoleBr} ({sug.deltaRoleBr >= 0 ? `+${sug.deltaRoleBr}` : sug.deltaRoleBr}) • Core {sug.newMachineAggBr} [{sug.newArchetype}]
                                   </div>
                                 </button>
                               ))}
@@ -5433,15 +5434,15 @@ export default function App() {
                       {modalRoleRecommendations && (
                         <div className="pt-1.5 border-t border-slate-800/80 space-y-1.5">
                           <div className="flex items-center justify-between text-[10px] font-bold text-emerald-300">
-                            <span>✨ Top 3 Recommended Closer Upgrades (One-Tap Replace):</span>
+                            <span>✨ Top 5 Recommended Closer Upgrades (Top-200 Meta • One-Tap Replace):</span>
                             <span className="text-slate-400 font-mono">Current Closer BR: {modalRoleRecommendations.currentCloserBr}</span>
                           </div>
                           {modalRoleRecommendations.slot3CloserUpgrades.length === 0 ? (
                             <div className="text-[10.5px] text-emerald-400 font-semibold">
-                              ✅ Optimal Closer — No higher-scoring Top-100 upgrade found!
+                              ✅ Optimal Closer — No higher-scoring Top-200 upgrade found!
                             </div>
                           ) : (
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                               {modalRoleRecommendations.slot3CloserUpgrades.map((sug, idx) => (
                                 <button
                                   key={sug.candidate.name}
@@ -5455,11 +5456,11 @@ export default function App() {
                                       #{idx + 1} {sug.candidate.name}
                                     </span>
                                     <span className="text-[9.5px] font-mono font-bold text-emerald-300 shrink-0">
-                                      {sug.deltaMachBr >= 0 ? `+${sug.deltaMachBr}` : sug.deltaMachBr} Mach
+                                      {sug.deltaMachBr >= 0 ? `+${sug.deltaMachBr}` : sug.deltaMachBr} Core BR
                                     </span>
                                   </div>
                                   <div className="text-[9.5px] font-mono text-slate-300 truncate">
-                                    Swap BR {sug.newRoleBr} ({sug.deltaRoleBr >= 0 ? `+${sug.deltaRoleBr}` : sug.deltaRoleBr}) • [{sug.newArchetype}]
+                                    Swap BR {sug.newRoleBr} ({sug.deltaRoleBr >= 0 ? `+${sug.deltaRoleBr}` : sug.deltaRoleBr}) • Core {sug.newMachineAggBr} [{sug.newArchetype}]
                                   </div>
                                 </button>
                               ))}
@@ -5913,16 +5914,16 @@ export default function App() {
               </div>
             </div>
 
-            {/* Machine Aggregate BR Thresholds Card (Dedicated 3-Mon Core Coverage Scale) */}
+            {/* Core Coverage BR (Core BR) Thresholds Card (Dedicated 3-Mon Core Coverage Scale) */}
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
                   <h3 className="text-sm font-bold text-emerald-400 flex items-center gap-2">
                     <Shield className="w-4 h-4" />
-                    <span>🤖 Machine Aggregate BR Thresholds (3-Mon Core Coverage Ceiling)</span>
+                    <span>🛡️ Core Coverage BR Thresholds (Core BR — 3-Mon Team Ceiling)</span>
                   </h3>
                   <p className="text-xs text-slate-400 mt-1">
-                    Because Machine Aggregate BR takes the best counter across all 3 team members against the blended season field, it naturally scores higher than single-mon Lead/Swap BR. Customize its 5-tier color scale below.
+                    Because Core Coverage BR (Core BR) takes the best counter across all 3 team members against the Top-100 blended season field, it naturally scores higher than single-mon Lead/Swap BR. Customize its 5-tier color scale below.
                   </p>
                 </div>
                 <button
@@ -5935,11 +5936,11 @@ export default function App() {
               </div>
 
               <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 font-mono text-xs text-slate-300 space-y-1">
-                <div>• <strong className="text-emerald-400">Elite Core</strong> = Dominant 3-Mon Coverage (Mach BR &gt;= {machineBrThresholds.eliteMin}) <span className="text-slate-500">(Default: 650)</span></div>
-                <div>• <strong className="text-green-300">Solid Core</strong> = Well-Rounded Coverage ({machineBrThresholds.solidMin} &lt;= Mach BR &lt; {machineBrThresholds.eliteMin}) <span className="text-slate-500">(Default: 610–649)</span></div>
-                <div>• <strong className="text-amber-300">Playable</strong> = Manageable Coverage ({machineBrThresholds.playableMin} &lt;= Mach BR &lt; {machineBrThresholds.solidMin}) <span className="text-slate-500">(Default: 580–609)</span></div>
-                <div>• <strong className="text-rose-300">Risky</strong> = Core Blindspot Warning ({machineBrThresholds.riskyMin} &lt;= Mach BR &lt; {machineBrThresholds.playableMin}) <span className="text-slate-500">(Default: 540–579)</span></div>
-                <div>• <strong className="text-rose-500">Severe Blindspot</strong> = Triple/Core Weakness (Mach BR &lt; {machineBrThresholds.riskyMin}) <span className="text-slate-500">(Default: &lt; 540)</span></div>
+                <div>• <strong className="text-emerald-400">Elite Core</strong> = Dominant 3-Mon Coverage (Core BR &gt;= {machineBrThresholds.eliteMin}) <span className="text-slate-500">(Default: 650)</span></div>
+                <div>• <strong className="text-green-300">Solid Core</strong> = Well-Rounded Coverage ({machineBrThresholds.solidMin} &lt;= Core BR &lt; {machineBrThresholds.eliteMin}) <span className="text-slate-500">(Default: 610–649)</span></div>
+                <div>• <strong className="text-amber-300">Playable</strong> = Manageable Coverage ({machineBrThresholds.playableMin} &lt;= Core BR &lt; {machineBrThresholds.solidMin}) <span className="text-slate-500">(Default: 580–609)</span></div>
+                <div>• <strong className="text-rose-300">Risky</strong> = Core Blindspot Warning ({machineBrThresholds.riskyMin} &lt;= Core BR &lt; {machineBrThresholds.playableMin}) <span className="text-slate-500">(Default: 540–579)</span></div>
+                <div>• <strong className="text-rose-500">Severe Blindspot</strong> = Triple/Core Weakness (Core BR &lt; {machineBrThresholds.riskyMin}) <span className="text-slate-500">(Default: &lt; 540)</span></div>
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -7797,7 +7798,7 @@ export default function App() {
               <div>
                 <h2 className="text-lg font-bold text-white flex items-center gap-2">
                   <Info className="w-5 h-5 text-sky-400" />
-                  <span>📖 Complete Help, HUD Instructions, Tips &amp; Tactics Guide (v3.11)</span>
+                  <span>📖 Complete Help, HUD Instructions, Tips &amp; Tactics Guide (v3.12)</span>
                 </h2>
                 <p className="text-xs text-slate-400">
                   Everything you need to master the floating PvP overlay, 3x3 matchup &amp; shield matrix, bottom 3-column damage grid, 50s swap clocks, move pacing, Battle Log analytics, and Tasker automation.

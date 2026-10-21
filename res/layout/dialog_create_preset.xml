@@ -130,7 +130,7 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="Mach Agg BR: 600 (Playable)"
+                        android:text="Core BR: 600 (Playable)"
                         android:textColor="#eab308"
                         android:textStyle="bold"
                         android:textSize="10sp"
@@ -249,14 +249,14 @@
                         android:textColor="#e2e8f0" />
                 </LinearLayout>
 
-                <!-- Top-100 Role Upgrade Recommendations Button -->
+                <!-- Top-200 Role Upgrade Recommendations Button (5 Per Role) -->
                 <Button
                     android:id="@+id/btn_dialog_suggest_upgrades"
                     android:layout_width="match_parent"
                     android:layout_height="36dp"
                     android:layout_marginBottom="6dp"
                     android:paddingHorizontal="8dp"
-                    android:text="✨ Suggest Top-100 Role Upgrades (3 Per Role)"
+                    android:text="✨ Suggest Top-200 Role Upgrades (5 Per Role)"
                     android:textSize="10.5sp"
                     android:textStyle="bold"
                     android:backgroundTint="#059669"
@@ -444,7 +444,7 @@
                         android:hint="Charged 2" />
                 </LinearLayout>
 
-                <!-- Slot 1 (Lead) Top-3 Role Upgrade Chips -->
+                <!-- Slot 1 (Lead) Top-5 Role Upgrade Chips -->
                 <LinearLayout
                     android:id="@+id/layout_p1_recommendations"
                     android:layout_width="match_parent"
@@ -459,7 +459,7 @@
                         android:id="@+id/text_p1_rec_header"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="✨ Top-100 Lead Upgrades (Tap to Replace Slot 1):"
+                        android:text="✨ Top 5 Lead Upgrades (Top-200 Meta • Tap to Replace Slot 1):"
                         android:textColor="#34d399"
                         android:textStyle="bold"
                         android:textSize="9.5sp"
@@ -507,6 +507,38 @@
                         android:gravity="start|center_vertical"
                         android:textAllCaps="false"
                         android:text="3. Upgrade 3"
+                        android:textSize="9.5sp"
+                        android:textStyle="bold"
+                        android:backgroundTint="#064e3b"
+                        android:textColor="#ecfdf5"
+                        android:layout_marginBottom="3dp" />
+
+                    <Button
+                        android:id="@+id/btn_p1_rec_4"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:minHeight="32dp"
+                        android:paddingHorizontal="8dp"
+                        android:paddingVertical="4dp"
+                        android:gravity="start|center_vertical"
+                        android:textAllCaps="false"
+                        android:text="4. Upgrade 4"
+                        android:textSize="9.5sp"
+                        android:textStyle="bold"
+                        android:backgroundTint="#064e3b"
+                        android:textColor="#ecfdf5"
+                        android:layout_marginBottom="3dp" />
+
+                    <Button
+                        android:id="@+id/btn_p1_rec_5"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:minHeight="32dp"
+                        android:paddingHorizontal="8dp"
+                        android:paddingVertical="4dp"
+                        android:gravity="start|center_vertical"
+                        android:textAllCaps="false"
+                        android:text="5. Upgrade 5"
                         android:textSize="9.5sp"
                         android:textStyle="bold"
                         android:backgroundTint="#064e3b"
@@ -662,7 +694,7 @@
                         android:hint="Charged 2" />
                 </LinearLayout>
 
-                <!-- Slot 2 (Safe Swap) Top-3 Role Upgrade Chips -->
+                <!-- Slot 2 (Safe Swap) Top-5 Role Upgrade Chips -->
                 <LinearLayout
                     android:id="@+id/layout_p2_recommendations"
                     android:layout_width="match_parent"
@@ -677,7 +709,7 @@
                         android:id="@+id/text_p2_rec_header"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="✨ Top-100 Safe Swap Upgrades (Tap to Replace Slot 2):"
+                        android:text="✨ Top 5 Safe Swap Upgrades (Top-200 Meta • Tap to Replace Slot 2):"
                         android:textColor="#34d399"
                         android:textStyle="bold"
                         android:textSize="9.5sp"
@@ -725,6 +757,38 @@
                         android:gravity="start|center_vertical"
                         android:textAllCaps="false"
                         android:text="3. Upgrade 3"
+                        android:textSize="9.5sp"
+                        android:textStyle="bold"
+                        android:backgroundTint="#064e3b"
+                        android:textColor="#ecfdf5"
+                        android:layout_marginBottom="3dp" />
+
+                    <Button
+                        android:id="@+id/btn_p2_rec_4"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:minHeight="32dp"
+                        android:paddingHorizontal="8dp"
+                        android:paddingVertical="4dp"
+                        android:gravity="start|center_vertical"
+                        android:textAllCaps="false"
+                        android:text="4. Upgrade 4"
+                        android:textSize="9.5sp"
+                        android:textStyle="bold"
+                        android:backgroundTint="#064e3b"
+                        android:textColor="#ecfdf5"
+                        android:layout_marginBottom="3dp" />
+
+                    <Button
+                        android:id="@+id/btn_p2_rec_5"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:minHeight="32dp"
+                        android:paddingHorizontal="8dp"
+                        android:paddingVertical="4dp"
+                        android:gravity="start|center_vertical"
+                        android:textAllCaps="false"
+                        android:text="5. Upgrade 5"
                         android:textSize="9.5sp"
                         android:textStyle="bold"
                         android:backgroundTint="#064e3b"
@@ -879,7 +943,7 @@
                         android:hint="Charged 2" />
                 </LinearLayout>
 
-                <!-- Slot 3 (Closer) Top-3 Role Upgrade Chips -->
+                <!-- Slot 3 (Closer) Top-5 Role Upgrade Chips -->
                 <LinearLayout
                     android:id="@+id/layout_p3_recommendations"
                     android:layout_width="match_parent"
@@ -894,7 +958,7 @@
                         android:id="@+id/text_p3_rec_header"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="✨ Top-100 Closer Upgrades (Tap to Replace Slot 3):"
+                        android:text="✨ Top 5 Closer Upgrades (Top-200 Meta • Tap to Replace Slot 3):"
                         android:textColor="#34d399"
                         android:textStyle="bold"
                         android:textSize="9.5sp"
@@ -942,6 +1006,38 @@
                         android:gravity="start|center_vertical"
                         android:textAllCaps="false"
                         android:text="3. Upgrade 3"
+                        android:textSize="9.5sp"
+                        android:textStyle="bold"
+                        android:backgroundTint="#064e3b"
+                        android:textColor="#ecfdf5"
+                        android:layout_marginBottom="3dp" />
+
+                    <Button
+                        android:id="@+id/btn_p3_rec_4"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:minHeight="32dp"
+                        android:paddingHorizontal="8dp"
+                        android:paddingVertical="4dp"
+                        android:gravity="start|center_vertical"
+                        android:textAllCaps="false"
+                        android:text="4. Upgrade 4"
+                        android:textSize="9.5sp"
+                        android:textStyle="bold"
+                        android:backgroundTint="#064e3b"
+                        android:textColor="#ecfdf5"
+                        android:layout_marginBottom="3dp" />
+
+                    <Button
+                        android:id="@+id/btn_p3_rec_5"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:minHeight="32dp"
+                        android:paddingHorizontal="8dp"
+                        android:paddingVertical="4dp"
+                        android:gravity="start|center_vertical"
+                        android:textAllCaps="false"
+                        android:text="5. Upgrade 5"
                         android:textSize="9.5sp"
                         android:textStyle="bold"
                         android:backgroundTint="#064e3b"

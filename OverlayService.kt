@@ -2871,24 +2871,51 @@ class OverlayService : LifecycleService() {
             val uC1 = myCharged1?.takeIf { it.isNotBlank() } ?: myMeta.chargedMove1
             val uC2 = myCharged2?.takeIf { it.isNotBlank() } ?: myMeta.chargedMove2
 
+            val userC1Stats = resolveChargedMoveStatsStatic(uC1, myMeta.types.firstOrNull() ?: "normal")
+            val userC2Stats = resolveChargedMoveStatsStatic(uC2, myMeta.types.firstOrNull() ?: "normal")
             val userC1Pct = calculateChargedMoveDamagePctStatic(myMeta, oppMeta, uC1, myShadow, oppShadow)
             val userC2Pct = calculateChargedMoveDamagePctStatic(myMeta, oppMeta, uC2, myShadow, oppShadow)
             val bestUserCharged = max(userC1Pct, userC2Pct)
             val minUserCharged = min(userC1Pct, userC2Pct)
+            val fastestUserChargedPct = when {
+                userC1Stats.energy < userC2Stats.energy -> userC1Pct
+                userC2Stats.energy < userC1Stats.energy -> userC2Pct
+                else -> minUserCharged
+            }
 
+            val oppC1Stats = resolveChargedMoveStatsStatic(oppMeta.chargedMove1, oppMeta.types.firstOrNull() ?: "normal")
+            val oppC2Stats = resolveChargedMoveStatsStatic(oppMeta.chargedMove2, oppMeta.types.firstOrNull() ?: "normal")
             val oppC1Pct = calculateChargedMoveDamagePctStatic(oppMeta, myMeta, oppMeta.chargedMove1, oppShadow, myShadow)
             val oppC2Pct = calculateChargedMoveDamagePctStatic(oppMeta, myMeta, oppMeta.chargedMove2, oppShadow, myShadow)
             val bestOppCharged = max(oppC1Pct, oppC2Pct)
             val minOppCharged = min(oppC1Pct, oppC2Pct)
+            val fastestOppChargedPct = when {
+                oppC1Stats.energy < oppC2Stats.energy -> oppC1Pct
+                oppC2Stats.energy < oppC1Stats.energy -> oppC2Pct
+                else -> minOppCharged
+            }
 
             val userFastType = DYNAMIC_FAST_TYPE[uFast.lowercase()] ?: fastMoveTypeMapStatic[uFast.lowercase()] ?: myMeta.types.firstOrNull() ?: "normal"
             val oppFastType = DYNAMIC_FAST_TYPE[oppMeta.defaultFastMove.lowercase()] ?: fastMoveTypeMapStatic[oppMeta.defaultFastMove.lowercase()] ?: oppMeta.types.firstOrNull() ?: "normal"
             val rawUserFastEff = getTypeEffectivenessStatic(userFastType, oppMeta.types)
             val rawOppFastEff = getTypeEffectivenessStatic(oppFastType, myMeta.types)
 
-            // Aegislash Shield Forme fast moves deal fixed 1 damage (minimal fast pressure) while generating 6 energy
-            val userFastEff = if (myIsAegislash) rawUserFastEff * 0.35 else rawUserFastEff
-            val oppFastEff = if (oppIsAegislash) rawOppFastEff * 0.35 else rawOppFastEff
+            // Aegislash Stance Change: Models both Fast Move Damage AND Energy Generation shift between
+            // Shield Forme (97 Atk / 291 Def, 1 HP fast damage, 1.28x high energy generation) and
+            // Sword/Blade Forme (291 Atk / 97 Def, full 291 Atk fast & charged damage, 0.78x lower energy generation until reverting via Protect Shield)
+            fun getAegislashFastDmgMult(shields: Int): Double = when (shields) {
+                2 -> 0.42 // Mostly Shield Forme (1 HP fast move) with brief Sword Forme windows
+                1 -> 0.68 // Blended Shield Forme early + Sword Forme (291 Atk fast move) after shield spent
+                else -> 1.12 // 0 shields: stays in Sword Forme after 1st charged move, dealing full 291 Atk fast damage
+            }
+            fun getAegislashEnergyGenMult(shields: Int): Double = when (shields) {
+                2 -> 1.28 // Reverts to Shield Forme twice via 2 Protect Shields -> sustained high energy generation
+                1 -> 1.06 // Reverts to Shield Forme once -> high initial energy gen, then lower Sword Forme energy gen
+                else -> 0.86 // 0 shields -> cannot revert to Shield Forme after first charged attack; stuck at lower Sword Forme energy gen
+            }
+
+            val userFastEff = if (myIsAegislash) rawUserFastEff * getAegislashFastDmgMult(sUser) else rawUserFastEff
+            val oppFastEff = if (oppIsAegislash) rawOppFastEff * getAegislashFastDmgMult(sOpp) else rawOppFastEff
 
             val shadowBulkDelta = (if (myShadow) -12 else 0) + (if (oppShadow) 12 else 0)
 
@@ -2898,15 +2925,76 @@ class OverlayService : LifecycleService() {
                 else -> minPct * 1.0
             }
 
-            // Mimikyu Disguise absorbs the first unshielded Charged Move with 0 HP damage (acting like an extra shield vs charged moves)
-            val effSOppForCharged = if (oppIsMimikyu) (sOpp + 1).coerceAtMost(2) else sOpp
-            val effSUserForCharged = if (myIsMimikyu) (sUser + 1).coerceAtMost(2) else sUser
+            // Mimikyu Disguise Simulation:
+            // Takes the exact average of:
+            //   Strategy A: Using all Protect Shields BEFORE busting Disguise (stays in Disguise Form with 100% Def longer;
+            //               opponent throws fastest/cheapest charged attack for the first S+1 throws knowing each will be blocked by shield or Disguise).
+            //   Strategy B: Busting Disguise FIRST before using Protect Shields (opponent throws fastest/cheapest charged attack on throw #1
+            //               to pop Disguise for 0 HP damage, then Mimikyu drops to Busted Form -1 Def stage for the rest of the match).
+            fun computeMimikyuIncomingEvaluation(
+                mimiShields: Int,
+                oppBestPct: Int,
+                oppMinPct: Int,
+                oppFastestPct: Int
+            ): Pair<Double, Double> {
+                val cheaperBaitRatio = (oppFastestPct.toDouble() / max(1, oppBestPct).toDouble()).coerceIn(0.42, 1.0)
+                val baitTempoTax = (1.0 - cheaperBaitRatio) * 18.0
 
-            val userChargedFreqMult = if (myIsAegislash) 1.18 else 1.0
-            val oppChargedFreqMult = if (oppIsAegislash) 1.18 else 1.0
+                // Strategy A: All Protect Shields used first, Disguise used on throw #(mimiShields + 1)
+                val pressureAllShieldsFirst = when (mimiShields) {
+                    0 -> ((oppFastestPct * 0.30 + oppBestPct * 0.70) * 1.22) - baitTempoTax
+                    1 -> ((oppFastestPct * 0.55 + oppMinPct * 0.45) * 0.90) - baitTempoTax * 1.25
+                    else -> (oppFastestPct * 0.62) - baitTempoTax * 1.45
+                }
+                val bonusAllShieldsFirst = when (mimiShields) {
+                    0 -> 28.0 + oppBestPct * 0.20 - 11.0
+                    1 -> 26.0 + oppBestPct * 0.18 - 6.0
+                    else -> 22.0 + oppBestPct * 0.15 - 3.0
+                }
 
-            val userChargedImpact = chargedPressureAgainstShields(bestUserCharged, minUserCharged, effSOppForCharged) * userChargedFreqMult
-            val oppChargedImpact = chargedPressureAgainstShields(bestOppCharged, minOppCharged, effSUserForCharged) * oppChargedFreqMult
+                // Strategy B: Disguise busted on throw #1 first, Protect Shields saved for post-bust Busted Form (-1 Def stage = 1.20x incoming damage)
+                val bustedMult = 1.20
+                val pressureDisguiseFirst = when (mimiShields) {
+                    0 -> ((oppFastestPct * 0.30 + oppBestPct * 0.70 * bustedMult) * 1.28) - baitTempoTax * 0.85
+                    1 -> ((oppFastestPct * 0.45 + ((oppBestPct + oppMinPct) * 0.5 * bustedMult) * 0.55) * 1.04) - baitTempoTax * 0.90
+                    else -> (oppFastestPct * 0.76 * bustedMult) - baitTempoTax * 0.95
+                }
+                val bonusDisguiseFirst = when (mimiShields) {
+                    0 -> 24.0 + oppBestPct * 0.18 - 14.0
+                    1 -> 19.0 + oppBestPct * 0.15 - 13.0
+                    else -> 14.0 + oppBestPct * 0.12 - 12.0
+                }
+
+                return ((pressureAllShieldsFirst + pressureDisguiseFirst) * 0.5) to ((bonusAllShieldsFirst + bonusDisguiseFirst) * 0.5)
+            }
+
+            val userChargedFreqMult = if (myIsAegislash) getAegislashEnergyGenMult(sUser) else 1.0
+            val oppChargedFreqMult = if (oppIsAegislash) getAegislashEnergyGenMult(sOpp) else 1.0
+
+            val userRawPressure: Double
+            val oppMimikyuDelta: Double
+            if (oppIsMimikyu) {
+                val (incPressure, mimiBonus) = computeMimikyuIncomingEvaluation(sOpp, bestUserCharged, minUserCharged, fastestUserChargedPct)
+                userRawPressure = incPressure
+                oppMimikyuDelta = mimiBonus
+            } else {
+                userRawPressure = chargedPressureAgainstShields(bestUserCharged, minUserCharged, sOpp)
+                oppMimikyuDelta = 0.0
+            }
+
+            val oppRawPressure: Double
+            val myMimikyuDelta: Double
+            if (myIsMimikyu) {
+                val (incPressure, mimiBonus) = computeMimikyuIncomingEvaluation(sUser, bestOppCharged, minOppCharged, fastestOppChargedPct)
+                oppRawPressure = incPressure
+                myMimikyuDelta = mimiBonus
+            } else {
+                oppRawPressure = chargedPressureAgainstShields(bestOppCharged, minOppCharged, sUser)
+                myMimikyuDelta = 0.0
+            }
+
+            val userChargedImpact = userRawPressure * userChargedFreqMult
+            val oppChargedImpact = oppRawPressure * oppChargedFreqMult
             val chargedDelta = 2.0 * (userChargedImpact - oppChargedImpact)
 
             val avgShields = (sUser + sOpp) * 0.5
@@ -2923,21 +3011,12 @@ class OverlayService : LifecycleService() {
             val shieldDiff = (sUser - sOpp).toDouble()
             val shieldAdvantageDelta = shieldDiff * (85.0 + 0.65 * ((bestOppCharged + bestUserCharged) * 0.5))
 
-            // Unique form & ability adjustments:
-            // 1. Mimikyu Disguise free charged-move negation minus Busted Form -1 Def stage drop
-            val myMimikyuDelta = if (myIsMimikyu) {
-                (when (sUser) { 0 -> 34.0; 1 -> 24.0; else -> 15.0 }) + bestOppCharged * 0.22 - 8.0
-            } else 0.0
-            val oppMimikyuDelta = if (oppIsMimikyu) {
-                (when (sOpp) { 0 -> 34.0; 1 -> 24.0; else -> 15.0 }) + bestUserCharged * 0.22 - 8.0
-            } else 0.0
-
-            // 2. Aegislash Stance Change: Excels with shields (reverts Blade -> Shield Forme on shield use), vulnerable in 0S
+            // 2. Aegislash Stance Change: Excels with shields (reverts Sword -> Shield Forme on shield use), vulnerable in 0S (97 Def in Sword Forme)
             val myAegislashDelta = if (myIsAegislash) {
-                when (sUser) { 2 -> 26.0; 1 -> 12.0; else -> -28.0 }
+                when (sUser) { 2 -> 28.0; 1 -> 14.0; else -> -34.0 }
             } else 0.0
             val oppAegislashDelta = if (oppIsAegislash) {
-                when (sOpp) { 2 -> 26.0; 1 -> 12.0; else -> -28.0 }
+                when (sOpp) { 2 -> 28.0; 1 -> 14.0; else -> -34.0 }
             } else 0.0
 
             // 3. Morpeko Hunger Switch + Aura Wheel snowballing in shielded scenarios
@@ -3091,7 +3170,7 @@ class OverlayService : LifecycleService() {
                         else -> it.mlRank
                     }
                 }
-                .take(18)
+                .take(100)
                 .map { it.name }
             val result = if (sorted.isNotEmpty()) sorted else listOf("Azumarill", "Clodsire", "Annihilape", "Feraligatr", "Mandibuzz", "Gastrodon")
             if (DYNAMIC_POKEMON_DATABASE.isNotEmpty()) {
@@ -3743,7 +3822,7 @@ class OverlayService : LifecycleService() {
                             else -> it.mlRank
                         }
                     }
-                    .take(30)
+                    .take(100)
                     .map { it.name }
                     .ifEmpty { getTopMetaPoolForLeagueStatic(league) }
                 if (DYNAMIC_POKEMON_DATABASE.isNotEmpty()) {
@@ -4047,7 +4126,7 @@ class OverlayService : LifecycleService() {
             val closerUpgrades: List<RoleUpgradeSuggestion>
         )
 
-        fun getTop100MetaCandidatesForLeagueStatic(league: String): List<TeamMember> {
+        fun getTop100MetaCandidatesForLeagueStatic(league: String, maxLimit: Int = 200): List<TeamMember> {
             val normLeague = when {
                 league.contains("MEGA", ignoreCase = true) -> "MEGA MASTER LEAGUE"
                 league.contains("GREAT", ignoreCase = true) -> "GREAT LEAGUE"
@@ -4060,7 +4139,7 @@ class OverlayService : LifecycleService() {
 
             val allMeta = getAllPokemonMeta()
             val bySpeciesId = allMeta.associateBy { it.speciesId.lowercase() }
-            val result = ArrayList<TeamMember>(100)
+            val result = ArrayList<TeamMember>(maxLimit)
             val seenNames = HashSet<String>()
 
             fun isMegaOrPrimal(name: String, speciesId: String): Boolean {
@@ -4070,7 +4149,7 @@ class OverlayService : LifecycleService() {
             }
 
             fun addCandidateFromName(candidateName: String) {
-                if (result.size >= 100) return
+                if (result.size >= maxLimit) return
                 val cleanKey = candidateName.trim().lowercase()
                 if (cleanKey.isEmpty() || !seenNames.add(cleanKey)) return
                 val resolved = resolveRecommendedMovesForSpecies(candidateName, normLeague) ?: return
@@ -4105,7 +4184,7 @@ class OverlayService : LifecycleService() {
             if (rankingsMap != null && rankingsMap.isNotEmpty()) {
                 val sortedEntries = rankingsMap.values.sortedBy { it.rank }
                 for (entry in sortedEntries) {
-                    if (result.size >= 100) break
+                    if (result.size >= maxLimit) break
                     val rawId = entry.speciesId.lowercase()
                     val isShad = rawId.endsWith("_shadow")
                     val baseId = rawId.removeSuffix("_shadow")
@@ -4122,7 +4201,7 @@ class OverlayService : LifecycleService() {
                 }
             }
 
-            if (result.size < 100) {
+            if (result.size < maxLimit) {
                 val sortedFallback = allMeta
                     .filter { !it.speciesId.endsWith("_shadow", ignoreCase = true) && !it.name.startsWith("Shadow ", ignoreCase = true) }
                     .sortedBy {
@@ -4133,28 +4212,28 @@ class OverlayService : LifecycleService() {
                         }
                     }
                 for (meta in sortedFallback) {
-                    if (result.size >= 100) break
+                    if (result.size >= maxLimit) break
                     val (_, shadowPreferred) = FormResolver.getEffectiveRankAndShadowForVariant(meta, normLeague)
                     if (shadowPreferred && FormResolver.isShadowEligibleVariant(meta)) {
                         addCandidateFromName("Shadow ${meta.name}")
-                        if (result.size < 100) addCandidateFromName(meta.name)
+                        if (result.size < maxLimit) addCandidateFromName(meta.name)
                     } else {
                         addCandidateFromName(meta.name)
-                        if (result.size < 100 && FormResolver.isShadowEligibleVariant(meta)) {
+                        if (result.size < maxLimit && FormResolver.isShadowEligibleVariant(meta)) {
                             addCandidateFromName("Shadow ${meta.name}")
                         }
                     }
                 }
             }
 
-            return result.take(100)
+            return result.take(maxLimit)
         }
 
         /**
-         * Simulates the Top 100 Meta Pokémon for the active league across all 3 team roles
-         * (#1 Lead, #2 Safe Swap, #3 Closer) and returns the top 3 upgrades per role ranked by
-         * full team synergy (ΔMachine Agg BR + defensive weakness coverage) and role rating delta (ΔRole BR),
-         * while enforcing the GBL Species Clause and including Shadow variants.
+         * Simulates the Top 200 Meta Pokémon for the active league across all 3 team roles
+         * (#1 Lead, #2 Safe Swap, #3 Closer) against the Top 100 blended season meta and returns
+         * the top 5 upgrades per role ranked by full team synergy (ΔCore BR + defensive weakness coverage)
+         * and role rating delta (ΔRole BR), while enforcing the GBL Species Clause and including Shadow variants.
          */
         fun recommendTop3UpgradesPerRoleStatic(
             slots: List<TeamMember>,
@@ -4215,7 +4294,7 @@ class OverlayService : LifecycleService() {
                 }
             }
 
-            val candidates = getTop100MetaCandidatesForLeagueStatic(league)
+            val candidates = getTop100MetaCandidatesForLeagueStatic(league, 200)
 
             data class PrecomputedCandidate(
                 val member: TeamMember,
@@ -4392,21 +4471,21 @@ class OverlayService : LifecycleService() {
 
                 scored.sortByDescending { it.compositeScore }
 
-                // Pick top 3 distinct baseSpecies so the 3 chips give diverse species options
-                val picked = ArrayList<RoleUpgradeSuggestion>(3)
+                // Pick top 5 distinct baseSpecies so the 5 chips give diverse species options
+                val picked = ArrayList<RoleUpgradeSuggestion>(5)
                 val usedBase = HashSet<String>()
                 for (item in scored) {
                     val b = FormResolver.extractBaseSpecies(item.candidate.name)
                     if (usedBase.add(b)) {
                         picked.add(item)
-                        if (picked.size >= 3) break
+                        if (picked.size >= 5) break
                     }
                 }
-                if (picked.size < 3) {
+                if (picked.size < 5) {
                     for (item in scored) {
                         if (picked.none { it.candidate.name.equals(item.candidate.name, ignoreCase = true) }) {
                             picked.add(item)
-                            if (picked.size >= 3) break
+                            if (picked.size >= 5) break
                         }
                     }
                 }

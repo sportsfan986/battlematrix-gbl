@@ -123,26 +123,20 @@ jobs:
           tag_name: ${{ steps.version.outputs.tag }}
           name: "SilphScope PvP ${{ steps.version.outputs.tag }}"
           body: |
-            ## SilphScope PvP ${{ steps.version.outputs.tag }} — Official v3.11 Release (Top-100 Role Upgrade Recommendations, Unique Ability Battle Math & ABB/ABC Team Rating Engine)
+            ## SilphScope PvP ${{ steps.version.outputs.tag }} — Official v3.12 Release (Top-5 Role Upgrades via Top-200 Meta Sim, Core Coverage BR, Enhanced Mimikyu & Aegislash Battle Math)
             
-            ### What's New in v3.11 (Merged v3.10 + v3.11 Changelog)
-            - **Top-100 Role Upgrade Recommendation Engine (`#1 Lead`, `#2 Safe Swap`, `#3 Closer`)**:
-              - Added an on-demand **`✨ Suggest Top-100 Role Upgrades (3 Per Role)`** button inside the Create Team and Edit Team dialogs with **3 one-tap replacement chips** beneath Slot 1, Slot 2, and Slot 3.
-              - Simulates the **Top 100 Meta Pokémon** for the active league (including eligible Shadows) while enforcing the **GBL species clause** (no duplicate base species across your 3 slots and at most 1 Mega in Mega Master League).
-              - Ranks candidates by combining **Full Team Synergy (`ΔTeamMachBR`)** and **Role Rating Delta (`ΔRoleBR`)** plus defensive coverage bonuses, auto-filling the Pokémon, recommended PvPoke moveset, and CP on a single tap.
-            - **Unique Form-Change & Signature Ability Battle Ranking Math (`Morpeko`, `Mimikyu`, `Aegislash`, `Cramorant`)**:
-              - **Morpeko (`Hunger Switch` + `Aura Wheel`)**: Models alternating Electric/Dark STAB `Aura Wheel` cycles and its guaranteed `+1 Attack` stage self-buff (`1.25x` compounding up to `2.0x`) across every charged move cycle.
-              - **Mimikyu (`Disguise`)**: Models Disguise absorbing the first unshielded incoming Charged Attack for `1 HP` (acting as a free extra shield), followed by the Busted Form `-1 Defense` stage drop (`0.8x` Defense).
-              - **Aegislash (`Stance Change: Shield Forme ⇄ Blade Forme`)**: Models Shield Forme (`97 Atk / 291 Def`) tanking damage while generating energy with 1-damage fast moves, transforming into Blade Forme (`291 Atk / 97 Def`) right before firing Charged Attacks, and reverting to Shield Forme when spending a Protect Shield.
-              - **Cramorant (`Gulp Missile: Gulping / Gorging Form`)**: Models `Surf` catching Arrokuda (`> 50% HP`) or Pikachu (`≤ 50% HP`), dealing `12.5%` max-HP retaliation damage when attacked and applying `-1 Defense` stage (Gulping Form) or `-1 Attack` stage (Gorging Form).
-            - **Non-Blocking Background Evaluation & Instant Team Switching**:
-              - Moved heavy team evaluation and Top-100 recommendation simulations onto background worker threads (`Dispatchers.Default`) and memoized per-preset battle ratings so switching teams and opening the Team Editor is instantaneous.
-              - Kept slot reordering controls (`#1 ⇄ #2`, `#2 ⇄ #3`, and `⚡ Auto-Detect Style & Order Swap`) exclusively inside the Team Editor modal so the main Team Select screen stays clean and responsive.
-            - **Auto Team Style Detection (`ABB` vs. `ABC`) & Safe Swap Slot Reordering**:
-              - Evaluates pairwise defensive type vulnerabilities across all 3 team members to classify teams as **ABB** (moving the resisting $A$ Pokémon to Slot 1 Lead, Bait $B_1$ to Slot 2 Safe Swap, and Sweeper $B_2$ to Slot 3 Closer) or **ABC** (keeping Slot 1 Lead fixed and promoting the bench Pokémon with the highest consistency-adjusted Safe Swap index $\mu_{BR} - 0.5\sigma_{BR}$ to Slot 2).
-            - **Blended Current-Season Meta Distribution, Position-Weighted Shield Ratings & Per-Slot BR Badges**:
-              - Binds historical battle logs strictly to the current GBL season (`0%` to `70%` linear ramp over `0–50` matches + exponential recency decay $W_{\text{log}}(k) = e^{-0.05 \cdot (k - 1)}$).
-              - Evaluates role-specific multi-shield expectations for **Lead (`Slot 1`)**, **Safe Swap (`Slot 2`)**, and **Closer (`Slot 3`)**, displaying `[ABB]` / `[ABC]` pills, **Lead BR**, **Machine BR** (with customizable thresholds in Settings), and individual **Swap BR** badges on both Slot 2 and Slot 3.
+            ### What's New in v3.12
+            - **Top-5 Role Upgrade Recommendations (`Top-200` Candidate Pool vs. `Top-100` Blended Meta)**:
+              - Displays the **Top 5 distinct-species upgrade alternatives per role** (`#1 Lead`, `#2 Safe Swap`, `#3 Closer`) with one-tap replacement chips inside the Create Team and Edit Team dialogs.
+              - Simulates the **Top 200 Meta Pokémon** for the active league (including eligible Shadows and enforcing the GBL species clause) against the **Top 100** blended current-season meta distribution.
+            - **Renamed `Mach BR` (`Machine Aggregate BR`) → `Core BR` (`Core Coverage BR`)**:
+              - Replaced unclear `Mach BR` / `Machine Aggregate BR` terminology with **`Core BR`** / **`Core Coverage BR (Core BR — 3-Mon Team Ceiling)`** across team preset cards, Team Editor badges, role upgrade chips, and Settings threshold scales.
+            - **Enhanced Mimikyu (`Disguise`) & Aegislash (`Stance Change`) Battle Ranking Math**:
+              - **Mimikyu (`Disguise`)**: Computes the exact average of **(a) using all Protect Shields before busting Disguise** and **(b) busting Disguise first before using Protect Shields**, while modeling that opponents always throw their **fastest (lowest-energy) Charged Attack** until Disguise is busted.
+              - **Aegislash (`Shield ⇄ Sword Forme`)**: Models the shift in **both damage AND energy generation** between Shield Forme (`97 Atk / 291 Def`, `1 HP` fast damage, boosted `1.28x` high energy generation) and Sword/Blade Forme (`291 Atk / 97 Def`, full `291 Atk` fast & charged damage, lower energy generation rate until reverting via Protect Shield).
+              - **Morpeko (`Aura Wheel`) & Cramorant (`Gulp Missile`)**: Full support for alternating Electric/Dark STAB + `+1 Atk` buff cycles and Gulping/Gorging retaliation damage + `-1 Def / -1 Atk` debuffs.
+            - **Auto Team Style Detection (`ABB` vs. `ABC`), Non-Blocking Background Sim & Position-Weighted Shield Ratings**:
+              - Instantaneous background thread evaluation, `[ABB]` / `[ABC]` style classification, safe swap slot reordering, and current-season blended meta distribution with exponential recency decay.
             
             ### Download & Install
             Download **`silphscope-pvp-${{ steps.version.outputs.tag }}.apk`** from the **Assets** section below and install on your Android device.
