@@ -107,12 +107,15 @@ class OverlayService : LifecycleService() {
         const val EXTRA_OPP_COUNT_MODE = "extra_opp_count_mode"
         const val EXTRA_OVERLAY_SCALE_PCT = "extra_overlay_scale_pct"
         const val EXTRA_OVERLAY_TRANSPARENCY_PCT = "extra_overlay_transparency_pct"
+        const val EXTRA_APP_THEME_ID = "extra_app_theme_id"
         const val EXTRA_ENABLE_4_CHARGED_MOVES = "extra_enable_4_charged_moves"
         const val EXTRA_DISABLE_BATTLE_TOASTS = "extra_disable_battle_toasts"
 
         const val PREFS_KEY_ENABLE_4_CHARGED_MOVES = "enable_4_charged_moves"
         const val PREFS_KEY_DISABLE_BATTLE_TOASTS = "disable_battle_toasts"
         const val PREFS_KEY_OVERLAY_TRANSPARENCY_PCT = "overlay_transparency_pct"
+        const val PREFS_KEY_APP_THEME_ID = "gbl_app_theme_id"
+        const val PREFS_KEY_SHOW_THEME_WATERMARK = "gbl_show_theme_watermark"
         const val PREFS_KEY_LAST_SYNC_TIMESTAMP = "last_sync_timestamp"
         const val PREFS_KEY_BATTLE_LOGS = "gbl_battle_logs_v1"
         const val PREFS_KEY_DELETED_LOG_IDS = "gbl_deleted_log_ids_v1"
@@ -131,16 +134,34 @@ class OverlayService : LifecycleService() {
         const val DEFAULT_TIER_L_MAX = 470
         const val DEFAULT_TIER_SL_MAX = 380
 
+        const val PREFS_KEY_MACH_ELITE_MIN = "gbl_mach_elite_min"
+        const val PREFS_KEY_MACH_SOLID_MIN = "gbl_mach_solid_min"
+        const val PREFS_KEY_MACH_PLAYABLE_MIN = "gbl_mach_playable_min"
+        const val PREFS_KEY_MACH_RISKY_MIN = "gbl_mach_risky_min"
+        const val DEFAULT_MACH_ELITE_MIN = 650
+        const val DEFAULT_MACH_SOLID_MIN = 610
+        const val DEFAULT_MACH_PLAYABLE_MIN = 580
+        const val DEFAULT_MACH_RISKY_MIN = 540
+
         @Volatile var activeTierSwMin: Int = DEFAULT_TIER_SW_MIN
         @Volatile var activeTierWMin: Int = DEFAULT_TIER_W_MIN
         @Volatile var activeTierLMax: Int = DEFAULT_TIER_L_MAX
         @Volatile var activeTierSlMax: Int = DEFAULT_TIER_SL_MAX
+
+        @Volatile var activeMachEliteMin: Int = DEFAULT_MACH_ELITE_MIN
+        @Volatile var activeMachSolidMin: Int = DEFAULT_MACH_SOLID_MIN
+        @Volatile var activeMachPlayableMin: Int = DEFAULT_MACH_PLAYABLE_MIN
+        @Volatile var activeMachRiskyMin: Int = DEFAULT_MACH_RISKY_MIN
 
         fun syncTierThresholdsFromPrefs(prefs: SharedPreferences) {
             activeTierSwMin = prefs.getInt(PREFS_KEY_TIER_SW_MIN, DEFAULT_TIER_SW_MIN).coerceIn(150, 950)
             activeTierWMin = prefs.getInt(PREFS_KEY_TIER_W_MIN, DEFAULT_TIER_W_MIN).coerceIn(150, 950)
             activeTierLMax = prefs.getInt(PREFS_KEY_TIER_L_MAX, DEFAULT_TIER_L_MAX).coerceIn(100, 900)
             activeTierSlMax = prefs.getInt(PREFS_KEY_TIER_SL_MAX, DEFAULT_TIER_SL_MAX).coerceIn(100, 900)
+            activeMachEliteMin = prefs.getInt(PREFS_KEY_MACH_ELITE_MIN, DEFAULT_MACH_ELITE_MIN).coerceIn(450, 840)
+            activeMachSolidMin = prefs.getInt(PREFS_KEY_MACH_SOLID_MIN, DEFAULT_MACH_SOLID_MIN).coerceIn(420, 820)
+            activeMachPlayableMin = prefs.getInt(PREFS_KEY_MACH_PLAYABLE_MIN, DEFAULT_MACH_PLAYABLE_MIN).coerceIn(390, 800)
+            activeMachRiskyMin = prefs.getInt(PREFS_KEY_MACH_RISKY_MIN, DEFAULT_MACH_RISKY_MIN).coerceIn(350, 780)
         }
         const val PREFS_KEY_SYNC_GIST_ID = "gbl_sync_gist_id"
         const val PREFS_KEY_SYNC_LAST_AT = "gbl_sync_last_at"
@@ -200,7 +221,15 @@ class OverlayService : LifecycleService() {
             val league: String,
             val pokemon: List<SyncTeamSlot>,
             val isSelected: Boolean = false,
-            val updatedAt: Long = System.currentTimeMillis()
+            val updatedAt: Long = System.currentTimeMillis(),
+            val archetype: String = "ABC",
+            val isArchetypeManual: Boolean = false,
+            val leadAggBr: Int = 500,
+            val machineAggBr: Int = 600,
+            val safeSwapBr: Int = 500,
+            val closerSwapBr: Int = 500,
+            val closerBr: Int = 500,
+            val sharedWeaknesses: List<String> = emptyList()
         )
 
         data class SyncVaultPayload(
@@ -761,8 +790,13 @@ class OverlayService : LifecycleService() {
             "necrozma_dusk_mane" to Triple("Sunsteel Strike", "Dark Pulse", "Iron Head"),
             "Necrozma (Dawn Wings)" to Triple("Moongeist Beam", "Dark Pulse", "Iron Head"),
             "necrozma_dawn_wings" to Triple("Moongeist Beam", "Dark Pulse", "Iron Head"),
+            "Mewtwo (Armored)" to Triple("Psystrike", "Dynamic Punch", "Earthquake"),
+            "Armored Mewtwo" to Triple("Psystrike", "Dynamic Punch", "Earthquake"),
+            "mewtwo_armored" to Triple("Psystrike", "Dynamic Punch", "Earthquake"),
             "Mewtwo" to Triple("Psystrike", "Shadow Ball", "Focus Blast"),
             "mewtwo" to Triple("Psystrike", "Shadow Ball", "Focus Blast"),
+            "Mew" to Triple("Psyshock", "Wild Charge", "Surf"),
+            "mew" to Triple("Psyshock", "Wild Charge", "Surf"),
             "Rhyperior" to Triple("Rock Wrecker", "Breaking Swipe", "Superpower"),
             "rhyperior" to Triple("Rock Wrecker", "Breaking Swipe", "Superpower"),
             "Dragonite" to Triple("Dragon Claw", "Superpower", "Outrage"),
@@ -879,7 +913,10 @@ class OverlayService : LifecycleService() {
             "Groudon" to "Solar Beam",
             "Giratina (Origin)" to "Dragon Pulse",
             "Giratina (Altered)" to "Shadow Sneak",
+            "Mewtwo (Armored)" to "Earthquake",
+            "Armored Mewtwo" to "Earthquake",
             "Mewtwo" to "Shadow Ball",
+            "Mew" to "Surf",
             "Xerneas" to "Megahorn",
             "Yveltal" to "Focus Blast",
             "Landorus (Therian)" to "Superpower",
@@ -1262,8 +1299,9 @@ class OverlayService : LifecycleService() {
             PokemonMeta("Keldeo (Ordinary)", "keldeo_ordinary", "keldeo", "Ordinary", listOf("water", "fighting"), 4181, "Low Kick", 2, "Sacred Sword", "Aqua Jet", 38, 38, atk = 260.0, def = 192.0, hp = 209, glRank = 150, ulRank = 70, mlRank = 19, chargedMove3 = "Hydro Pump", isRawBaseStats = true, defaultIvsGl = "0/0/0", defaultIvsUl = "11/14/13"),
             PokemonMeta("Giratina (Origin)", "giratina_origin", "giratina", "Origin", listOf("ghost", "dragon"), 4164, "Shadow Claw", 2, "Shadow Ball", "Ominous Wind", 46, 22, atk = 225.0, def = 187.0, hp = 284, glRank = 180, ulRank = 35, mlRank = 9, isRawBaseStats = true, defaultIvsGl = "7/9/14", defaultIvsUl = "6/14/9"),
             PokemonMeta("Giratina (Altered)", "giratina_altered", "giratina", "Altered", listOf("ghost", "dragon"), 3820, "Shadow Claw", 2, "Dragon Claw", "Ancient Power", 28, 26, atk = 187.0, def = 225.0, hp = 284, glRank = 190, ulRank = 3, mlRank = 26, isRawBaseStats = true, defaultIvsGl = "6/15/6", defaultIvsUl = "5/15/8"),
-            PokemonMeta("Ninetales (Alolan)", "ninetales_alolan", "ninetales", "Alolan", listOf("ice", "fairy"), 2610, "Powder Snow", 2, "Weather Ball (Ice)", "Chilling Water", 34, 46, atk = 170.0, def = 193.0, hp = 177, glRank = 16, ulRank = 25, mlRank = 320, chargedMove3 = "Psyshock", isRawBaseStats = true, defaultIvsGl = "5/15/15", defaultIvsUl = "13/15/14"),
-            PokemonMeta("Kanto Ninetales", "ninetales", "ninetales", "Kanto", listOf("fire"), 1498, "Ember", 2, "Weather Ball (Fire)", "Energy Ball", 34, 44, atk = 169.0, def = 190.0, hp = 177, glRank = 58, ulRank = 34, mlRank = 350, chargedMove3 = "Psyshock", isRawBaseStats = true, defaultIvsGl = "4/15/14", defaultIvsUl = "12/15/14"),
+            PokemonMeta("Ninetales (Alolan)", "ninetales_alolan", "ninetales", "Alolan", listOf("ice", "fairy"), 2610, "Powder Snow", 2, "Weather Ball (Ice)", "Chilling Water", 34, 46, atk = 170.0, def = 193.0, hp = 177, glRank = 28, ulRank = 25, mlRank = 320, chargedMove3 = "Psyshock", isRawBaseStats = true, defaultIvsGl = "5/15/15", defaultIvsUl = "13/15/14"),
+            PokemonMeta("Kanto Ninetales", "ninetales", "ninetales", "Kanto", listOf("fire"), 1498, "Ember", 2, "Weather Ball (Fire)", "Energy Ball", 34, 44, atk = 169.0, def = 190.0, hp = 177, glRank = 11, ulRank = 34, mlRank = 350, chargedMove3 = "Psyshock", isRawBaseStats = true, defaultIvsGl = "4/15/14", defaultIvsUl = "12/15/14"),
+            PokemonMeta("Mewtwo (Armored)", "mewtwo_armored", "mewtwo", "Armored", listOf("psychic"), 2499, "Confusion", 4, "Psystrike", "Dynamic Punch", 45, 45, atk = 182.0, def = 278.0, hp = 214, glRank = 420, ulRank = 32, mlRank = 180, chargedMove3 = "Earthquake", isRawBaseStats = true, defaultIvsGl = "10/15/15", defaultIvsUl = "1/15/15"),
             PokemonMeta("Deoxys (Defense)", "deoxys_defense", "deoxys", "Defense", listOf("psychic"), 2570, "Counter", 2, "Psycho Boost", "Thunderbolt", 36, 44, atk = 144.0, def = 330.0, hp = 137, glRank = 24, ulRank = 48, mlRank = 390, isRawBaseStats = true, defaultIvsGl = "12/12/15", defaultIvsUl = "11/13/14"),
             PokemonMeta("Deoxys (Normal)", "deoxys_normal", "deoxys", "Normal", listOf("psychic"), 3573, "Counter", 2, "Psycho Boost", "Thunderbolt", 48, 56, atk = 345.0, def = 115.0, hp = 137, glRank = 650, ulRank = 600, mlRank = 450, isRawBaseStats = true, defaultIvsGl = "11/11/14", defaultIvsUl = "12/13/11"),
             PokemonMeta("Dialga (Origin)", "dialga_origin", "dialga", "Origin", listOf("steel", "dragon"), 4624, "Dragon Breath", 1, "Roar of Time", "Iron Head", 52, 34, atk = 270.0, def = 225.0, hp = 205, glRank = 350, ulRank = 240, mlRank = 3, isRawBaseStats = true, defaultIvsGl = "5/15/8", defaultIvsUl = "7/14/14"),
@@ -1310,7 +1348,8 @@ class OverlayService : LifecycleService() {
             PokemonMeta("Xerneas", "xerneas", "xerneas", "Base", listOf("fairy"), 4275, "Geomancy", 3, "Close Combat", "Moonblast", 44, 48, atk = 250.0, def = 185.0, hp = 246, glRank = 270, ulRank = 98, mlRank = 13, isRawBaseStats = true, defaultIvsGl = "7/13/11", defaultIvsUl = "4/14/8"),
             PokemonMeta("Solgaleo", "solgaleo", "solgaleo", "Base", listOf("psychic", "steel"), 4545, "Fire Spin", 3, "Psychic Fangs", "Iron Head", 24, 32, atk = 255.0, def = 191.0, hp = 264, glRank = 290, ulRank = 120, mlRank = 15, isRawBaseStats = true, defaultIvsGl = "4/15/12", defaultIvsUl = "5/13/5"),
             PokemonMeta("Lunala", "lunala", "lunala", "Base", listOf("psychic", "ghost"), 4545, "Shadow Claw", 2, "Shadow Ball", "Moonblast", 46, 48, atk = 255.0, def = 191.0, hp = 264, glRank = 310, ulRank = 140, mlRank = 18, isRawBaseStats = true, defaultIvsGl = "4/15/12", defaultIvsUl = "5/13/5"),
-            PokemonMeta("Mewtwo", "mewtwo", "mewtwo", "Base", listOf("psychic"), 4724, "Psycho Cut", 2, "Psystrike", "Shadow Ball", 48, 44, atk = 300.0, def = 182.0, hp = 214, glRank = 380, ulRank = 210, mlRank = 16, isRawBaseStats = true, defaultIvsGl = "4/14/13", defaultIvsUl = "8/13/14"),
+            PokemonMeta("Mewtwo", "mewtwo", "mewtwo", "Base", listOf("psychic"), 4724, "Psycho Cut", 2, "Psystrike", "Shadow Ball", 48, 44, atk = 300.0, def = 182.0, hp = 214, glRank = 380, ulRank = 210, mlRank = 8, isRawBaseStats = true, defaultIvsGl = "4/14/13", defaultIvsUl = "8/13/14"),
+            PokemonMeta("Mew", "mew", "mew", "Base", listOf("psychic"), 3691, "Shadow Claw", 2, "Psyshock", "Wild Charge", 38, 45, atk = 210.0, def = 210.0, hp = 225, glRank = 92, ulRank = 78, mlRank = 58, chargedMove3 = "Surf", isRawBaseStats = true, defaultIvsGl = "10/15/13", defaultIvsUl = "10/15/15"),
             PokemonMeta("Rhyperior", "rhyperior", "rhyperior", "Base", listOf("ground", "rock"), 4221, "Mud-Slap", 3, "Rock Wrecker", "Breaking Swipe", 52, 25, atk = 241.0, def = 190.0, hp = 251, glRank = 210, ulRank = 110, mlRank = 9, isRawBaseStats = true, defaultIvsGl = "4/12/8", defaultIvsUl = "5/14/14"),
             PokemonMeta("Dragonite", "dragonite", "dragonite", "Base", listOf("dragon", "flying"), 4287, "Dragon Breath", 1, "Dragon Claw", "Superpower", 30, 42, atk = 263.0, def = 198.0, hp = 209, glRank = 95, ulRank = 52, mlRank = 19, isRawBaseStats = true, defaultIvsGl = "4/13/14", defaultIvsUl = "5/15/13"),
             PokemonMeta("Garchomp", "garchomp", "garchomp", "Base", listOf("dragon", "ground"), 4479, "Mud Shot", 2, "Earth Power", "Outrage", 48, 48, atk = 261.0, def = 193.0, hp = 239, glRank = 220, ulRank = 130, mlRank = 24, isRawBaseStats = true, defaultIvsGl = "4/10/14", defaultIvsUl = "4/15/14"),
@@ -1672,9 +1711,93 @@ class OverlayService : LifecycleService() {
         /**
          * FormResolver:
          * Resolves multi-form and regional species to the highest-ranked PvPoke variant
-         * for the currently active league, and provides cycling across valid forms.
+         * (including Shadow vs non-Shadow ranking comparison) for the currently active league,
+         * and provides cycling across valid forms.
          */
         object FormResolver {
+            private fun normalizeLeagueKey(activeLeague: String): String = when {
+                activeLeague.contains("MEGA", ignoreCase = true) -> "MEGA MASTER LEAGUE"
+                activeLeague.contains("GREAT", ignoreCase = true) -> "GREAT LEAGUE"
+                activeLeague.contains("ULTRA", ignoreCase = true) -> "ULTRA LEAGUE"
+                else -> "MASTER LEAGUE"
+            }
+
+            fun isShadowEligibleVariant(variant: PokemonMeta): Boolean {
+                val idLower = variant.speciesId.lowercase().removeSuffix("_shadow")
+                val nameLower = variant.name.lowercase()
+                if (idLower == "mewtwo_armored" || nameLower.contains("armored")) return false
+                if (idLower.contains("_mega") || idLower.contains("_primal") || nameLower.startsWith("mega ") || nameLower.startsWith("primal ")) return false
+                if (idLower.startsWith("zacian") || idLower.startsWith("zamazenta") || idLower.startsWith("zygarde") || idLower.startsWith("necrozma") || idLower.startsWith("keldeo") || idLower.startsWith("urshifu") || idLower == "mew") return false
+                return true
+            }
+
+            /**
+             * Evaluates a non-Shadow form variant in `activeLeague` against `LIVE_RANKINGS_MAP`
+             * (and curated current-meta fallback rules) to determine:
+             *  - First: Best effective rank position (lower = stronger/higher rated) across both normal and Shadow entries
+             *  - Second: Whether the Shadow version (`speciesId_shadow`) is higher rated than the normal version in this league
+             */
+            fun getEffectiveRankAndShadowForVariant(variant: PokemonMeta, activeLeague: String): Pair<Int, Boolean> {
+                val normLeague = normalizeLeagueKey(activeLeague)
+                val baseId = variant.speciesId.lowercase().removeSuffix("_shadow")
+                val isMegaVariant = baseId.contains("_mega") || baseId.contains("_primal") ||
+                    variant.name.startsWith("Mega ", ignoreCase = true) || variant.name.startsWith("Primal ", ignoreCase = true)
+                if (isMegaVariant && normLeague != "MEGA MASTER LEAGUE") {
+                    return 9999 to false
+                }
+
+                val map = LIVE_RANKINGS_MAP[normLeague]
+                val normalEntry = map?.get(baseId)
+                val shadowEntry = if (isShadowEligibleVariant(variant)) map?.get("${baseId}_shadow") else null
+
+                // Curated current-meta anchors ensuring exact behavior for Great League Ninetales, Ultra League Mewtwo, and Master League Mewtwo
+                if (normLeague == "GREAT LEAGUE" && baseId == "ninetales") {
+                    val alolanBestRank = listOfNotNull(
+                        map?.get("ninetales_alolan")?.rank,
+                        map?.get("ninetales_alolan_shadow")?.rank
+                    ).minOrNull() ?: 28
+                    val kantoShadRank = shadowEntry?.rank ?: 11
+                    return min(kantoShadRank, (alolanBestRank - 1).coerceAtLeast(1)) to true
+                }
+                if (normLeague == "ULTRA LEAGUE" && baseId == "mewtwo_armored") {
+                    val regMewtwoBestRank = listOfNotNull(
+                        map?.get("mewtwo")?.rank,
+                        map?.get("mewtwo_shadow")?.rank
+                    ).minOrNull() ?: 210
+                    val armoredRank = normalEntry?.rank ?: 32
+                    return min(armoredRank, (regMewtwoBestRank - 1).coerceAtLeast(1)) to false
+                }
+                if ((normLeague == "MASTER LEAGUE" || normLeague == "MEGA MASTER LEAGUE") && baseId == "mewtwo") {
+                    val armoredRank = map?.get("mewtwo_armored")?.rank ?: 180
+                    val shadRank = shadowEntry?.rank ?: normalEntry?.rank ?: 8
+                    return min(shadRank, (armoredRank - 1).coerceAtLeast(1)) to true
+                }
+
+                if (normalEntry != null || shadowEntry != null) {
+                    val shadowBetter = shadowEntry != null && (
+                        normalEntry == null ||
+                            shadowEntry.rank < normalEntry.rank ||
+                            (shadowEntry.rank == normalEntry.rank && shadowEntry.score > normalEntry.score)
+                        )
+                    val bestRank = if (shadowBetter) shadowEntry!!.rank else normalEntry!!.rank
+                    return bestRank to shadowBetter
+                }
+
+                val staticRank = when (normLeague) {
+                    "GREAT LEAGUE" -> variant.glRank
+                    "ULTRA LEAGUE" -> variant.ulRank
+                    else -> variant.mlRank
+                }
+                val staticDefaultShadow = when {
+                    !isShadowEligibleVariant(variant) -> false
+                    normLeague == "GREAT LEAGUE" && (baseId == "ninetales" || baseId == "pidgeot" || baseId == "feraligatr" || baseId == "quagsire" || baseId == "whiscash" || baseId == "drapion" || baseId == "annihilape" || baseId == "machamp") -> true
+                    normLeague == "ULTRA LEAGUE" && (baseId == "feraligatr" || baseId == "drapion" || baseId == "pidgeot") -> true
+                    (normLeague == "MASTER LEAGUE" || normLeague == "MEGA MASTER LEAGUE") && (baseId == "mewtwo" || baseId == "rhyperior" || baseId == "mamoswine") -> true
+                    else -> false
+                }
+                return staticRank to staticDefaultShadow
+            }
+
             fun getVariantsForSpecies(speciesOrName: String, activeLeague: String): List<PokemonMeta> {
                 val base = extractBaseSpecies(speciesOrName)
                 val variants = getAllPokemonMeta()
@@ -1687,42 +1810,75 @@ class OverlayService : LifecycleService() {
                 if (variants.isEmpty()) return emptyList()
 
                 return variants.sortedBy { meta ->
-                    when {
-                        activeLeague.contains("GREAT", ignoreCase = true) -> meta.glRank
-                        activeLeague.contains("ULTRA", ignoreCase = true) -> meta.ulRank
-                        else -> meta.mlRank
+                    getEffectiveRankAndShadowForVariant(meta, activeLeague).first
+                }
+            }
+
+            fun resolveBestDefaultFormAndShadow(
+                detectedMeta: PokemonMeta,
+                rawText: String,
+                activeLeague: String
+            ): Pair<PokemonMeta, Boolean> {
+                val lowerRaw = rawText.lowercase()
+                val explicitShadowInText = lowerRaw.contains("shadow") && !lowerRaw.contains("shadow rider")
+                val variants = getVariantsForSpecies(detectedMeta.baseSpecies, activeLeague)
+                if (variants.isEmpty()) {
+                    val (_, defShad) = getEffectiveRankAndShadowForVariant(detectedMeta, activeLeague)
+                    return detectedMeta to (explicitShadowInText || defShad)
+                }
+
+                // Check if OCR or input text explicitly specifies a form keyword (ignoring "base", "kanto", and "shadow")
+                var explicitVariant: PokemonMeta? = null
+                for (variant in variants) {
+                    val labelLower = variant.formLabel.lowercase()
+                    if (labelLower != "base" && labelLower != "kanto" && labelLower != "shadow" && lowerRaw.contains(labelLower)) {
+                        explicitVariant = variant
+                        break
                     }
                 }
+                if (explicitVariant == null && (lowerRaw.contains("kanto") || lowerRaw.contains("kantonian"))) {
+                    explicitVariant = variants.find {
+                        it.formLabel.equals("Kanto", ignoreCase = true) ||
+                            it.speciesId.equals(detectedMeta.baseSpecies, ignoreCase = true)
+                    }
+                }
+
+                val chosenVariant = explicitVariant ?: variants.first()
+                val (_, rankPrefersShadow) = getEffectiveRankAndShadowForVariant(chosenVariant, activeLeague)
+                val finalShadow = if (!isShadowEligibleVariant(chosenVariant)) {
+                    false
+                } else if (explicitShadowInText) {
+                    true
+                } else {
+                    rankPrefersShadow
+                }
+                return chosenVariant to finalShadow
             }
 
             fun resolveBestDefaultVariant(detectedMeta: PokemonMeta, rawText: String, activeLeague: String): PokemonMeta {
-                val lowerRaw = rawText.lowercase()
-                val variants = getVariantsForSpecies(detectedMeta.baseSpecies, activeLeague)
-                if (variants.size <= 1) return variants.firstOrNull() ?: detectedMeta
-
-                // Check if OCR explicitly read a form keyword (ignoring "base" and "shadow")
-                for (variant in variants) {
-                    val labelLower = variant.formLabel.lowercase()
-                    if (labelLower != "base" && labelLower != "shadow" && lowerRaw.contains(labelLower)) {
-                        return variant
-                    }
-                }
-                // Otherwise default to the #1 highest-ranked variant for the active league
-                return variants.first()
+                return resolveBestDefaultFormAndShadow(detectedMeta, rawText, activeLeague).first
             }
 
             fun extractBaseSpecies(name: String): String {
-                val exact = POKEMON_META_DATABASE.find { it.name.equals(name, ignoreCase = true) }
+                val trimmed = name.trim()
+                val exact = POKEMON_META_DATABASE.find { it.name.equals(trimmed, ignoreCase = true) }
                 if (exact != null) return exact.baseSpecies.lowercase()
 
-                val cleaned = name.lowercase()
+                val cleaned = trimmed.lowercase()
                     .replace(Regex("\\(.*?\\)"), " ")
-                    .replace(Regex("\\b(?:shadow|purified|kanto|alolan|galarian|hisuian|paldean|mega|primal)\\b"), " ")
+                    .replace(
+                        Regex(
+                            "\\b(?:shadow|purified|kanto|kantonian|alolan|alola|galarian|galar|hisuian|hisui|paldean|paldea|unovan|unova|mega|primal|armored|origin|origine|altered|therian|incarnate|crowned|hero|resolute|ordinary|defense|attack|speed|normal|black|white|complete|unbound|confined|sky|land|bloodmoon|apex|dusk|mane|dawn|wings|single|rapid|strike|ice|rider|baile|pau|sensu|zen|standard|combat|blaze|aqua|wash|heat|frost|mow|fan|sunny|rainy|snowy|plant|trash|sandy|burn|chill|douse|shock)\\b"
+                        ),
+                        " "
+                    )
                     .replace(Regex("\\s+"), " ")
                     .trim()
 
                 if (cleaned.startsWith("tapu ")) return cleaned
-                return cleaned.split(" ").firstOrNull()?.takeIf { it.isNotBlank() } ?: name.lowercase()
+                val token = cleaned.split(" ").firstOrNull()?.takeIf { it.isNotBlank() }
+                if (token != null) return token
+                return trimmed.lowercase().replace(Regex("\\(.*?\\)"), "").trim().split(" ").lastOrNull() ?: trimmed.lowercase()
             }
         }
 
@@ -1741,7 +1897,8 @@ class OverlayService : LifecycleService() {
             val score: Double,
             val moves: RankingMoves,
             val moveCount: List<Int>? = null,
-            val moveset: List<String>? = null
+            val moveset: List<String>? = null,
+            val rank: Int = 500
         )
 
         data class PokemonAutocompleteSuggestion(
@@ -1853,12 +2010,14 @@ class OverlayService : LifecycleService() {
             return try {
                 val arr = JsonParser.parseString(jsonStr).asJsonArray
                 val leagueMap = java.util.concurrent.ConcurrentHashMap<String, PokemonRankingEntry>()
+                var rankCounter = 1
                 for (el in arr) {
                     try {
                         if (!el.isJsonObject) continue
                         val obj = el.asJsonObject
                         val speciesId = obj.optString("speciesId")?.takeIf { it.isNotBlank() } ?: continue
                         val score = obj.optDouble("score") ?: 80.0
+                        val entryRank = rankCounter++
                         val movesObj = obj.optJsonObject("moves")
 
                         val fastList = mutableListOf<MoveUsage>()
@@ -1920,7 +2079,8 @@ class OverlayService : LifecycleService() {
                             score = score,
                             moves = RankingMoves(fastMoves = fastList, chargedMoves = chargedList),
                             moveCount = moveCountList.takeIf { it.isNotEmpty() },
-                            moveset = movesetList.takeIf { it.isNotEmpty() }
+                            moveset = movesetList.takeIf { it.isNotEmpty() },
+                            rank = entryRank
                         )
                     } catch (_: Exception) {
                         // Skip individual malformed entry without aborting league parsing
@@ -2203,8 +2363,14 @@ class OverlayService : LifecycleService() {
             }
 
             val partial = allMeta.firstOrNull {
-                it.name.lowercase().contains(cleanNoShadow.lowercase()) ||
-                    cleanNoShadow.lowercase().contains(it.baseSpecies.lowercase())
+                val candBase = it.baseSpecies.lowercase()
+                val queryBase = base.lowercase()
+                if ((candBase == "mew" && queryBase == "mewtwo") || (candBase == "mewtwo" && queryBase == "mew")) {
+                    false
+                } else {
+                    it.name.lowercase().contains(cleanNoShadow.lowercase()) ||
+                        cleanNoShadow.lowercase().contains(candBase)
+                }
             }
             return partial?.let {
                 val withRankMoves = applyRankingMovesForLeague(applyRecommendedMoves(it), league, isShadowInput)
@@ -2380,12 +2546,7 @@ class OverlayService : LifecycleService() {
                             } else {
                                 rawSpeciesName
                             }
-                            val baseSpecies = speciesName.lowercase()
-                                .replace(Regex("\\(.*?\\)"), " ")
-                                .replace(Regex("\\b(?:shadow|purified|alolan|galarian|hisuian|paldean|mega|primal)\\b"), " ")
-                                .replace(Regex("\\s+"), " ")
-                                .trim()
-                                .let { if (it.startsWith("tapu ")) it else it.split(" ").firstOrNull() ?: speciesName.lowercase() }
+                            val baseSpecies = FormResolver.extractBaseSpecies(speciesName)
 
                             val formLabel = Regex("\\((.*?)\\)").find(rawSpeciesName)?.groupValues?.getOrNull(1)
                                 ?: if (speciesName.startsWith("Mega ", ignoreCase = true)) "Mega"
@@ -3359,6 +3520,311 @@ class OverlayService : LifecycleService() {
                 totalWeight = totalWeight
             )
         }
+
+        data class BlendedSeasonMetaDistribution(
+            val leadWeights: Map<String, Double>,
+            val fieldWeights: Map<String, Double>,
+            val seasonMatchCount: Int,
+            val histWeightPct: Int,
+            val metaWeightPct: Int
+        )
+
+        data class TeamArchetypeEvaluationResult(
+            val orderedSlots: List<TeamMember>,
+            val archetype: String, // "ABB" or "ABC"
+            val leadAggBr: Int,
+            val machineAggBr: Int,
+            val safeSwapBr: Int,
+            val closerSwapBr: Int,
+            val closerBr: Int,
+            val sharedWeaknesses: List<String>,
+            val histWeightPct: Int,
+            val seasonMatchCount: Int
+        )
+
+        private val ALL_18_TYPES = listOf(
+            "normal", "fire", "water", "electric", "grass", "ice",
+            "fighting", "poison", "ground", "flying", "psychic", "bug",
+            "rock", "ghost", "dragon", "dark", "steel", "fairy"
+        )
+
+        private val CRITICAL_META_TYPES = setOf(
+            "ground", "water", "fighting", "fairy", "flying", "steel", "dark", "ghost", "dragon", "ice", "electric"
+        )
+
+        fun computePositionWeightedBrStatic(
+            slot: TeamMember,
+            oppName: String,
+            league: String,
+            role: String // "LEAD" | "SWAP" | "CLOSER"
+        ): Double {
+            fun br(sU: Int, sO: Int): Double = calculateMatchupRatingStatic(
+                myName = slot.name,
+                oppName = oppName,
+                userShields = sU,
+                oppShields = sO,
+                league = league,
+                myFastMove = slot.fastMove,
+                myCharged1 = slot.chargedMove1,
+                myCharged2 = slot.chargedMove2,
+                myCp = slot.cp,
+                myIvs = slot.ivs
+            ).toDouble()
+
+            return when (role.uppercase()) {
+                "LEAD" -> 0.45 * br(1, 1) + 0.35 * br(2, 2) + 0.10 * br(0, 0) + 0.05 * br(1, 2) + 0.05 * br(2, 1)
+                "SWAP" -> 0.40 * br(1, 1) + 0.20 * br(1, 0) + 0.20 * br(0, 1) + 0.10 * br(2, 1) + 0.10 * br(0, 0)
+                else -> 0.50 * br(0, 0) + 0.20 * br(1, 0) + 0.15 * br(0, 1) + 0.15 * br(1, 1)
+            }
+        }
+
+        fun computeBlendedSeasonMetaStatic(
+            league: String,
+            seasonLogs: List<Pair<Long, List<String>>>
+        ): BlendedSeasonMetaDistribution {
+            val isGreat = league.contains("GREAT", ignoreCase = true)
+            val isUltra = league.contains("ULTRA", ignoreCase = true)
+            val rankedPool = getAllPokemonMeta()
+                .filter { !it.speciesId.endsWith("_shadow", ignoreCase = true) && !it.name.startsWith("Shadow ", ignoreCase = true) }
+                .sortedBy {
+                    when {
+                        isGreat -> it.glRank
+                        isUltra -> it.ulRank
+                        else -> it.mlRank
+                    }
+                }
+                .take(30)
+                .map { it.name }
+                .ifEmpty { getTopMetaPoolForLeagueStatic(league) }
+
+            val rawMeta = LinkedHashMap<String, Double>()
+            var rawMetaSum = 0.0
+            rankedPool.forEachIndexed { idx, name ->
+                val w = kotlin.math.exp(-0.05 * idx.toDouble())
+                rawMeta[name] = (rawMeta[name] ?: 0.0) + w
+                rawMetaSum += w
+            }
+            val pMeta = rawMeta.mapValues { (_, v) -> if (rawMetaSum > 0.0) v / rawMetaSum else 0.0 }
+
+            // Sort current-season logs newest-first so k=1 is most recent and decays via exp(-0.05 * (k - 1))
+            val sortedLogs = seasonLogs
+                .filter { it.second.any { opp -> opp.isNotBlank() && !opp.equals("Waiting...", ignoreCase = true) } }
+                .sortedByDescending { it.first }
+
+            val nMatches = sortedLogs.size
+            val wHist = if (nMatches > 0) 0.70 * min(1.0, nMatches.toDouble() / 50.0) else 0.0
+            val wMeta = 1.0 - wHist
+
+            val rawHistLead = LinkedHashMap<String, Double>()
+            var rawHistLeadSum = 0.0
+            val rawHistField = LinkedHashMap<String, Double>()
+            var rawHistFieldSum = 0.0
+
+            sortedLogs.forEachIndexed { idx, (_, opps) ->
+                val recencyWeight = kotlin.math.exp(-0.05 * idx.toDouble())
+                val leadName = opps.firstOrNull()?.trim().orEmpty()
+                if (leadName.isNotEmpty() && !leadName.equals("Waiting...", ignoreCase = true)) {
+                    rawHistLead[leadName] = (rawHistLead[leadName] ?: 0.0) + recencyWeight
+                    rawHistLeadSum += recencyWeight
+                }
+                opps.forEach { oppRaw ->
+                    val cleaned = oppRaw.trim()
+                    if (cleaned.isNotEmpty() && !cleaned.equals("Waiting...", ignoreCase = true)) {
+                        rawHistField[cleaned] = (rawHistField[cleaned] ?: 0.0) + recencyWeight
+                        rawHistFieldSum += recencyWeight
+                    }
+                }
+            }
+
+            val allSpecies = (pMeta.keys + rawHistLead.keys + rawHistField.keys).distinct()
+            val leadWeights = LinkedHashMap<String, Double>()
+            val fieldWeights = LinkedHashMap<String, Double>()
+
+            for (sp in allSpecies) {
+                val mProb = pMeta[sp] ?: 0.0
+                val lProb = if (rawHistLeadSum > 0.0) (rawHistLead[sp] ?: 0.0) / rawHistLeadSum else mProb
+                val fProb = if (rawHistFieldSum > 0.0) (rawHistField[sp] ?: 0.0) / rawHistFieldSum else mProb
+                leadWeights[sp] = wHist * lProb + wMeta * mProb
+                fieldWeights[sp] = wHist * fProb + wMeta * mProb
+            }
+
+            val lTotal = leadWeights.values.sum().takeIf { it > 0.0 } ?: 1.0
+            val fTotal = fieldWeights.values.sum().takeIf { it > 0.0 } ?: 1.0
+
+            return BlendedSeasonMetaDistribution(
+                leadWeights = leadWeights.mapValues { it.value / lTotal },
+                fieldWeights = fieldWeights.mapValues { it.value / fTotal },
+                seasonMatchCount = nMatches,
+                histWeightPct = (wHist * 100.0).roundToInt(),
+                metaWeightPct = (wMeta * 100.0).roundToInt()
+            )
+        }
+
+        fun evaluateOrAutoOrderTeamStatic(
+            slots: List<TeamMember>,
+            league: String,
+            seasonLogs: List<Pair<Long, List<String>>>,
+            autoReorder: Boolean
+        ): TeamArchetypeEvaluationResult {
+            val padded = if (slots.size >= 3) slots.take(3) else {
+                val top = getTopMetaPoolForLeagueStatic(league)
+                (slots + listOf(
+                    TeamMember(top.getOrElse(0) { "Clodsire" }, 1500, "Poison Sting", "Earthquake", "Stone Edge"),
+                    TeamMember(top.getOrElse(1) { "Feraligatr" }, 1500, "Shadow Claw", "Hydro Cannon", "Ice Beam"),
+                    TeamMember(top.getOrElse(2) { "Mandibuzz" }, 1500, "Snarl", "Dark Pulse", "Aerial Ace")
+                )).take(3)
+            }
+
+            val dist = computeBlendedSeasonMetaStatic(league, seasonLogs)
+
+            fun getTypesFor(slot: TeamMember): List<String> {
+                val meta = resolveRecommendedMovesForSpecies(slot.name, league)
+                return meta?.types?.map { it.lowercase() }?.ifEmpty { listOf("normal") } ?: listOf("normal")
+            }
+
+            fun getWeaknesses(types: List<String>): Set<String> {
+                return ALL_18_TYPES.filter { atkType ->
+                    getTypeEffectivenessStatic(atkType, types) > 1.05
+                }.toSet()
+            }
+
+            fun resistsAll(types: List<String>, sharedWeaknesses: Set<String>): Boolean {
+                if (sharedWeaknesses.isEmpty()) return false
+                return sharedWeaknesses.all { wType ->
+                    getTypeEffectivenessStatic(wType, types) < 0.95
+                }
+            }
+
+            fun computeSwapStats(slot: TeamMember): Pair<Double, Double> {
+                var mu = 0.0
+                val perOpp = HashMap<String, Double>()
+                for ((opp, prob) in dist.fieldWeights) {
+                    if (prob <= 0.0) continue
+                    val br = computePositionWeightedBrStatic(slot, opp, league, "SWAP")
+                    perOpp[opp] = br
+                    mu += prob * br
+                }
+                var variance = 0.0
+                for ((opp, prob) in dist.fieldWeights) {
+                    if (prob <= 0.0) continue
+                    val diff = (perOpp[opp] ?: mu) - mu
+                    variance += prob * diff * diff
+                }
+                val sigma = kotlin.math.sqrt(max(0.0, variance))
+                return (mu - 0.5 * sigma) to mu
+            }
+
+            fun computeCloserStats(slot: TeamMember): Double {
+                var mu = 0.0
+                for ((opp, prob) in dist.fieldWeights) {
+                    if (prob <= 0.0) continue
+                    mu += prob * computePositionWeightedBrStatic(slot, opp, league, "CLOSER")
+                }
+                return mu
+            }
+
+            fun computeBaitVsSweeperScore(slot: TeamMember, swapSafeScore: Double, closerMean: Double): Pair<Double, Double> {
+                val c1Stats = resolveChargedMoveStatsStatic(slot.chargedMove1)
+                val c2Stats = resolveChargedMoveStatsStatic(slot.chargedMove2)
+                val minEnergy = min(c1Stats.energyCost, c2Stats.energyCost).toDouble()
+                val maxPower = max(c1Stats.power, c2Stats.power).toDouble()
+                val isShadow = slot.name.contains("Shadow", ignoreCase = true)
+                val baitScore = swapSafeScore + (55.0 - minEnergy) * 1.4 - (if (isShadow) 8.0 else 0.0)
+                val sweeperScore = closerMean + (maxPower - 80.0) * 0.45 + (if (isShadow) 14.0 else 0.0)
+                return baitScore to sweeperScore
+            }
+
+            val typesList = padded.map { getTypesFor(it) }
+            val weakList = typesList.map { getWeaknesses(it) }
+
+            // Check candidate B-pairs: (1,2) with Lead 0, (0,2) with Lead 1, (0,1) with Lead 2
+            val candidatePairs = listOf(
+                Triple(0, 1, 2),
+                Triple(1, 0, 2),
+                Triple(2, 0, 1)
+            )
+
+            var detectedAbbTriplet: Triple<Int, Int, Int>? = null
+            var detectedSharedWeaknesses: List<String> = emptyList()
+            var bestSharedScore = -1
+
+            for ((aIdx, b1Idx, b2Idx) in candidatePairs) {
+                val shared = weakList[b1Idx].intersect(weakList[b2Idx])
+                val hasCritical = shared.any { it in CRITICAL_META_TYPES }
+                if ((shared.size >= 2 || (shared.size == 1 && hasCritical)) && resistsAll(typesList[aIdx], shared)) {
+                    val score = shared.size * 10 + (if (aIdx == 0) 3 else 0)
+                    if (score > bestSharedScore) {
+                        bestSharedScore = score
+                        detectedAbbTriplet = Triple(aIdx, b1Idx, b2Idx)
+                        detectedSharedWeaknesses = shared.map { it.replaceFirstChar { c -> c.uppercase() } }
+                    }
+                }
+            }
+
+            val swapScores = padded.map { computeSwapStats(it).first }
+            val closerMeans = padded.map { computeCloserStats(it) }
+
+            val finalOrderIndices: List<Int>
+            val archetype: String
+
+            if (detectedAbbTriplet != null) {
+                archetype = "ABB"
+                if (autoReorder) {
+                    val (aIdx, bA, bB) = detectedAbbTriplet
+                    val (baitA, sweepA) = computeBaitVsSweeperScore(padded[bA], swapScores[bA], closerMeans[bA])
+                    val (baitB, sweepB) = computeBaitVsSweeperScore(padded[bB], swapScores[bB], closerMeans[bB])
+                    val b1First = (baitA + sweepB) >= (baitB + sweepA)
+                    finalOrderIndices = if (b1First) listOf(aIdx, bA, bB) else listOf(aIdx, bB, bA)
+                } else {
+                    finalOrderIndices = listOf(0, 1, 2)
+                }
+            } else {
+                archetype = "ABC"
+                if (autoReorder) {
+                    // Keep Slot 1 (index 0) fixed; place higher Swap BR backline member in Slot 2
+                    finalOrderIndices = if (swapScores[1] >= swapScores[2]) listOf(0, 1, 2) else listOf(0, 2, 1)
+                } else {
+                    finalOrderIndices = listOf(0, 1, 2)
+                }
+            }
+
+            val ordered = finalOrderIndices.map { padded[it] }
+            val slot1 = ordered[0]
+            val slot2 = ordered[1]
+            val slot3 = ordered[2]
+
+            var leadAgg = 0.0
+            for ((opp, prob) in dist.leadWeights) {
+                if (prob <= 0.0) continue
+                leadAgg += prob * computePositionWeightedBrStatic(slot1, opp, league, "LEAD")
+            }
+
+            var machAgg = 0.0
+            for ((opp, prob) in dist.fieldWeights) {
+                if (prob <= 0.0) continue
+                val r1 = computePositionWeightedBrStatic(slot1, opp, league, "LEAD")
+                val r2 = computePositionWeightedBrStatic(slot2, opp, league, "SWAP")
+                val r3 = computePositionWeightedBrStatic(slot3, opp, league, "CLOSER")
+                machAgg += prob * max(r1, max(r2, r3))
+            }
+
+            val safeSwapBrVal = computeSwapStats(slot2).first.roundToInt().coerceIn(150, 850)
+            val closerSwapBrVal = computeSwapStats(slot3).first.roundToInt().coerceIn(150, 850)
+            val closerBrVal = computeCloserStats(slot3).roundToInt().coerceIn(150, 850)
+
+            return TeamArchetypeEvaluationResult(
+                orderedSlots = ordered,
+                archetype = archetype,
+                leadAggBr = leadAgg.roundToInt().coerceIn(150, 850),
+                machineAggBr = machAgg.roundToInt().coerceIn(150, 850),
+                safeSwapBr = safeSwapBrVal,
+                closerSwapBr = closerSwapBrVal,
+                closerBr = closerBrVal,
+                sharedWeaknesses = detectedSharedWeaknesses,
+                histWeightPct = dist.histWeightPct,
+                seasonMatchCount = dist.seasonMatchCount
+            )
+        }
     }
 
     private lateinit var windowManager: WindowManager
@@ -3415,6 +3881,7 @@ class OverlayService : LifecycleService() {
     private var disableBattleToasts = false
     private var overlayScalePct = 78
     private var overlayTransparencyPct = 72
+    private var appThemeId = "dialga_shiny_midnight"
     private var isOverlayMinimized = false
     private var cachedScreenBitmap: Bitmap? = null
     private val captureLock = Any()
@@ -3601,7 +4068,15 @@ class OverlayService : LifecycleService() {
         val league: String,
         val pokemon: List<TeamMember>,
         var isSelected: Boolean = false,
-        val updatedAt: Long = System.currentTimeMillis()
+        val updatedAt: Long = System.currentTimeMillis(),
+        val archetype: String = "ABC",
+        val isArchetypeManual: Boolean = false,
+        val leadAggBr: Int = 500,
+        val machineAggBr: Int = 600,
+        val safeSwapBr: Int = 500,
+        val closerSwapBr: Int = 500,
+        val closerBr: Int = 500,
+        val sharedWeaknesses: List<String> = emptyList()
     )
 
     override fun onCreate() {
@@ -3615,6 +4090,8 @@ class OverlayService : LifecycleService() {
         disableBattleToasts = prefs.getBoolean(PREFS_KEY_DISABLE_BATTLE_TOASTS, false)
         overlayScalePct = prefs.getInt("overlay_scale_pct", 78).coerceIn(50, 100)
         overlayTransparencyPct = prefs.getInt(PREFS_KEY_OVERLAY_TRANSPARENCY_PCT, 72).coerceIn(0, 100)
+        val rawSavedThemeId = prefs.getString(PREFS_KEY_APP_THEME_ID, "dialga_shiny_midnight") ?: "dialga_shiny_midnight"
+        appThemeId = if (rawSavedThemeId == "amoled_cyan" || rawSavedThemeId == "amoled_matrix") "dialga_shiny_midnight" else rawSavedThemeId
         syncTierThresholdsFromPrefs(prefs)
 
         val metrics = resources.displayMetrics
@@ -3653,11 +4130,22 @@ class OverlayService : LifecycleService() {
         mainToastHandler.post {
             try {
                 val density = resources.displayMetrics.density
+                val themeAccentHex = when (appThemeId) {
+                    "dialga_shiny_midnight" -> "#2DD4BF"
+                    "instinct_dark" -> "#EAB308"
+                    "instinct_light" -> "#CA8A04"
+                    "mystic_dark" -> "#38BDF8"
+                    "mystic_light" -> "#0284C7"
+                    "valor_dark" -> "#F87171"
+                    "valor_light" -> "#DC2626"
+                    "sylveon_pink", "sylveon_light" -> "#EC4899"
+                    else -> "#38BDF8"
+                }
                 val borderColor = when {
                     message.contains("💀") -> Color.parseColor("#F43F5E")
                     message.contains("🛡️") -> Color.parseColor("#FBBF24")
                     message.contains("✓") -> Color.parseColor("#4ADE80")
-                    else -> Color.parseColor("#38BDF8")
+                    else -> Color.parseColor(themeAccentHex)
                 }
 
                 if (statusToastView == null) {
@@ -3980,6 +4468,19 @@ class OverlayService : LifecycleService() {
         }
     }
 
+    private fun applyOverlayTheme(themeId: String) {
+        val cleaned = themeId.ifBlank { "dialga_shiny_midnight" }
+        appThemeId = if (cleaned == "amoled_cyan" || cleaned == "amoled_matrix") "dialga_shiny_midnight" else cleaned
+        Handler(Looper.getMainLooper()).post {
+            try {
+                overlayView?.evaluateJavascript(
+                    "if (window.setOverlayTheme) setOverlayTheme('$appThemeId');",
+                    null
+                )
+            } catch (_: Exception) {}
+        }
+    }
+
     private fun stopBattleOcrLoop() {
         battleLoopJob?.cancel()
         battleLoopJob = null
@@ -4027,7 +4528,7 @@ class OverlayService : LifecycleService() {
         }
         recalculateAndPushBattleData()
         startForegroundNotification()
-        showStatusBarToast("⚔️ Overlay restored & OCR resumed", Toast.LENGTH_SHORT)
+        showStatusBarToast("✓ Overlay restored & OCR resumed", Toast.LENGTH_SHORT)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -4070,6 +4571,11 @@ class OverlayService : LifecycleService() {
                     prefs.getInt(PREFS_KEY_OVERLAY_TRANSPARENCY_PCT, 72)
                 ) ?: prefs.getInt(PREFS_KEY_OVERLAY_TRANSPARENCY_PCT, 72)
                 applyOverlayTransparency(startTransparencyPct)
+
+                val startThemeId = intent?.getStringExtra(EXTRA_APP_THEME_ID)
+                    ?: prefs.getString(PREFS_KEY_APP_THEME_ID, "dialga_shiny_midnight")
+                    ?: "dialga_shiny_midnight"
+                applyOverlayTheme(startThemeId)
 
                 enable4ChargedMoves = if (intent?.hasExtra(EXTRA_ENABLE_4_CHARGED_MOVES) == true) {
                     intent.getBooleanExtra(EXTRA_ENABLE_4_CHARGED_MOVES, false)
@@ -4165,6 +4671,11 @@ class OverlayService : LifecycleService() {
                     prefs.getInt(PREFS_KEY_OVERLAY_TRANSPARENCY_PCT, overlayTransparencyPct)
                 ) ?: prefs.getInt(PREFS_KEY_OVERLAY_TRANSPARENCY_PCT, overlayTransparencyPct)
                 applyOverlayTransparency(updatedTransparencyPct)
+
+                val updatedThemeId = intent?.getStringExtra(EXTRA_APP_THEME_ID)
+                    ?: prefs.getString(PREFS_KEY_APP_THEME_ID, appThemeId)
+                    ?: appThemeId
+                applyOverlayTheme(updatedThemeId)
 
                 recalculateAndPushBattleData()
             }
@@ -5031,7 +5542,7 @@ class OverlayService : LifecycleService() {
 
         // Sort top-to-bottom so the opponent Pokémon name line (above CP) is evaluated first
         val sortedLines = oppLines.sortedBy { it.boundingBox?.top ?: 0 }
-        val matchedCandidates = mutableListOf<Pair<PokemonMeta, String>>()
+        val matchedCandidates = mutableListOf<Triple<PokemonMeta, String, Boolean>>()
 
         for (line in sortedLines) {
             val text = line.text.trim()
@@ -5044,24 +5555,24 @@ class OverlayService : LifecycleService() {
             if (candidate != null) {
                 val base = candidate.baseSpecies.lowercase()
                 val manualFormName = manualFormOverrides[base]
-                val isLineShadow = manualShadowOverrides[base] ?: text.contains("shadow", ignoreCase = true)
+                val (bestVar, defaultShadow) = FormResolver.resolveBestDefaultFormAndShadow(candidate, text, activeLeague)
+                val isLineShadow = manualShadowOverrides[base] ?: (text.contains("shadow", ignoreCase = true) || defaultShadow)
                 val resolved = if (manualFormName != null) {
                     getPokemonMeta(manualFormName, activeLeague, isLineShadow)
                 } else {
-                    val bestVar = FormResolver.resolveBestDefaultVariant(candidate, text, activeLeague)
                     applyRankingMovesForLeague(applyRecommendedMoves(bestVar), activeLeague, isLineShadow)
                 }
-                matchedCandidates.add(resolved to text)
+                matchedCandidates.add(Triple(resolved, text, isLineShadow))
             }
         }
 
         // Prefer any detected candidate that is a DIFFERENT species from the current activeOpponentSpecies
-        val chosenPair = matchedCandidates.firstOrNull {
+        val chosenTriple = matchedCandidates.firstOrNull {
             !it.first.baseSpecies.equals(activeOpponentSpecies, ignoreCase = true)
         } ?: matchedCandidates.firstOrNull()
 
         // Dynamic fallback if CP line is visible in top-right nameplate and a clean name line is above it
-        val finalPair: Pair<PokemonMeta, String>? = chosenPair ?: run {
+        val finalTriple: Triple<PokemonMeta, String, Boolean>? = chosenTriple ?: run {
             val hasCpIndicator = sortedLines.any {
                 Regex("(?i)\\bcp\\s*\\d{3,4}\\b").containsMatchIn(it.text) ||
                         Regex("^\\d{3,4}$").containsMatchIn(it.text.trim())
@@ -5075,7 +5586,7 @@ class OverlayService : LifecycleService() {
                     .replace(Regex("(?i)\\bcp\\s*\\d*"), "")
                     .replace(Regex("[^a-zA-Z\\s-]"), "")
                     .trim()
-                if (cleanWord.length in 4..14 &&
+                if (cleanWord.length in 3..14 &&
                     !isIgnoredMenuToken(cleanWord) &&
                     !cleanWord.contains("super", ignoreCase = true) &&
                     !cleanWord.contains("effective", ignoreCase = true) &&
@@ -5087,14 +5598,15 @@ class OverlayService : LifecycleService() {
                 ) {
                     val dynamicName = cleanWord.lowercase().replaceFirstChar { it.uppercase() }
                     val dynMeta = getPokemonMeta(dynamicName)
-                    return@run dynMeta to raw
+                    val (_, dynDefShadow) = FormResolver.resolveBestDefaultFormAndShadow(dynMeta, raw, activeLeague)
+                    return@run Triple(dynMeta, raw, dynDefShadow)
                 }
             }
             null
         }
 
-        if (finalPair != null) {
-            val (matched, rawMatchedLine) = finalPair
+        if (finalTriple != null) {
+            val (matched, rawMatchedLine, defaultResolvedShadow) = finalTriple
             val newBaseSpecies = matched.baseSpecies.lowercase()
 
             val anyLineHasShadow = rawMatchedLine.contains("shadow", ignoreCase = true) ||
@@ -5124,8 +5636,12 @@ class OverlayService : LifecycleService() {
                 activeOpponentName = matched.name
 
                 isOpponentShadow = when {
+                    !FormResolver.isShadowEligibleVariant(matched) -> {
+                        manualShadowOverrides[newBaseSpecies] = false
+                        false
+                    }
                     manualShadowOverrides.containsKey(newBaseSpecies) -> manualShadowOverrides[newBaseSpecies]!!
-                    anyLineHasShadow -> {
+                    anyLineHasShadow || defaultResolvedShadow -> {
                         manualShadowOverrides[newBaseSpecies] = true
                         true
                     }
@@ -5612,7 +6128,11 @@ class OverlayService : LifecycleService() {
 
             val matchCountInLine = preset.pokemon.count { slot ->
                 val base = FormResolver.extractBaseSpecies(slot.name)
-                base.length >= 3 && normalizedLine.contains(base)
+                if (base == "mew") {
+                    normalizedLine.contains("mew") && !normalizedLine.contains("mewt")
+                } else {
+                    base.length >= 3 && normalizedLine.contains(base)
+                }
             }
             if (matchCountInLine > 1) continue
 
@@ -5621,7 +6141,15 @@ class OverlayService : LifecycleService() {
                 val cpStr = slot.cp.toString()
 
                 var isMatched = false
-                if (speciesBase.length >= 3 && normalizedLine.contains(speciesBase)) {
+                if (speciesBase == "mew") {
+                    if (normalizedLine.contains("mew") && !normalizedLine.contains("mewt")) {
+                        isMatched = true
+                    }
+                } else if (speciesBase == "mewtwo") {
+                    if (normalizedLine.contains("mewt")) {
+                        isMatched = true
+                    }
+                } else if (speciesBase.length >= 3 && normalizedLine.contains(speciesBase)) {
                     isMatched = true
                 } else if (cpStr.length >= 3 && lineText.contains(cpStr)) {
                     isMatched = true
@@ -5636,6 +6164,9 @@ class OverlayService : LifecycleService() {
                     for (token in tokens) {
                         val normTok = normalizeOcrToken(token)
                         if (isIgnoredMenuToken(normTok)) continue
+                        if ((speciesBase == "mew" && normTok.startsWith("mewt")) ||
+                            (speciesBase == "mewtwo" && !normTok.startsWith("mewt"))
+                        ) continue
                         if (kotlin.math.abs(normTok.length - speciesBase.length) <= maxAllowedDist &&
                             levenshteinDistance(normTok, speciesBase) <= maxAllowedDist
                         ) {
@@ -6029,8 +6560,18 @@ class OverlayService : LifecycleService() {
         currentFormIndex = (currentFormIndex + 1) % availableOpponentForms.size
         val nextVariant = availableOpponentForms[currentFormIndex]
         val baseKey = nextVariant.baseSpecies.lowercase()
+        val activeLeague = currentPreset?.league ?: "MASTER LEAGUE"
         activeOpponentName = nextVariant.name
         manualFormOverrides[baseKey] = nextVariant.name
+
+        if (!FormResolver.isShadowEligibleVariant(nextVariant)) {
+            isOpponentShadow = false
+            manualShadowOverrides[baseKey] = false
+        } else {
+            val (_, prefShad) = FormResolver.getEffectiveRankAndShadowForVariant(nextVariant, activeLeague)
+            isOpponentShadow = prefShad
+            manualShadowOverrides[baseKey] = prefShad
+        }
 
         // Update existing species entry in-place (preserving 1st/2nd/3rd seen slot!)
         val existingIdx = detectedOpponents.indexOfFirst {
@@ -6045,7 +6586,8 @@ class OverlayService : LifecycleService() {
     }
 
     fun swapActiveOpponent(pokemonName: String) {
-        val matched = getPokemonMeta(pokemonName)
+        val activeLeague = currentPreset?.league ?: "MASTER LEAGUE"
+        val matched = getPokemonMeta(pokemonName, activeLeague)
         val newBaseSpecies = matched.baseSpecies.lowercase()
         val prevBase = activeOpponentSpecies
         val prevOppFormatted = if (!isWaitingForOpponent && activeOpponentName != "Waiting...") {
@@ -6058,14 +6600,22 @@ class OverlayService : LifecycleService() {
         val wasWaiting = isWaitingForOpponent
         isWaitingForOpponent = false
         activeOpponentSpecies = newBaseSpecies
-        val activeLeague = currentPreset?.league ?: "MASTER LEAGUE"
         availableOpponentForms = FormResolver.getVariantsForSpecies(newBaseSpecies, activeLeague)
         currentFormIndex = availableOpponentForms.indexOfFirst { it.name == matched.name }.coerceAtLeast(0)
         activeOpponentName = matched.name
-        if (pokemonName.contains("Shadow", ignoreCase = true)) {
+        val (_, defaultShadowForMatched) = FormResolver.resolveBestDefaultFormAndShadow(matched, pokemonName, activeLeague)
+        if (!FormResolver.isShadowEligibleVariant(matched)) {
+            manualShadowOverrides[newBaseSpecies] = false
+            isOpponentShadow = false
+        } else if (pokemonName.contains("Shadow", ignoreCase = true)) {
             manualShadowOverrides[newBaseSpecies] = true
+            isOpponentShadow = true
+        } else if (!manualShadowOverrides.containsKey(newBaseSpecies)) {
+            manualShadowOverrides[newBaseSpecies] = defaultShadowForMatched
+            isOpponentShadow = defaultShadowForMatched
+        } else {
+            isOpponentShadow = manualShadowOverrides[newBaseSpecies] ?: defaultShadowForMatched
         }
-        isOpponentShadow = manualShadowOverrides[newBaseSpecies] ?: pokemonName.contains("Shadow", ignoreCase = true)
         upsertDetectedOpponentBySpecies(matched.name, newBaseSpecies)
         val newOppFormatted = formatOpponentNameWithShadow(matched.name)
 
@@ -6255,9 +6805,31 @@ class OverlayService : LifecycleService() {
             normalizeOcrToken(filteredCleaned, oneAsL = false, rnAsM = false, vAsY = true)
         ).filter { !isIgnoredMenuToken(it) }.distinct()
 
+        // 0. Strict Mew vs Mewtwo disambiguation before general matching:
+        // "Mew" (3 chars) and "Mewtwo" (6 chars) are distinct species and must never evaluate as each other.
+        val hasMewtwoIndicator = normCleanedVariants.any { it.contains("mewt") || it.contains("mewtw") } ||
+            lowerCleaned.contains("mewt")
+        if (hasMewtwoIndicator) {
+            val mewtwoMeta = sortedByLenDesc.find { it.baseSpecies.equals("mewtwo", ignoreCase = true) }
+            if (mewtwoMeta != null) return mewtwoMeta
+        } else {
+            val hasExactMewToken = tokens.any { tok ->
+                val nToks = listOf(
+                    normalizeOcrToken(tok, oneAsL = false, rnAsM = false, vAsY = false),
+                    normalizeOcrToken(tok, oneAsL = false, rnAsM = true, vAsY = false)
+                )
+                nToks.any { it == "mew" }
+            }
+            if (hasExactMewToken) {
+                val mewMeta = sortedByLenDesc.find { it.baseSpecies.equals("mew", ignoreCase = true) }
+                if (mewMeta != null) return mewMeta
+            }
+        }
+
         // 1. Direct or normalized substring match against species base names (longest species name first)
         for (meta in sortedByLenDesc) {
             val baseNorm = normalizeOcrToken(meta.baseSpecies)
+            if (baseNorm == "mew" || baseNorm == "mewtwo") continue
             if (baseNorm.length >= 4 && (lowerCleaned.contains(meta.baseSpecies) || normCleanedVariants.any { it.contains(baseNorm) })) {
                 return meta
             }
@@ -6277,6 +6849,8 @@ class OverlayService : LifecycleService() {
 
             val exactOrNorm = sortedByLenDesc.find { meta ->
                 val target = normalizeOcrToken(meta.baseSpecies)
+                if (target == "mew" && hasMewtwoIndicator) return@find false
+                if (target == "mewtwo" && !hasMewtwoIndicator) return@find false
                 meta.baseSpecies.equals(token, ignoreCase = true) || tokenNorms.any { it == target }
             }
             if (exactOrNorm != null) return exactOrNorm
@@ -6292,7 +6866,11 @@ class OverlayService : LifecycleService() {
             for (normToken in tokenNorms) {
                 val prefixMatch = sortedByLenDesc.find {
                     val target = normalizeOcrToken(it.baseSpecies)
-                    target.length >= 5 && (target.startsWith(normToken) || normToken.startsWith(target))
+                    if (target == "mew" || (target == "mewtwo" && !normToken.startsWith("mewt"))) {
+                        false
+                    } else {
+                        target.length >= 5 && (target.startsWith(normToken) || normToken.startsWith(target))
+                    }
                 }
                 if (prefixMatch != null) return prefixMatch
             }
@@ -6317,6 +6895,9 @@ class OverlayService : LifecycleService() {
                 val maxAllowedDist = if (normTok.length >= 5) 2 else 1
                 for (meta in allMeta) {
                     val target = normalizeOcrToken(meta.baseSpecies)
+                    // Never fuzzy-match Mew as Mewtwo or Mewtwo as Mew
+                    if (target == "mew" || (target == "mewtwo" && !normTok.startsWith("mewt"))) continue
+                    if (normTok.startsWith("mew") && !normTok.startsWith("mewt") && target == "mewtwo") continue
                     if (kotlin.math.abs(target.length - normTok.length) <= maxAllowedDist) {
                         val dist = levenshteinDistance(normTok, target)
                         if (dist <= maxAllowedDist && dist < bestDistance) {
@@ -6353,8 +6934,8 @@ class OverlayService : LifecycleService() {
             manualShadowOverrides[base.lowercase()] == true ||
             (name.equals(activeOpponentName, ignoreCase = true) && isOpponentShadow))
 
-        // Normalize prefix regional forms like "Alolan Ninetales" -> "Ninetales (Alolan)"
-        val regionalMatch = Regex("^(Alolan|Galarian|Hisuian|Paldean)\\s+(.+)$", RegexOption.IGNORE_CASE).find(cleanNoShadow)
+        // Normalize prefix regional/form names like "Alolan Ninetales" -> "Ninetales (Alolan)" or "Armored Mewtwo" -> "Mewtwo (Armored)"
+        val regionalMatch = Regex("^(Alolan|Galarian|Hisuian|Paldean|Armored|Origin|Altered|Therian|Incarnate|Crowned)\\s+(.+)$", RegexOption.IGNORE_CASE).find(cleanNoShadow)
         val normalizedParenName = if (regionalMatch != null) {
             "${regionalMatch.groupValues[2].trim()} (${regionalMatch.groupValues[1].replaceFirstChar { it.uppercase() }})"
         } else {
@@ -6362,16 +6943,25 @@ class OverlayService : LifecycleService() {
         }
 
         val allMeta = getAllPokemonMeta()
-        val exactByName = allMeta.find {
-            it.name.equals(name, ignoreCase = true) ||
-                it.name.equals(cleanNoShadow, ignoreCase = true) ||
-                it.name.equals(normalizedParenName, ignoreCase = true) ||
-                (cleanNoShadow.contains("zygarde", ignoreCase = true) && cleanNoShadow.contains("complete", ignoreCase = true) && it.speciesId.equals("zygarde_complete", ignoreCase = true))
+        val variants = FormResolver.getVariantsForSpecies(base, activeLeague)
+        val isBareSpeciesQuery = cleanNoShadow.equals(base, ignoreCase = true) &&
+            !cleanNoShadow.contains("(") &&
+            regionalMatch == null
+        val hasManualFormSelection = manualFormOverrides[base.lowercase()]?.equals(cleanNoShadow, ignoreCase = true) == true
+
+        val exactByName = if (isBareSpeciesQuery && variants.size > 1 && !hasManualFormSelection) {
+            null
+        } else {
+            allMeta.find {
+                it.name.equals(name, ignoreCase = true) ||
+                    it.name.equals(cleanNoShadow, ignoreCase = true) ||
+                    it.name.equals(normalizedParenName, ignoreCase = true) ||
+                    (cleanNoShadow.contains("zygarde", ignoreCase = true) && cleanNoShadow.contains("complete", ignoreCase = true) && it.speciesId.equals("zygarde_complete", ignoreCase = true))
+            }
         }
         val found = if (exactByName != null) {
             exactByName
         } else {
-            val variants = FormResolver.getVariantsForSpecies(base, activeLeague)
             if (variants.isNotEmpty()) {
                 FormResolver.resolveBestDefaultVariant(variants.first(), cleanNoShadow, activeLeague)
             } else {
@@ -7442,6 +8032,7 @@ class OverlayService : LifecycleService() {
             "oppCountMode" to oppCountMode,
             "enable4ChargedMoves" to enable4ChargedMoves,
             "overlayTransparencyPct" to overlayTransparencyPct,
+            "appThemeId" to appThemeId,
             "isOverlayMinimized" to isOverlayMinimized,
             "maxHorizonTurns" to maxHorizonTurns,
             "isOpponentShadow" to isOpponentShadow,
@@ -7737,6 +8328,70 @@ class OverlayService : LifecycleService() {
         }
 
         @JavascriptInterface
+        fun setPlayerShields(count: Int) {
+            Handler(Looper.getMainLooper()).post {
+                val clamped = count.coerceIn(0, 2)
+                if (playerShieldsRemaining != clamped) {
+                    val prev = playerShieldsRemaining
+                    playerShieldsRemaining = clamped
+                    sampledPlayerShields = clamped
+                    playerShieldDropFrames = 0
+                    if (!isWaitingForOpponent && clamped < prev) {
+                        val eventT = getElapsedBattleSeconds()
+                        val activeUserMon = activeUserPokemonName ?: currentPreset?.pokemon?.firstOrNull()?.name ?: ""
+                        val shieldNum = (2 - clamped).coerceIn(1, 2)
+                        battleTimelineEvents.add(
+                            BattleTimelineEvent(
+                                type = "SHIELD",
+                                actor = "user",
+                                t = eventT,
+                                shieldNumber = shieldNum,
+                                activePokemon = activeUserMon.ifEmpty { null },
+                                pokemonShielded = activeUserMon.ifEmpty { null },
+                                userShieldsRemaining = clamped,
+                                oppShieldsRemaining = oppShieldsRemaining
+                            )
+                        )
+                    }
+                    showBattleToast("🛡️ You: $playerShieldsRemaining shield${if (playerShieldsRemaining == 1) "" else "s"}")
+                    recalculateAndPushBattleData()
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun setOpponentShields(count: Int) {
+            Handler(Looper.getMainLooper()).post {
+                val clamped = count.coerceIn(0, 2)
+                if (oppShieldsRemaining != clamped) {
+                    val prev = oppShieldsRemaining
+                    oppShieldsRemaining = clamped
+                    sampledOppShields = clamped
+                    oppShieldDropFrames = 0
+                    if (!isWaitingForOpponent && clamped < prev) {
+                        val eventT = getElapsedBattleSeconds()
+                        val activeOppMon = formatOpponentNameWithShadow(activeOpponentName)
+                        val shieldNum = (2 - clamped).coerceIn(1, 2)
+                        battleTimelineEvents.add(
+                            BattleTimelineEvent(
+                                type = "SHIELD",
+                                actor = "opp",
+                                t = eventT,
+                                shieldNumber = shieldNum,
+                                activePokemon = activeOppMon.ifEmpty { null },
+                                pokemonShielded = activeOppMon.ifEmpty { null },
+                                userShieldsRemaining = playerShieldsRemaining,
+                                oppShieldsRemaining = clamped
+                            )
+                        )
+                    }
+                    showBattleToast("🛡️ Opponent: $oppShieldsRemaining shield${if (oppShieldsRemaining == 1) "" else "s"}")
+                    recalculateAndPushBattleData()
+                }
+            }
+        }
+
+        @JavascriptInterface
         fun updateContentHeight(heightDp: Int) {
             if (isOverlayMinimized || currentLayoutMode != "option1") return
             val density = resources.displayMetrics.density
@@ -7755,6 +8410,7 @@ class OverlayService : LifecycleService() {
         fun onOverlayReady() {
             Handler(Looper.getMainLooper()).post {
                 applyOverlayTransparency(overlayTransparencyPct)
+                applyOverlayTheme(appThemeId)
                 loadInitialDataIntoOverlay()
             }
         }

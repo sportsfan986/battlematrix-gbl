@@ -1,69 +1,23 @@
-# SilphScope PvP Changelog (Since v3.00)
+# SilphScope PvP Changelog
 
-## [v3.08] — 2026-10-21 — Battle Log Page Reformat: Compact Lead Matchups (`#+/#o/#-/#u`) & Tightened Daily Summary Spacing
-- **Compact Lead Matchups Summary Box (`#+/#o/#-/#u`)**:
-  - Reformatted the Battle Log **Lead Matchups** card value to `#+#o/#-/#u` (e.g., `22+/25o/17-/50u` for favorable, neutral, negative, and unique leads) and tightened the **Record (W - L)** card formatting (`${wins}W-${losses}L ($total)`) so all summary metrics fit cleanly inside their cards without text overrun.
-- **Tightened Daily Summary & Share Export Spacing**:
-  - Removed unneeded spaces in the daily record header and plain-text export summaries (`Daily Record:10W-13L(43%) • Leads:11 Fav/4 Neu/8 Neg/23 Unique • WAE:-10.9% • Luck:55.9%`).
-
----
-
-## [v3.07] — 2026-10-21 — League-Rated Default Form & Shadow Selection, Strict Mew/Mewtwo Disambiguation, Same-Day Repeated Lead Highlighting & Yesterday Filter
-- **Highest-Rated League Default Form & Shadow Selection on Scan (`FormResolver` & `OverlayService`)**:
-  - Scanning an opponent with multiple forms or Shadow variants now evaluates all form variants and their `_shadow` counterparts against the active league's live PvPoke rankings (plus curated current-meta fallbacks) and selects the highest-rated form + Shadow state automatically:
-    - **Great League (`1500`)**: Scanning `"Ninetales"` (without `"Alolan"` in the OCR nameplate) defaults to **Shadow Kanto Ninetales**.
-    - **Ultra League (`2500`)**: Scanning `"Mewtwo"` defaults to **Armored Mewtwo** (`Mewtwo (Armored)`).
-    - **Master League (`10000`)**: Scanning `"Mewtwo"` defaults to **Shadow Mewtwo**.
-  - Added `Mewtwo (Armored)` (`Confusion` + `Psystrike` / `Dynamic Punch` / `Earthquake`) and `Mew` (`Shadow Claw` + `Psyshock` / `Wild Charge` / `Surf`) to static + live metadata and recommended movesets.
-- **Strict `Mew` vs. `Mewtwo` Disambiguation**:
-  - Enabled exact 3-letter token matching for `"Mew"` while adding strict disambiguation guards across OCR prefix matching, Levenshtein sliding-window matching, player switch detection, and stats lookups so `"Mew"` never evaluates as `"Mewtwo"` and `"Mewtwo"` never evaluates as `"Mew"`.
-- **Battle Log: Same-Day Repeated Lead Highlighting, `/ # Unique` Lead Counts & Markdown Share Bold**:
-  - **Unique Lead Counts (`/# Unique`)**: Added `/ # Unique` right after `/ # Neg` across the Battle Log top summary, daily record headers, and Share log output (`Leads: # Fav / # Neu / # Neg / # Unique`).
-  - **In-App Repeated Daily Lead Highlighting**: When the same opponent lead is faced more than once on the same calendar day, all matching battle cards on that day are highlighted with an accent border, highlighted `1st: <Lead> 🔁` text, and a chronological **`🔁 Repeat Lead (#1 of 2 Today)` / `🔁 Repeat Lead (#2 of 2 Today)`** badge so you can evaluate whether you adapted and improved the second time.
-  - **Markdown Share Highlighting**: Repeated same-day opponent leads are automatically wrapped in Markdown bold syntax (`**lead_name**`) in the Share log summary.
-- **New `"Yesterday"` Timeframe Filter**:
-  - Added **`Yesterday`** to the Battle Log page timeframe filter dropdown and the **Share** / **Copy GBL** timeframe chooser dialogs.
-
----
-
-## [v3.06] — 2026-10-20 — Dual-Accent Theme Engine Overhaul, Shiny Origin Forme Dialga Midnight Theme, Complete Modal/Button Theming & Enhanced Page Transparency
-- **New ✨ Shiny Origin Forme Dialga Midnight Theme (`dialga_shiny_midnight`)**:
-  - Replaced legacy AMOLED Cyber Pulse Cyan & Matrix Phosphor Green themes with **✨ Shiny Origin Dialga Midnight (Dark)** (`#050B16` deep temporal void, `#2DD4BF` luminous shiny teal primary accent, `#FACC15` astral ring gold secondary accent, and custom vector Origin Forme Dialga temporal wheel & diamond core emblem).
-- **Dual-Accent Color Palettes Across All 9 Themes**:
-  - Added a distinct secondary accent color (`secondaryAccentColor` / `secondaryButtonColor` + 5-dot swatch preview in Settings) to every theme for richer visual depth across headers, badges, slot titles, and secondary action buttons.
-  - **🎀 Sylveon Fairy Ribbon**: Paired Fairy Ribbon Pink (`#EC4899`) with Sylveon's signature **Pastel Sky Blue** (`#38BDF8`) secondary accent.
-  - **⚡ Team Instinct (Dark & Light)**: Paired Zapdos Lightning Gold with Storm Sky Cyan (`#38BDF8`) and Electric Cobalt (`#0284C7`).
-  - **❄️ Team Mystic (Dark & Light)**: Paired Articuno Ice Blue with Aurora Borealis Violet (`#C084FC`) and Royal Frost Indigo (`#7C3AED`).
-  - **🔥 Team Valor (Dark & Light)**: Paired Moltres Crimson with Molten Solar Gold (`#FBBF24`) and Phoenix Amber (`#D97706`).
-  - **🛡️ SilphScope Slate (Default Generic)**: Placed last in the theme selector as a clean generic fallback with Sky Cyan (`#38BDF8`) & Tactical Amber (`#F59E0B`).
-- **Complete Action Button, Team Edit & Replay Matrix Theming**:
-  - Fixed Android `MaterialButton` background tint resolution and explicitly themed all action buttons across the app:
-    - **Top Bar & Overlay**: `Start Battle Overlay` / `Stop Battle Overlay`, `❓ Help`, `☕ Support`, and the floating overlay's `⚔️ Start Battle` button.
-    - **Battle Log Page**: `+ Log`, `☁️ Sync`, `🗑️ Trash`, `Clear`, `📋 Copy GBL`, and `📤 Share`.
-    - **Settings Page**: `💾 Save Thresholds`, `↺ Restore Defaults`, all 3 cloud sync buttons (`🔑 Login with GitHub`, `☁️ Sync Devices Now`, `📦 Sync Bundle`), `Sync PvPoke`, `🔄 Reparse All`, and Tasker hook buttons.
-  - **Themed Team Edit & Manual Battle Log Modals**: Added active theme backgrounds, dual-accent Lead / Safe Swap / Closer slot headers, themed inputs, and centered background emblem watermarks when enabled.
-  - **Themed Replay Overlay Matrix & Watermark**: Styled the main app's interactive post-game replay overlay matrix with the active theme's background, primary/secondary accent colors, and centered emblem logo watermark.
-- **Enhanced Transparency Across All 3 Main Pages (`Teams`, `Battle Log`, `Settings`)**:
-  - Increased background emblem watermark visibility (`alpha` `0.22`–`0.25`) and reduced card/surface opacity across all 3 main pages when watermarks are enabled so the centered team/Pokémon crest shines through cleanly.
-
----
-
-## [v3.05] — 2026-10-20 — Interactive Overlay Header Shield Counters & Live Matrix Recalculation
-- **Interactive Header Shield Counters (`🛡️ You` & `🛡️ Opp`)**:
-  - Added interactive shield counter buttons for both the player and opponent directly in the floating overlay's top header row.
-  - Tapping either shield icon cycles remaining shields (`2 → 1 → 0 → 2`) mid-battle, automatically dims with a strike-through at `0` shields, logs `SHIELD` timeline events during active matches, and immediately recalculates the 3x3 PvPoke matchup matrix and threat thresholds.
-
----
-
-## [v3.03] — 2026-10-20 — Dynamic Overlay Emblem Icons & Recursive UI Theme Engine
-- **Dynamic Theme Emblem Icons on Floating Overlay**:
-  - Updated the floating overlay's upper-left minimize button, minimized floating bubble, and `Start Battle` button to display vector SVG emblems matching the active theme.
-- **Recursive View-Tree Theming**:
-  - Added recursive theme traversal across Android layouts, spinners, switches, and cards.
-
----
-
-## [v3.02] — 2026-10-20 — Theme Engine, Background Emblem Watermarks & Reorganized Settings
-- **Multi-Theme Engine & Background Watermarks**:
-  - Introduced the app-wide & overlay theme engine with Pokémon GO Team (Instinct ⚡, Mystic ❄️, Valor 🔥) and Sylveon 🎀 vector emblem watermarks.
-  - Reorganized the **⚙️ Settings** page to group **App & Overlay Theme**, **Overlay Size (% of Screen Width)**, and **Overlay Background Transparency** together in the top card.
+## [v3.10] — 2026-10-21 — Team Archetype Auto-Detection (ABB vs. ABC), Position-Weighted Shield Scenario Ratings & Aggregate Battle Rating Engine
+- **Auto Team Style Classification (`ABB` vs. `ABC`) & Smart Slot Reordering**:
+  - Added a **`⚡ Auto-Detect Style & Order Swap`** button inside the Create/Edit Team modal and a quick **`⚡ Auto`** button on saved Team Preset cards.
+  - Evaluates pairwise defensive type vulnerabilities across all 3 team members and tests whether the candidate Lead resists shared backline weaknesses (`≥ 2` shared weaknesses or `1` critical meta weakness):
+    - **`ABB` Lineups**: Automatically moves the resisting `A` Pokémon to **Slot 1 (Lead)**, places the higher bait-pressure / faster energy `B` Pokémon into **Slot 2 (`Bait Swap B1`)**, and places the higher closing-power `B` Pokémon into **Slot 3 (`Sweeper B2`)**.
+    - **`ABC` Lineups**: Keeps **Slot 1 (Lead)** fixed, places the backline Pokémon with the highest volatility-adjusted `Swap BR` ($\mu - 0.5\sigma$) into **Slot 2 (`Safe Swap`)**, and places the remaining Pokémon into **Slot 3 (`Closer`)**.
+  - Added quick **`#1 ⇄ #2`** and **`#2 ⇄ #3`** slot swap buttons in the Team Builder to manually reorder team slots while preserving custom movesets, CPs, and IVs.
+- **Current-Season Blended Meta & Exponential Recency Decay (`0–50` Match Ramp)**:
+  - Calculates expected opponent probability distributions $P_{\text{lead}}(p)$ (from opponent leads) and $P_{\text{field}}(p)$ (from all 3 opponent Pokémon) strictly from **current GBL season** battle logs blended with active league PvPoke rankings.
+  - Scales historical battle log weight linearly from `0%` at `0` matches up to `70%` at `50+` current-season matches ($w_{\text{hist}} = 0.70 \times \min(1, N / 50)$, $w_{\text{meta}} = 1 - w_{\text{hist}}$).
+  - Weights more recent current-season battle logs higher than older battle logs using the same exponential decay factor ($W(k) = e^{-0.05 \cdot (k - 1)}$) used to weight higher-ranked PvPoke meta threats over lower-ranked ones.
+- **Position-Weighted Shield Scenario Ratings (`Lead`, `Safe Swap`, `Closer`)**:
+  - Replaces single-scenario 1v1 ratings with role-specific multi-shield expectations across the 9-state asymmetric shield matrix:
+    - **Slot 1 (`Lead`)**: $0.45 \cdot BR_{1v1} + 0.35 \cdot BR_{2v2} + 0.10 \cdot BR_{0v0} + 0.05 \cdot BR_{1v2} + 0.05 \cdot BR_{2v1}$
+    - **Slot 2 (`Safe Swap / Bait`)**: $0.40 \cdot BR_{1v1} + 0.20 \cdot BR_{1v0} + 0.20 \cdot BR_{0v1} + 0.10 \cdot BR_{2v1} + 0.10 \cdot BR_{0v0}$
+    - **Slot 3 (`Closer / Sweeper`)**: $0.50 \cdot BR_{0v0} + 0.20 \cdot BR_{1v0} + 0.15 \cdot BR_{0v1} + 0.15 \cdot BR_{1v1}$
+- **Team & Per-Slot Battle Rating Badges (`Lead Agg BR`, `Machine Agg BR`, and `Swap BR`)**:
+  - **Lead Aggregate BR (`Lead BR`)**: Expected lead performance against the blended current-season lead meta, color-coded using your configured **`SW / W / N / L / SL`** matchup thresholds in Settings.
+  - **Per-Slot `Swap BR` on Safe Swap & Closer**: Displays volatility-adjusted safe-swap ratings ($\mu_{\text{Swap}} - 0.5\sigma_{\text{Swap}}$) on **both Slot 2 and Slot 3**, color-coded by your `SW / W / N / L / SL` thresholds so you can compare both backline switch options at a glance.
+  - **Machine Aggregate BR (`Mach BR`) & New Settings Thresholds**: Evaluates theoretical 3-mon core coverage ($\sum P_{\text{field}}(p) \cdot \max(BR_{\text{Lead}}, BR_{\text{Swap}}, BR_{\text{Closer}})$) with its own dedicated 5-tier color scale (**Elite ≥ 650**, **Solid ≥ 610**, **Playable ≥ 580**, **Risky ≥ 540**, **Blindspot < 540**) and a new **Machine Aggregate BR Thresholds** card in **⚙️ Settings**.
+  - **Automatic Overlay Launch Recalculation**: Launching the Battle Overlay automatically recalculates all saved teams' aggregate and per-slot Battle Ratings against your latest current-season battle logs and PvPoke meta rankings.

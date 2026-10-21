@@ -82,6 +82,76 @@
                     android:textColor="#94a3b8" />
             </LinearLayout>
 
+            <!-- Team Style (ABB vs ABC), Aggregate BR & Slot Ordering Controls -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="#1e293b"
+                android:padding="10dp"
+                android:layout_marginBottom="10dp">
+
+                <TextView
+                    android:id="@+id/text_dialog_archetype_summary"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Style: ABC  •  Lead BR: 500 (N)  •  Mach BR: 600"
+                    android:textColor="#f8fafc"
+                    android:textStyle="bold"
+                    android:textSize="11.5sp" />
+
+                <TextView
+                    android:id="@+id/text_dialog_meta_blend_info"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Blended Current-Season Meta (Recency-weighted logs + PvPoke prior)"
+                    android:textColor="#94a3b8"
+                    android:textSize="10sp"
+                    android:layout_marginTop="2dp"
+                    android:layout_marginBottom="6dp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <Button
+                        android:id="@+id/btn_dialog_auto_detect_style"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1.5"
+                        android:text="⚡ Auto-Detect &amp; Order"
+                        android:textSize="10.5sp"
+                        android:textStyle="bold"
+                        android:backgroundTint="#d97706"
+                        android:textColor="#ffffff"
+                        android:layout_marginEnd="4dp" />
+
+                    <Button
+                        android:id="@+id/btn_swap_slot_1_2"
+                        android:layout_width="wrap_content"
+                        android:layout_height="36dp"
+                        android:minWidth="0dp"
+                        android:paddingHorizontal="8dp"
+                        android:text="#1 ⇄ #2"
+                        android:textSize="10.5sp"
+                        android:backgroundTint="#334155"
+                        android:textColor="#e2e8f0"
+                        android:layout_marginEnd="4dp" />
+
+                    <Button
+                        android:id="@+id/btn_swap_slot_2_3"
+                        android:layout_width="wrap_content"
+                        android:layout_height="36dp"
+                        android:minWidth="0dp"
+                        android:paddingHorizontal="8dp"
+                        android:text="#2 ⇄ #3"
+                        android:textSize="10.5sp"
+                        android:backgroundTint="#334155"
+                        android:textColor="#e2e8f0" />
+                </LinearLayout>
+            </LinearLayout>
+
             <!-- Pokemon 1 (Lead) Card -->
             <LinearLayout
                 android:layout_width="match_parent"
@@ -91,14 +161,35 @@
                 android:padding="10dp"
                 android:layout_marginBottom="8dp">
 
-                <TextView
-                    android:layout_width="wrap_content"
+                <LinearLayout
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="⚔️ Lead Pokémon (Slot 1) &amp; Moveset"
-                    android:textStyle="bold"
-                    android:textColor="#38bdf8"
-                    android:textSize="12.5sp"
-                    android:layout_marginBottom="4dp" />
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="4dp">
+
+                    <TextView
+                        android:id="@+id/text_p1_role_title"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="⚔️ Lead Pokémon (Slot 1) &amp; Moveset"
+                        android:textStyle="bold"
+                        android:textColor="#38bdf8"
+                        android:textSize="12.5sp" />
+
+                    <TextView
+                        android:id="@+id/text_p1_lead_br"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Lead BR: 500 (N)"
+                        android:textStyle="bold"
+                        android:textColor="#cbd5e1"
+                        android:textSize="10.5sp"
+                        android:background="#0f172a"
+                        android:paddingHorizontal="6dp"
+                        android:paddingVertical="2dp" />
+                </LinearLayout>
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -204,14 +295,35 @@
                 android:padding="10dp"
                 android:layout_marginBottom="8dp">
 
-                <TextView
-                    android:layout_width="wrap_content"
+                <LinearLayout
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="🔄 Safe Swap (Slot 2) &amp; Moveset"
-                    android:textStyle="bold"
-                    android:textColor="#f59e0b"
-                    android:textSize="12.5sp"
-                    android:layout_marginBottom="4dp" />
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="4dp">
+
+                    <TextView
+                        android:id="@+id/text_p2_role_title"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="🔄 Safe Swap (Slot 2) &amp; Moveset"
+                        android:textStyle="bold"
+                        android:textColor="#f59e0b"
+                        android:textSize="12.5sp" />
+
+                    <TextView
+                        android:id="@+id/text_p2_swap_br"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Swap BR: 500 (N)"
+                        android:textStyle="bold"
+                        android:textColor="#cbd5e1"
+                        android:textSize="10.5sp"
+                        android:background="#0f172a"
+                        android:paddingHorizontal="6dp"
+                        android:paddingVertical="2dp" />
+                </LinearLayout>
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -316,14 +428,35 @@
                 android:background="#1e293b"
                 android:padding="10dp">
 
-                <TextView
-                    android:layout_width="wrap_content"
+                <LinearLayout
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="🛡️ Closer (Slot 3) &amp; Moveset"
-                    android:textStyle="bold"
-                    android:textColor="#38bdf8"
-                    android:textSize="12.5sp"
-                    android:layout_marginBottom="4dp" />
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="4dp">
+
+                    <TextView
+                        android:id="@+id/text_p3_role_title"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="🛡️ Closer (Slot 3) &amp; Moveset"
+                        android:textStyle="bold"
+                        android:textColor="#38bdf8"
+                        android:textSize="12.5sp" />
+
+                    <TextView
+                        android:id="@+id/text_p3_swap_br"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Swap BR: 500 (N)"
+                        android:textStyle="bold"
+                        android:textColor="#cbd5e1"
+                        android:textSize="10.5sp"
+                        android:background="#0f172a"
+                        android:paddingHorizontal="6dp"
+                        android:paddingVertical="2dp" />
+                </LinearLayout>
 
                 <LinearLayout
                     android:layout_width="match_parent"

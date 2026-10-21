@@ -1,12 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/root_theme_frame"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fitsSystemWindows="true"
+    android:background="#0f172a">
+
+    <!-- Background Team Emblem / Sylveon Watermark (Shown for Team & Sylveon Themes) -->
+    <ImageView
+        android:id="@+id/iv_theme_watermark_bg"
+        android:layout_width="310dp"
+        android:layout_height="310dp"
+        android:layout_gravity="center"
+        android:alpha="0.11"
+        android:scaleType="fitCenter"
+        android:visibility="gone"
+        android:importantForAccessibility="no" />
+
+<LinearLayout
     android:id="@+id/root_main_layout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:fitsSystemWindows="true"
-    android:background="#0f172a"
+    android:background="#00000000"
     android:padding="14dp">
 
     <!-- Top Header Row with App Icon, Title & Support/Donate Link -->
@@ -31,6 +48,7 @@
             android:orientation="vertical">
 
             <TextView
+                android:id="@+id/tv_app_main_title"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="SilphScope PvP"
@@ -39,9 +57,10 @@
                 android:textColor="#f8fafc" />
 
             <TextView
+                android:id="@+id/tv_app_main_subtitle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Real-Time PvP Floating Overlay • v2.15"
+                android:text="Real-Time PvP Floating Overlay • v3.08"
                 android:textSize="11sp"
                 android:textColor="#94a3b8"
                 android:layout_marginTop="1dp" />
@@ -60,6 +79,7 @@
 
     <!-- Persistent Overlay Launch & Status Bar -->
     <LinearLayout
+        android:id="@+id/card_status_bar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
@@ -73,30 +93,27 @@
             android:orientation="horizontal"
             android:gravity="center_vertical">
 
-            <LinearLayout
+            <TextView
+                android:id="@+id/text_status"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:orientation="vertical"
-                android:layout_marginEnd="8dp">
+                android:layout_marginEnd="8dp"
+                android:text="Status: Idle"
+                android:textColor="#38bdf8"
+                android:textSize="13sp"
+                android:textStyle="bold" />
 
-                <TextView
-                    android:id="@+id/text_status"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Status: Idle (Ready to launch overlay)"
-                    android:textColor="#38bdf8"
-                    android:textSize="12sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Tip: Tap ⚔️ in overlay to minimize &amp; pause OCR"
-                    android:textColor="#94a3b8"
-                    android:textSize="10sp"
-                    android:layout_marginTop="2dp" />
-            </LinearLayout>
+            <Button
+                android:id="@+id/btn_overlay_quick_help"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:backgroundTint="#334155"
+                android:textColor="#38bdf8"
+                android:textSize="11.5sp"
+                android:textStyle="bold"
+                android:text="❓ Help"
+                android:layout_marginEnd="6dp" />
 
             <Button
                 android:id="@+id/btn_toggle_overlay"
@@ -104,14 +121,15 @@
                 android:layout_height="40dp"
                 android:backgroundTint="#2563eb"
                 android:textColor="#ffffff"
-                android:textSize="12sp"
+                android:textSize="11.5sp"
                 android:textStyle="bold"
                 android:text="Start Battle Overlay" />
         </LinearLayout>
     </LinearLayout>
 
-    <!-- 3-Page Navigation Switcher Bar (Teams | Settings | Battle Log) -->
+    <!-- 3-Page Navigation Switcher Bar (Teams | Battle Log | Settings) -->
     <LinearLayout
+        android:id="@+id/layout_nav_bar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
@@ -127,20 +145,9 @@
             android:text="⚔️ Teams"
             android:textSize="11sp"
             android:textStyle="bold"
+            android:singleLine="true"
             android:backgroundTint="#0284c7"
             android:textColor="#ffffff"
-            android:layout_marginEnd="4dp" />
-
-        <Button
-            android:id="@+id/btn_nav_settings"
-            android:layout_width="0dp"
-            android:layout_height="38dp"
-            android:layout_weight="1"
-            android:text="⚙️ Settings"
-            android:textSize="11sp"
-            android:textStyle="bold"
-            android:backgroundTint="#1e293b"
-            android:textColor="#94a3b8"
             android:layout_marginEnd="4dp" />
 
         <Button
@@ -151,6 +158,20 @@
             android:text="📜 Battle Log"
             android:textSize="11sp"
             android:textStyle="bold"
+            android:singleLine="true"
+            android:backgroundTint="#1e293b"
+            android:textColor="#94a3b8"
+            android:layout_marginEnd="4dp" />
+
+        <Button
+            android:id="@+id/btn_nav_settings"
+            android:layout_width="0dp"
+            android:layout_height="38dp"
+            android:layout_weight="1"
+            android:text="⚙️ Settings"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:singleLine="true"
             android:backgroundTint="#1e293b"
             android:textColor="#94a3b8" />
     </LinearLayout>
@@ -267,7 +288,7 @@
     </LinearLayout>
 
     <!-- ===================================================================
-         PAGE 2: OVERLAY & PVPOKE DATABASE SETTINGS
+         PAGE 2: OVERLAY & PVPOKE DATABASE SETTINGS (Reorganized: Theme/Size/Transparency First)
          =================================================================== -->
     <ScrollView
         android:id="@+id/page_settings"
@@ -277,6 +298,7 @@
         android:visibility="gone">
 
         <LinearLayout
+            android:id="@+id/layout_settings_container"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
@@ -286,108 +308,349 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Overlay &amp; Database Configuration"
+                android:text="App Theme, Overlay &amp; Database Settings"
                 android:textColor="#f8fafc"
                 android:textSize="15sp"
                 android:textStyle="bold"
                 android:layout_marginBottom="8dp" />
 
-            <!-- PvPoke Database & 4-League Sync Card -->
+            <!-- ===================================================================
+                 1. APP & OVERLAY THEME + SIZE & TRANSPARENCY GROUP (TOP OF SETTINGS)
+                 =================================================================== -->
             <LinearLayout
+                android:id="@+id/card_settings_theme_group"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:background="#0f172a"
                 android:padding="10dp">
 
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="🎨 1. App &amp; Overlay Theme, Size &amp; Transparency"
+                    android:textColor="#38bdf8"
+                    android:textSize="12.5sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Customize the main app theme and subtle overlay border/header accents. Tactical damage numbers, KO badges, shield matrix, and swap timer colors always remain untouched."
+                    android:textColor="#94a3b8"
+                    android:textSize="10sp"
+                    android:lineSpacingExtra="1.5dp"
+                    android:layout_marginTop="2dp"
+                    android:layout_marginBottom="8dp" />
+
+                <!-- Theme Selector Row -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
-                    android:gravity="center_vertical">
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="6dp">
 
                     <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Theme:"
+                        android:textColor="#e2e8f0"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:layout_marginEnd="8dp" />
+
+                    <Spinner
+                        android:id="@+id/spinner_app_theme"
+                        android:layout_width="0dp"
+                        android:layout_height="38dp"
+                        android:layout_weight="1"
+                        android:background="#1e293b"
+                        android:paddingHorizontal="8dp" />
+                </LinearLayout>
+
+                <!-- Theme Preview Swatches & Emblem Badge Card -->
+                <LinearLayout
+                    android:id="@+id/layout_theme_preview_box"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:background="#1e293b"
+                    android:padding="8dp"
+                    android:layout_marginBottom="6dp">
+
+                    <ImageView
+                        android:id="@+id/iv_theme_preview_emblem"
+                        android:layout_width="36dp"
+                        android:layout_height="36dp"
+                        android:scaleType="fitCenter"
+                        android:layout_marginEnd="8dp"
+                        android:visibility="gone"
+                        android:importantForAccessibility="no" />
+
+                    <TextView
+                        android:id="@+id/tv_theme_preview_desc"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="PvPoke Live Database &amp; 4 Leagues"
-                        android:textColor="#38bdf8"
-                        android:textSize="12sp"
-                        android:textStyle="bold" />
+                        android:text="SilphScope Slate (Default Dark) — Deep slate canvas with sky-cyan tactical accents."
+                        android:textColor="#cbd5e1"
+                        android:textSize="10sp"
+                        android:lineSpacingExtra="1.5dp"
+                        android:layout_marginEnd="8dp" />
 
-                    <Button
-                        android:id="@+id/btn_download_db"
+                    <!-- 4 Mini Color Swatches (App BG, Card Surface, Primary Accent, Overlay Border) -->
+                    <LinearLayout
                         android:layout_width="wrap_content"
-                        android:layout_height="36dp"
-                        android:backgroundTint="#334155"
-                        android:textColor="#ffffff"
-                        android:textSize="11sp"
-                        android:text="Sync PvPoke" />
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <View
+                            android:id="@+id/view_swatch_bg"
+                            android:layout_width="14dp"
+                            android:layout_height="14dp"
+                            android:background="#0f172a"
+                            android:layout_marginEnd="3dp" />
+
+                        <View
+                            android:id="@+id/view_swatch_surface"
+                            android:layout_width="14dp"
+                            android:layout_height="14dp"
+                            android:background="#1e293b"
+                            android:layout_marginEnd="3dp" />
+
+                        <View
+                            android:id="@+id/view_swatch_accent"
+                            android:layout_width="14dp"
+                            android:layout_height="14dp"
+                            android:background="#2dd4bf"
+                            android:layout_marginEnd="3dp" />
+
+                        <View
+                            android:id="@+id/view_swatch_accent2"
+                            android:layout_width="14dp"
+                            android:layout_height="14dp"
+                            android:background="#facc15"
+                            android:layout_marginEnd="3dp" />
+
+                        <View
+                            android:id="@+id/view_swatch_overlay"
+                            android:layout_width="14dp"
+                            android:layout_height="14dp"
+                            android:background="#0d9488" />
+                    </LinearLayout>
                 </LinearLayout>
 
-                <TextView
-                    android:id="@+id/text_db_status"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="PvPoke Database: Cached (Checking...)"
-                    android:textColor="#cbd5e1"
-                    android:textSize="11sp"
-                    android:lineSpacingExtra="2dp"
-                    android:layout_marginTop="4dp" />
-            </LinearLayout>
-
-            <!-- Retroactive Battle Log Damage & Win Quality Reparse Card -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:layout_marginTop="8dp"
-                android:background="#0f172a"
-                android:padding="10dp">
-
+                <!-- Background Emblem Watermark Toggle -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
-                    android:gravity="center_vertical">
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="8dp">
 
                     <LinearLayout
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:orientation="vertical"
-                        android:layout_marginEnd="8dp">
+                        android:orientation="vertical">
 
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Reparse Completed Battles (Damage &amp; WAE)"
-                            android:textColor="#34d399"
+                            android:text="Show Team / Dialga / Sylveon Background Emblem"
+                            android:textColor="#e2e8f0"
+                            android:textSize="11.5sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Displays Origin Dialga ✨, Instinct ⚡, Mystic ❄️, Valor 🔥, or Sylveon 🎀 crest watermark across pages &amp; modals"
+                            android:textColor="#94a3b8"
+                            android:textSize="10sp" />
+                    </LinearLayout>
+
+                    <Switch
+                        android:id="@+id/switch_show_theme_watermark"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:checked="true" />
+                </LinearLayout>
+
+                <!-- Overlay Screen Width Scale Slider (50% - 100%, Default 78%) -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingTop="6dp"
+                    android:paddingBottom="6dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Overlay Size (% of Screen Width)"
+                            android:textColor="#e2e8f0"
                             android:textSize="12sp"
                             android:textStyle="bold" />
 
                         <TextView
-                            android:id="@+id/text_reparse_battles_status"
+                            android:id="@+id/text_overlay_scale_value"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Re-evaluates all logged battles with latest 2.56x dual-type &amp; Shadow 1.2x damage + Win Quality (WAE) metrics"
-                            android:textColor="#94a3b8"
-                            android:textSize="10sp"
-                            android:layout_marginTop="2dp" />
+                            android:text="78% (Default)"
+                            android:textColor="#38bdf8"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
                     </LinearLayout>
 
-                    <Button
-                        android:id="@+id/btn_reparse_battles_settings"
+                    <SeekBar
+                        android:id="@+id/seekbar_overlay_scale"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:max="25"
+                        android:progress="14"
+                        android:progressTint="#38bdf8"
+                        android:thumbTint="#38bdf8" />
+
+                    <!-- Scale Bounds & Default Tick Marker (78% is 14/25 = 56% along 50%-100% track) -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingHorizontal="8dp">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="14"
+                            android:text="50%"
+                            android:textColor="#64748b"
+                            android:textSize="10sp" />
+
+                        <TextView
+                            android:id="@+id/text_overlay_scale_default_tick"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="▲ 78% Default"
+                            android:textColor="#38bdf8"
+                            android:textSize="10sp"
+                            android:textStyle="bold"
+                            android:paddingHorizontal="4dp" />
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="11"
+                            android:gravity="end"
+                            android:text="100%"
+                            android:textColor="#64748b"
+                            android:textSize="10sp" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <!-- Overlay Background Transparency Slider (0% - 100%, Default 72%) -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingTop="6dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Overlay Background Transparency"
+                            android:textColor="#e2e8f0"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/text_overlay_transparency_value"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="72% (Default)"
+                            android:textColor="#38bdf8"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <TextView
                         android:layout_width="wrap_content"
-                        android:layout_height="36dp"
-                        android:backgroundTint="#059669"
-                        android:textColor="#ffffff"
-                        android:textSize="11sp"
-                        android:textStyle="bold"
-                        android:text="🔄 Reparse All" />
+                        android:layout_height="wrap_content"
+                        android:text="Adjusts background glass only — text &amp; move bars stay 100% crisp"
+                        android:textColor="#94a3b8"
+                        android:textSize="10sp"
+                        android:layout_marginTop="1dp" />
+
+                    <SeekBar
+                        android:id="@+id/seekbar_overlay_transparency"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:max="50"
+                        android:progress="36"
+                        android:progressTint="#38bdf8"
+                        android:thumbTint="#38bdf8" />
+
+                    <!-- Transparency Bounds & Default Tick Marker (72% is 36/50 = 72% along 0%-100% track) -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingHorizontal="8dp">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="36"
+                            android:text="0% (Solid)"
+                            android:textColor="#64748b"
+                            android:textSize="10sp" />
+
+                        <TextView
+                            android:id="@+id/text_overlay_transparency_default_tick"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="▲ 72% Default"
+                            android:textColor="#38bdf8"
+                            android:textSize="10sp"
+                            android:textStyle="bold"
+                            android:paddingHorizontal="4dp" />
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="14"
+                            android:gravity="end"
+                            android:text="100% (Clear)"
+                            android:textColor="#64748b"
+                            android:textSize="10sp" />
+                    </LinearLayout>
                 </LinearLayout>
             </LinearLayout>
 
+            <!-- ===================================================================
+                 2. OVERLAY HUD BEHAVIOR & MATCHUP THRESHOLDS
+                 =================================================================== -->
             <!-- Opponent Fast Move Count Basis Setting -->
             <LinearLayout
                 android:layout_width="match_parent"
@@ -478,179 +741,423 @@
                     android:textColor="#ffffff" />
             </LinearLayout>
 
-            <!-- Overlay Screen Width Scale Slider (50% - 100%, Default 78%) -->
+            <!-- Battle Toast Messages Setting -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
                 android:layout_marginTop="8dp"
+                android:paddingTop="8dp"
                 android:background="#0f172a"
                 android:paddingHorizontal="10dp"
-                android:paddingVertical="8dp">
+                android:paddingBottom="8dp">
 
                 <LinearLayout
-                    android:layout_width="match_parent"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical">
+                    android:layout_weight="1"
+                    android:orientation="vertical">
 
                     <TextView
-                        android:layout_width="0dp"
+                        android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="Overlay Size (% of Screen Width)"
+                        android:text="Battle Toast Popups"
                         android:textColor="#e2e8f0"
                         android:textSize="12sp"
                         android:textStyle="bold" />
 
                     <TextView
-                        android:id="@+id/text_overlay_scale_value"
+                        android:id="@+id/text_battle_toasts_desc"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="78% (Default)"
-                        android:textColor="#38bdf8"
-                        android:textSize="12sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-
-                <SeekBar
-                    android:id="@+id/seekbar_overlay_scale"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:max="25"
-                    android:progress="14"
-                    android:progressTint="#38bdf8"
-                    android:thumbTint="#38bdf8" />
-
-                <!-- Scale Bounds & Default Tick Marker (78% is 14/25 = 56% along 50%-100% track) -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:paddingHorizontal="8dp">
-
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="14"
-                        android:text="50%"
-                        android:textColor="#64748b"
-                        android:textSize="10sp" />
-
-                    <TextView
-                        android:id="@+id/text_overlay_scale_default_tick"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="▲ 78% Default"
-                        android:textColor="#38bdf8"
-                        android:textSize="10sp"
-                        android:textStyle="bold"
-                        android:paddingHorizontal="4dp" />
-
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="11"
-                        android:gravity="end"
-                        android:text="100%"
-                        android:textColor="#64748b"
+                        android:text="Default: Popups shown for Battle Start/Stop, Switches &amp; Logs"
+                        android:textColor="#94a3b8"
                         android:textSize="10sp" />
                 </LinearLayout>
+
+                <Button
+                    android:id="@+id/btn_toggle_battle_toasts"
+                    android:layout_width="wrap_content"
+                    android:layout_height="36dp"
+                    android:text="Toasts On"
+                    android:textSize="11sp"
+                    android:backgroundTint="#0284c7"
+                    android:textColor="#ffffff" />
             </LinearLayout>
 
-            <!-- Overlay Background Transparency Slider (0% - 100%, Default 72%) -->
+            <!-- 5-Tier 0s/1s/2s Matchup Rating Thresholds Card (SW, W, N, L, SL) -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:layout_marginTop="8dp"
                 android:background="#0f172a"
-                android:paddingHorizontal="10dp"
-                android:paddingVertical="8dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical">
-
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="Overlay Background Transparency"
-                        android:textColor="#e2e8f0"
-                        android:textSize="12sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/text_overlay_transparency_value"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="72% (Default)"
-                        android:textColor="#38bdf8"
-                        android:textSize="12sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
+                android:padding="10dp">
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Adjusts background glass only — text &amp; move bars stay 100% crisp"
-                    android:textColor="#94a3b8"
-                    android:textSize="10sp"
-                    android:layout_marginTop="1dp" />
+                    android:text="🎯 5-Tier 0s/1s/2s Matchup Thresholds (SW, W, N, L, SL)"
+                    android:textColor="#38bdf8"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
 
-                <SeekBar
-                    android:id="@+id/seekbar_overlay_transparency"
+                <TextView
+                    android:id="@+id/text_tier_definitions_summary"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:max="50"
-                    android:progress="36"
-                    android:progressTint="#38bdf8"
-                    android:thumbTint="#38bdf8" />
+                    android:text="• SW = Strong Win (rating >= 620) (Default: 620)\n• W = Win (530 &lt;= rating &lt; 620) (Default: 530)\n• N = Neutral / Grey (470 &lt; rating &lt; 530) (Default: 470–530)\n• L = Loss (380 &lt; rating &lt;= 470) (Default: 470)\n• SL = Strong Loss (rating &lt;= 380) (Default: 380)"
+                    android:textColor="#94a3b8"
+                    android:textSize="10sp"
+                    android:layout_marginTop="3dp" />
 
-                <!-- Transparency Bounds & Default Tick Marker (72% is 36/50 = 72% along 0%-100% track) -->
+                <!-- Row 1: SW & W -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:paddingHorizontal="8dp">
+                    android:layout_marginTop="6dp">
 
-                    <TextView
+                    <LinearLayout
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:layout_weight="36"
-                        android:text="0% (Solid)"
-                        android:textColor="#64748b"
-                        android:textSize="10sp" />
+                        android:layout_weight="1"
+                        android:orientation="vertical"
+                        android:layout_marginEnd="6dp">
 
-                    <TextView
-                        android:id="@+id/text_overlay_transparency_default_tick"
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="SW Strong Win &gt;= (620)"
+                            android:textColor="#4ade80"
+                            android:textSize="10sp"
+                            android:textStyle="bold" />
+
+                        <EditText
+                            android:id="@+id/edit_tier_sw_min"
+                            android:layout_width="match_parent"
+                            android:layout_height="36dp"
+                            android:layout_marginTop="2dp"
+                            android:background="#1e293b"
+                            android:paddingHorizontal="8dp"
+                            android:hint="(620)"
+                            android:text="620"
+                            android:textColor="#f8fafc"
+                            android:textColorHint="#64748b"
+                            android:textSize="11.5sp"
+                            android:inputType="number"
+                            android:singleLine="true" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="W Win &gt;= (530)"
+                            android:textColor="#86efac"
+                            android:textSize="10sp"
+                            android:textStyle="bold" />
+
+                        <EditText
+                            android:id="@+id/edit_tier_w_min"
+                            android:layout_width="match_parent"
+                            android:layout_height="36dp"
+                            android:layout_marginTop="2dp"
+                            android:background="#1e293b"
+                            android:paddingHorizontal="8dp"
+                            android:hint="(530)"
+                            android:text="530"
+                            android:textColor="#f8fafc"
+                            android:textColorHint="#64748b"
+                            android:textSize="11.5sp"
+                            android:inputType="number"
+                            android:singleLine="true" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <!-- Row 2: L & SL -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="6dp">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical"
+                        android:layout_marginEnd="6dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="L Loss &lt;= (470)"
+                            android:textColor="#fca5a5"
+                            android:textSize="10sp"
+                            android:textStyle="bold" />
+
+                        <EditText
+                            android:id="@+id/edit_tier_l_max"
+                            android:layout_width="match_parent"
+                            android:layout_height="36dp"
+                            android:layout_marginTop="2dp"
+                            android:background="#1e293b"
+                            android:paddingHorizontal="8dp"
+                            android:hint="(470)"
+                            android:text="470"
+                            android:textColor="#f8fafc"
+                            android:textColorHint="#64748b"
+                            android:textSize="11.5sp"
+                            android:inputType="number"
+                            android:singleLine="true" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="SL Strong Loss &lt;= (380)"
+                            android:textColor="#f87171"
+                            android:textSize="10sp"
+                            android:textStyle="bold" />
+
+                        <EditText
+                            android:id="@+id/edit_tier_sl_max"
+                            android:layout_width="match_parent"
+                            android:layout_height="36dp"
+                            android:layout_marginTop="2dp"
+                            android:background="#1e293b"
+                            android:paddingHorizontal="8dp"
+                            android:hint="(380)"
+                            android:text="380"
+                            android:textColor="#f8fafc"
+                            android:textColorHint="#64748b"
+                            android:textSize="11.5sp"
+                            android:inputType="number"
+                            android:singleLine="true" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="8dp">
+
+                    <Button
+                        android:id="@+id/btn_save_tier_thresholds"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:text="💾 Save Thresholds"
+                        android:textSize="11sp"
+                        android:backgroundTint="#0284c7"
+                        android:textColor="#ffffff"
+                        android:layout_marginEnd="6dp" />
+
+                    <Button
+                        android:id="@+id/btn_restore_tier_thresholds"
                         android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="▲ 72% Default"
-                        android:textColor="#38bdf8"
-                        android:textSize="10sp"
-                        android:textStyle="bold"
-                        android:paddingHorizontal="4dp" />
+                        android:layout_height="36dp"
+                        android:text="↺ Restore Defaults"
+                        android:textSize="11sp"
+                        android:backgroundTint="#334155"
+                        android:textColor="#e2e8f0" />
+                </LinearLayout>
 
-                    <TextView
+                <!-- Machine Aggregate BR Thresholds Sub-Card -->
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginVertical="10dp"
+                    android:background="#1e293b" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="🛡️ Machine Aggregate BR Thresholds (3-Mon Core Coverage Ceiling)"
+                    android:textColor="#34d399"
+                    android:textSize="11.5sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/text_machine_br_definitions_summary"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:text="• Elite Coverage &gt;= 650  •  Solid &gt;= 610  •  Playable &gt;= 580  •  Risky &gt;= 540  •  Blindspot &lt; 540"
+                    android:textColor="#94a3b8"
+                    android:textSize="10.5sp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="6dp">
+
+                    <LinearLayout
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:layout_weight="14"
-                        android:gravity="end"
-                        android:text="100% (Clear)"
-                        android:textColor="#64748b"
-                        android:textSize="10sp" />
+                        android:layout_weight="1"
+                        android:orientation="vertical"
+                        android:layout_marginEnd="4dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Elite &gt;= (650)"
+                            android:textColor="#34d399"
+                            android:textSize="9.5sp"
+                            android:textStyle="bold" />
+
+                        <EditText
+                            android:id="@+id/edit_mach_elite_min"
+                            android:layout_width="match_parent"
+                            android:layout_height="34dp"
+                            android:layout_marginTop="2dp"
+                            android:background="#1e293b"
+                            android:paddingHorizontal="6dp"
+                            android:hint="(650)"
+                            android:text="650"
+                            android:textColor="#f8fafc"
+                            android:textSize="11sp"
+                            android:inputType="number"
+                            android:singleLine="true" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical"
+                        android:layout_marginEnd="4dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Solid &gt;= (610)"
+                            android:textColor="#4ade80"
+                            android:textSize="9.5sp"
+                            android:textStyle="bold" />
+
+                        <EditText
+                            android:id="@+id/edit_mach_solid_min"
+                            android:layout_width="match_parent"
+                            android:layout_height="34dp"
+                            android:layout_marginTop="2dp"
+                            android:background="#1e293b"
+                            android:paddingHorizontal="6dp"
+                            android:hint="(610)"
+                            android:text="610"
+                            android:textColor="#f8fafc"
+                            android:textSize="11sp"
+                            android:inputType="number"
+                            android:singleLine="true" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical"
+                        android:layout_marginEnd="4dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Playable &gt;= (580)"
+                            android:textColor="#facc15"
+                            android:textSize="9.5sp"
+                            android:textStyle="bold" />
+
+                        <EditText
+                            android:id="@+id/edit_mach_playable_min"
+                            android:layout_width="match_parent"
+                            android:layout_height="34dp"
+                            android:layout_marginTop="2dp"
+                            android:background="#1e293b"
+                            android:paddingHorizontal="6dp"
+                            android:hint="(580)"
+                            android:text="580"
+                            android:textColor="#f8fafc"
+                            android:textSize="11sp"
+                            android:inputType="number"
+                            android:singleLine="true" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Risky &gt;= (540)"
+                            android:textColor="#fb923c"
+                            android:textSize="9.5sp"
+                            android:textStyle="bold" />
+
+                        <EditText
+                            android:id="@+id/edit_mach_risky_min"
+                            android:layout_width="match_parent"
+                            android:layout_height="34dp"
+                            android:layout_marginTop="2dp"
+                            android:background="#1e293b"
+                            android:paddingHorizontal="6dp"
+                            android:hint="(540)"
+                            android:text="540"
+                            android:textColor="#f8fafc"
+                            android:textSize="11sp"
+                            android:inputType="number"
+                            android:singleLine="true" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="8dp">
+
+                    <Button
+                        android:id="@+id/btn_save_mach_thresholds"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:text="💾 Save Machine BR Scale"
+                        android:textSize="11sp"
+                        android:backgroundTint="#059669"
+                        android:textColor="#ffffff"
+                        android:layout_marginEnd="6dp" />
+
+                    <Button
+                        android:id="@+id/btn_restore_mach_thresholds"
+                        android:layout_width="wrap_content"
+                        android:layout_height="36dp"
+                        android:text="↺ Restore Defaults"
+                        android:textSize="11sp"
+                        android:backgroundTint="#334155"
+                        android:textColor="#e2e8f0" />
                 </LinearLayout>
             </LinearLayout>
 
-            <!-- Two-Device Cloud & Delta Reconciliation Sync Card -->
+            <!-- ===================================================================
+                 3. TWO-DEVICE CLOUD & DELTA RECONCILIATION SYNC CARD
+                 =================================================================== -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -748,6 +1255,175 @@
                     android:textColor="#94a3b8"
                     android:textSize="10sp"
                     android:layout_marginTop="4dp" />
+            </LinearLayout>
+
+            <!-- ===================================================================
+                 4. PVPOKE DATABASE & BATTLE LOG REPARSE MAINTENANCE
+                 =================================================================== -->
+            <!-- PvPoke Database & 4-League Sync Card -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginTop="8dp"
+                android:background="#0f172a"
+                android:padding="10dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="PvPoke Live Database &amp; 4 Leagues"
+                        android:textColor="#38bdf8"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+
+                    <Button
+                        android:id="@+id/btn_download_db"
+                        android:layout_width="wrap_content"
+                        android:layout_height="36dp"
+                        android:backgroundTint="#334155"
+                        android:textColor="#ffffff"
+                        android:textSize="11sp"
+                        android:text="Sync PvPoke" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/text_db_status"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="PvPoke Database: Cached (Checking...)"
+                    android:textColor="#cbd5e1"
+                    android:textSize="11sp"
+                    android:lineSpacingExtra="2dp"
+                    android:layout_marginTop="4dp" />
+            </LinearLayout>
+
+            <!-- Retroactive Battle Log Damage & Win Quality Reparse Card -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginTop="8dp"
+                android:background="#0f172a"
+                android:padding="10dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical"
+                        android:layout_marginEnd="8dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Reparse Completed Battles (Damage &amp; WAE)"
+                            android:textColor="#34d399"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/text_reparse_battles_status"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Re-evaluates all logged battles with latest 2.56x dual-type &amp; Shadow 1.2x damage + Win Quality (WAE) metrics"
+                            android:textColor="#94a3b8"
+                            android:textSize="10sp"
+                            android:layout_marginTop="2dp" />
+                    </LinearLayout>
+
+                    <Button
+                        android:id="@+id/btn_reparse_battles_settings"
+                        android:layout_width="wrap_content"
+                        android:layout_height="36dp"
+                        android:backgroundTint="#059669"
+                        android:textColor="#ffffff"
+                        android:textSize="11sp"
+                        android:textStyle="bold"
+                        android:text="🔄 Reparse All" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- ===================================================================
+                 5. TASKER AUTOMATION HOOKS CARD
+                 =================================================================== -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="8dp"
+                android:background="#0f172a"
+                android:padding="10dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="🤖 Tasker Automation Hooks (No App Switching)"
+                    android:textColor="#38bdf8"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Control the overlay directly from Tasker without entering the app, or launch straight to the Battle Log page:\n• Package: com.gbl.overlay\n• Start Overlay (Target: Activity or Broadcast Receiver):\n  Action: com.gbl.overlay.ACTION_START_OVERLAY (or com.gbl.overlay.START)\n  Optional Extra: team:&lt;Team Name&gt;\n• Stop Overlay (Target: Broadcast Receiver, Service, or Activity):\n  Action: com.gbl.overlay.ACTION_STOP_OVERLAY (or com.gbl.overlay.STOP)\n• Open Battle Log Page (Target: Activity or Launch App → SilphScope Battle Log):\n  Action: com.gbl.overlay.ACTION_OPEN_BATTLE_LOG (or Extra page:battle_log)"
+                    android:textColor="#94a3b8"
+                    android:textSize="10sp"
+                    android:lineSpacingExtra="2dp"
+                    android:layout_marginTop="4dp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="6dp">
+
+                    <Button
+                        android:id="@+id/btn_copy_tasker_start"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:text="📋 Copy Start"
+                        android:textSize="10sp"
+                        android:backgroundTint="#059669"
+                        android:textColor="#ffffff"
+                        android:layout_marginEnd="4dp" />
+
+                    <Button
+                        android:id="@+id/btn_copy_tasker_stop"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:text="📋 Copy Stop"
+                        android:textSize="10sp"
+                        android:backgroundTint="#e11d48"
+                        android:textColor="#ffffff"
+                        android:layout_marginEnd="4dp" />
+
+                    <Button
+                        android:id="@+id/btn_copy_tasker_battle_log"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:text="📋 Copy Log Hook"
+                        android:textSize="10sp"
+                        android:backgroundTint="#0284c7"
+                        android:textColor="#ffffff" />
+                </LinearLayout>
             </LinearLayout>
         </LinearLayout>
     </ScrollView>
@@ -902,7 +1578,7 @@
                 android:minWidth="0dp"
                 android:paddingHorizontal="10dp"
                 android:singleLine="true"
-                android:text="📋 Copy Text"
+                android:text="📋 Copy GBL"
                 android:textSize="10.5sp"
                 android:backgroundTint="#1e293b"
                 android:textColor="#38bdf8"
@@ -921,7 +1597,7 @@
                 android:textColor="#ffffff" />
         </LinearLayout>
 
-        <!-- Summary Metrics Row (4 Cards: Record, Lead Matchups, Win Rate, Quality WAE) -->
+        <!-- Summary Metrics Grid (5-Stat Responsive Layout: Record, Lead Matchups, Win Rate, Exec WAE, Matchup Luck) -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -931,11 +1607,11 @@
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_weight="0.95"
+                android:layout_weight="0.92"
                 android:orientation="vertical"
                 android:background="#1e293b"
-                android:padding="6dp"
-                android:layout_marginEnd="4dp">
+                android:padding="5dp"
+                android:layout_marginEnd="3dp">
 
                 <TextView
                     android:layout_width="wrap_content"
@@ -943,7 +1619,7 @@
                     android:singleLine="true"
                     android:text="RECORD (W - L)"
                     android:textColor="#94a3b8"
-                    android:textSize="8sp"
+                    android:textSize="7.5sp"
                     android:textStyle="bold" />
 
                 <TextView
@@ -951,9 +1627,9 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:singleLine="true"
-                    android:text="0W - 0L"
+                    android:text="0W-0L (0)"
                     android:textColor="#38bdf8"
-                    android:textSize="11.5sp"
+                    android:textSize="9.5sp"
                     android:textStyle="bold"
                     android:layout_marginTop="2dp" />
             </LinearLayout>
@@ -961,11 +1637,11 @@
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_weight="1.2"
+                android:layout_weight="1.15"
                 android:orientation="vertical"
                 android:background="#1e293b"
-                android:padding="6dp"
-                android:layout_marginEnd="4dp">
+                android:padding="5dp"
+                android:layout_marginEnd="3dp">
 
                 <TextView
                     android:layout_width="wrap_content"
@@ -973,7 +1649,7 @@
                     android:singleLine="true"
                     android:text="LEAD MATCHUPS"
                     android:textColor="#94a3b8"
-                    android:textSize="8sp"
+                    android:textSize="7.5sp"
                     android:textStyle="bold" />
 
                 <TextView
@@ -981,9 +1657,9 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:singleLine="true"
-                    android:text="0 Fav · 0 Neu · 0 Neg"
+                    android:text="0+/0o/0-/0u"
                     android:textColor="#34d399"
-                    android:textSize="10sp"
+                    android:textSize="9.5sp"
                     android:textStyle="bold"
                     android:layout_marginTop="2dp" />
             </LinearLayout>
@@ -991,11 +1667,11 @@
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_weight="0.72"
+                android:layout_weight="0.68"
                 android:orientation="vertical"
                 android:background="#1e293b"
-                android:padding="6dp"
-                android:layout_marginEnd="4dp">
+                android:padding="5dp"
+                android:layout_marginEnd="3dp">
 
                 <TextView
                     android:layout_width="wrap_content"
@@ -1003,7 +1679,7 @@
                     android:singleLine="true"
                     android:text="WIN RATE"
                     android:textColor="#94a3b8"
-                    android:textSize="8sp"
+                    android:textSize="7.5sp"
                     android:textStyle="bold" />
 
                 <TextView
@@ -1013,27 +1689,50 @@
                     android:singleLine="true"
                     android:text="—%"
                     android:textColor="#fbbf24"
-                    android:textSize="11.5sp"
+                    android:textSize="10.5sp"
                     android:textStyle="bold"
                     android:layout_marginTop="2dp" />
             </LinearLayout>
 
             <LinearLayout
+                android:id="@+id/card_battle_log_wae"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_weight="0.95"
+                android:layout_weight="0.85"
                 android:orientation="vertical"
                 android:background="#1e293b"
-                android:padding="6dp">
+                android:padding="5dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:layout_marginEnd="3dp">
 
-                <TextView
-                    android:layout_width="wrap_content"
+                <LinearLayout
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:singleLine="true"
-                    android:text="QUALITY (WAE)"
-                    android:textColor="#94a3b8"
-                    android:textSize="8sp"
-                    android:textStyle="bold" />
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:singleLine="true"
+                        android:text="EXEC WAE"
+                        android:textColor="#94a3b8"
+                        android:textSize="7.5sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/btn_info_exec_wae"
+                        android:layout_width="14dp"
+                        android:layout_height="14dp"
+                        android:gravity="center"
+                        android:text="i"
+                        android:textColor="#38bdf8"
+                        android:textSize="8.5sp"
+                        android:textStyle="bold"
+                        android:background="#0f172a" />
+                </LinearLayout>
 
                 <TextView
                     android:id="@+id/text_battle_log_wae"
@@ -1042,7 +1741,58 @@
                     android:singleLine="true"
                     android:text="—%"
                     android:textColor="#94a3b8"
-                    android:textSize="11.5sp"
+                    android:textSize="10.5sp"
+                    android:textStyle="bold"
+                    android:layout_marginTop="2dp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/card_battle_log_luck"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="0.92"
+                android:orientation="vertical"
+                android:background="#1e293b"
+                android:clickable="true"
+                android:focusable="true"
+                android:padding="5dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:singleLine="true"
+                        android:text="MATCHUP LUCK"
+                        android:textColor="#94a3b8"
+                        android:textSize="7.5sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/btn_info_matchup_luck"
+                        android:layout_width="14dp"
+                        android:layout_height="14dp"
+                        android:gravity="center"
+                        android:text="i"
+                        android:textColor="#38bdf8"
+                        android:textSize="8.5sp"
+                        android:textStyle="bold"
+                        android:background="#0f172a" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/text_battle_log_luck"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:singleLine="true"
+                    android:text="—%"
+                    android:textColor="#94a3b8"
+                    android:textSize="10.5sp"
                     android:textStyle="bold"
                     android:layout_marginTop="2dp" />
             </LinearLayout>
@@ -1061,4 +1811,241 @@
         </ScrollView>
     </LinearLayout>
 
+    <!-- ===================================================================
+         PAGE 4: HELP & COMPLETE USER GUIDE (Opened when tapping ❓ Help button)
+         =================================================================== -->
+    <ScrollView
+        android:id="@+id/page_help"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingBottom="16dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="📖 SilphScope PvP — Complete Help, HUD &amp; Tactics Guide"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:textColor="#f8fafc"
+                android:layout_marginBottom="4dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Tap any tab above (⚔️ Teams, 📜 Battle Log, or ⚙️ Settings) to return. Below is the complete guide to the floating PvP overlay, 3v3 shield matrix, battle damage grids, 50s swap timers, move pacing, and Battle Log analytics."
+                android:textSize="11sp"
+                android:textColor="#94a3b8"
+                android:layout_marginBottom="10dp" />
+
+            <!-- Quick Metric & Badge Guide Popup Button -->
+            <Button
+                android:id="@+id/btn_help_page_metric_guide"
+                android:layout_width="match_parent"
+                android:layout_height="38dp"
+                android:text="📊 Open Execution WAE, Matchup Luck &amp; Badge Glossary Popup"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:backgroundTint="#059669"
+                android:textColor="#ffffff"
+                android:layout_marginBottom="10dp" />
+
+            <!-- 1. General Battle Flow & Overlay Interaction -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="#1e293b"
+                android:padding="12dp"
+                android:layout_marginBottom="10dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="1. General Battle Flow &amp; How to Interact with the Overlay"
+                    android:textColor="#38bdf8"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:lineSpacingExtra="2dp"
+                    android:textColor="#e2e8f0"
+                    android:textSize="11sp"
+                    android:text="• Step 1 — Select or Switch Your Team in the Main App: On the ⚔️ Teams tab, tap 'Select' on any team preset to make it active (or tap '+ New Team' to build a Great, Ultra, Master, or Mega Master League trio with auto-filled PvPoke recommended moves and IV/CP scaling). To switch to a different 3-Pokémon Team Preset, return to the ⚔️ Teams tab in the main app and tap 'Select' on the new team.\n• Step 2 — Launch the Overlay: Tap 'Start Battle Overlay' at the top of the app. Grant 'Display over other apps' and 'Screen Capture' (used strictly in-memory for live ML Kit OCR — zero screenshots are ever written to disk).\n• Step 3 — Reposition or Minimize ('⚔️' Button): Drag anywhere on the overlay to position it on screen. Between battles or while walking/catching Pokémon, tap the '⚔️' button in the top-left of the overlay header to collapse it into a compact floating app-icon bubble and pause OCR scanning. Tap the floating bubble to restore the full HUD and resume OCR.\n• Step 4 — Start Battle ('⚔️ Start Battle'): When a GBL match begins, tap '⚔️ Start Battle' in the overlay toolbar. This clears the previous opponent lineup, resets both 50s swap timers to 0s, resets shields (2v2) and Pokéballs (3v3), anchors the battle timeline clock (t=0s), starts OCR scanning, and switches the button to '🛑 Stop Battle'.\n• Step 5 — In-Battle Toolbar Controls ('Shadow', 'Form', &amp; Your 3 Active Pokémon Chips):\n  - 'Shadow: OFF / ON': Tap in the overlay toolbar to toggle the Shadow modifier (+20% ATK / -16.7% DEF) for the active opponent if OCR missed the purple aura.\n  - 'Form: [Form]': Automatically enables when the scanned opponent species has multiple regional/alternate forms (e.g. Alolan, Galarian, Origin, Crowned) — tap to cycle forms.\n  - Your 3 Active Pokémon Chips: On the right side of the overlay toolbar, 3 compact buttons show your 3 Pokémon on the active team. OCR automatically detects which of your 3 Pokémon is on the field, or you can tap any of the 3 chips to manually set your active on-field Pokémon.\n• Step 6 — Stop &amp; Log ('🛑 Stop Battle'): When the match ends, tap '🛑 Stop Battle'. OCR pauses and the post-battle log bar opens inside the overlay: tap 'Lead: Fav / Neu / Neg ▾' to verify or cycle the lead matchup, then tap '🏆 Win' or '💀 Loss' (or '✕ Skip')." />
+            </LinearLayout>
+
+            <!-- 2. The 3v3 Shield Matrix -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="#1e293b"
+                android:padding="12dp"
+                android:layout_marginBottom="10dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="2. The 3v3 Shield Matrix (0S • 1S • 2S Dots &amp; 9-State Engine)"
+                    android:textColor="#fbbf24"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:lineSpacingExtra="2dp"
+                    android:textColor="#e2e8f0"
+                    android:textSize="11sp"
+                    android:text="• Fixed [1st, 2nd, 3rd] Opponent Rows: As opponents are revealed, up to 3 rows appear in the matrix in the exact order seen ('1st' Lead, '2nd' First Swap, '3rd' Closer). Tap any opponent row in the matrix (or column header) to manually set that opponent as the active on-field opponent.\n• 3 Shield Scenario Dots per Team Member (0S • 1S • 2S): Beside each opponent name, your 3 Pokémon are listed by initial (Initial: [0S][1S][2S]). The 3 dots represent the 0-Shield, 1-Shield, and 2-Shield matchup ratings on PvPoke's 500-centered scale:\n  - [+] Bright Emerald (SW — Strong Win, rating ≥ 620): Dominant wall / hard counter.\n  - [●] Green (W — Win, 530 ≤ rating &lt; 620): Favorable matchup.\n  - [●] Slate Grey (N — Neutral, 470 &lt; rating &lt; 530): Even 50/50 matchup decided by energy lead, IVs, or baiting.\n  - [●] Soft Red (L — Loss, 380 &lt; rating ≤ 470): Unfavorable matchup.\n  - [×] Dark Crimson (SL — Strong Loss, rating ≤ 380): Hard-countered loss — swap or catch immediately.\n• Reading Shield Flip Scenarios: Compare the 3 dots left-to-right (0S, 1S, 2S). For example, if your Pokémon shows [Red, Green, Red], you lose the 0S and 2S scenarios but WIN the 1-Shield scenario — meaning you should commit 1 shield to flip the matchup!\n• Customizing Thresholds &amp; 9-State Engine: Customize the exact SW / W / L / SL rating cutoffs anytime in ⚙️ Settings → 5-Tier Matchup Rating Thresholds. Under the hood, SilphScope evaluates all 9 asymmetric shield permutations (0v0, 0v1, 0v2, 1v0, 1v1, 1v2, 2v0, 2v1, 2v2) as shields are spent." />
+            </LinearLayout>
+
+            <!-- 3. How to Use Battle Damage Numbers -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="#1e293b"
+                android:padding="12dp"
+                android:layout_marginBottom="10dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="3. How to Read Battle Damage Numbers (Opponent &amp; My Attacks Grids)"
+                    android:textColor="#4ade80"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:lineSpacingExtra="2dp"
+                    android:textColor="#e2e8f0"
+                    android:textSize="11sp"
+                    android:text="• Opponent Attacks 3-Column Damage Grid (Damage to Your Team):\n  - The right side of the 'Opponent Attacks' section has 3 columns for your 3 Pokémon (with your currently active Pokémon's column highlighted in sky-blue and fainted teammates dimmed with strikethrough).\n  - Each row shows an opponent Charged Move (3 moves by default, or 4 when '4 Charged Moves' is enabled in ⚙️ Settings) and the exact percentage of HP it deals to each of your 3 Pokémon, accounting for League CP stat scaling, dual-type effectiveness (up to 2.56x), STAB (1.2x), and Shadow modifiers (+20% ATK / -16.7% DEF).\n  - Tank vs. Shield &amp; Safe-Catch Decisions: Glance at the highlighted active column to know immediately whether an incoming charged move can be safely tanked (e.g. 28% green) or requires a shield (e.g. 82% red), and compare the other 2 columns to see which bench teammate takes the least damage if you catch on a switch!\n• My Attacks 3-Column Damage Grid (Your Damage to Opponents #1, #2, #3):\n  - The right side of the 'My Attacks' section has 3 columns for the opponent's [1st, 2nd, 3rd] revealed Pokémon (with the active opponent column highlighted and fainted opponents dimmed).\n  - Shows the exact HP percentage each of your active Pokémon's Charged Moves deals to every revealed opponent ('dmgPct%', or 'KO!' when ≥ 100%), so you always know exact knockout range." />
+            </LinearLayout>
+
+            <!-- 4. Swap Clocks, Shield/Faint Tracking & Top Statusbar Toasts -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="#1e293b"
+                android:padding="12dp"
+                android:layout_marginBottom="10dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="4. Dual 50s Swap Clocks, Faint Preservation &amp; Top Statusbar Toasts"
+                    android:textColor="#c084fc"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:lineSpacingExtra="2dp"
+                    android:textColor="#e2e8f0"
+                    android:textSize="11sp"
+                    android:text="• Dual Independent 50s Swap Timers: Tracks 'Opp Swap: Xs' (top-right header) and your 'Swap: Xs' (My Attacks header) automatically whenever either player switches Pokémon:\n  - White (50s–10s): Switch is locked on cooldown.\n  - Yellow (9s–1s): Under 10 seconds remaining — switch window is opening soon! Prepare to throw energy or time a catch.\n  - Ready (0s): Your 'Swap: 0s' turns Bright Green when your switch is available; 'Opp Swap: 0s' turns Alert Red to warn you that the opponent's switch is ready.\n• Smart Faint Swap-In Clock Preservation: When a Pokémon faints and a replacement enters, SilphScope detects the Pokéball drop (3→2→1) and preserves the existing swap timer instead of falsely resetting it to 50s.\n• Automatic Pokéball (3→2→1) &amp; Shield (2→1→0) Tracking: Samples the top HUD lobes to track remaining Pokémon and shields for both players and automatically dims fainted columns in the damage grids.\n• Top Statusbar / Clock Strip Battle Toasts: Real-time alerts for Swaps, Faint Swaps, and Shields Used appear in the top statusbar/clock area of the phone so they never block your charged move buttons (can be toggled in ⚙️ Settings)." />
+            </LinearLayout>
+
+            <!-- 5. Move Counting, Turn Pacing, Sneak Prevention & 4-Move Mode -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="#1e293b"
+                android:padding="12dp"
+                android:layout_marginBottom="10dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="5. Multi-Cycle Fast Move Counting, Zero-Sneak Pacing &amp; CMP"
+                    android:textColor="#f472b6"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:lineSpacingExtra="2dp"
+                    android:textColor="#e2e8f0"
+                    android:textSize="11sp"
+                    android:text="• Multi-Cycle Segmented Bars (Cycles 1, 2 &amp; 3): The center track of each move row shows exact fast moves required to reach each Charged Move across 3 consecutive cycles (e.g. 1–4 [#5]), automatically accounting for leftover residual energy.\n• Opponent Ready Blocks (Catch vs. CMP): In Opponent Attacks, the ready block (#N) is colored Red when the opponent can throw (catch window) or Green when your active Pokémon wins CMP on that turn.\n• My Attacks Zero-Sneak Throw Timing: In Pokémon GO, throwing a charged move on the exact turn an opponent's fast move finishes gives them a free 'sneak' turn. When fast move durations differ (e.g. 2t vs 3t), My Attacks highlights leak-free tap ranges in sky-blue so you throw on an optimal alignment turn.\n• CMP Tie Indicator ('CMP WIN ✓' / 'CMP LOSS'): Shown in the Opponent Attacks header to indicate whether your active Pokémon has higher Attack stat to win Charged Move Priority ties.\n• Count Basis ('My Fasts' vs. 'Their Fasts') &amp; 4 Charged Moves Mode: Configurable anytime in ⚙️ Settings." />
+            </LinearLayout>
+
+            <!-- 6. Battle Logs, Interactive Replay, WAE / BMF & Exports -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="#1e293b"
+                android:padding="12dp"
+                android:layout_marginBottom="10dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="6. Battle Logs, Interactive Replay, WAE / Luck &amp; GBL Exports"
+                    android:textColor="#38bdf8"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:lineSpacingExtra="2dp"
+                    android:textColor="#e2e8f0"
+                    android:textSize="11sp"
+                    android:text="• 5-Stat Analytics Grid: Tracks Record (W-L), Lead Matchups (Fav/Neu/Neg), Win Rate %, EXEC WAE (Wins Above Expected micro-execution skill), and MATCHUP LUCK (Blind Matchup Favorability BMF). Tap the 'i' icon on EXEC WAE or MATCHUP LUCK anytime for the full mathematical breakdown and Badge Glossary.\n• Interactive Battle Recap &amp; Replay: Tap any logged battle card in 📜 Battle Log to open the full 3v3 Matchup Matrix &amp; Timeline Replay for that battle.\n• Standardized Copy GBL &amp; Share Summary: Use '📋 Copy GBL' for Go Battle Log format ([pokemon1 pokemon2 pokemon3] + opponent rows) or '📤 Share' for daily/season summaries with 'W/L (L-&gt;F/N/U, M-&gt;F/N/U) opponent1 opponent2 opponent3' rows and standardized Pokémon naming (e.g. ninetales_alolanS, laprasS, giratina_altered, charizard_MEGA_Y)." />
+            </LinearLayout>
+
+            <!-- 7. Multi-Device Cloud Sync & Tasker Automation Hooks -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="#1e293b"
+                android:padding="12dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="7. Multi-Device Cloud Sync, Trash Bin &amp; Tasker Automation"
+                    android:textColor="#34d399"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:lineSpacingExtra="2dp"
+                    android:textColor="#e2e8f0"
+                    android:textSize="11sp"
+                    android:text="• 2-Device GitHub Cloud Delta Sync: Sign in once per phone under ⚙️ Settings → Multi-Device Cloud Sync. Your Team Presets and Battle Logs automatically reconcile across devices on app open and after every logged battle.\n• Trash Bin &amp; Instant Undo: Deleted teams or battles move to the 🗑️ Trash Bin with an instant '↩ UNDO' toast so nothing is ever lost by accident.\n• Tasker Automation Hooks: Control the overlay from Tasker without switching apps using com.gbl.overlay.ACTION_START_OVERLAY, com.gbl.overlay.ACTION_STOP_OVERLAY, or open straight to 📜 Battle Log with com.gbl.overlay.ACTION_OPEN_BATTLE_LOG (1-tap copy buttons available in ⚙️ Settings)." />
+            </LinearLayout>
+        </LinearLayout>
+    </ScrollView>
+
 </LinearLayout>
+</FrameLayout>
+

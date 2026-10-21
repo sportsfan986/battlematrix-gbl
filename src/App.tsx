@@ -24,13 +24,15 @@ import {
   GripVertical,
   RefreshCw,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  ArrowLeftRight
 } from 'lucide-react';
 import {
   POKEMON_DATABASE,
   INITIAL_PRESETS,
   TeamPreset,
   TeamMember,
+  TeamArchetype,
   LeagueType,
   calculateTurnAlignment,
   calculateFastDamage,
@@ -55,7 +57,16 @@ import {
   MatchupTierThresholds,
   DEFAULT_MATCHUP_TIER_THRESHOLDS,
   MATCHUP_TIER_THRESHOLDS_STORAGE_KEY,
-  getStoredMatchupTierThresholds
+  getStoredMatchupTierThresholds,
+  MachineBrThresholds,
+  DEFAULT_MACHINE_BR_THRESHOLDS,
+  MACHINE_BR_THRESHOLDS_STORAGE_KEY,
+  getStoredMachineBrThresholds,
+  getSingleSlotBrTierInfo,
+  getMachineBrTierInfo,
+  evaluateOrAutoOrderTeam,
+  evaluateTeamPresetMetrics,
+  recalculateAllPresetsMetrics
 } from './data/gblData';
 import {
   BattleQualityMetadata,
@@ -665,6 +676,7 @@ export default function App() {
   const [undoBanner, setUndoBanner] = useState<{ message: string; onUndo: () => void } | null>(null);
   const [exportFormatMode, setExportFormatMode] = useState<'GO_BATTLE_LOG' | 'STANDARD'>('GO_BATTLE_LOG');
   const [tierThresholds, setTierThresholds] = useState<MatchupTierThresholds>(() => getStoredMatchupTierThresholds());
+  const [machineBrThresholds, setMachineBrThresholds] = useState<MachineBrThresholds>(() => getStoredMachineBrThresholds());
 
   const updateTierThresholds = (next: MatchupTierThresholds) => {
     setTierThresholds(next);
@@ -675,6 +687,17 @@ export default function App() {
 
   const restoreDefaultTierThresholds = () => {
     updateTierThresholds({ ...DEFAULT_MATCHUP_TIER_THRESHOLDS });
+  };
+
+  const updateMachineBrThresholds = (next: MachineBrThresholds) => {
+    setMachineBrThresholds(next);
+    try {
+      localStorage.setItem(MACHINE_BR_THRESHOLDS_STORAGE_KEY, JSON.stringify(next));
+    } catch {}
+  };
+
+  const restoreDefaultMachineBrThresholds = () => {
+    updateMachineBrThresholds({ ...DEFAULT_MACHINE_BR_THRESHOLDS });
   };
 
   const triggerUndoBanner = (message: string, onUndo: () => void) => {
@@ -918,6 +941,41 @@ export default function App() {
     return presets.find(p => p.id === selectedPresetId) || presets[0] || INITIAL_PRESETS[0];
   }, [presets, selectedPresetId]);
 
+  const activeSeasonBounds = useMemo(() => {
+    const now = Date.now();
+    return (
+      seasonsList.find((s) => now >= s.startMs && now <= s.endMs) ||
+      seasonsList[0] ||
+      DEFAULT_SEASONS_FALLBACK[0]
+    );
+  }, [seasonsList]);
+
+  const recalculateAllPresetsWithSeasonMeta = (
+    presetsToRecalc: TeamPreset[] = presets,
+    logsToUse: WebBattleLogEntry[] = battleLogs
+  ) => {
+    const updated = recalculateAllPresetsMetrics(
+      presetsToRecalc,
+      logsToUse,
+      activeSeasonBounds.startMs,
+      activeSeasonBounds.endMs
+    );
+    setPresets(updated);
+    return updated;
+  };
+
+  // Ensure all presets have current-season blended Lead/Machine/Swap BR & ABB/ABC metrics on load or when season battle logs update
+  useEffect(() => {
+    setPresets((prev) =>
+      recalculateAllPresetsMetrics(
+        prev,
+        battleLogs,
+        activeSeasonBounds.startMs,
+        activeSeasonBounds.endMs
+      )
+    );
+  }, [battleLogs.length, activeSeasonBounds.startMs, activeSeasonBounds.endMs]);
+
   const [reparseBattlesStatus, setReparseBattlesStatus] = useState<string>(
     'Re-evaluates all logged battles with latest 2.56x dual-type & Shadow 1.2x damage + Win Quality (WAE) metrics'
   );
@@ -1082,6 +1140,14 @@ export default function App() {
           setPvPokeSyncStatus(
             `Last Updated: ${nowStr} • GameMaster: ${res.syncedCount} Pokémon • GL: ${gl} • UL: ${ul} • ML: ${ml} • Mega: ${mega}`
           );
+          setPresets((prev) =>
+            recalculateAllPresetsMetrics(
+              prev,
+              battleLogs,
+              activeSeasonBounds.startMs,
+              activeSeasonBounds.endMs
+            )
+          );
         }
       })
       .catch(() => {});
@@ -1114,6 +1180,7 @@ export default function App() {
           localStorage.setItem('gbl_last_sync_timestamp', nowStr);
         } catch {}
       }
+      recalculateAllPresetsWithSeasonMeta(presets, battleLogs);
       setPvPokeSyncStatus(
         totalRanked > 0
           ? `Last Updated: ${nowStr} • GameMaster: ${res.syncedCount} Pokémon • GL: ${gl} • UL: ${ul} • ML: ${ml} • Mega: ${mega}`
@@ -1143,6 +1210,8 @@ export default function App() {
   const [editingPresetId, setEditingPresetId] = useState<string | null>(null);
   const [newPresetName, setNewPresetName] = useState('');
   const [newPresetLeague, setNewPresetLeague] = useState<LeagueType>('GREAT LEAGUE');
+  const [manualArchetypeOverride, setManualArchetypeOverride] = useState<TeamArchetype | undefined>(undefined);
+  const [modalAutoDetectSummary, setModalAutoDetectSummary] = useState<string | null>(null);
   const [p1Name, setP1Name] = useState('Clodsire');
   const [p1Cp, setP1Cp] = useState(1494);
   const [p1Ivs, setP1Ivs] = useState('');
@@ -2054,6 +2123,8 @@ export default function App() {
     setEditingPresetId(null);
     setNewPresetName('');
     setNewPresetLeague(defaultLeague);
+    setManualArchetypeOverride(undefined);
+    setModalAutoDetectSummary(null);
     applyLeagueTop3TemplateToForm(defaultLeague);
     setIsNewPresetOpen(true);
   };
@@ -2062,6 +2133,8 @@ export default function App() {
     setEditingPresetId(preset.id);
     setNewPresetName(preset.name);
     setNewPresetLeague(preset.league);
+    setManualArchetypeOverride(preset.isArchetypeManual ? preset.archetype : undefined);
+    setModalAutoDetectSummary(null);
     const s1 = preset.pokemon[0];
     const s2 = preset.pokemon[1];
     const s3 = preset.pokemon[2];
@@ -2092,12 +2165,8 @@ export default function App() {
     setIsNewPresetOpen(true);
   };
 
-  // Handle Preset Creation or Editing (auto-fills any blank moves or CP from PvPoke recommendations)
-  const handleCreatePreset = (e: React.FormEvent) => {
-    e.preventDefault();
-    const targetId = editingPresetId || `preset-${Date.now()}`;
+  const buildModalMembersArray = (): TeamMember[] => {
     const top3 = getLeagueTop3Template(newPresetLeague);
-
     const resolveSlot = (
       id: string,
       rawName: string,
@@ -2121,17 +2190,158 @@ export default function App() {
         ivs: cleanIvs
       };
     };
+    return [
+      resolveSlot('p1', p1Name, p1Cp, p1Fast, p1C1, p1C2, p1Ivs, top3[0]),
+      resolveSlot('p2', p2Name, p2Cp, p2Fast, p2C1, p2C2, p2Ivs, top3[1]),
+      resolveSlot('p3', p3Name, p3Cp, p3Fast, p3C1, p3C2, p3Ivs, top3[2])
+    ];
+  };
 
-    const savedPreset: TeamPreset = {
+  const applyOrderedMembersToModalForm = (ordered: TeamMember[]) => {
+    const [m1, m2, m3] = ordered;
+    if (m1) {
+      setP1Name(m1.name);
+      setP1Cp(m1.cp);
+      setP1Ivs(m1.ivs || '');
+      setP1Fast(m1.fastMove);
+      setP1C1(m1.chargedMove1);
+      setP1C2(m1.chargedMove2);
+    }
+    if (m2) {
+      setP2Name(m2.name);
+      setP2Cp(m2.cp);
+      setP2Ivs(m2.ivs || '');
+      setP2Fast(m2.fastMove);
+      setP2C1(m2.chargedMove1);
+      setP2C2(m2.chargedMove2);
+    }
+    if (m3) {
+      setP3Name(m3.name);
+      setP3Cp(m3.cp);
+      setP3Ivs(m3.ivs || '');
+      setP3Fast(m3.fastMove);
+      setP3C1(m3.chargedMove1);
+      setP3C2(m3.chargedMove2);
+    }
+  };
+
+  const modalLiveEvaluation = useMemo(() => {
+    const members = buildModalMembersArray();
+    return evaluateOrAutoOrderTeam(
+      members,
+      newPresetLeague,
+      battleLogs,
+      activeSeasonBounds.startMs,
+      activeSeasonBounds.endMs,
+      false,
+      manualArchetypeOverride
+    );
+  }, [
+    p1Name, p1Cp, p1Ivs, p1Fast, p1C1, p1C2,
+    p2Name, p2Cp, p2Ivs, p2Fast, p2C1, p2C2,
+    p3Name, p3Cp, p3Ivs, p3Fast, p3C1, p3C2,
+    newPresetLeague,
+    manualArchetypeOverride,
+    battleLogs,
+    activeSeasonBounds.startMs,
+    activeSeasonBounds.endMs
+  ]);
+
+  const handleAutoDetectAndOrderModal = () => {
+    const members = buildModalMembersArray();
+    const res = evaluateOrAutoOrderTeam(
+      members,
+      newPresetLeague,
+      battleLogs,
+      activeSeasonBounds.startMs,
+      activeSeasonBounds.endMs,
+      true,
+      manualArchetypeOverride
+    );
+    applyOrderedMembersToModalForm(res.orderedPokemon);
+    const s1 = res.orderedPokemon[0];
+    const s2 = res.orderedPokemon[1];
+    const s3 = res.orderedPokemon[2];
+    if (res.archetype === 'ABB') {
+      const sharedStr = res.sharedWeaknesses.length > 0 ? res.sharedWeaknesses.join(', ').toUpperCase() : 'shared meta';
+      setModalAutoDetectSummary(
+        `⚡ Auto-Detected ABB Lineup (Shared ${sharedStr} weakness covered by ${s1.name}) → #1 Lead (A): ${s1.name} (Lead BR ${res.leadAggBr}) • #2 Bait Swap (B1): ${s2.name} (Swap BR ${res.safeSwapBr}) • #3 Sweeper (B2): ${s3.name} (Swap BR ${res.closerSwapBr})`
+      );
+    } else {
+      setModalAutoDetectSummary(
+        `⚡ Auto-Detected ABC Balanced Core → #1 Lead kept: ${s1.name} (Lead BR ${res.leadAggBr}) • #2 Safe Swap moved to Slot 2: ${s2.name} (Swap BR ${res.safeSwapBr}) • #3 Closer: ${s3.name} (Swap BR ${res.closerSwapBr})`
+      );
+    }
+  };
+
+  const handleSwapModalSlots = (slotA: 1 | 2 | 3, slotB: 1 | 2 | 3) => {
+    const members = buildModalMembersArray();
+    const idxA = slotA - 1;
+    const idxB = slotB - 1;
+    const next = [...members];
+    const temp = next[idxA];
+    next[idxA] = { ...next[idxB], id: `p${slotA}` };
+    next[idxB] = { ...temp, id: `p${slotB}` };
+    applyOrderedMembersToModalForm(next);
+    setModalAutoDetectSummary(`⇄ Swapped Slot ${slotA} (${next[idxA].name}) and Slot ${slotB} (${next[idxB].name})`);
+  };
+
+  const handleAutoDetectSavedPreset = (presetId: string) => {
+    setPresets((prev) =>
+      prev.map((p) => {
+        if (p.id !== presetId) return p;
+        return evaluateTeamPresetMetrics(
+          p,
+          battleLogs,
+          activeSeasonBounds.startMs,
+          activeSeasonBounds.endMs,
+          true
+        );
+      })
+    );
+  };
+
+  const handleSwapSavedPresetSlots = (presetId: string, idxA: number, idxB: number) => {
+    setPresets((prev) =>
+      prev.map((p) => {
+        if (p.id !== presetId || p.pokemon.length < 3) return p;
+        const nextMons = [...p.pokemon];
+        const tmp = nextMons[idxA];
+        nextMons[idxA] = { ...nextMons[idxB], id: `p${idxA + 1}` };
+        nextMons[idxB] = { ...tmp, id: `p${idxB + 1}` };
+        return evaluateTeamPresetMetrics(
+          { ...p, pokemon: nextMons },
+          battleLogs,
+          activeSeasonBounds.startMs,
+          activeSeasonBounds.endMs,
+          false
+        );
+      })
+    );
+  };
+
+  // Handle Preset Creation or Editing (auto-fills any blank moves or CP from PvPoke recommendations)
+  const handleCreatePreset = (e: React.FormEvent) => {
+    e.preventDefault();
+    const targetId = editingPresetId || `preset-${Date.now()}`;
+    const members = buildModalMembersArray();
+
+    const basePreset: TeamPreset = {
       id: targetId,
       name: newPresetName.trim() || `${newPresetLeague} Custom`,
       league: newPresetLeague,
-      pokemon: [
-        resolveSlot('p1', p1Name, p1Cp, p1Fast, p1C1, p1C2, p1Ivs, top3[0]),
-        resolveSlot('p2', p2Name, p2Cp, p2Fast, p2C1, p2C2, p2Ivs, top3[1]),
-        resolveSlot('p3', p3Name, p3Cp, p3Fast, p3C1, p3C2, p3Ivs, top3[2])
-      ]
+      pokemon: members,
+      archetype: manualArchetypeOverride,
+      isArchetypeManual: !!manualArchetypeOverride
     };
+
+    const savedPreset = evaluateTeamPresetMetrics(
+      basePreset,
+      battleLogs,
+      activeSeasonBounds.startMs,
+      activeSeasonBounds.endMs,
+      false
+    );
 
     setPresets(prev => {
       const idx = prev.findIndex(p => p.id === targetId);
@@ -2145,6 +2355,7 @@ export default function App() {
     setSelectedPresetId(targetId);
     setIsNewPresetOpen(false);
     setEditingPresetId(null);
+    setModalAutoDetectSummary(null);
   };
 
   const handleDeletePreset = (id: string) => {
@@ -2189,7 +2400,7 @@ export default function App() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'SilphScope_PvP_v3.00_Android_Project.zip';
+      a.download = 'SilphScope_PvP_v3.10_Android_Project.zip';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -2437,7 +2648,7 @@ export default function App() {
                     backgroundColor: `${activeTheme.accentHex}1A`
                   }}
                 >
-                  v3.08 • Android Native Overlay
+                  v3.10 • Android Native Overlay
                 </span>
               </div>
               <p className="text-xs hidden sm:block" style={{ color: activeTheme.textSecondaryHex }}>
@@ -2550,9 +2761,11 @@ export default function App() {
             <button
               type="button"
               onClick={() => {
-                setIsOverlayVisible((prev) => !prev);
-                if (!isOverlayVisible) {
+                const nextVisible = !isOverlayVisible;
+                setIsOverlayVisible(nextVisible);
+                if (nextVisible) {
                   setIsOverlayMinimized(false);
+                  recalculateAllPresetsWithSeasonMeta(presets, battleLogs);
                 }
               }}
               className={`px-4 py-2 rounded-xl font-bold text-xs text-white transition shadow-lg ${
@@ -4139,12 +4352,22 @@ export default function App() {
               </div>
             </div>
 
-            {/* Presets Grid (Supports Drag-and-Drop Reordering) */}
+            {/* Presets Grid (Supports Drag-and-Drop Reordering + ABB/ABC Auto-Detect & Lead/Machine/Swap BR) */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {presets.map((preset, presetIdx) => {
                 const isSelected = preset.id === selectedPresetId;
                 const isDragged = draggedPresetIndex === presetIdx;
                 const isDragOver = dragOverPresetIndex === presetIdx && draggedPresetIndex !== presetIdx;
+                const arch: TeamArchetype = preset.archetype || 'ABC';
+                const leadBr = preset.leadAggBr ?? 500;
+                const machBr = preset.machineAggBr ?? 580;
+                const safeSwapBr = preset.safeSwapBr ?? 500;
+                const closerSwapBr = preset.closerSwapBr ?? 500;
+                const leadTierInfo = getSingleSlotBrTierInfo(leadBr, tierThresholds);
+                const machTierInfo = getMachineBrTierInfo(machBr, machineBrThresholds);
+                const slot2SwapTierInfo = getSingleSlotBrTierInfo(safeSwapBr, tierThresholds);
+                const slot3SwapTierInfo = getSingleSlotBrTierInfo(closerSwapBr, tierThresholds);
+
                 return (
                   <div
                     key={preset.id}
@@ -4194,7 +4417,7 @@ export default function App() {
                   >
                     <div>
                       <div className="flex items-start justify-between gap-2 mb-2">
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <span
                             className="text-slate-500 hover:text-slate-300 cursor-grab active:cursor-grabbing p-0.5 rounded"
                             title="Drag to rearrange team preset order"
@@ -4212,9 +4435,31 @@ export default function App() {
                           }`}>
                             {preset.league}
                           </span>
+                          <span
+                            className={`text-[10px] font-extrabold px-2 py-0.5 rounded border uppercase ${
+                              arch === 'ABB'
+                                ? 'bg-amber-500/20 text-amber-300 border-amber-400/45'
+                                : 'bg-sky-500/20 text-sky-300 border-sky-400/45'
+                            }`}
+                            title={
+                              arch === 'ABB' && preset.sharedWeaknesses && preset.sharedWeaknesses.length > 0
+                                ? `ABB Lineup • Shared Backline Weaknesses covered by Lead: ${preset.sharedWeaknesses.join(', ').toUpperCase()}`
+                                : 'ABC Balanced Coverage Lineup'
+                            }
+                          >
+                            [{arch}]
+                          </span>
                         </div>
 
                         <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleAutoDetectSavedPreset(preset.id)}
+                            className="px-2 py-0.5 rounded bg-amber-500/15 hover:bg-amber-500/30 border border-amber-400/40 text-amber-300 text-[10px] font-extrabold transition"
+                            title="Auto-detect ABB vs ABC style and move recommended Safe Swap / Bait to Slot 2"
+                          >
+                            ⚡ Auto
+                          </button>
                           <button
                             type="button"
                             disabled={presetIdx === 0}
@@ -4251,7 +4496,7 @@ export default function App() {
                             className="text-xs text-amber-300 hover:text-white font-semibold px-2 py-0.5 rounded bg-slate-800 hover:bg-amber-600 border border-slate-700 transition"
                             title="Edit Team & Moves"
                           >
-                            Edit Moves
+                            Edit
                           </button>
                           <button
                             onClick={() => handleDeletePreset(preset.id)}
@@ -4263,54 +4508,133 @@ export default function App() {
                         </div>
                       </div>
 
-                      <h3 className="font-bold text-base text-white mb-3">
-                        {preset.name}
-                      </h3>
-
-                      {/* 3 Pokémon Slots with Movesets */}
-                      <div className="space-y-2">
-                        {preset.pokemon.map((member, index) => (
-                          <div
-                            key={member.id || index}
-                            className="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800/80 text-xs space-y-1"
+                      <div className="flex items-center justify-between gap-2 mb-2.5 flex-wrap">
+                        <h3 className="font-bold text-base text-white">
+                          {preset.name}
+                        </h3>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span
+                            className={`text-[10px] font-mono font-extrabold px-2 py-0.5 rounded border ${leadTierInfo.colorClass}`}
+                            title={`Lead Aggregate Battle Rating (${leadTierInfo.label}): Position-weighted Lead BR against current-season blended opponent leads`}
                           >
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-bold text-slate-500">
-                                  #{index + 1}
-                                </span>
-                                <span className="font-semibold text-slate-100">{member.name}</span>
-                              </div>
-                              <div className="flex items-center gap-1.5">
-                                {member.ivs && (
-                                  <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
-                                    IV {member.ivs}
+                            Lead BR: {leadBr} ({leadTierInfo.tier})
+                          </span>
+                          <span
+                            className={`text-[10px] font-mono font-extrabold px-2 py-0.5 rounded border ${machTierInfo.colorClass}`}
+                            title={`Machine Aggregate Battle Rating (${machTierInfo.label}): Theoretical 3-mon ceiling with optimal switch alignment across current-season blended field`}
+                          >
+                            Mach BR: {machBr}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* 3 Pokémon Slots with Role Tags, Swap BR & Quick Slot Reordering */}
+                      <div className="space-y-2">
+                        {preset.pokemon.map((member, index) => {
+                          const roleTag =
+                            index === 0
+                              ? arch === 'ABB'
+                                ? 'LEAD (A)'
+                                : 'LEAD'
+                              : index === 1
+                              ? arch === 'ABB'
+                                ? 'BAIT SWAP (B1)'
+                                : 'SAFE SWAP'
+                              : arch === 'ABB'
+                              ? 'SWEEPER (B2)'
+                              : 'CLOSER';
+                          const slotMetricBr = index === 0 ? leadBr : index === 1 ? safeSwapBr : closerSwapBr;
+                          const slotMetricLabel = index === 0 ? 'Lead BR' : 'Swap BR';
+                          const slotTierInfo =
+                            index === 0 ? leadTierInfo : index === 1 ? slot2SwapTierInfo : slot3SwapTierInfo;
+
+                          return (
+                            <div
+                              key={member.id || index}
+                              className="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800/80 text-xs space-y-1"
+                            >
+                              <div className="flex items-center justify-between gap-1 flex-wrap">
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <span className="text-[10px] font-bold text-slate-500">
+                                    #{index + 1}
                                   </span>
-                                )}
-                                <span className="text-[11px] font-mono font-bold text-sky-400">
-                                  CP {member.cp}
+                                  <span className="font-semibold text-slate-100 truncate">{member.name}</span>
+                                  <span
+                                    className={`text-[9px] font-extrabold px-1.5 py-0.2 rounded border uppercase ${
+                                      index === 0
+                                        ? 'bg-sky-500/15 text-sky-300 border-sky-400/35'
+                                        : index === 1
+                                        ? 'bg-purple-500/15 text-purple-300 border-purple-400/35'
+                                        : 'bg-amber-500/15 text-amber-300 border-amber-400/35'
+                                    }`}
+                                  >
+                                    {roleTag}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <span
+                                    className={`text-[9.5px] font-mono font-bold px-1.5 py-0.5 rounded border ${slotTierInfo.colorClass}`}
+                                    title={
+                                      index === 0
+                                        ? `Lead BR ${slotMetricBr} (${slotTierInfo.label})`
+                                        : `Volatility-adjusted Swap BR (μ - 0.5σ) = ${slotMetricBr} (${slotTierInfo.label})`
+                                    }
+                                  >
+                                    {slotMetricLabel}: {slotMetricBr}
+                                  </span>
+                                  {member.ivs && (
+                                    <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                                      IV {member.ivs}
+                                    </span>
+                                  )}
+                                  <span className="text-[11px] font-mono font-bold text-sky-400">
+                                    CP {member.cp}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="text-[10.5px] text-slate-400 pl-4 flex items-center justify-between gap-2">
+                                <span className="truncate">
+                                  Fast: <strong className="text-slate-200">{member.fastMove}</strong> • Charged:{' '}
+                                  <strong className="text-amber-300">{member.chargedMove1}</strong> /{' '}
+                                  <strong className="text-sky-300">{member.chargedMove2}</strong>
                                 </span>
+                                {index < 2 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSwapSavedPresetSlots(preset.id, index, index + 1)}
+                                    className="px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white text-[9.5px] font-mono font-bold shrink-0 transition"
+                                    title={`Swap Slot #${index + 1} and Slot #${index + 2}`}
+                                  >
+                                    #{index + 1}⇄#{index + 2}
+                                  </button>
+                                )}
                               </div>
                             </div>
-                            <div className="text-[10.5px] text-slate-400 pl-5 flex items-center justify-between">
-                              <span>Fast: <strong className="text-slate-200">{member.fastMove}</strong></span>
-                              <span>Charged: <strong className="text-amber-300">{member.chargedMove1}</strong> / <strong className="text-sky-300">{member.chargedMove2}</strong></span>
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
 
                     <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs">
                       <span className="text-slate-400 text-[11px]">
-                        Order: <strong className="text-slate-200">#{presetIdx + 1}</strong> • League: <strong className="text-slate-200">{preset.league}</strong>
+                        Order: <strong className="text-slate-200">#{presetIdx + 1}</strong> • Style:{' '}
+                        <strong className="text-amber-300">{arch}</strong>
                       </span>
-                      <button
-                        onClick={() => openEditPresetModal(preset)}
-                        className="text-sky-400 hover:text-sky-300 font-semibold text-[11px]"
-                      >
-                        ✎ Edit Team & Moves
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleAutoDetectSavedPreset(preset.id)}
+                          className="text-amber-300 hover:text-amber-200 font-semibold text-[11px]"
+                        >
+                          ⚡ Auto-Order Safe Swap
+                        </button>
+                        <button
+                          onClick={() => openEditPresetModal(preset)}
+                          className="text-sky-400 hover:text-sky-300 font-semibold text-[11px]"
+                        >
+                          ✎ Edit Team
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
@@ -4380,10 +4704,133 @@ export default function App() {
                       </div>
                     </div>
 
+                    {/* ABB / ABC Team Style Auto-Detection, Aggregate BR & Safe Swap Reordering Panel */}
+                    {(() => {
+                      const mLeadTier = getSingleSlotBrTierInfo(modalLiveEvaluation.leadAggBr, tierThresholds);
+                      const mMachTier = getMachineBrTierInfo(modalLiveEvaluation.machineAggBr, machineBrThresholds);
+                      const mSlot2SwapTier = getSingleSlotBrTierInfo(modalLiveEvaluation.safeSwapBr, tierThresholds);
+                      const mSlot3SwapTier = getSingleSlotBrTierInfo(modalLiveEvaluation.closerSwapBr, tierThresholds);
+                      return (
+                        <div className="p-3 rounded-xl bg-slate-950/90 border border-sky-500/40 space-y-2.5">
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span
+                                className={`text-[10px] font-extrabold px-2 py-0.5 rounded border uppercase ${
+                                  modalLiveEvaluation.archetype === 'ABB'
+                                    ? 'bg-amber-500/20 text-amber-300 border-amber-400/50'
+                                    : 'bg-sky-500/20 text-sky-300 border-sky-400/50'
+                                }`}
+                              >
+                                Style: [{modalLiveEvaluation.archetype}]
+                              </span>
+                              <span
+                                className={`text-[10px] font-mono font-extrabold px-2 py-0.5 rounded border ${mLeadTier.colorClass}`}
+                              >
+                                Lead Agg BR: {modalLiveEvaluation.leadAggBr} ({mLeadTier.tier})
+                              </span>
+                              <span
+                                className={`text-[10px] font-mono font-extrabold px-2 py-0.5 rounded border ${mMachTier.colorClass}`}
+                              >
+                                Machine Agg BR: {modalLiveEvaluation.machineAggBr} ({mMachTier.label})
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1 text-[10px]">
+                              <span className="text-slate-400">Style Mode:</span>
+                              {(['AUTO', 'ABB', 'ABC'] as const).map((mode) => {
+                                const isActiveMode =
+                                  (mode === 'AUTO' && !manualArchetypeOverride) ||
+                                  manualArchetypeOverride === mode;
+                                return (
+                                  <button
+                                    key={mode}
+                                    type="button"
+                                    onClick={() =>
+                                      setManualArchetypeOverride(mode === 'AUTO' ? undefined : mode)
+                                    }
+                                    className={`px-1.5 py-0.5 rounded font-bold border transition ${
+                                      isActiveMode
+                                        ? 'bg-sky-500/25 border-sky-400 text-white'
+                                        : 'bg-slate-900 border-slate-700 text-slate-400 hover:text-white'
+                                    }`}
+                                  >
+                                    {mode}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={handleAutoDetectAndOrderModal}
+                              className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs flex items-center gap-1.5 shadow-md transition"
+                            >
+                              <Sparkles className="w-3.5 h-3.5" />
+                              <span>⚡ Auto-Detect Style &amp; Move Safe Swap to Slot 2</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleSwapModalSlots(1, 2)}
+                              className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-mono font-bold text-[11px] flex items-center gap-1 transition"
+                              title="Swap Slot 1 (Lead) and Slot 2 (Safe Swap)"
+                            >
+                              <ArrowLeftRight className="w-3 h-3" />
+                              <span>Slot 1 ⇄ 2</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleSwapModalSlots(2, 3)}
+                              className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-mono font-bold text-[11px] flex items-center gap-1 transition"
+                              title="Swap Slot 2 (Safe Swap) and Slot 3 (Closer)"
+                            >
+                              <ArrowLeftRight className="w-3 h-3" />
+                              <span>Slot 2 ⇄ 3</span>
+                            </button>
+                          </div>
+
+                          <div className="text-[10.5px] text-slate-300 font-mono flex flex-wrap items-center justify-between gap-2">
+                            <span>
+                              Slot 2 Swap BR:{' '}
+                              <strong className={mSlot2SwapTier.colorClass.split(' ')[0]}>
+                                {modalLiveEvaluation.safeSwapBr} ({mSlot2SwapTier.tier})
+                              </strong>{' '}
+                              • Slot 3 Swap BR:{' '}
+                              <strong className={mSlot3SwapTier.colorClass.split(' ')[0]}>
+                                {modalLiveEvaluation.closerSwapBr} ({mSlot3SwapTier.tier})
+                              </strong>
+                            </span>
+                            {modalLiveEvaluation.sharedWeaknesses.length > 0 && (
+                              <span className="text-amber-300">
+                                Shared B-Pair Weaknesses: {modalLiveEvaluation.sharedWeaknesses.join(', ').toUpperCase()}
+                              </span>
+                            )}
+                          </div>
+
+                          {modalAutoDetectSummary && (
+                            <div className="p-2 rounded-lg bg-emerald-950/50 border border-emerald-500/40 text-[11px] text-emerald-200">
+                              {modalAutoDetectSummary}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+
                     {/* Slot 1 */}
                     <div className="p-3 bg-slate-950/70 border border-slate-800 rounded-xl space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-sky-400">Slot 1 (Lead Pokémon, IVs &amp; Moveset)</span>
+                      <div className="flex items-center justify-between flex-wrap gap-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-bold text-sky-400">
+                            Slot 1 ({modalLiveEvaluation.archetype === 'ABB' ? 'Lead A' : 'Lead'}, IVs &amp; Moveset)
+                          </span>
+                          <span
+                            className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border ${
+                              getSingleSlotBrTierInfo(modalLiveEvaluation.leadAggBr, tierThresholds).colorClass
+                            }`}
+                          >
+                            Lead BR: {modalLiveEvaluation.leadAggBr}
+                          </span>
+                        </div>
                         <button
                           type="button"
                           onClick={() => {
@@ -4538,8 +4985,19 @@ export default function App() {
 
                     {/* Slot 2 */}
                     <div className="p-3 bg-slate-950/70 border border-slate-800 rounded-xl space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-purple-400">Slot 2 (Safe Swap, IVs &amp; Moveset)</span>
+                      <div className="flex items-center justify-between flex-wrap gap-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-bold text-purple-400">
+                            Slot 2 ({modalLiveEvaluation.archetype === 'ABB' ? 'Bait Swap B1' : 'Safe Swap'}, IVs &amp; Moveset)
+                          </span>
+                          <span
+                            className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border ${
+                              getSingleSlotBrTierInfo(modalLiveEvaluation.safeSwapBr, tierThresholds).colorClass
+                            }`}
+                          >
+                            Swap BR: {modalLiveEvaluation.safeSwapBr}
+                          </span>
+                        </div>
                         <button
                           type="button"
                           onClick={() => {
@@ -4694,8 +5152,19 @@ export default function App() {
 
                     {/* Slot 3 */}
                     <div className="p-3 bg-slate-950/70 border border-slate-800 rounded-xl space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-amber-400">Slot 3 (Closer, IVs &amp; Moveset)</span>
+                      <div className="flex items-center justify-between flex-wrap gap-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-bold text-amber-400">
+                            Slot 3 ({modalLiveEvaluation.archetype === 'ABB' ? 'Sweeper B2' : 'Closer'}, IVs &amp; Moveset)
+                          </span>
+                          <span
+                            className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border ${
+                              getSingleSlotBrTierInfo(modalLiveEvaluation.closerSwapBr, tierThresholds).colorClass
+                            }`}
+                          >
+                            Swap BR: {modalLiveEvaluation.closerSwapBr}
+                          </span>
+                        </div>
                         <button
                           type="button"
                           onClick={() => {
@@ -5284,6 +5753,107 @@ export default function App() {
                       const val = Number(e.target.value);
                       if (!Number.isNaN(val)) {
                         updateTierThresholds({ ...tierThresholds, slMax: val });
+                      }
+                    }}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Machine Aggregate BR Thresholds Card (Dedicated 3-Mon Core Coverage Scale) */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-sm font-bold text-emerald-400 flex items-center gap-2">
+                    <Shield className="w-4 h-4" />
+                    <span>🤖 Machine Aggregate BR Thresholds (3-Mon Core Coverage Ceiling)</span>
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Because Machine Aggregate BR takes the best counter across all 3 team members against the blended season field, it naturally scores higher than single-mon Lead/Swap BR. Customize its 5-tier color scale below.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={restoreDefaultMachineBrThresholds}
+                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-bold transition shrink-0"
+                >
+                  ↺ Restore Defaults (650 / 610 / 580 / 540)
+                </button>
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 font-mono text-xs text-slate-300 space-y-1">
+                <div>• <strong className="text-emerald-400">Elite Core</strong> = Dominant 3-Mon Coverage (Mach BR &gt;= {machineBrThresholds.eliteMin}) <span className="text-slate-500">(Default: 650)</span></div>
+                <div>• <strong className="text-green-300">Solid Core</strong> = Well-Rounded Coverage ({machineBrThresholds.solidMin} &lt;= Mach BR &lt; {machineBrThresholds.eliteMin}) <span className="text-slate-500">(Default: 610–649)</span></div>
+                <div>• <strong className="text-amber-300">Playable</strong> = Manageable Coverage ({machineBrThresholds.playableMin} &lt;= Mach BR &lt; {machineBrThresholds.solidMin}) <span className="text-slate-500">(Default: 580–609)</span></div>
+                <div>• <strong className="text-rose-300">Risky</strong> = Core Blindspot Warning ({machineBrThresholds.riskyMin} &lt;= Mach BR &lt; {machineBrThresholds.playableMin}) <span className="text-slate-500">(Default: 540–579)</span></div>
+                <div>• <strong className="text-rose-500">Severe Blindspot</strong> = Triple/Core Weakness (Mach BR &lt; {machineBrThresholds.riskyMin}) <span className="text-slate-500">(Default: &lt; 540)</span></div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-emerald-400 mb-1">
+                    Elite Core &gt;= (650)
+                  </label>
+                  <input
+                    type="number"
+                    value={machineBrThresholds.eliteMin}
+                    placeholder="(650)"
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      if (!Number.isNaN(val)) {
+                        updateMachineBrThresholds({ ...machineBrThresholds, eliteMin: val });
+                      }
+                    }}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-green-300 mb-1">
+                    Solid Core &gt;= (610)
+                  </label>
+                  <input
+                    type="number"
+                    value={machineBrThresholds.solidMin}
+                    placeholder="(610)"
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      if (!Number.isNaN(val)) {
+                        updateMachineBrThresholds({ ...machineBrThresholds, solidMin: val });
+                      }
+                    }}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-amber-300 mb-1">
+                    Playable &gt;= (580)
+                  </label>
+                  <input
+                    type="number"
+                    value={machineBrThresholds.playableMin}
+                    placeholder="(580)"
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      if (!Number.isNaN(val)) {
+                        updateMachineBrThresholds({ ...machineBrThresholds, playableMin: val });
+                      }
+                    }}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-rose-300 mb-1">
+                    Risky &gt;= (540)
+                  </label>
+                  <input
+                    type="number"
+                    value={machineBrThresholds.riskyMin}
+                    placeholder="(540)"
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      if (!Number.isNaN(val)) {
+                        updateMachineBrThresholds({ ...machineBrThresholds, riskyMin: val });
                       }
                     }}
                     className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono"
@@ -8122,7 +8692,7 @@ export default function App() {
           color: activeTheme.textSecondaryHex
         }}
       >
-        SilphScope PvP v3.08 Overlay • Built with Kotlin, WindowManager TYPE_APPLICATION_OVERLAY, MediaProjection in-memory frame capture, and ML Kit Text Recognition.
+        SilphScope PvP v3.10 Overlay • Built with Kotlin, WindowManager TYPE_APPLICATION_OVERLAY, MediaProjection in-memory frame capture, and ML Kit Text Recognition.
       </footer>
     </div>
   );

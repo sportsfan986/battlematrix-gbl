@@ -123,19 +123,23 @@ jobs:
           tag_name: ${{ steps.version.outputs.tag }}
           name: "SilphScope PvP ${{ steps.version.outputs.tag }}"
           body: |
-            ## SilphScope PvP ${{ steps.version.outputs.tag }} — Official v3.08 Release (Compact Battle Log Lead Matchups & Tightened Daily Summary Spacing)
+            ## SilphScope PvP ${{ steps.version.outputs.tag }} — Official v3.10 Release (ABB/ABC Auto-Detection, Position-Weighted Shield Ratings & Aggregate Team BR Engine)
             
-            ### What's New in v3.08
-            - **Compact Lead Matchups Box (`#+/#o/#-/#u`)**:
-              - Changed the Battle Log **Lead Matchups** summary box format to `#+/#o/#-/#u` (e.g. `22+/25o/17-/50u`) and tightened the **Record (W - L)** card formatting so all summary values fit cleanly inside their boxes without overrun.
-            - **Tightened Daily Summary & Share Spacing**:
-              - Removed unneeded spaces in the daily summary header and plain-text export lines (e.g. `Daily Record:10W-13L(43%) • Leads:11 Fav/4 Neu/8 Neg/23 Unique • WAE:-10.9% • Luck:55.9%`).
-
-            ### Highlights Since v3.00 (`v3.02` – `v3.07`)
-            - **v3.07 — League-Rated Default Form & Shadow Selection, Strict `Mew`/`Mewtwo` Disambiguation, Same-Day Repeated Lead Highlighting & `Yesterday` Filter**.
-            - **v3.06 — Dual-Accent Theme Engine, ✨ Shiny Origin Dialga Midnight Theme, Full Modal/Button Theming & Page Transparency**.
-            - **v3.05 — Interactive Overlay Header Shield Counters (`🛡️ You` & `🛡️ Opp`)**.
-            - **v3.02–v3.03 — Dynamic Overlay Emblem Icons & Background Crest Watermarks**.
+            ### What's New in v3.10
+            - **Auto Team Style Detection (`ABB` vs. `ABC`) & Safe Swap Slot Reordering**:
+              - Added **⚡ Auto-Detect Style & Order Swap** in the Create/Edit Team modal and **⚡ Auto** on saved Team Preset cards, alongside manual `#1 ⇄ #2` and `#2 ⇄ #3` slot swap buttons.
+              - Evaluates pairwise defensive type vulnerabilities across all 3 team members to classify teams as **ABB** (moving the resisting $A$ Pokémon to Slot 1 Lead, Bait $B_1$ to Slot 2 Safe Swap, and Sweeper $B_2$ to Slot 3 Closer) or **ABC** (keeping Slot 1 Lead fixed and promoting the bench Pokémon with the highest consistency-adjusted Safe Swap index $\mu_{BR} - 0.5\sigma_{BR}$ to Slot 2).
+            - **Blended Current-Season Meta Distribution with Recency Decay**:
+              - Binds historical battle logs strictly to the current GBL season (`currentSeasonId`), scaling history weight linearly from `0%` at `0` matches up to `70%` at `50+` matches (`30%` PvPoke meta baseline).
+              - Weights more recent battle logs exponentially higher than older logs ($W_{\text{log}}(k) = e^{-0.05 \cdot (k - 1)}$), mirroring the PvPoke rank decay curve.
+              - Uses Opponent Lead frequencies for **Lead Aggregate BR** and full 3-mon opponent team frequencies for **Machine Aggregate BR** and **Swap BR**.
+            - **Position-Weighted Shield Scenario Battle Ratings**:
+              - **Lead (`Slot 1`)**: $0.50 \cdot BR_{2v2} + 0.50 \cdot BR_{1v1}$
+              - **Safe Swap / Pivot (`Slot 2`)**: $0.60 \cdot BR_{1v1} + 0.25 \cdot BR_{2v1} + 0.15 \cdot BR_{1v0}$
+              - **Closer / Sweeper (`Slot 3`)**: $0.60 \cdot BR_{0v0} + 0.25 \cdot BR_{1v0} + 0.15 \cdot BR_{0v1}$
+            - **Color-Coded Lead BR, Per-Slot Swap BR & Configurable Machine BR Thresholds**:
+              - Displays `[ABB]` / `[ABC]` archetype pills, **Lead BR** (`SW/W/N/L/SL` color-coded), **Machine BR** (`Elite / Strong / Viable / Shaky / Corebreaker` with customizable thresholds in Settings), and individual **Swap BR** badges on both Slot 2 (Safe Swap) and Slot 3 (Closer).
+              - Automatically recalculates all saved team presets for the active league whenever the Battle Overlay is launched.
             
             ### Download & Install
             Download **`silphscope-pvp-${{ steps.version.outputs.tag }}.apk`** from the **Assets** section below and install on your Android device.

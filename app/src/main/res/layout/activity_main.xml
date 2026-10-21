@@ -976,6 +976,183 @@
                         android:backgroundTint="#334155"
                         android:textColor="#e2e8f0" />
                 </LinearLayout>
+
+                <!-- Machine Aggregate BR Thresholds Sub-Card -->
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginVertical="10dp"
+                    android:background="#1e293b" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="🛡️ Machine Aggregate BR Thresholds (3-Mon Core Coverage Ceiling)"
+                    android:textColor="#34d399"
+                    android:textSize="11.5sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/text_machine_br_definitions_summary"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:text="• Elite Coverage &gt;= 650  •  Solid &gt;= 610  •  Playable &gt;= 580  •  Risky &gt;= 540  •  Blindspot &lt; 540"
+                    android:textColor="#94a3b8"
+                    android:textSize="10.5sp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="6dp">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical"
+                        android:layout_marginEnd="4dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Elite &gt;= (650)"
+                            android:textColor="#34d399"
+                            android:textSize="9.5sp"
+                            android:textStyle="bold" />
+
+                        <EditText
+                            android:id="@+id/edit_mach_elite_min"
+                            android:layout_width="match_parent"
+                            android:layout_height="34dp"
+                            android:layout_marginTop="2dp"
+                            android:background="#1e293b"
+                            android:paddingHorizontal="6dp"
+                            android:hint="(650)"
+                            android:text="650"
+                            android:textColor="#f8fafc"
+                            android:textSize="11sp"
+                            android:inputType="number"
+                            android:singleLine="true" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical"
+                        android:layout_marginEnd="4dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Solid &gt;= (610)"
+                            android:textColor="#4ade80"
+                            android:textSize="9.5sp"
+                            android:textStyle="bold" />
+
+                        <EditText
+                            android:id="@+id/edit_mach_solid_min"
+                            android:layout_width="match_parent"
+                            android:layout_height="34dp"
+                            android:layout_marginTop="2dp"
+                            android:background="#1e293b"
+                            android:paddingHorizontal="6dp"
+                            android:hint="(610)"
+                            android:text="610"
+                            android:textColor="#f8fafc"
+                            android:textSize="11sp"
+                            android:inputType="number"
+                            android:singleLine="true" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical"
+                        android:layout_marginEnd="4dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Playable &gt;= (580)"
+                            android:textColor="#facc15"
+                            android:textSize="9.5sp"
+                            android:textStyle="bold" />
+
+                        <EditText
+                            android:id="@+id/edit_mach_playable_min"
+                            android:layout_width="match_parent"
+                            android:layout_height="34dp"
+                            android:layout_marginTop="2dp"
+                            android:background="#1e293b"
+                            android:paddingHorizontal="6dp"
+                            android:hint="(580)"
+                            android:text="580"
+                            android:textColor="#f8fafc"
+                            android:textSize="11sp"
+                            android:inputType="number"
+                            android:singleLine="true" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Risky &gt;= (540)"
+                            android:textColor="#fb923c"
+                            android:textSize="9.5sp"
+                            android:textStyle="bold" />
+
+                        <EditText
+                            android:id="@+id/edit_mach_risky_min"
+                            android:layout_width="match_parent"
+                            android:layout_height="34dp"
+                            android:layout_marginTop="2dp"
+                            android:background="#1e293b"
+                            android:paddingHorizontal="6dp"
+                            android:hint="(540)"
+                            android:text="540"
+                            android:textColor="#f8fafc"
+                            android:textSize="11sp"
+                            android:inputType="number"
+                            android:singleLine="true" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="8dp">
+
+                    <Button
+                        android:id="@+id/btn_save_mach_thresholds"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:text="💾 Save Machine BR Scale"
+                        android:textSize="11sp"
+                        android:backgroundTint="#059669"
+                        android:textColor="#ffffff"
+                        android:layout_marginEnd="6dp" />
+
+                    <Button
+                        android:id="@+id/btn_restore_mach_thresholds"
+                        android:layout_width="wrap_content"
+                        android:layout_height="36dp"
+                        android:text="↺ Restore Defaults"
+                        android:textSize="11sp"
+                        android:backgroundTint="#334155"
+                        android:textColor="#e2e8f0" />
+                </LinearLayout>
             </LinearLayout>
 
             <!-- ===================================================================

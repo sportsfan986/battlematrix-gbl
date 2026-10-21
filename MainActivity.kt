@@ -1,6 +1,7 @@
 package com.gbl.overlay
 
 import android.app.Activity
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
@@ -47,7 +48,15 @@ data class TeamPreset(
     val league: String = "GREAT LEAGUE", // "MASTER LEAGUE", "ULTRA LEAGUE", "GREAT LEAGUE"
     val pokemon: List<PokemonSlot> = emptyList(),
     val isSelected: Boolean = false,
-    val updatedAt: Long = System.currentTimeMillis()
+    val updatedAt: Long = System.currentTimeMillis(),
+    val archetype: String = "ABC",
+    val isArchetypeManual: Boolean = false,
+    val leadAggBr: Int = 500,
+    val machineAggBr: Int = 600,
+    val safeSwapBr: Int = 500,
+    val closerSwapBr: Int = 500,
+    val closerBr: Int = 500,
+    val sharedWeaknesses: List<String> = emptyList()
 )
 
 data class BattleLogEntry(
@@ -83,6 +92,26 @@ data class GblSeasonInfo(
     val endMs: Long = 0L
 )
 
+data class AppThemePalette(
+    val id: String,
+    val label: String,
+    val description: String,
+    val isLight: Boolean,
+    val bgColor: Int,
+    val navBarColor: Int,
+    val surfaceColor: Int,
+    val innerCardColor: Int,
+    val elevatedColor: Int,
+    val primaryTextColor: Int,
+    val secondaryTextColor: Int,
+    val accentColor: Int,
+    val secondaryAccentColor: Int,
+    val buttonAccentColor: Int,
+    val secondaryButtonColor: Int,
+    val overlayBorderColor: Int,
+    val emblemDrawableRes: Int? = null
+)
+
 /**
  * MainActivity handles:
  * 1. Permission checks (SYSTEM_ALERT_WINDOW, POST_NOTIFICATIONS & MediaProjection Screen Capture)
@@ -109,9 +138,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnNavTeams: Button
     private lateinit var btnNavSettings: Button
     private lateinit var btnNavBattleLog: Button
+    private lateinit var btnOverlayQuickHelp: Button
     private lateinit var pageTeams: android.view.View
     private lateinit var pageSettings: android.view.View
     private lateinit var pageBattleLog: android.view.View
+    private lateinit var pageHelp: android.view.View
     private lateinit var btnReparseBattlesSettings: Button
     private lateinit var textReparseBattlesStatus: TextView
     private lateinit var btnToggleOppCountBasis: Button
@@ -139,6 +170,13 @@ class MainActivity : AppCompatActivity() {
     private lateinit var editTierSlMax: EditText
     private lateinit var btnSaveTierThresholds: Button
     private lateinit var btnRestoreTierThresholds: Button
+    private lateinit var textMachineBrDefinitionsSummary: TextView
+    private lateinit var editMachEliteMin: EditText
+    private lateinit var editMachSolidMin: EditText
+    private lateinit var editMachPlayableMin: EditText
+    private lateinit var editMachRiskyMin: EditText
+    private lateinit var btnSaveMachThresholds: Button
+    private lateinit var btnRestoreMachThresholds: Button
     private lateinit var presetsContainer: LinearLayout
     private lateinit var battleLogContainer: LinearLayout
     private lateinit var textBattleLogTotal: TextView
@@ -160,6 +198,193 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnUndoBannerDismiss: TextView
     private lateinit var btnTrashTeams: Button
     private lateinit var btnTrashBattleLog: Button
+    private lateinit var spinnerAppTheme: Spinner
+    private lateinit var ivThemePreviewEmblem: ImageView
+    private lateinit var tvThemePreviewDesc: TextView
+    private lateinit var viewSwatchBg: android.view.View
+    private lateinit var viewSwatchSurface: android.view.View
+    private lateinit var viewSwatchAccent: android.view.View
+    private lateinit var viewSwatchAccent2: android.view.View
+    private lateinit var viewSwatchOverlay: android.view.View
+    private lateinit var switchShowThemeWatermark: Switch
+    private var currentActivePage: String = "teams"
+    private var isUpdatingThemeSpinner = false
+
+    private val APP_THEME_COLLECTION: List<AppThemePalette> by lazy {
+        listOf(
+            AppThemePalette(
+                id = "dialga_shiny_midnight",
+                label = "✨ Shiny Origin Dialga Midnight (Dark)",
+                description = "Shiny Origin Dialga Midnight ✨ — Deep temporal void with luminous shiny teal (#2DD4BF) & astral ring gold (#FACC15) accents.",
+                isLight = false,
+                bgColor = 0xFF050B16.toInt(),
+                navBarColor = 0xFF02060D.toInt(),
+                surfaceColor = 0xFF0E1B2E.toInt(),
+                innerCardColor = 0xFF081120.toInt(),
+                elevatedColor = 0xFF19304E.toInt(),
+                primaryTextColor = 0xFFECFEFF.toInt(),
+                secondaryTextColor = 0xFF99F6E4.toInt(),
+                accentColor = 0xFF2DD4BF.toInt(),
+                secondaryAccentColor = 0xFFFACC15.toInt(),
+                buttonAccentColor = 0xFF0D9488.toInt(),
+                secondaryButtonColor = 0xFFCA8A04.toInt(),
+                overlayBorderColor = 0xFF2DD4BF.toInt(),
+                emblemDrawableRes = R.drawable.bg_emblem_dialga
+            ),
+            AppThemePalette(
+                id = "instinct_dark",
+                label = "⚡ Team Instinct Storm (Dark)",
+                description = "Team Instinct Storm (Dark) ⚡ — Obsidian storm-cloud dark mode with Zapdos lightning gold & electric plasma cyan-amber accents.",
+                isLight = false,
+                bgColor = 0xFF0E0B03.toInt(),
+                navBarColor = 0xFF070501.toInt(),
+                surfaceColor = 0xFF1F1908.toInt(),
+                innerCardColor = 0xFF141005.toInt(),
+                elevatedColor = 0xFF362B0E.toInt(),
+                primaryTextColor = 0xFFFEFCE8.toInt(),
+                secondaryTextColor = 0xFFFDE047.toInt(),
+                accentColor = 0xFFFACC15.toInt(),
+                secondaryAccentColor = 0xFF38BDF8.toInt(),
+                buttonAccentColor = 0xFFCA8A04.toInt(),
+                secondaryButtonColor = 0xFFD97706.toInt(),
+                overlayBorderColor = 0xFFFACC15.toInt(),
+                emblemDrawableRes = R.drawable.bg_emblem_instinct
+            ),
+            AppThemePalette(
+                id = "instinct_light",
+                label = "⚡ Team Instinct Spark (Light)",
+                description = "Team Instinct Spark (Light) ⚡ — Warm solar-gold daylight theme with Zapdos crest watermark & electric sky-cobalt accents.",
+                isLight = true,
+                bgColor = 0xFFFEFCE8.toInt(),
+                navBarColor = 0xFFFEF08A.toInt(),
+                surfaceColor = 0xFFFFFFFF.toInt(),
+                innerCardColor = 0xFFFEF9C3.toInt(),
+                elevatedColor = 0xFFFDE047.toInt(),
+                primaryTextColor = 0xFF1C1917.toInt(),
+                secondaryTextColor = 0xFF713F12.toInt(),
+                accentColor = 0xFFB45309.toInt(),
+                secondaryAccentColor = 0xFF0284C7.toInt(),
+                buttonAccentColor = 0xFFD97706.toInt(),
+                secondaryButtonColor = 0xFF0284C7.toInt(),
+                overlayBorderColor = 0xFFFACC15.toInt(),
+                emblemDrawableRes = R.drawable.bg_emblem_instinct
+            ),
+            AppThemePalette(
+                id = "mystic_dark",
+                label = "❄️ Team Mystic Blizzard (Dark)",
+                description = "Team Mystic Blizzard (Dark) ❄️ — Deep midnight glacier navy with Articuno ice-crystal blue & aurora violet accents.",
+                isLight = false,
+                bgColor = 0xFF060E20.toInt(),
+                navBarColor = 0xFF030712.toInt(),
+                surfaceColor = 0xFF102040.toInt(),
+                innerCardColor = 0xFF09142B.toInt(),
+                elevatedColor = 0xFF1E3A6E.toInt(),
+                primaryTextColor = 0xFFF0F9FF.toInt(),
+                secondaryTextColor = 0xFF93C5FD.toInt(),
+                accentColor = 0xFF38BDF8.toInt(),
+                secondaryAccentColor = 0xFFC084FC.toInt(),
+                buttonAccentColor = 0xFF0284C7.toInt(),
+                secondaryButtonColor = 0xFF6366F1.toInt(),
+                overlayBorderColor = 0xFF38BDF8.toInt(),
+                emblemDrawableRes = R.drawable.bg_emblem_mystic
+            ),
+            AppThemePalette(
+                id = "mystic_light",
+                label = "❄️ Team Mystic Glacier (Light)",
+                description = "Team Mystic Glacier (Light) ❄️ — Crisp arctic ice-blue daylight theme with Articuno crest & royal aurora indigo accents.",
+                isLight = true,
+                bgColor = 0xFFF0F9FF.toInt(),
+                navBarColor = 0xFFDBEAFE.toInt(),
+                surfaceColor = 0xFFFFFFFF.toInt(),
+                innerCardColor = 0xFFE0F2FE.toInt(),
+                elevatedColor = 0xFFBAE6FD.toInt(),
+                primaryTextColor = 0xFF0F172A.toInt(),
+                secondaryTextColor = 0xFF1E40AF.toInt(),
+                accentColor = 0xFF0284C7.toInt(),
+                secondaryAccentColor = 0xFF7C3AED.toInt(),
+                buttonAccentColor = 0xFF0369A1.toInt(),
+                secondaryButtonColor = 0xFF4F46E5.toInt(),
+                overlayBorderColor = 0xFF38BDF8.toInt(),
+                emblemDrawableRes = R.drawable.bg_emblem_mystic
+            ),
+            AppThemePalette(
+                id = "valor_dark",
+                label = "🔥 Team Valor Inferno (Dark)",
+                description = "Team Valor Inferno (Dark) 🔥 — Volcanic ember dark mode with Moltres crimson-flame & molten phoenix gold accents.",
+                isLight = false,
+                bgColor = 0xFF16070B.toInt(),
+                navBarColor = 0xFF0B0305.toInt(),
+                surfaceColor = 0xFF290E16.toInt(),
+                innerCardColor = 0xFF1B090E.toInt(),
+                elevatedColor = 0xFF471725.toInt(),
+                primaryTextColor = 0xFFFFF1F2.toInt(),
+                secondaryTextColor = 0xFFFDA4AF.toInt(),
+                accentColor = 0xFFF43F5E.toInt(),
+                secondaryAccentColor = 0xFFFBBF24.toInt(),
+                buttonAccentColor = 0xFFE11D48.toInt(),
+                secondaryButtonColor = 0xFFD97706.toInt(),
+                overlayBorderColor = 0xFFF43F5E.toInt(),
+                emblemDrawableRes = R.drawable.bg_emblem_valor
+            ),
+            AppThemePalette(
+                id = "valor_light",
+                label = "🔥 Team Valor Dawn (Light)",
+                description = "Team Valor Dawn (Light) 🔥 — Warm rose-ivory daylight theme with crimson Moltres crest & solar phoenix amber accents.",
+                isLight = true,
+                bgColor = 0xFFFFF1F2.toInt(),
+                navBarColor = 0xFFFFE4E6.toInt(),
+                surfaceColor = 0xFFFFFFFF.toInt(),
+                innerCardColor = 0xFFFFE4E6.toInt(),
+                elevatedColor = 0xFFFECDD3.toInt(),
+                primaryTextColor = 0xFF1F090D.toInt(),
+                secondaryTextColor = 0xFF9F1239.toInt(),
+                accentColor = 0xFFE11D48.toInt(),
+                secondaryAccentColor = 0xFFD97706.toInt(),
+                buttonAccentColor = 0xFFF43F5E.toInt(),
+                secondaryButtonColor = 0xFFB45309.toInt(),
+                overlayBorderColor = 0xFFFB7185.toInt(),
+                emblemDrawableRes = R.drawable.bg_emblem_valor
+            ),
+            AppThemePalette(
+                id = "sylveon_pink",
+                label = "🎀 Sylveon Fairy Ribbon (Light Pink & Pastel Blue)",
+                description = "Sylveon Fairy Ribbon 🎀 — Soft fairy-blush pink paired with Sylveon's distinctive pastel sky-blue (#38BDF8 / #60A5FA) & ribbon watermark.",
+                isLight = true,
+                bgColor = 0xFFFDF2F8.toInt(),
+                navBarColor = 0xFFFCE7F3.toInt(),
+                surfaceColor = 0xFFFFFFFF.toInt(),
+                innerCardColor = 0xFFFCE7F3.toInt(),
+                elevatedColor = 0xFFE0F2FE.toInt(),
+                primaryTextColor = 0xFF3B0726.toInt(),
+                secondaryTextColor = 0xFF9D174D.toInt(),
+                accentColor = 0xFFDB2777.toInt(),
+                secondaryAccentColor = 0xFF0284C7.toInt(),
+                buttonAccentColor = 0xFFEC4899.toInt(),
+                secondaryButtonColor = 0xFF38BDF8.toInt(),
+                overlayBorderColor = 0xFFF472B6.toInt(),
+                emblemDrawableRes = R.drawable.bg_emblem_sylveon
+            ),
+            AppThemePalette(
+                id = "slate",
+                label = "🛡️ SilphScope Slate (Default Generic)",
+                description = "SilphScope Slate (Default Generic) — Deep slate canvas with sky-cyan & tactical amber accents.",
+                isLight = false,
+                bgColor = 0xFF0F172A.toInt(),
+                navBarColor = 0xFF020617.toInt(),
+                surfaceColor = 0xFF1E293B.toInt(),
+                innerCardColor = 0xFF0F172A.toInt(),
+                elevatedColor = 0xFF334155.toInt(),
+                primaryTextColor = 0xFFF8FAFC.toInt(),
+                secondaryTextColor = 0xFF94A3B8.toInt(),
+                accentColor = 0xFF38BDF8.toInt(),
+                secondaryAccentColor = 0xFFF59E0B.toInt(),
+                buttonAccentColor = 0xFF0284C7.toInt(),
+                secondaryButtonColor = 0xFF4F46E5.toInt(),
+                overlayBorderColor = 0xFF38BDF8.toInt(),
+                emblemDrawableRes = null
+            )
+        )
+    }
 
     private var pendingUndoAction: (() -> Unit)? = null
     private var undoHideJob: kotlinx.coroutines.Job? = null
@@ -253,11 +478,20 @@ class MainActivity : AppCompatActivity() {
         renderBattleLogPage()
         checkGamemasterCache()
         fetchSeasonsFromScrapedDuck()
+        syncOverlayRunningUiState()
+        handleIncomingNavigationAndTaskerIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIncomingNavigationAndTaskerIntent(intent)
     }
 
     override fun onResume() {
         super.onResume()
         if (::prefs.isInitialized) {
+            syncOverlayRunningUiState()
             migrateExistingBattleLogs()
             setupBattleLogFilters()
             renderBattleLogPage()
@@ -265,6 +499,91 @@ class MainActivity : AppCompatActivity() {
             checkPendingGitHubDeviceLoginOnResume()
             // Automatically pull & reconcile deltas from the other device on every app open / resume
             triggerTwoDeviceCloudSync(silent = true)
+        }
+    }
+
+    private fun syncOverlayRunningUiState() {
+        isOverlayRunning = OverlayService.isInstanceRunning
+        if (::btnToggleOverlay.isInitialized && ::statusText.isInitialized) {
+            val theme = if (::prefs.isInitialized) getActiveAppTheme() else APP_THEME_COLLECTION.first()
+            if (isOverlayRunning) {
+                btnToggleOverlay.text = "Stop Battle Overlay"
+                btnToggleOverlay.backgroundTintList = android.content.res.ColorStateList.valueOf(theme.secondaryButtonColor)
+                btnToggleOverlay.setTextColor(0xFFFFFFFF.toInt())
+                statusText.text = "Status: Overlay Active"
+                statusText.setTextColor(theme.secondaryAccentColor)
+            } else {
+                btnToggleOverlay.text = "Start Battle Overlay"
+                btnToggleOverlay.backgroundTintList = android.content.res.ColorStateList.valueOf(theme.buttonAccentColor)
+                btnToggleOverlay.setTextColor(0xFFFFFFFF.toInt())
+                statusText.text = "Status: Idle"
+                statusText.setTextColor(theme.accentColor)
+            }
+        }
+    }
+
+    private fun handleIncomingNavigationAndTaskerIntent(incoming: Intent?) {
+        if (incoming == null) return
+        val act = incoming.action.orEmpty()
+        val compClass = incoming.component?.className.orEmpty()
+        val pageExtra = (incoming.getStringExtra("page") ?: incoming.getStringExtra("tab")).orEmpty().trim()
+        val cmdExtra = (incoming.getStringExtra("cmd") ?: incoming.getStringExtra("command")).orEmpty().trim()
+        val openLogBool = incoming.getBooleanExtra("open_battle_log", false) ||
+            incoming.getBooleanExtra("battle_log", false)
+        val dataUri = incoming.data
+
+        val shouldOpenBattleLog =
+            compClass.endsWith("BattleLogActivity", ignoreCase = true) ||
+                act.equals(OverlayService.ACTION_OPEN_BATTLE_LOG, ignoreCase = true) ||
+                act.equals(OverlayService.ACTION_SHORT_BATTLE_LOG, ignoreCase = true) ||
+                act.equals("com.gbl.overlay.OPEN_BATTLE_LOG", ignoreCase = true) ||
+                pageExtra.equals("battle_log", ignoreCase = true) ||
+                pageExtra.equals("battlelog", ignoreCase = true) ||
+                pageExtra.equals("log", ignoreCase = true) ||
+                cmdExtra.equals("battle_log", ignoreCase = true) ||
+                openLogBool ||
+                dataUri?.host.equals("battle_log", ignoreCase = true) ||
+                dataUri?.path?.contains("battle_log", ignoreCase = true) == true
+
+        if (shouldOpenBattleLog) {
+            switchMainPage("battle_log")
+            return
+        }
+
+        if (pageExtra.equals("settings", ignoreCase = true)) {
+            switchMainPage("settings")
+            return
+        }
+
+        if (pageExtra.equals("help", ignoreCase = true)) {
+            switchMainPage("help")
+            return
+        }
+
+        if (act.equals(OverlayService.ACTION_STOP_OVERLAY, ignoreCase = true) ||
+            act.equals(OverlayService.ACTION_SHORT_STOP, ignoreCase = true) ||
+            cmdExtra.equals("stop", ignoreCase = true)
+        ) {
+            stopOverlayService()
+            if (incoming.getBooleanExtra("background", true)) {
+                finish()
+            }
+            return
+        }
+
+        if (act.equals(OverlayService.ACTION_START_OVERLAY, ignoreCase = true) ||
+            act.equals(OverlayService.ACTION_SHORT_START, ignoreCase = true) ||
+            cmdExtra.equals("start", ignoreCase = true)
+        ) {
+            val taskerIntent = Intent(this, TaskerOverlayActivity::class.java).apply {
+                action = OverlayService.ACTION_START_OVERLAY
+                incoming.extras?.let { putExtras(it) }
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NO_ANIMATION)
+            }
+            startActivity(taskerIntent)
+            if (incoming.getBooleanExtra("background", true)) {
+                finish()
+            }
         }
     }
 
@@ -286,27 +605,437 @@ class MainActivity : AppCompatActivity() {
         return (progress.coerceIn(0, 50) * 2).coerceIn(0, 100)
     }
 
-    private fun switchMainPage(page: String) {
-        pageTeams.visibility = if (page == "teams") android.view.View.VISIBLE else android.view.View.GONE
-        pageSettings.visibility = if (page == "settings") android.view.View.VISIBLE else android.view.View.GONE
-        pageBattleLog.visibility = if (page == "battle_log") android.view.View.VISIBLE else android.view.View.GONE
+    private fun getActiveAppTheme(): AppThemePalette {
+        val rawId = prefs.getString(OverlayService.PREFS_KEY_APP_THEME_ID, "dialga_shiny_midnight") ?: "dialga_shiny_midnight"
+        val mappedId = when (rawId) {
+            "amoled_cyan", "amoled_matrix" -> "dialga_shiny_midnight"
+            else -> rawId
+        }
+        return APP_THEME_COLLECTION.find { it.id == mappedId } ?: APP_THEME_COLLECTION.first()
+    }
 
-        val activeBg = android.content.res.ColorStateList.valueOf(0xFF0284C7.toInt())
-        val inactiveBg = android.content.res.ColorStateList.valueOf(0xFF1E293B.toInt())
+    private fun createThemedSpinnerAdapter(items: List<String>): ArrayAdapter<String> {
+        return object : ArrayAdapter<String>(this, android.R.layout.simple_spinner_dropdown_item, items) {
+            override fun getView(position: Int, convertView: android.view.View?, parent: android.view.ViewGroup): android.view.View {
+                val v = super.getView(position, convertView, parent)
+                if (v is TextView) {
+                    val theme = if (::prefs.isInitialized) getActiveAppTheme() else APP_THEME_COLLECTION.first()
+                    v.setTextColor(theme.primaryTextColor)
+                    v.textSize = 12.5f
+                }
+                return v
+            }
+
+            override fun getDropDownView(position: Int, convertView: android.view.View?, parent: android.view.ViewGroup): android.view.View {
+                val v = super.getDropDownView(position, convertView, parent)
+                if (v is TextView) {
+                    val theme = if (::prefs.isInitialized) getActiveAppTheme() else APP_THEME_COLLECTION.first()
+                    v.setTextColor(theme.primaryTextColor)
+                    v.setBackgroundColor(theme.surfaceColor)
+                }
+                return v
+            }
+        }
+    }
+
+    private fun switchMainPage(page: String) {
+        currentActivePage = page
+        pageTeams.visibility = if (page == "teams") android.view.View.VISIBLE else android.view.View.GONE
+        pageBattleLog.visibility = if (page == "battle_log") android.view.View.VISIBLE else android.view.View.GONE
+        pageSettings.visibility = if (page == "settings") android.view.View.VISIBLE else android.view.View.GONE
+        pageHelp.visibility = if (page == "help") android.view.View.VISIBLE else android.view.View.GONE
+
+        val theme = if (::prefs.isInitialized) getActiveAppTheme() else APP_THEME_COLLECTION.first()
+        val hasWatermark = prefs.getBoolean(OverlayService.PREFS_KEY_SHOW_THEME_WATERMARK, true) && theme.emblemDrawableRes != null
+        val surfaceAlpha = if (hasWatermark) 0xB8 else 0xFF
+        val activeBg = android.content.res.ColorStateList.valueOf(theme.buttonAccentColor)
+        val inactiveBg = android.content.res.ColorStateList.valueOf(withAlpha(theme.surfaceColor, surfaceAlpha))
+        val helpDefaultBg = android.content.res.ColorStateList.valueOf(withAlpha(theme.elevatedColor, surfaceAlpha))
         val activeText = 0xFFFFFFFF.toInt()
-        val inactiveText = 0xFF94A3B8.toInt()
+        val inactiveText = theme.secondaryTextColor
 
         btnNavTeams.backgroundTintList = if (page == "teams") activeBg else inactiveBg
         btnNavTeams.setTextColor(if (page == "teams") activeText else inactiveText)
 
-        btnNavSettings.backgroundTintList = if (page == "settings") activeBg else inactiveBg
-        btnNavSettings.setTextColor(if (page == "settings") activeText else inactiveText)
-
         btnNavBattleLog.backgroundTintList = if (page == "battle_log") activeBg else inactiveBg
         btnNavBattleLog.setTextColor(if (page == "battle_log") activeText else inactiveText)
 
+        btnNavSettings.backgroundTintList = if (page == "settings") activeBg else inactiveBg
+        btnNavSettings.setTextColor(if (page == "settings") activeText else inactiveText)
+
+        if (::btnOverlayQuickHelp.isInitialized) {
+            btnOverlayQuickHelp.backgroundTintList = if (page == "help") activeBg else helpDefaultBg
+            btnOverlayQuickHelp.setTextColor(if (page == "help") activeText else theme.secondaryAccentColor)
+        }
+
         if (page == "battle_log") {
             renderBattleLogPage()
+        }
+    }
+
+    private fun withAlpha(color: Int, alpha: Int): Int {
+        return (color and 0x00FFFFFF) or ((alpha.coerceIn(0, 255)) shl 24)
+    }
+
+    private fun wrapViewWithThemeWatermark(contentView: android.view.View, watermarkSizeDp: Int = 250): FrameLayout {
+        val theme = if (::prefs.isInitialized) getActiveAppTheme() else APP_THEME_COLLECTION.first()
+        val showWatermark = ::prefs.isInitialized &&
+            prefs.getBoolean(OverlayService.PREFS_KEY_SHOW_THEME_WATERMARK, true) &&
+            theme.emblemDrawableRes != null
+        val density = resources.displayMetrics.density
+        val frame = FrameLayout(this).apply {
+            setBackgroundColor(theme.bgColor)
+        }
+        if (showWatermark && theme.emblemDrawableRes != null) {
+            val iv = ImageView(this).apply {
+                id = R.id.iv_preset_dialog_watermark
+                setImageResource(theme.emblemDrawableRes)
+                alpha = if (theme.isLight) 0.24f else 0.20f
+                scaleType = ImageView.ScaleType.FIT_CENTER
+                layoutParams = FrameLayout.LayoutParams(
+                    (watermarkSizeDp * density).toInt(),
+                    (watermarkSizeDp * density).toInt(),
+                    android.view.Gravity.CENTER
+                )
+            }
+            frame.addView(iv)
+        }
+        if (contentView.background is android.graphics.drawable.ColorDrawable) {
+            contentView.setBackgroundColor(0x00000000)
+        }
+        frame.addView(
+            contentView,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT
+            )
+        )
+        applyThemeRecursively(contentView, theme, showWatermark)
+        return frame
+    }
+
+    private fun styleThemedAlertDialog(dialog: AlertDialog) {
+        if (!::prefs.isInitialized) return
+        val theme = getActiveAppTheme()
+        try {
+            dialog.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(theme.bgColor))
+            dialog.findViewById<TextView>(androidx.appcompat.R.id.alertTitle)?.setTextColor(theme.accentColor)
+            dialog.findViewById<TextView>(android.R.id.message)?.setTextColor(theme.primaryTextColor)
+            dialog.findViewById<android.view.View>(androidx.appcompat.R.id.parentPanel)?.setBackgroundColor(theme.bgColor)
+            dialog.findViewById<android.view.View>(androidx.appcompat.R.id.topPanel)?.setBackgroundColor(theme.surfaceColor)
+            dialog.findViewById<android.view.View>(androidx.appcompat.R.id.contentPanel)?.setBackgroundColor(0x00000000)
+            dialog.findViewById<android.view.View>(androidx.appcompat.R.id.buttonPanel)?.setBackgroundColor(theme.surfaceColor)
+
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.let { btn ->
+                btn.backgroundTintList = android.content.res.ColorStateList.valueOf(theme.buttonAccentColor)
+                btn.setTextColor(0xFFFFFFFF.toInt())
+            }
+            dialog.getButton(AlertDialog.BUTTON_NEUTRAL)?.let { btn ->
+                btn.backgroundTintList = android.content.res.ColorStateList.valueOf(theme.secondaryButtonColor)
+                btn.setTextColor(0xFFFFFFFF.toInt())
+            }
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE)?.let { btn ->
+                btn.backgroundTintList = android.content.res.ColorStateList.valueOf(theme.elevatedColor)
+                btn.setTextColor(theme.primaryTextColor)
+            }
+        } catch (_: Exception) {}
+    }
+
+    private fun applyCurrentAppThemeToSubtree(rootView: android.view.View?) {
+        if (rootView == null || !::prefs.isInitialized) return
+        val theme = getActiveAppTheme()
+        val showWatermark = prefs.getBoolean(OverlayService.PREFS_KEY_SHOW_THEME_WATERMARK, true) && theme.emblemDrawableRes != null
+        applyThemeRecursively(rootView, theme, showWatermark)
+    }
+
+    private fun applyThemeRecursively(view: android.view.View, theme: AppThemePalette, hasWatermark: Boolean) {
+        if (view.id == R.id.view_swatch_bg ||
+            view.id == R.id.view_swatch_surface ||
+            view.id == R.id.view_swatch_accent ||
+            view.id == R.id.view_swatch_accent2 ||
+            view.id == R.id.view_swatch_overlay ||
+            view.id == R.id.root_theme_frame ||
+            view.id == R.id.iv_theme_watermark_bg ||
+            view.id == R.id.iv_preset_dialog_watermark
+        ) {
+            return
+        }
+
+        val bgDrawable = view.background
+        if (bgDrawable is android.graphics.drawable.ColorDrawable) {
+            val origBg = (view.getTag(R.id.root_theme_frame) as? Int) ?: bgDrawable.color.also {
+                view.setTag(R.id.root_theme_frame, it)
+            }
+            val rgb = origBg and 0x00FFFFFF
+            // Increased transparency when watermark is enabled so the emblem shows through all 3 main pages & dialogs
+            val navAlpha = if (hasWatermark) 0xBE else 0xFF
+            val surfaceAlpha = if (hasWatermark) 0xAD else 0xFF
+            val innerAlpha = if (hasWatermark) 0x9C else 0xFF
+            val elevatedAlpha = if (hasWatermark) 0xB8 else 0xFF
+            when (rgb) {
+                0x020617 -> view.setBackgroundColor(withAlpha(theme.navBarColor, navAlpha))
+                0x0F172A, 0x111827, 0x0B1325 -> view.setBackgroundColor(withAlpha(theme.innerCardColor, innerAlpha))
+                0x1E293B -> view.setBackgroundColor(withAlpha(theme.surfaceColor, surfaceAlpha))
+                0x334155, 0x475569 -> view.setBackgroundColor(withAlpha(theme.elevatedColor, elevatedAlpha))
+                0x2563EB, 0x0284C7, 0x38BDF8 -> view.setBackgroundColor(theme.accentColor)
+            }
+        }
+
+        if (view is Switch) {
+            val states = arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf(-android.R.attr.state_checked))
+            view.thumbTintList = android.content.res.ColorStateList(
+                states,
+                intArrayOf(theme.accentColor, theme.secondaryTextColor)
+            )
+            view.trackTintList = android.content.res.ColorStateList(
+                states,
+                intArrayOf(withAlpha(theme.accentColor, 0x80), theme.elevatedColor)
+            )
+        } else if (view is CompoundButton) {
+            val states = arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf(-android.R.attr.state_checked))
+            view.buttonTintList = android.content.res.ColorStateList(
+                states,
+                intArrayOf(theme.accentColor, theme.secondaryTextColor)
+            )
+            view.setTextColor(theme.primaryTextColor)
+        } else if (view is Button) {
+            val csl = view.backgroundTintList
+            val enabledTint = csl?.getColorForState(intArrayOf(android.R.attr.state_enabled), csl.defaultColor) ?: 0xFF2563EB.toInt()
+            val origTint = (view.getTag(R.id.view_swatch_bg) as? Int) ?: enabledTint.also {
+                view.setTag(R.id.view_swatch_bg, it)
+            }
+            val origText = (view.getTag(R.id.iv_theme_watermark_bg) as? Int) ?: view.currentTextColor.also {
+                view.setTag(R.id.iv_theme_watermark_bg, it)
+            }
+            val elevAlpha = if (hasWatermark) 0xCC else 0xFF
+            when (origTint and 0x00FFFFFF) {
+                0x0369A1, 0x059669, 0x10B981, 0xF59E0B, 0xD97706 -> {
+                    view.backgroundTintList = android.content.res.ColorStateList.valueOf(theme.secondaryButtonColor)
+                    view.setTextColor(0xFFFFFFFF.toInt())
+                }
+                0x334155, 0x475569, 0x64748B -> {
+                    view.backgroundTintList = android.content.res.ColorStateList.valueOf(withAlpha(theme.elevatedColor, elevAlpha))
+                    when (origText and 0x00FFFFFF) {
+                        0x38BDF8, 0x7DD3FC -> view.setTextColor(theme.accentColor)
+                        0xFCD34D, 0xFBBF24, 0xF59E0B -> view.setTextColor(theme.secondaryAccentColor)
+                        else -> view.setTextColor(theme.primaryTextColor)
+                    }
+                }
+                0x1E293B, 0x0F172A -> {
+                    view.backgroundTintList = android.content.res.ColorStateList.valueOf(withAlpha(theme.surfaceColor, elevAlpha))
+                    when (origText and 0x00FFFFFF) {
+                        0x38BDF8, 0x7DD3FC -> view.setTextColor(theme.accentColor)
+                        0xCBD5E1, 0x94A3B8, 0x64748B -> view.setTextColor(theme.secondaryTextColor)
+                        else -> view.setTextColor(theme.primaryTextColor)
+                    }
+                }
+                0xE11D48, 0xDC2626 -> {
+                    // Preserve semantic destructive red buttons
+                }
+                else -> {
+                    view.backgroundTintList = android.content.res.ColorStateList.valueOf(theme.buttonAccentColor)
+                    view.setTextColor(0xFFFFFFFF.toInt())
+                }
+            }
+        } else if (view is TextView) {
+            val origText = (view.getTag(R.id.iv_theme_watermark_bg) as? Int) ?: view.currentTextColor.also {
+                view.setTag(R.id.iv_theme_watermark_bg, it)
+            }
+            when (origText and 0x00FFFFFF) {
+                0xF8FAFC, 0xFFFFFF, 0xE2E8F0 -> view.setTextColor(theme.primaryTextColor)
+                0xCBD5E1, 0x94A3B8, 0x64748B -> view.setTextColor(theme.secondaryTextColor)
+                0x38BDF8, 0x7DD3FC, 0x0284C7, 0x2563EB -> view.setTextColor(theme.accentColor)
+                0xF59E0B, 0xFBBF24, 0xFCD34D, 0x34D399, 0xC084FC -> view.setTextColor(theme.secondaryAccentColor)
+            }
+            if (view is EditText) {
+                view.setHintTextColor(withAlpha(theme.secondaryTextColor, 0x99))
+            }
+        }
+
+        if (view is SeekBar) {
+            val accentState = android.content.res.ColorStateList.valueOf(theme.accentColor)
+            view.progressTintList = accentState
+            view.thumbTintList = accentState
+            view.progressBackgroundTintList = android.content.res.ColorStateList.valueOf(theme.elevatedColor)
+        }
+
+        if (view is ImageButton) {
+            if (view.id == R.id.btn_delete_preset) {
+                view.imageTintList = android.content.res.ColorStateList.valueOf(0xFFF87171.toInt())
+            } else {
+                view.imageTintList = android.content.res.ColorStateList.valueOf(theme.accentColor)
+            }
+        }
+
+        if (view is Spinner) {
+            view.backgroundTintList = android.content.res.ColorStateList.valueOf(theme.accentColor)
+            (view.selectedView as? TextView)?.setTextColor(theme.primaryTextColor)
+        }
+
+        if (view is android.view.ViewGroup) {
+            for (i in 0 until view.childCount) {
+                applyThemeRecursively(view.getChildAt(i), theme, hasWatermark)
+            }
+        }
+    }
+
+    private fun applyCurrentAppTheme(notifyOverlay: Boolean = false) {
+        if (!::prefs.isInitialized) return
+        val theme = getActiveAppTheme()
+        val showWatermark = prefs.getBoolean(OverlayService.PREFS_KEY_SHOW_THEME_WATERMARK, true)
+        val hasWatermark = showWatermark && theme.emblemDrawableRes != null
+
+        findViewById<android.view.View>(R.id.root_theme_frame)?.setBackgroundColor(theme.bgColor)
+        try {
+            window.statusBarColor = theme.navBarColor
+            window.navigationBarColor = theme.bgColor
+        } catch (_: Exception) {}
+
+        findViewById<ImageView>(R.id.iv_theme_watermark_bg)?.let { iv ->
+            if (hasWatermark && theme.emblemDrawableRes != null) {
+                iv.setImageResource(theme.emblemDrawableRes)
+                iv.alpha = if (theme.isLight) 0.25f else 0.22f
+                iv.visibility = android.view.View.VISIBLE
+            } else {
+                iv.visibility = android.view.View.GONE
+            }
+        }
+
+        if (::ivThemePreviewEmblem.isInitialized) {
+            if (theme.emblemDrawableRes != null) {
+                ivThemePreviewEmblem.setImageResource(theme.emblemDrawableRes)
+                ivThemePreviewEmblem.visibility = android.view.View.VISIBLE
+            } else {
+                ivThemePreviewEmblem.visibility = android.view.View.GONE
+            }
+        }
+        if (::tvThemePreviewDesc.isInitialized) {
+            tvThemePreviewDesc.text = theme.description
+        }
+        if (::viewSwatchBg.isInitialized) viewSwatchBg.setBackgroundColor(theme.bgColor)
+        if (::viewSwatchSurface.isInitialized) viewSwatchSurface.setBackgroundColor(theme.surfaceColor)
+        if (::viewSwatchAccent.isInitialized) viewSwatchAccent.setBackgroundColor(theme.accentColor)
+        if (::viewSwatchAccent2.isInitialized) viewSwatchAccent2.setBackgroundColor(theme.secondaryAccentColor)
+        if (::viewSwatchOverlay.isInitialized) viewSwatchOverlay.setBackgroundColor(theme.overlayBorderColor)
+
+        if (::seekbarOverlayScale.isInitialized) {
+            val accentState = android.content.res.ColorStateList.valueOf(theme.accentColor)
+            seekbarOverlayScale.progressTintList = accentState
+            seekbarOverlayScale.thumbTintList = accentState
+        }
+        if (::seekbarOverlayTransparency.isInitialized) {
+            val accent2State = android.content.res.ColorStateList.valueOf(theme.secondaryAccentColor)
+            seekbarOverlayTransparency.progressTintList = accent2State
+            seekbarOverlayTransparency.thumbTintList = accent2State
+        }
+
+        findViewById<android.view.View>(R.id.root_main_layout)?.let { mainRoot ->
+            applyThemeRecursively(mainRoot, theme, hasWatermark)
+        }
+
+        // Explicitly apply dual-accent & elevated colors to all key action buttons across all 3 pages
+        val primaryBtnTint = android.content.res.ColorStateList.valueOf(theme.buttonAccentColor)
+        val secondaryBtnTint = android.content.res.ColorStateList.valueOf(theme.secondaryButtonColor)
+        val elevatedAlpha = if (hasWatermark) 0xCC else 0xFF
+        val elevatedBtnTint = android.content.res.ColorStateList.valueOf(withAlpha(theme.elevatedColor, elevatedAlpha))
+        val surfaceBtnTint = android.content.res.ColorStateList.valueOf(withAlpha(theme.surfaceColor, elevatedAlpha))
+
+        // Top Bar & Teams Page Buttons
+        syncOverlayRunningUiState()
+        if (::btnDonate.isInitialized) {
+            btnDonate.backgroundTintList = secondaryBtnTint
+            btnDonate.setTextColor(0xFFFFFFFF.toInt())
+        }
+        if (::btnAddPreset.isInitialized) {
+            btnAddPreset.backgroundTintList = primaryBtnTint
+            btnAddPreset.setTextColor(0xFFFFFFFF.toInt())
+        }
+        if (::btnTrashTeams.isInitialized) {
+            btnTrashTeams.backgroundTintList = elevatedBtnTint
+            btnTrashTeams.setTextColor(theme.secondaryAccentColor)
+        }
+
+        // Battle Log Page Buttons (+Log, Sync, Trash, Clear, Copy GBL, Share)
+        if (::btnLogManualBattle.isInitialized) {
+            btnLogManualBattle.backgroundTintList = primaryBtnTint
+            btnLogManualBattle.setTextColor(0xFFFFFFFF.toInt())
+        }
+        if (::btnSyncBattleLog.isInitialized) {
+            btnSyncBattleLog.backgroundTintList = secondaryBtnTint
+            btnSyncBattleLog.setTextColor(0xFFFFFFFF.toInt())
+        }
+        if (::btnTrashBattleLog.isInitialized) {
+            btnTrashBattleLog.backgroundTintList = elevatedBtnTint
+            btnTrashBattleLog.setTextColor(theme.secondaryAccentColor)
+        }
+        if (::btnClearBattleLog.isInitialized) {
+            btnClearBattleLog.backgroundTintList = elevatedBtnTint
+            btnClearBattleLog.setTextColor(theme.primaryTextColor)
+        }
+        if (::btnCopyBattleLog.isInitialized) {
+            btnCopyBattleLog.backgroundTintList = surfaceBtnTint
+            btnCopyBattleLog.setTextColor(theme.accentColor)
+        }
+        if (::btnShareBattleLog.isInitialized) {
+            btnShareBattleLog.backgroundTintList = secondaryBtnTint
+            btnShareBattleLog.setTextColor(0xFFFFFFFF.toInt())
+        }
+
+        // Settings Page Buttons (Save Thresholds, Restore Defaults, 3 Sync Buttons, Sync PvPoke, Reparse, Tasker)
+        if (::btnSaveTierThresholds.isInitialized) {
+            btnSaveTierThresholds.backgroundTintList = primaryBtnTint
+            btnSaveTierThresholds.setTextColor(0xFFFFFFFF.toInt())
+        }
+        if (::btnRestoreTierThresholds.isInitialized) {
+            btnRestoreTierThresholds.backgroundTintList = elevatedBtnTint
+            btnRestoreTierThresholds.setTextColor(theme.secondaryAccentColor)
+        }
+        if (::btnGithubLoginSettings.isInitialized) {
+            updateSyncStatusUi()
+        }
+        if (::btnSyncDevicesSettings.isInitialized) {
+            btnSyncDevicesSettings.backgroundTintList = primaryBtnTint
+            btnSyncDevicesSettings.setTextColor(0xFFFFFFFF.toInt())
+        }
+        if (::btnSyncBundleSettings.isInitialized) {
+            btnSyncBundleSettings.backgroundTintList = elevatedBtnTint
+            btnSyncBundleSettings.setTextColor(theme.secondaryAccentColor)
+        }
+        if (::btnDownloadDb.isInitialized) {
+            btnDownloadDb.backgroundTintList = secondaryBtnTint
+            btnDownloadDb.setTextColor(0xFFFFFFFF.toInt())
+        }
+        if (::btnReparseBattlesSettings.isInitialized) {
+            btnReparseBattlesSettings.backgroundTintList = primaryBtnTint
+            btnReparseBattlesSettings.setTextColor(0xFFFFFFFF.toInt())
+        }
+        findViewById<Button>(R.id.btn_copy_tasker_start)?.let {
+            it.backgroundTintList = primaryBtnTint
+            it.setTextColor(0xFFFFFFFF.toInt())
+        }
+        findViewById<Button>(R.id.btn_copy_tasker_battle_log)?.let {
+            it.backgroundTintList = secondaryBtnTint
+            it.setTextColor(0xFFFFFFFF.toInt())
+        }
+        findViewById<Button>(R.id.btn_help_page_metric_guide)?.let {
+            it.backgroundTintList = secondaryBtnTint
+            it.setTextColor(0xFFFFFFFF.toInt())
+        }
+
+        if (::btnToggleOppCountBasis.isInitialized) updateOppCountBasisUi()
+        if (::btnToggleOppChargedMoves.isInitialized) updateOppChargedMovesUi()
+        if (::btnToggleBattleToasts.isInitialized) updateBattleToastsUi()
+        if (::presetsContainer.isInitialized && presetsContainer.childCount > 0) {
+            refreshPresetsUi()
+        }
+        switchMainPage(currentActivePage)
+
+        if (notifyOverlay && isOverlayRunning) {
+            val updateIntent = Intent(this, OverlayService::class.java).apply {
+                action = OverlayService.ACTION_UPDATE_SETTINGS
+                putExtra(OverlayService.EXTRA_APP_THEME_ID, theme.id)
+            }
+            startService(updateIntent)
         }
     }
 
@@ -320,9 +1049,11 @@ class MainActivity : AppCompatActivity() {
         btnNavTeams = findViewById(R.id.btn_nav_teams)
         btnNavSettings = findViewById(R.id.btn_nav_settings)
         btnNavBattleLog = findViewById(R.id.btn_nav_battle_log)
+        btnOverlayQuickHelp = findViewById(R.id.btn_overlay_quick_help)
         pageTeams = findViewById(R.id.page_teams)
         pageSettings = findViewById(R.id.page_settings)
         pageBattleLog = findViewById(R.id.page_battle_log)
+        pageHelp = findViewById(R.id.page_help)
         btnReparseBattlesSettings = findViewById(R.id.btn_reparse_battles_settings)
         textReparseBattlesStatus = findViewById(R.id.text_reparse_battles_status)
         btnToggleOppCountBasis = findViewById(R.id.btn_toggle_opp_count_basis)
@@ -350,6 +1081,13 @@ class MainActivity : AppCompatActivity() {
         editTierSlMax = findViewById(R.id.edit_tier_sl_max)
         btnSaveTierThresholds = findViewById(R.id.btn_save_tier_thresholds)
         btnRestoreTierThresholds = findViewById(R.id.btn_restore_tier_thresholds)
+        textMachineBrDefinitionsSummary = findViewById(R.id.text_machine_br_definitions_summary)
+        editMachEliteMin = findViewById(R.id.edit_mach_elite_min)
+        editMachSolidMin = findViewById(R.id.edit_mach_solid_min)
+        editMachPlayableMin = findViewById(R.id.edit_mach_playable_min)
+        editMachRiskyMin = findViewById(R.id.edit_mach_risky_min)
+        btnSaveMachThresholds = findViewById(R.id.btn_save_mach_thresholds)
+        btnRestoreMachThresholds = findViewById(R.id.btn_restore_mach_thresholds)
         presetsContainer = findViewById(R.id.layout_presets_list)
         battleLogContainer = findViewById(R.id.layout_battle_log_list)
         textBattleLogTotal = findViewById(R.id.text_battle_log_total)
@@ -371,6 +1109,39 @@ class MainActivity : AppCompatActivity() {
         btnUndoBannerDismiss = findViewById(R.id.btn_undo_dismiss)
         btnTrashTeams = findViewById(R.id.btn_trash_presets)
         btnTrashBattleLog = findViewById(R.id.btn_trash_battle_log)
+        spinnerAppTheme = findViewById(R.id.spinner_app_theme)
+        ivThemePreviewEmblem = findViewById(R.id.iv_theme_preview_emblem)
+        tvThemePreviewDesc = findViewById(R.id.tv_theme_preview_desc)
+        viewSwatchBg = findViewById(R.id.view_swatch_bg)
+        viewSwatchSurface = findViewById(R.id.view_swatch_surface)
+        viewSwatchAccent = findViewById(R.id.view_swatch_accent)
+        viewSwatchAccent2 = findViewById(R.id.view_swatch_accent2)
+        viewSwatchOverlay = findViewById(R.id.view_swatch_overlay)
+        switchShowThemeWatermark = findViewById(R.id.switch_show_theme_watermark)
+
+        isUpdatingThemeSpinner = true
+        val themeLabels = APP_THEME_COLLECTION.map { it.label }
+        spinnerAppTheme.adapter = createThemedSpinnerAdapter(themeLabels)
+        val activeTheme = getActiveAppTheme()
+        val themeIdx = APP_THEME_COLLECTION.indexOfFirst { it.id == activeTheme.id }.takeIf { it >= 0 } ?: 0
+        spinnerAppTheme.setSelection(themeIdx, false)
+        switchShowThemeWatermark.isChecked = prefs.getBoolean(OverlayService.PREFS_KEY_SHOW_THEME_WATERMARK, true)
+        isUpdatingThemeSpinner = false
+
+        spinnerAppTheme.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
+                if (isUpdatingThemeSpinner) return
+                val chosen = APP_THEME_COLLECTION.getOrElse(position) { APP_THEME_COLLECTION.first() }
+                prefs.edit().putString(OverlayService.PREFS_KEY_APP_THEME_ID, chosen.id).apply()
+                applyCurrentAppTheme(notifyOverlay = true)
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
+
+        switchShowThemeWatermark.setOnCheckedChangeListener { _, isChecked ->
+            prefs.edit().putBoolean(OverlayService.PREFS_KEY_SHOW_THEME_WATERMARK, isChecked).apply()
+            applyCurrentAppTheme(notifyOverlay = false)
+        }
 
         btnUndoBannerAction.setOnClickListener {
             val action = pendingUndoAction
@@ -388,8 +1159,15 @@ class MainActivity : AppCompatActivity() {
         }
 
         btnNavTeams.setOnClickListener { switchMainPage("teams") }
-        btnNavSettings.setOnClickListener { switchMainPage("settings") }
         btnNavBattleLog.setOnClickListener { switchMainPage("battle_log") }
+        btnNavSettings.setOnClickListener { switchMainPage("settings") }
+
+        btnOverlayQuickHelp.setOnClickListener {
+            switchMainPage("help")
+        }
+        findViewById<Button>(R.id.btn_help_page_metric_guide)?.setOnClickListener {
+            showHelpAndMetricGuideDialog("wae")
+        }
 
         updateOppCountBasisUi()
         updateOppChargedMovesUi()
@@ -422,6 +1200,72 @@ class MainActivity : AppCompatActivity() {
         }
         btnRestoreTierThresholds.setOnClickListener {
             restoreDefaultTierThresholds()
+        }
+
+        loadAndRenderMachineBrThresholdsUi()
+        btnSaveMachThresholds.setOnClickListener {
+            saveMachineBrThresholdsFromInputs(showToast = true)
+        }
+        btnRestoreMachThresholds.setOnClickListener {
+            restoreDefaultMachineBrThresholds()
+        }
+
+        findViewById<Button>(R.id.btn_copy_tasker_start)?.setOnClickListener {
+            val cm = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            cm.setPrimaryClip(
+                android.content.ClipData.newPlainText(
+                    "Tasker Start Overlay",
+                    OverlayService.ACTION_START_OVERLAY
+                )
+            )
+            Toast.makeText(
+                this,
+                "Copied Tasker Start Action: ${OverlayService.ACTION_START_OVERLAY} (Package: com.gbl.overlay)",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+
+        findViewById<Button>(R.id.btn_copy_tasker_stop)?.setOnClickListener {
+            val cm = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            cm.setPrimaryClip(
+                android.content.ClipData.newPlainText(
+                    "Tasker Stop Overlay",
+                    OverlayService.ACTION_STOP_OVERLAY
+                )
+            )
+            Toast.makeText(
+                this,
+                "Copied Tasker Stop Action: ${OverlayService.ACTION_STOP_OVERLAY} (Package: com.gbl.overlay)",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+
+        findViewById<Button>(R.id.btn_copy_tasker_battle_log)?.setOnClickListener {
+            val cm = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            cm.setPrimaryClip(
+                android.content.ClipData.newPlainText(
+                    "Tasker Open Battle Log",
+                    OverlayService.ACTION_OPEN_BATTLE_LOG
+                )
+            )
+            Toast.makeText(
+                this,
+                "Copied Tasker Battle Log Action: ${OverlayService.ACTION_OPEN_BATTLE_LOG} (Package: com.gbl.overlay)",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+
+        findViewById<android.view.View>(R.id.card_battle_log_wae)?.setOnClickListener {
+            showHelpAndMetricGuideDialog("wae")
+        }
+        findViewById<android.view.View>(R.id.btn_info_exec_wae)?.setOnClickListener {
+            showHelpAndMetricGuideDialog("wae")
+        }
+        findViewById<android.view.View>(R.id.card_battle_log_luck)?.setOnClickListener {
+            showHelpAndMetricGuideDialog("luck")
+        }
+        findViewById<android.view.View>(R.id.btn_info_matchup_luck)?.setOnClickListener {
+            showHelpAndMetricGuideDialog("luck")
         }
 
         val savedScalePct = prefs.getInt(PREFS_KEY_OVERLAY_SCALE_PCT, DEFAULT_OVERLAY_SCALE_PCT).coerceIn(50, 100)
@@ -634,6 +1478,8 @@ class MainActivity : AppCompatActivity() {
         }
         textOverlayTransparencyDefaultTick.setOnClickListener { resetToDefaultTransparency() }
         textOverlayTransparencyValue.setOnClickListener { resetToDefaultTransparency() }
+
+        applyCurrentAppTheme(notifyOverlay = false)
     }
 
     private fun updateOverlayScaleUi(scalePct: Int) {
@@ -674,15 +1520,18 @@ class MainActivity : AppCompatActivity() {
         val timeFmt = java.text.SimpleDateFormat("MMM d, h:mm a", java.util.Locale.US)
         val lastStr = if (lastAt > 0L) timeFmt.format(java.util.Date(lastAt)) else "Never"
 
+        val theme = if (::prefs.isInitialized) getActiveAppTheme() else APP_THEME_COLLECTION.first()
         if (token.isNotEmpty()) {
             val userLabel = if (username.isNotEmpty()) "@$username" else "GitHub Account"
             btnGithubLoginSettings.text = "✅ Connected: $userLabel (Tap to Manage / Sign Out)"
-            btnGithubLoginSettings.backgroundTintList = android.content.res.ColorStateList.valueOf(0xFF059669.toInt())
+            btnGithubLoginSettings.backgroundTintList = android.content.res.ColorStateList.valueOf(theme.buttonAccentColor)
+            btnGithubLoginSettings.setTextColor(0xFFFFFFFF.toInt())
             val vaultShort = if (gistId.isNotEmpty()) "Gist: ${gistId.take(8)}…" else "Account Vault ($userLabel)"
             textSyncStatus.text = "🟢 Auto-Sync Active ($userLabel) • Last: $lastStr • $vaultShort • Logs: ${loadBattleLogs().size} • Teams: ${loadPresets().size}"
         } else {
             btnGithubLoginSettings.text = "🔑 Login with GitHub (Generate Sync Token)"
-            btnGithubLoginSettings.backgroundTintList = android.content.res.ColorStateList.valueOf(0xFF10B981.toInt())
+            btnGithubLoginSettings.backgroundTintList = android.content.res.ColorStateList.valueOf(theme.secondaryButtonColor)
+            btnGithubLoginSettings.setTextColor(0xFFFFFFFF.toInt())
             textSyncStatus.text = "⚪ Not signed in (Local-only) • Tap 'Login with GitHub' to enable multi-device auto-sync"
         }
     }
@@ -795,6 +1644,8 @@ class MainActivity : AppCompatActivity() {
             val pad = (16 * resources.displayMetrics.density).toInt()
             setPadding(pad, pad, pad, pad)
         }
+
+        applyCurrentAppThemeToSubtree(statusLabel)
 
         val dialog = AlertDialog.Builder(this)
             .setTitle("🔑 Code: ${deviceResp.userCode}")
@@ -917,6 +1768,7 @@ class MainActivity : AppCompatActivity() {
             val pad = (10 * resources.displayMetrics.density).toInt()
             setPadding(pad, pad, pad, pad)
         }
+        applyCurrentAppThemeToSubtree(input)
         AlertDialog.Builder(this)
             .setTitle("📦 Two-Device Delta Sync Bundle")
             .setMessage("Copy this device's Sync Bundle to share with your second device, or paste a Sync Bundle below to reconcile deltas (Logs + Teams):")
@@ -1569,6 +2421,8 @@ class MainActivity : AppCompatActivity() {
             container.addView(card)
         }
 
+        applyCurrentAppThemeToSubtree(scroll)
+
         dialogRef = AlertDialog.Builder(this)
             .setTitle("🗑️ Deleted Teams (${trashList.size})")
             .setView(scroll)
@@ -1669,6 +2523,8 @@ class MainActivity : AppCompatActivity() {
             container.addView(card)
         }
 
+        applyCurrentAppThemeToSubtree(scroll)
+
         dialogRef = AlertDialog.Builder(this)
             .setTitle("🗑️ Deleted Battles (${trashList.size})")
             .setView(scroll)
@@ -1703,7 +2559,7 @@ class MainActivity : AppCompatActivity() {
             "MASTER LEAGUE",
             "MEGA MASTER LEAGUE"
         )
-        spinnerLogFilterLeague.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, leagueLabels)
+        spinnerLogFilterLeague.adapter = createThemedSpinnerAdapter(leagueLabels)
         val lgIdx = leagueKeys.indexOf(selectedLogLeagueFilter).takeIf { it >= 0 } ?: 0
         spinnerLogFilterLeague.setSelection(lgIdx, false)
 
@@ -1715,7 +2571,7 @@ class MainActivity : AppCompatActivity() {
         }
         val teamLabels = listOf("All Teams") + matchingPresets.map { it.name }
         val teamKeys = listOf("ALL") + matchingPresets.map { it.name }
-        spinnerLogFilterTeam.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, teamLabels)
+        spinnerLogFilterTeam.adapter = createThemedSpinnerAdapter(teamLabels)
         val tmIdx = teamKeys.indexOf(selectedLogTeamFilter).takeIf { it >= 0 } ?: 0
         if (tmIdx == 0) selectedLogTeamFilter = "ALL"
         spinnerLogFilterTeam.setSelection(tmIdx, false)
@@ -1725,6 +2581,7 @@ class MainActivity : AppCompatActivity() {
         val timeframeLabels = listOf(
             "All Time",
             "Today (Day)",
+            "Yesterday",
             "This Week (Last 7d)",
             "Current Season (${currSeason.name} • ${dateFmt.format(java.util.Date(currSeason.startMs))})",
             "Previous Season"
@@ -1732,11 +2589,12 @@ class MainActivity : AppCompatActivity() {
         val timeframeKeys = listOf(
             "ALL_TIME",
             "DAY",
+            "YESTERDAY",
             "WEEK",
             "CURRENT_SEASON",
             "PREVIOUS_SEASON"
         )
-        spinnerLogFilterTimeframe.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, timeframeLabels)
+        spinnerLogFilterTimeframe.adapter = createThemedSpinnerAdapter(timeframeLabels)
         val tfIdx = timeframeKeys.indexOf(selectedLogTimeframeFilter).takeIf { it >= 0 } ?: 0
         spinnerLogFilterTimeframe.setSelection(tfIdx, false)
 
@@ -1794,6 +2652,8 @@ class MainActivity : AppCompatActivity() {
         cal.set(java.util.Calendar.SECOND, 0)
         cal.set(java.util.Calendar.MILLISECOND, 0)
         val startOfTodayMs = cal.timeInMillis
+        cal.add(java.util.Calendar.DAY_OF_YEAR, -1)
+        val startOfYesterdayMs = cal.timeInMillis
         val sevenDaysAgoMs = startOfTodayMs - 6L * 86400000L
 
         return logs.filter { entry ->
@@ -1801,6 +2661,7 @@ class MainActivity : AppCompatActivity() {
             val teamOk = teamFilter == "ALL" || entry.userTeamName.equals(teamFilter, ignoreCase = true)
             val timeOk = when (timeframeKey) {
                 "DAY" -> entry.timestampMs >= startOfTodayMs
+                "YESTERDAY" -> entry.timestampMs in startOfYesterdayMs until startOfTodayMs
                 "WEEK" -> entry.timestampMs >= sevenDaysAgoMs
                 "CURRENT_SEASON" -> entry.timestampMs in currSeason.startMs..currSeason.endMs
                 "PREVIOUS_SEASON" -> entry.timestampMs >= prevSeason.startMs && entry.timestampMs < currSeason.startMs
@@ -1810,12 +2671,191 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun normalizeDailyLeadKey(rawLead: String?): String {
+        val trimmed = rawLead?.trim().orEmpty()
+        if (trimmed.isEmpty() ||
+            trimmed.equals("Unknown", ignoreCase = true) ||
+            trimmed.equals("Waiting...", ignoreCase = true) ||
+            trimmed.equals("No opponents recorded", ignoreCase = true)
+        ) {
+            return ""
+        }
+        val exported = formatExportPokemonName(trimmed)
+        if (exported.isEmpty()) return ""
+        val isShadow = exported.endsWith("S") && exported.dropLast(1).any { it.isLowerCase() }
+        val baseExport = if (isShadow) exported.dropLast(1) else exported
+        val canonicalBase = baseExport.lowercase()
+            .removeSuffix("_kanto")
+            .removeSuffix("_kantonian")
+            .removeSuffix("_base")
+        return if (isShadow) "${canonicalBase}_shadow" else canonicalBase
+    }
+
+    private fun countUniqueLeads(entries: List<BattleLogEntry>): Int {
+        return entries.mapNotNull { entry ->
+            normalizeDailyLeadKey(entry.opponents.firstOrNull()).takeIf { it.isNotEmpty() }
+        }.toSet().size
+    }
+
     private data class ResolvedUserTeamInfo(
         val teamName: String,
         val mons: List<String>,
         val monsBracket: String,
         val groupKey: String
     )
+
+    /**
+     * Standardized Go Battle Log Export Name Formatter (used exclusively for Copy & Share output, not in-app log naming):
+     * 1. Replaces spaces and hyphens in Pokémon names with '_'
+     * 2. Formats form/region variants as basename_form / basename_region (e.g. ninetales_kanto, giratina_altered)
+     * 3. Shadow Pokémon names end in uppercase 'S' after any form suffix and do not start with 'Shadow' (e.g. ninetales_alolanS, laprasS)
+     * 4. Mega and Primal Pokémon end with uppercase '_MEGA' (or '_MEGA_X' / '_MEGA_Y') or '_PRIMAL' (e.g. charizard_MEGA_Y)
+     * 5. All Pokémon names are entirely lowercase besides the ending 'S' for Shadow variants or '_MEGA' / '_PRIMAL' suffixes
+     */
+    private fun formatExportPokemonName(rawName: String): String {
+        var working = rawName.trim()
+        if (working.isEmpty()) return ""
+        if (working.equals("Unknown", ignoreCase = true) || working.equals("Waiting...", ignoreCase = true)) {
+            return working
+        }
+
+        var isShadow = false
+        var megaPrimalSuffix = ""
+
+        val parenShadowRegex = Regex("\\(\\s*shadow\\s*\\)", RegexOption.IGNORE_CASE)
+        if (parenShadowRegex.containsMatchIn(working)) {
+            isShadow = true
+            working = working.replace(parenShadowRegex, " ").trim()
+        }
+
+        val leadingShadowRegex = Regex("^shadow[\\s_-]+(?!rider\\b)", RegexOption.IGNORE_CASE)
+        if (leadingShadowRegex.containsMatchIn(working)) {
+            isShadow = true
+            working = working.replace(leadingShadowRegex, "").trim()
+        }
+
+        val trailingShadowRegex = Regex("[\\s_-]+shadow$", RegexOption.IGNORE_CASE)
+        if (trailingShadowRegex.containsMatchIn(working)) {
+            isShadow = true
+            working = working.replace(trailingShadowRegex, "").trim()
+        }
+
+        if (working.length > 1 &&
+            working.endsWith("S") &&
+            working.dropLast(1).any { it.isLowerCase() } &&
+            !working.endsWith("_MEGA_S", ignoreCase = true)
+        ) {
+            isShadow = true
+            working = working.dropLast(1).trim()
+        }
+
+        val parenForms = mutableListOf<String>()
+        val parenRegex = Regex("\\(([^)]+)\\)")
+        parenRegex.findAll(working).forEach { match ->
+            val inside = match.groupValues[1].trim()
+            if (inside.isNotEmpty() && !inside.equals("base", ignoreCase = true) && !inside.equals("shadow", ignoreCase = true)) {
+                val megaParenMatch = Regex("^mega(?:[\\s_-]+([xy]))?$", RegexOption.IGNORE_CASE).find(inside)
+                when {
+                    megaParenMatch != null -> {
+                        val xy = megaParenMatch.groupValues[1]
+                        megaPrimalSuffix = if (xy.isNotEmpty()) "_MEGA_${xy.uppercase()}" else "_MEGA"
+                    }
+                    inside.equals("primal", ignoreCase = true) -> {
+                        megaPrimalSuffix = "_PRIMAL"
+                    }
+                    (inside.equals("x", ignoreCase = true) || inside.equals("y", ignoreCase = true)) &&
+                        working.startsWith("mega", ignoreCase = true) -> {
+                        megaPrimalSuffix = "_MEGA_${inside.uppercase()}"
+                    }
+                    else -> {
+                        parenForms.add(inside)
+                    }
+                }
+            }
+        }
+        var basePart = working.replace(parenRegex, " ").replace(Regex("\\s+"), " ").trim()
+        var formPart = parenForms.joinToString("_")
+
+        val trailingMegaPrimalMatch = Regex("^(.+?)[\\s_-]+(mega(?:[\\s_-]+[xy])?|primal)$", RegexOption.IGNORE_CASE).find(basePart)
+        if (trailingMegaPrimalMatch != null) {
+            basePart = trailingMegaPrimalMatch.groupValues[1].trim()
+            val mpRaw = trailingMegaPrimalMatch.groupValues[2].trim()
+            megaPrimalSuffix = if (mpRaw.equals("primal", ignoreCase = true)) {
+                "_PRIMAL"
+            } else {
+                val xyMatch = Regex("([xy])$", RegexOption.IGNORE_CASE).find(mpRaw)
+                if (xyMatch != null) "_MEGA_${xyMatch.groupValues[1].uppercase()}" else "_MEGA"
+            }
+        }
+
+        val prefixFormRegex = Regex(
+            "^(dusk[\\s_-]+mane|dawn[\\s_-]+wings|single[\\s_-]+strike|rapid[\\s_-]+strike|crowned[\\s_-]+sword|crowned[\\s_-]+shield|ice[\\s_-]+rider|shadow[\\s_-]+rider|galarian[\\s_-]+standard|galarian[\\s_-]+zen|paldean[\\s_-]+combat|paldean[\\s_-]+blaze|paldean[\\s_-]+aqua|blue[\\s_-]+striped|red[\\s_-]+striped|white[\\s_-]+striped|east[\\s_-]+sea|west[\\s_-]+sea|full[\\s_-]+belly|pom[\\s_-]+pom|kanto|kantonian|alolan|alola|galarian|galar|hisuian|hisui|paldean|paldea|unovan|unova|johto|hoenn|sinnoh|kalos|altered|origin|origine|therian|incarnate|crowned|hero|black|white|single|rapid|mega|primal|defense|attack|speed|normal|aria|pirouette|complete|unbound|confined|resolute|ordinary|sky|land|bloodmoon|armored|apex|wash|heat|frost|mow|fan|sunny|rainy|snowy|plant|trash|burn|chill|douse|shock|midnight|midday|dusk|baile|pau|pa'u|sensu|zen|standard|combat|blaze|aqua|hangry)[\\s_-]+(.+)$",
+            RegexOption.IGNORE_CASE
+        )
+        val prefixMatch = prefixFormRegex.find(basePart)
+        if (prefixMatch != null) {
+            val extractedPrefix = prefixMatch.groupValues[1].trim()
+            var remainingBase = prefixMatch.groupValues[2].trim()
+            when {
+                extractedPrefix.equals("mega", ignoreCase = true) -> {
+                    val megaXYMatch = Regex("^(.+?)[\\s_-]+([xy])$", RegexOption.IGNORE_CASE).find(remainingBase)
+                    if (megaXYMatch != null) {
+                        remainingBase = megaXYMatch.groupValues[1].trim()
+                        megaPrimalSuffix = "_MEGA_${megaXYMatch.groupValues[2].uppercase()}"
+                    } else if (megaPrimalSuffix.isEmpty()) {
+                        megaPrimalSuffix = "_MEGA"
+                    }
+                    basePart = remainingBase
+                }
+                extractedPrefix.equals("primal", ignoreCase = true) -> {
+                    megaPrimalSuffix = "_PRIMAL"
+                    basePart = remainingBase
+                }
+                else -> {
+                    basePart = remainingBase
+                    formPart = if (formPart.isEmpty()) extractedPrefix else "${extractedPrefix}_$formPart"
+                }
+            }
+        } else {
+            val sandyMatch = Regex("^(sandy)[\\s_-]+(wormadam.*)$", RegexOption.IGNORE_CASE).find(basePart)
+            if (sandyMatch != null) {
+                val extractedPrefix = sandyMatch.groupValues[1].trim()
+                basePart = sandyMatch.groupValues[2].trim()
+                formPart = if (formPart.isEmpty()) extractedPrefix else "${extractedPrefix}_$formPart"
+            }
+        }
+
+        if (megaPrimalSuffix.isNotEmpty()) {
+            isShadow = false
+        }
+
+        var normBase = basePart.lowercase()
+            .replace(Regex("[\\s-]+"), "_")
+            .replace(Regex("_+"), "_")
+            .trim('_')
+
+        if (normBase == "giratine") normBase = "giratina"
+        else if (normBase.startsWith("giratine_")) normBase = "giratina_" + normBase.removePrefix("giratine_")
+        if (normBase == "ninetails") normBase = "ninetales"
+        else if (normBase.startsWith("ninetails_")) normBase = "ninetales_" + normBase.removePrefix("ninetails_")
+
+        val normForm = formPart.lowercase()
+            .replace(Regex("[\\s-]+"), "_")
+            .replace(Regex("_+"), "_")
+            .trim('_')
+
+        val combined = if (normForm.isNotEmpty() && normForm != "base" && !normBase.endsWith("_$normForm")) {
+            "${normBase}_${normForm}"
+        } else {
+            normBase
+        }
+
+        return when {
+            megaPrimalSuffix.isNotEmpty() -> "$combined$megaPrimalSuffix"
+            isShadow -> "${combined}S"
+            else -> combined
+        }
+    }
 
     private fun resolveUserTeamInfo(entry: BattleLogEntry, presets: List<TeamPreset>): ResolvedUserTeamInfo {
         val matchedPreset = presets.find {
@@ -1826,9 +2866,9 @@ class MainActivity : AppCompatActivity() {
         val directMons = entry.userPokemon.map { it.trim() }.filter { it.isNotEmpty() }
         val presetMons = matchedPreset?.pokemon?.map { it.name.trim() }?.filter { it.isNotEmpty() }.orEmpty()
         val mons = when {
-            directMons.isNotEmpty() -> directMons
-            presetMons.isNotEmpty() -> presetMons
-            else -> listOf(teamName)
+            directMons.isNotEmpty() -> directMons.map { formatExportPokemonName(it) }
+            presetMons.isNotEmpty() -> presetMons.map { formatExportPokemonName(it) }
+            else -> listOf(formatExportPokemonName(teamName))
         }
         val monsBracket = "[${mons.joinToString(" ")}]"
         val groupKey = "${teamName.lowercase()}||${mons.joinToString(" ").lowercase()}"
@@ -1856,7 +2896,10 @@ class MainActivity : AppCompatActivity() {
             } else {
                 presets.find { it.isSelected } ?: presets.firstOrNull()
             }
-            val fallbackMons = selectedPreset?.pokemon?.map { it.name.trim() }?.filter { it.isNotEmpty() }.orEmpty()
+            val fallbackMons = selectedPreset?.pokemon
+                ?.map { formatExportPokemonName(it.name.trim()) }
+                ?.filter { it.isNotEmpty() }
+                .orEmpty()
             return if (fallbackMons.isNotEmpty()) "[${fallbackMons.joinToString(" ")}]" else "[My Team]"
         }
 
@@ -1869,7 +2912,9 @@ class MainActivity : AppCompatActivity() {
             val sb = StringBuilder()
             sb.append(monsBracket).append("\n")
             for (entry in teamEntries.sortedByDescending { it.timestampMs }) {
-                val oppList = entry.opponents.map { it.trim() }.filter { it.isNotEmpty() }
+                val oppList = entry.opponents
+                    .map { formatExportPokemonName(it.trim()) }
+                    .filter { it.isNotEmpty() }
                 val oppStr = if (oppList.isEmpty()) "Unknown" else oppList.joinToString(" ")
                 val wl = if (entry.result.equals("WIN", ignoreCase = true)) "W" else "L"
                 sb.append("$oppStr $wl\n")
@@ -1890,8 +2935,12 @@ class MainActivity : AppCompatActivity() {
         val (currSeason, prevSeason) = getCurrentAndPreviousSeason()
         val dateFmt = java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.US)
 
+        val yesterdayCal = java.util.Calendar.getInstance().apply {
+            add(java.util.Calendar.DAY_OF_YEAR, -1)
+        }
         val rangeLabel = when (timeframeKey) {
             "DAY" -> "Today (${dateFmt.format(java.util.Date())})"
+            "YESTERDAY" -> "Yesterday (${dateFmt.format(yesterdayCal.time)})"
             "WEEK" -> "This Week (Last 7 Days)"
             "CURRENT_SEASON" -> "Current Season (${currSeason.name} • Since ${dateFmt.format(java.util.Date(currSeason.startMs))})"
             "PREVIOUS_SEASON" -> "Previous Season (${dateFmt.format(java.util.Date(prevSeason.startMs))} – ${dateFmt.format(java.util.Date(prevSeason.endMs))})"
@@ -1905,6 +2954,7 @@ class MainActivity : AppCompatActivity() {
         val favCount = filtered.count { it.leadMatchup.equals("FAVORABLE", ignoreCase = true) }
         val neuCount = filtered.count { it.leadMatchup.equals("NEUTRAL", ignoreCase = true) || it.leadMatchup.isBlank() }
         val negCount = filtered.count { it.leadMatchup.equals("NEGATIVE", ignoreCase = true) }
+        val uniqueLeadsTotal = countUniqueLeads(filtered)
 
         val presets = loadPresets()
         val aggWae = OverlayService.calculateAggregateWAEStatic(filtered.map { resolveEntryQuality(it, presets) })
@@ -1915,7 +2965,7 @@ class MainActivity : AppCompatActivity() {
         sb.append("SilphScope PvP Battle Log — $leagueTitle\n")
         sb.append("Team: $teamTitle\n")
         sb.append("Range: $rangeLabel\n")
-        sb.append("Overall Record: ${wins}W - ${losses}L ($winPct%) • Leads: $favCount Fav / $neuCount Neu / $negCount Neg • WAE: ${aggWae.formatted} • Luck: ${aggWae.luckFormatted}\n")
+        sb.append("Overall Record:${wins}W-${losses}L($winPct%) • Leads:$favCount Fav/$neuCount Neu/$negCount Neg/$uniqueLeadsTotal Unique • WAE:${aggWae.formatted} • Luck:${aggWae.luckFormatted}\n")
 
         if (filtered.isEmpty()) {
             sb.append("\nNo battles logged in this timeframe.\n")
@@ -1924,6 +2974,14 @@ class MainActivity : AppCompatActivity() {
 
         val groupedByDay = filtered.groupBy { dateFmt.format(java.util.Date(it.timestampMs)) }
         for ((dayStr, dayEntries) in groupedByDay) {
+            val dayLeadCounts = HashMap<String, Int>()
+            for (dEntry in dayEntries) {
+                val lKey = normalizeDailyLeadKey(dEntry.opponents.firstOrNull())
+                if (lKey.isNotEmpty()) {
+                    dayLeadCounts[lKey] = (dayLeadCounts[lKey] ?: 0) + 1
+                }
+            }
+
             val groupedByTeam = dayEntries.groupBy { resolveUserTeamInfo(it, presets).groupKey }
             val sortedDayTeams = groupedByTeam.entries.sortedWith(
                 compareByDescending<Map.Entry<String, List<BattleLogEntry>>> { it.value.size }
@@ -1939,21 +2997,35 @@ class MainActivity : AppCompatActivity() {
                 val dFav = teamDayEntries.count { it.leadMatchup.equals("FAVORABLE", ignoreCase = true) }
                 val dNeu = teamDayEntries.count { it.leadMatchup.equals("NEUTRAL", ignoreCase = true) || it.leadMatchup.isBlank() }
                 val dNeg = teamDayEntries.count { it.leadMatchup.equals("NEGATIVE", ignoreCase = true) }
+                val dUnique = countUniqueLeads(teamDayEntries)
                 val dWae = OverlayService.calculateAggregateWAEStatic(teamDayEntries.map { resolveEntryQuality(it, presets) })
 
-                sb.append("\n=== $dayStr - ${teamInfo.teamName} ${teamInfo.monsBracket} Daily Record: ${dWins}W - ${dLosses}L ($dPct%) [Leads: $dFav Fav, $dNeu Neu, $dNeg Neg] • WAE: ${dWae.formatted} • Luck: ${dWae.luckFormatted} ===\n")
+                sb.append("\n=== $dayStr - ${teamInfo.teamName} ${teamInfo.monsBracket} Daily Record:${dWins}W-${dLosses}L($dPct%) [Leads:$dFav Fav/$dNeu Neu/$dNeg Neg/$dUnique Unique] • WAE:${dWae.formatted} • Luck:${dWae.luckFormatted} ===\n")
                 for (entry in teamDayEntries.sortedByDescending { it.timestampMs }) {
                     val wl = if (entry.result.equals("WIN", ignoreCase = true)) "W" else "L"
                     val leadTag = when (entry.leadMatchup.uppercase()) {
-                        "FAVORABLE" -> "Fav"
-                        "NEGATIVE" -> "Neg"
-                        else -> "Neu"
+                        "FAVORABLE" -> "F"
+                        "NEGATIVE", "UNFAVORABLE" -> "U"
+                        else -> "N"
                     }
                     val q = resolveEntryQuality(entry, presets)
-                    val matchWinTag = if (q != null) "${q.expWinPct}%" else "—%"
-                    val oppList = entry.opponents.map { it.trim() }.filter { it.isNotEmpty() }
+                    val matchPPre = q?.pPre ?: q?.pWin
+                    val matchTag = when {
+                        matchPPre == null -> "N"
+                        matchPPre > 0.60 -> "F"
+                        matchPPre < 0.40 -> "U"
+                        else -> "N"
+                    }
+                    val entryLeadKey = normalizeDailyLeadKey(entry.opponents.firstOrNull())
+                    val isRepeatLeadToday = entryLeadKey.isNotEmpty() && (dayLeadCounts[entryLeadKey] ?: 0) >= 2
+                    val oppList = entry.opponents
+                        .map { formatExportPokemonName(it.trim()) }
+                        .filter { it.isNotEmpty() }
+                        .mapIndexed { idx, formattedOpp ->
+                            if (idx == 0 && isRepeatLeadToday) "**$formattedOpp**" else formattedOpp
+                        }
                     val oppStr = if (oppList.isEmpty()) "Unknown" else oppList.joinToString(" ")
-                    sb.append("$wl (Lead:$leadTag Match:$matchWinTag): $oppStr\n")
+                    sb.append("$wl (L->$leadTag, M->$matchTag) $oppStr\n")
                 }
             }
         }
@@ -2028,6 +3100,7 @@ class MainActivity : AppCompatActivity() {
             .apply()
         OverlayService.syncTierThresholdsFromPrefs(prefs)
         loadAndRenderTierThresholdsUi()
+        refreshPresetsUi()
         if (isOverlayRunning) {
             val updateIntent = Intent(this, OverlayService::class.java).apply {
                 action = OverlayService.ACTION_UPDATE_SETTINGS
@@ -2041,6 +3114,377 @@ class MainActivity : AppCompatActivity() {
         ).show()
     }
 
+    private fun loadAndRenderMachineBrThresholdsUi() {
+        if (!::editMachEliteMin.isInitialized) return
+        OverlayService.syncTierThresholdsFromPrefs(prefs)
+        val elite = OverlayService.activeMachEliteMin
+        val solid = OverlayService.activeMachSolidMin
+        val playable = OverlayService.activeMachPlayableMin
+        val risky = OverlayService.activeMachRiskyMin
+        editMachEliteMin.setText(elite.toString())
+        editMachSolidMin.setText(solid.toString())
+        editMachPlayableMin.setText(playable.toString())
+        editMachRiskyMin.setText(risky.toString())
+        if (::textMachineBrDefinitionsSummary.isInitialized) {
+            textMachineBrDefinitionsSummary.text =
+                "• Elite Coverage >= $elite (Default: 650)\n" +
+                "• Solid Coverage >= $solid (Default: 610)\n" +
+                "• Playable Core >= $playable (Default: 580)\n" +
+                "• Risky Core >= $risky (Default: 540)\n" +
+                "• Blindspot Warning < $risky"
+        }
+    }
+
+    private fun saveMachineBrThresholdsFromInputs(showToast: Boolean) {
+        val rawElite = editMachEliteMin.text.toString().trim().toIntOrNull() ?: OverlayService.DEFAULT_MACH_ELITE_MIN
+        val rawSolid = editMachSolidMin.text.toString().trim().toIntOrNull() ?: OverlayService.DEFAULT_MACH_SOLID_MIN
+        val rawPlayable = editMachPlayableMin.text.toString().trim().toIntOrNull() ?: OverlayService.DEFAULT_MACH_PLAYABLE_MIN
+        val rawRisky = editMachRiskyMin.text.toString().trim().toIntOrNull() ?: OverlayService.DEFAULT_MACH_RISKY_MIN
+
+        val risky = rawRisky.coerceIn(350, 750)
+        val playable = rawPlayable.coerceIn(risky + 5, 780)
+        val solid = rawSolid.coerceIn(playable + 5, 810)
+        val elite = rawElite.coerceIn(solid + 5, 845)
+
+        prefs.edit()
+            .putInt(OverlayService.PREFS_KEY_MACH_ELITE_MIN, elite)
+            .putInt(OverlayService.PREFS_KEY_MACH_SOLID_MIN, solid)
+            .putInt(OverlayService.PREFS_KEY_MACH_PLAYABLE_MIN, playable)
+            .putInt(OverlayService.PREFS_KEY_MACH_RISKY_MIN, risky)
+            .apply()
+        OverlayService.syncTierThresholdsFromPrefs(prefs)
+        loadAndRenderMachineBrThresholdsUi()
+        refreshPresetsUi()
+        if (showToast) {
+            Toast.makeText(
+                this,
+                "Saved Machine Aggregate BR Scale: Elite>=$elite, Solid>=$solid, Playable>=$playable, Risky>=$risky",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
+    private fun restoreDefaultMachineBrThresholds() {
+        prefs.edit()
+            .putInt(OverlayService.PREFS_KEY_MACH_ELITE_MIN, OverlayService.DEFAULT_MACH_ELITE_MIN)
+            .putInt(OverlayService.PREFS_KEY_MACH_SOLID_MIN, OverlayService.DEFAULT_MACH_SOLID_MIN)
+            .putInt(OverlayService.PREFS_KEY_MACH_PLAYABLE_MIN, OverlayService.DEFAULT_MACH_PLAYABLE_MIN)
+            .putInt(OverlayService.PREFS_KEY_MACH_RISKY_MIN, OverlayService.DEFAULT_MACH_RISKY_MIN)
+            .apply()
+        OverlayService.syncTierThresholdsFromPrefs(prefs)
+        loadAndRenderMachineBrThresholdsUi()
+        refreshPresetsUi()
+        Toast.makeText(
+            this,
+            "Restored default Machine Aggregate BR Thresholds (650 / 610 / 580 / 540)",
+            Toast.LENGTH_SHORT
+        ).show()
+    }
+
+    private fun getMatchupTierCodeAndHex(rating: Int): Pair<String, String> {
+        OverlayService.syncTierThresholdsFromPrefs(prefs)
+        return when {
+            rating >= OverlayService.activeTierSwMin -> "SW" to "#34d399"
+            rating >= OverlayService.activeTierWMin -> "W" to "#4ade80"
+            rating <= OverlayService.activeTierSlMax -> "SL" to "#f43f5e"
+            rating <= OverlayService.activeTierLMax -> "L" to "#fb923c"
+            else -> "N" to "#cbd5e1"
+        }
+    }
+
+    private fun getMachineBrTierLabelAndHex(rating: Int): Pair<String, String> {
+        OverlayService.syncTierThresholdsFromPrefs(prefs)
+        return when {
+            rating >= OverlayService.activeMachEliteMin -> "Elite" to "#34d399"
+            rating >= OverlayService.activeMachSolidMin -> "Solid" to "#4ade80"
+            rating >= OverlayService.activeMachPlayableMin -> "Playable" to "#facc15"
+            rating >= OverlayService.activeMachRiskyMin -> "Risky" to "#fb923c"
+            else -> "Blindspot" to "#f43f5e"
+        }
+    }
+
+    private fun getCurrentSeasonLogsForLeague(league: String): List<Pair<Long, List<String>>> {
+        val (currSeason, _) = getCurrentAndPreviousSeason()
+        val allLogs = loadBattleLogs()
+        return allLogs.filter { entry ->
+            entry.timestampMs in currSeason.startMs..currSeason.endMs &&
+                entry.league.equals(league, ignoreCase = true)
+        }.map { it.timestampMs to it.opponents }
+    }
+
+    private fun evaluatePresetMetrics(preset: TeamPreset, autoReorder: Boolean): TeamPreset {
+        val seasonLogs = getCurrentSeasonLogsForLeague(preset.league)
+        val serviceMembers = preset.pokemon.map {
+            OverlayService.TeamMember(it.name, it.cp, it.fastMove, it.chargedMove1, it.chargedMove2, it.ivs)
+        }
+        val eval = OverlayService.evaluateOrAutoOrderTeamStatic(
+            slots = serviceMembers,
+            league = preset.league,
+            seasonLogs = seasonLogs,
+            autoReorder = autoReorder
+        )
+        val orderedPokemon = eval.orderedSlots.map {
+            PokemonSlot(it.name, it.cp, it.fastMove, it.chargedMove1, it.chargedMove2, it.ivs)
+        }
+        return preset.copy(
+            pokemon = orderedPokemon,
+            archetype = if (preset.isArchetypeManual && !autoReorder) preset.archetype else eval.archetype,
+            isArchetypeManual = if (autoReorder) false else preset.isArchetypeManual,
+            leadAggBr = eval.leadAggBr,
+            machineAggBr = eval.machineAggBr,
+            safeSwapBr = eval.safeSwapBr,
+            closerSwapBr = eval.closerSwapBr,
+            closerBr = eval.closerBr,
+            sharedWeaknesses = eval.sharedWeaknesses
+        )
+    }
+
+    private fun recalculateAllPresetsWithSeasonMeta() {
+        val existing = loadPresets()
+        if (existing.isEmpty()) return
+        val updated = existing.map { evaluatePresetMetrics(it, autoReorder = false) }
+        savePresets(updated)
+        if (::presetsContainer.isInitialized) {
+            refreshPresetsUi()
+        }
+    }
+
+    private fun showHelpAndMetricGuideDialog(initialTopic: String = "wae") {
+        val density = resources.displayMetrics.density
+        val pad = (14 * density).toInt()
+        val scroll = ScrollView(this)
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, pad, pad, pad)
+            setBackgroundColor(0xFF0F172A.toInt())
+        }
+        scroll.addView(root)
+
+        fun addSectionCard(
+            title: String,
+            accentColor: Int,
+            bodyText: String,
+            isHighlighted: Boolean
+        ): LinearLayout {
+            val card = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setBackgroundColor(if (isHighlighted) 0xFF1E293B.toInt() else 0xFF131C31.toInt())
+                val cPad = (11 * density).toInt()
+                setPadding(cPad, cPad, cPad, cPad)
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    bottomMargin = (10 * density).toInt()
+                }
+            }
+            val titleTv = TextView(this).apply {
+                text = title
+                textSize = 13f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(accentColor)
+            }
+            val bodyTv = TextView(this).apply {
+                text = bodyText
+                textSize = 11.5f
+                setTextColor(0xFFE2E8F0.toInt())
+                setLineSpacing(4f, 1.05f)
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    topMargin = (5 * density).toInt()
+                }
+            }
+            card.addView(titleTv)
+            card.addView(bodyTv)
+            root.addView(card)
+            return card
+        }
+
+        val waeCard = addSectionCard(
+            title = "1. Execution WAE (Wins Above Expected)",
+            accentColor = 0xFF4ADE80.toInt(),
+            bodyText =
+                "Isolates your micro-execution skill (energy farming, fast move denial / sneak prevention, sacrificial catch management, CMP timing, and shield discipline) from blind matchmaking RNG.\n\n" +
+                "• Timeline Duration Weighting: Partitions the match into head-to-head intervals k bounded by swap and faint timestamps. Each interval is evaluated in the 9-state Asymmetric Shield Matrix (0v0 through 2v2) using live shields remaining (R_k = Rating_{s_user v s_opp}) and weighted by fractional duration τ_k = Δt_k / t_total:\n" +
+                "  S_actual = Σ (τ_k · R_k)\n" +
+                "  P_exec = 1 / (1 + e^(-0.006 · (S_actual - 500)))\n\n" +
+                "• Execution Residual (ΔQ): Compares actual outcome (Win = 1.0, Loss = 0.0) against P_exec:\n" +
+                "  ΔQ_base = Result - P_exec\n" +
+                "• Faint Margin Scaling: Wins with a ≥ 2 Pokémon faint margin scale ΔQ × 1.10.\n" +
+                "• Shield-in-Pocket Penalty: Losses with unused shields apply -0.15 × userShieldsRemaining.\n" +
+                "• Aggregate EXEC WAE: Confidence-weighted average of ΔQ_final across filtered battles (+XX.X% means outperforming expected matchups).",
+            isHighlighted = initialTopic == "wae"
+        )
+
+        val luckCard = addSectionCard(
+            title = "2. Matchup Luck (Blind Matchup Favorability — BMF)",
+            accentColor = 0xFF38BDF8.toInt(),
+            bodyText =
+                "Tracks whether matchmaking is handing you favorable team alignments (>50%) or hard-counter RPS lineups (<50%) before micro-execution occurs.\n\n" +
+                "• Lead Score (S_lead): Equal 50/50 blend of 1v1 and 2v2 lead ratings:\n" +
+                "  S_lead = 0.50 · R_1v1 + 0.50 · R_2v2\n" +
+                "• Backline Score (S_back): Evaluates both backline pairings (Score_A & Score_B) and weights optimal switch alignment 70/30:\n" +
+                "  S_back = 0.70 · max(Score_A, Score_B) + 0.30 · min(Score_A, Score_B)\n" +
+                "• Composite Score (M) & Pre-Match Win Prob (P_pre / BMF):\n" +
+                "  M = 0.40 · S_lead + 0.60 · S_back\n" +
+                "  BMF (P_pre) = 1 / (1 + e^(-0.006 · (M - 500)))\n\n" +
+                "• Unrevealed Pokémon Handling:\n" +
+                "  - < 2 Opponents Seen (Early Forfeit): Weight w = 0.00 (excluded from ranked WAE/Luck).\n" +
+                "  - 2 Opponents Seen (Unrevealed 3rd Closer): Weight w = 0.75 using the active league's Meta-Average 1v1 Prior (⚡ 75% Conf).\n" +
+                "  - All 3 Opponents Seen: Full 3v3 evaluation at weight w = 1.00.",
+            isHighlighted = initialTopic == "luck"
+        )
+
+        addSectionCard(
+            title = "3. Badge Glossary (6 Primary Badges & Event Pills)",
+            accentColor = 0xFFFBBF24.toInt(),
+            bodyText =
+                "Primary Performance Badges (classified from Pre-Match BMF P_pre & Match Outcome):\n" +
+                "• Clutch Win (Cyan #22D3EE) — WIN with P_pre < 40%: Overcame a heavily unfavorable team alignment via superior catches, energy lead, or shield baiting.\n" +
+                "• Skill Win (Green #4ADE80) — WIN with 40% ≤ P_pre ≤ 60%: Out-executed the opponent in an even/neutral 3v3 matchup.\n" +
+                "• Expected Win (Slate #94A3B8) — WIN with P_pre > 60%: Cleanly converted a favorable team advantage into a victory.\n" +
+                "• Blunder Loss (Rose #F43F5E) — LOSS with P_pre > 60%: Dropped a favorable matchup where your lineup held >60% win equity.\n" +
+                "• Tough Loss (Orange #FB923C) — LOSS with 40% ≤ P_pre ≤ 60%: Narrow defeat in a competitive 50/50 matchup.\n" +
+                "• Expected Loss (Slate #94A3B8) — LOSS with P_pre < 40%: Hard-countered team alignment (<40% win equity); minimal penalty to WAE.\n\n" +
+                "Contextual Event Flags (Pills):\n" +
+                "• ⚠️ Double Shield Pocket: Loss finished with 2 unused shields remaining (-0.30 ΔQ penalty).\n" +
+                "• ⚠️ Shield in Pocket: Loss finished with 1 unused shield remaining (-0.15 ΔQ penalty).\n" +
+                "• 🧹 Clean Sweep: Win achieved with 0 user faints (all 3 Pokémon surviving).\n" +
+                "• 🛡️ Shield Advantage: Win achieved while ending with more shields remaining than the opponent.\n" +
+                "• ⚡ 75% Conf: Opponent's 3rd Pokémon was never revealed; evaluated at 0.75 confidence weight using the league meta-average prior.",
+            isHighlighted = initialTopic == "badges"
+        )
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("📖 Help & Metric Guide (v3.01)")
+            .setView(scroll)
+            .setNeutralButton("Open Full Help Tab") { _, _ ->
+                switchMainPage("help")
+            }
+            .setPositiveButton("Got It", null)
+            .create()
+        dialog.show()
+
+        if (initialTopic == "luck") {
+            scroll.post { scroll.smoothScrollTo(0, luckCard.top) }
+        } else if (initialTopic == "wae") {
+            scroll.post { scroll.smoothScrollTo(0, waeCard.top) }
+        }
+    }
+
+    private fun showOverlayUsageGuideDialog() {
+        val density = resources.displayMetrics.density
+        val pad = (14 * density).toInt()
+        val scroll = ScrollView(this)
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, pad, pad, pad)
+            setBackgroundColor(0xFF0F172A.toInt())
+        }
+        scroll.addView(root)
+
+        fun addGuideSection(
+            title: String,
+            accentColor: Int,
+            bodyText: String
+        ) {
+            val card = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setBackgroundColor(0xFF1E293B.toInt())
+                val cPad = (11 * density).toInt()
+                setPadding(cPad, cPad, cPad, cPad)
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    bottomMargin = (10 * density).toInt()
+                }
+            }
+            val titleTv = TextView(this).apply {
+                text = title
+                textSize = 13f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(accentColor)
+            }
+            val bodyTv = TextView(this).apply {
+                text = bodyText
+                textSize = 11.5f
+                setTextColor(0xFFE2E8F0.toInt())
+                setLineSpacing(4f, 1.05f)
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    topMargin = (5 * density).toInt()
+                }
+            }
+            card.addView(titleTv)
+            card.addView(bodyTv)
+            root.addView(card)
+        }
+
+        addGuideSection(
+            title = "1. General Battle Flow & Interacting with the Overlay",
+            accentColor = 0xFF38BDF8.toInt(),
+            bodyText =
+                "• Select or Switch Teams (Main App): Choose your active team preset in the main app's '⚔️ Teams' page before or between sets. To switch teams, return to the main app and select another preset (it pushes immediately to the running overlay).\n" +
+                "• Launch & Reposition: Tap 'Start Battle Overlay' to open the floating HUD. Drag the header bar to reposition it anywhere on screen.\n" +
+                "• Minimize & Pause OCR ('⚔️' Icon): Tap the '⚔️' icon in the top-left of the overlay between sets or while catching Pokémon to collapse the HUD into a tiny floating bubble and pause screen scanning.\n" +
+                "• Manual Opponent Override ('Opponents (Tap to Edit)'): Tap the 'Opponents (Tap to Edit)' header bar inside the overlay if OCR misreads a name or form to manually override any of the 3 opponent slots (with Shadow & Regional/Form support).\n" +
+                "• Start Battle ('⚔️ Start Battle'): Tap when a GBL match begins. This clears the previous opponent lineup, resets both 50s swap timers, resets shields (2v2) and Pokéballs (3v3), anchors the timeline clock (t=0s), and turns into '🛑 Stop Battle'.\n" +
+                "• Stop & Log ('🛑 Stop Battle'): Tap when the match finishes. Verify or tap the Lead Matchup chip ('Fav / Neu / Neg') and tap '🏆 Win' or '💀 Loss' (or '✕ Skip')."
+        )
+
+        addGuideSection(
+            title = "2. The 3x3 Matchup & Shield Matrix (Ratings, Dots & 0S/1S/2S Tags)",
+            accentColor = 0xFFFBBF24.toInt(),
+            bodyText =
+                "• 3x3 Grid Structure: Columns = Opponent's 3 Pokémon in the exact order revealed ([1st Lead, 2nd First Swap, 3rd Closer]). Rows = Your 3 Pokémon.\n" +
+                "• Single-Number PvPoke Rating & Colored Dot: Each cell displays the exact PvPoke 500-centered rating for the current shield state:\n" +
+                "  - [+] Bright Emerald (SW ≥ 620): Strong Win / hard counter.\n" +
+                "  - [●] Green (W 530–619): Favorable Win.\n" +
+                "  - [●] Slate Grey (N 471–529): Neutral 50/50 matchup.\n" +
+                "  - [●] Red (L 381–470): Unfavorable Loss.\n" +
+                "  - [×] Dark Crimson (SL ≤ 380): Strong Loss — swap or catch immediately.\n" +
+                "• 0S / 1S / 2S Shield Scenario Tags: Below the rating, cells show compact tags (e.g. '1S 2S✓' or '0S✗ 1S✓') when spending or saving shields flips the matchup outcome.\n" +
+                "• Dynamic 9-State Asymmetric Matrix (0v0–2v2): Automatically updates ratings across all 9 shield combinations as shields are spent."
+        )
+
+        addGuideSection(
+            title = "3. How to Use Battle Damage Numbers (Bottom 3-Column Damage Grid)",
+            accentColor = 0xFF4ADE80.toInt(),
+            bodyText =
+                "• Bottom Opponent Attacks Section: Displays a 3-column grid aligned with Opponent 1, Opponent 2, and Opponent 3 against your currently active Pokémon.\n" +
+                "• Live Charged Move Damage % & KO! Badge: Every opponent charged move shows its move-type color dot, energy cost, fast move count, and exact HP damage percentage (e.g. '42%' or '88% KO!') accounting for League CP stat scaling, dual-type effectiveness, STAB (1.2x), and Shadow (+20% ATK / -16.7% DEF).\n" +
+                "• Tank vs. Shield Decisions: Check the damage % before committing a shield — if a move deals 38% you can safely tank it, whereas '85% KO!' warns you to shield.\n" +
+                "• Multi-Cycle Fast Move Counts (C1-C2-C3) & Sneak Prevention: Shows exact fast moves required across 3 consecutive cycles (accounting for residual energy) plus optimal throw timing ('Throw on: 1, 4, 7' or 'Aligned (Any)') to deny free opponent fast move sneaks."
+        )
+
+        addGuideSection(
+            title = "4. Dual 50s Swap Timers, Faint Preservation & Statusbar Toasts",
+            accentColor = 0xFFC084FC.toInt(),
+            bodyText =
+                "• Independent 50s Swap Clocks ('You' & 'Opp'): Tracks both your switch timer and the opponent's switch timer automatically:\n" +
+                "  - Red (50s–16s): Switch locked on cooldown.\n" +
+                "  - Orange/Amber (15s–1s): Switch window opening soon — prepare to throw energy or time a catch.\n" +
+                "  - Green (RDY): Switch available immediately.\n" +
+                "• Smart Faint Swap-In Preservation: Detects Pokéball drops (3→2→1) when a Pokémon faints so a replacement entering after a KO preserves the running swap timer instead of falsely resetting to 50s.\n" +
+                "• Shield (2→1→0) & Faint Column Dimming: Tracks remaining shields and automatically dims fainted opponent columns in the 3x3 matrix.\n" +
+                "• Top Statusbar / Clock Strip Toasts: Displays non-intrusive alerts for Swaps, Faint Swaps, and Shields Used at the top statusbar so your charged move buttons are never blocked."
+        )
+
+        AlertDialog.Builder(this)
+            .setTitle("🎯 Overlay HUD & Battle Flow Guide")
+            .setView(scroll)
+            .setNeutralButton("📖 Open Help Page") { _, _ ->
+                switchMainPage("help")
+            }
+            .setPositiveButton("Got It", null)
+            .show()
+    }
+
     private fun showExportFormatAndTimeframeDialog(isShareIntent: Boolean) {
         showExportTimeframeDialog(isShareIntent)
     }
@@ -2051,12 +3495,13 @@ class MainActivity : AppCompatActivity() {
         val dateFmt = java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.US)
         val options = arrayOf(
             "Today (Day)",
+            "Yesterday",
             "This Week (Last 7 Days)",
             "Current Season (${currSeason.name} • Since ${dateFmt.format(java.util.Date(currSeason.startMs))})",
             "Previous Season (${dateFmt.format(java.util.Date(prevSeason.startMs))} – ${dateFmt.format(java.util.Date(prevSeason.endMs))})",
             "All Time"
         )
-        val keys = arrayOf("DAY", "WEEK", "CURRENT_SEASON", "PREVIOUS_SEASON", "ALL_TIME")
+        val keys = arrayOf("DAY", "YESTERDAY", "WEEK", "CURRENT_SEASON", "PREVIOUS_SEASON", "ALL_TIME")
 
         AlertDialog.Builder(this)
             .setTitle(if (isShareIntent) "📤 Share Battle Log Summary — Range" else "📋 Copy Battle Log Summary — Range")
@@ -2101,12 +3546,13 @@ class MainActivity : AppCompatActivity() {
         val favCount = filtered.count { it.leadMatchup.equals("FAVORABLE", ignoreCase = true) }
         val neuCount = filtered.count { it.leadMatchup.equals("NEUTRAL", ignoreCase = true) || it.leadMatchup.isBlank() }
         val negCount = filtered.count { it.leadMatchup.equals("NEGATIVE", ignoreCase = true) }
+        val uniqueLeadCount = countUniqueLeads(filtered)
 
         val presets = loadPresets()
         val aggWae = OverlayService.calculateAggregateWAEStatic(filtered.map { resolveEntryQuality(it, presets) })
 
-        textBattleLogTotal.text = "${wins}W - ${losses}L ($total)"
-        textBattleLogLeague.text = "$favCount Fav · $neuCount Neu · $negCount Neg"
+        textBattleLogTotal.text = "${wins}W-${losses}L ($total)"
+        textBattleLogLeague.text = "${favCount}+/${neuCount}o/${negCount}-/${uniqueLeadCount}u"
         textBattleLogWinrate.text = if (total == 0) "—%" else "$winPct%"
         textBattleLogWae.text = aggWae.formatted
         textBattleLogWae.setTextColor(
@@ -2146,7 +3592,7 @@ class MainActivity : AppCompatActivity() {
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
             }
             val descTv = TextView(this).apply {
-                text = "• Tap '⚔️ Start Battle' on the floating overlay during battle to log 🏆 Win or 💀 Loss with automatic Lead Matchup (${selectedPreset?.name ?: "Active Team"}).\n" +
+                text = "• Tap 'Start Battle' on the floating overlay during battle to log 🏆 Win or 💀 Loss with automatic Lead Matchup (${selectedPreset?.name ?: "Active Team"}).\n" +
                     "• Active Season (ScrapedDuck API): ${currSeason.name}\n" +
                     "• Tap any logged battle card to open the Interactive Overlay Matchup Replay!"
                 setTextColor(0xFF94A3B8.toInt())
@@ -2156,12 +3602,16 @@ class MainActivity : AppCompatActivity() {
             emptyCard.addView(titleTv)
             emptyCard.addView(descTv)
             battleLogContainer.addView(emptyCard)
+            applyCurrentAppThemeToSubtree(battleLogContainer)
             return
         }
 
         val dayFmt = java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.US)
         val timeFmt = java.text.SimpleDateFormat("h:mm a", java.util.Locale.US)
         val groupedByDay = filtered.groupBy { dayFmt.format(java.util.Date(it.timestampMs)) }
+
+        val activeTheme = getActiveAppTheme()
+        val hasWatermark = prefs.getBoolean(OverlayService.PREFS_KEY_SHOW_THEME_WATERMARK, true) && activeTheme.emblemDrawableRes != null
 
         for ((dayStr, dayEntries) in groupedByDay) {
             val dWins = dayEntries.count { it.result.equals("WIN", ignoreCase = true) }
@@ -2171,10 +3621,29 @@ class MainActivity : AppCompatActivity() {
             val dFav = dayEntries.count { it.leadMatchup.equals("FAVORABLE", ignoreCase = true) }
             val dNeu = dayEntries.count { it.leadMatchup.equals("NEUTRAL", ignoreCase = true) || it.leadMatchup.isBlank() }
             val dNeg = dayEntries.count { it.leadMatchup.equals("NEGATIVE", ignoreCase = true) }
+            val dUnique = countUniqueLeads(dayEntries)
             val dayWae = OverlayService.calculateAggregateWAEStatic(dayEntries.map { resolveEntryQuality(it, presets) })
 
+            // Compute same-day repeated lead occurrences in chronological order (oldest -> newest within the day)
+            val dayLeadCounts = HashMap<String, Int>()
+            val entryLeadOccurrenceIndex = HashMap<String, Int>()
+            val entryLeadPreviousResult = HashMap<String, String>()
+            val lastSeenResultByLead = HashMap<String, String>()
+            for (cEntry in dayEntries.sortedBy { it.timestampMs }) {
+                val lKey = normalizeDailyLeadKey(cEntry.opponents.firstOrNull())
+                if (lKey.isNotEmpty()) {
+                    val nextOcc = (dayLeadCounts[lKey] ?: 0) + 1
+                    dayLeadCounts[lKey] = nextOcc
+                    entryLeadOccurrenceIndex[cEntry.id] = nextOcc
+                    lastSeenResultByLead[lKey]?.let { prevRes ->
+                        entryLeadPreviousResult[cEntry.id] = prevRes
+                    }
+                    lastSeenResultByLead[lKey] = if (cEntry.result.equals("WIN", ignoreCase = true)) "W" else "L"
+                }
+            }
+
             val dayHeader = TextView(this).apply {
-                text = "📅 $dayStr — Daily Record: ${dWins}W - ${dLosses}L ($dPct%) • Leads: $dFav Fav / $dNeu Neu / $dNeg Neg • WAE: ${dayWae.formatted} • Luck: ${dayWae.luckFormatted}"
+                text = "📅 $dayStr — Daily Record:${dWins}W-${dLosses}L($dPct%) • Leads:$dFav Fav/$dNeu Neu/$dNeg Neg/$dUnique Unique • WAE:${dayWae.formatted} • Luck:${dayWae.luckFormatted}"
                 setTextColor(0xFF38BDF8.toInt())
                 textSize = 11f
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
@@ -2197,9 +3666,25 @@ class MainActivity : AppCompatActivity() {
                     else -> 0xFFCBD5E1.toInt()
                 }
 
+                val entryLeadKey = normalizeDailyLeadKey(entry.opponents.firstOrNull())
+                val repeatLeadTotal = if (entryLeadKey.isNotEmpty()) (dayLeadCounts[entryLeadKey] ?: 0) else 0
+                val isRepeatDailyLead = repeatLeadTotal >= 2
+                val repeatOccIdx = entryLeadOccurrenceIndex[entry.id] ?: 1
+                val prevLeadRes = entryLeadPreviousResult[entry.id]
+
                 val card = LinearLayout(this).apply {
                     orientation = LinearLayout.VERTICAL
-                    setBackgroundColor(0xFF1E293B.toInt())
+                    if (isRepeatDailyLead) {
+                        val surfaceAlpha = if (hasWatermark) 0xBF else 0xF5
+                        background = android.graphics.drawable.GradientDrawable().apply {
+                            shape = android.graphics.drawable.GradientDrawable.RECTANGLE
+                            cornerRadius = 8f * density
+                            setColor(withAlpha(activeTheme.surfaceColor, surfaceAlpha))
+                            setStroke((1.6f * density).toInt().coerceAtLeast(2), activeTheme.secondaryAccentColor)
+                        }
+                    } else {
+                        setBackgroundColor(0xFF1E293B.toInt())
+                    }
                     val pad = (11 * density).toInt()
                     setPadding(pad, pad, pad, pad)
                     layoutParams = LinearLayout.LayoutParams(
@@ -2251,18 +3736,39 @@ class MainActivity : AppCompatActivity() {
                     setPadding(0, (4 * density).toInt(), 0, (2 * density).toInt())
                 }
 
-                val oppOrderedText = if (entry.opponents.isEmpty()) {
-                    "No opponents recorded"
-                } else {
-                    entry.opponents.mapIndexed { idx, opp ->
-                        val ord = when (idx) { 0 -> "1st"; 1 -> "2nd"; else -> "3rd" }
-                        "$ord: $opp"
-                    }.joinToString("  •  ")
-                }
-
                 val oppTv = TextView(this).apply {
-                    text = "Vs: $oppOrderedText"
-                    setTextColor(0xFFF8FAFC.toInt())
+                    if (entry.opponents.isEmpty()) {
+                        text = "Vs: No opponents recorded"
+                        setTextColor(0xFFF8FAFC.toInt())
+                    } else if (isRepeatDailyLead) {
+                        val ssb = android.text.SpannableStringBuilder("Vs: ")
+                        entry.opponents.forEachIndexed { idx, opp ->
+                            if (idx > 0) ssb.append("  •  ")
+                            val ord = when (idx) { 0 -> "1st"; 1 -> "2nd"; else -> "3rd" }
+                            if (idx == 0) {
+                                val start = ssb.length
+                                ssb.append("$ord: $opp 🔁")
+                                ssb.setSpan(
+                                    android.text.style.ForegroundColorSpan(activeTheme.secondaryAccentColor),
+                                    start,
+                                    ssb.length,
+                                    android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                                )
+                            } else {
+                                ssb.append("$ord: $opp")
+                            }
+                        }
+                        text = ssb
+                        setTextColor(activeTheme.primaryTextColor)
+                        setTag(R.id.iv_theme_watermark_bg, 0x123456) // Preserve custom spannable highlight color
+                    } else {
+                        val oppOrderedText = entry.opponents.mapIndexed { idx, opp ->
+                            val ord = when (idx) { 0 -> "1st"; 1 -> "2nd"; else -> "3rd" }
+                            "$ord: $opp"
+                        }.joinToString("  •  ")
+                        text = "Vs: $oppOrderedText"
+                        setTextColor(0xFFF8FAFC.toInt())
+                    }
                     textSize = 12f
                     setTypeface(typeface, android.graphics.Typeface.BOLD)
                 }
@@ -2272,6 +3778,41 @@ class MainActivity : AppCompatActivity() {
                 val qualityRow = LinearLayout(this).apply {
                     orientation = LinearLayout.VERTICAL
                     setPadding(0, (5 * density).toInt(), 0, (2 * density).toInt())
+                }
+
+                if (isRepeatDailyLead) {
+                    val curResShort = if (isWin) "W" else "L"
+                    val repeatDetail = when {
+                        repeatOccIdx == 1 -> "🔁 Repeat Lead (#1 of $repeatLeadTotal Today)"
+                        prevLeadRes == "L" && curResShort == "W" -> "🔁 Repeat Lead (#$repeatOccIdx of $repeatLeadTotal Today • Adapted L→W ✨)"
+                        prevLeadRes == "W" && curResShort == "W" -> "🔁 Repeat Lead (#$repeatOccIdx of $repeatLeadTotal Today • Repeat W→W ✓)"
+                        prevLeadRes == "W" && curResShort == "L" -> "🔁 Repeat Lead (#$repeatOccIdx of $repeatLeadTotal Today • Flipped W→L ⚠️)"
+                        prevLeadRes != null -> "🔁 Repeat Lead (#$repeatOccIdx of $repeatLeadTotal Today • Repeat ${prevLeadRes}→$curResShort)"
+                        else -> "🔁 Repeat Lead (#$repeatOccIdx of $repeatLeadTotal Today)"
+                    }
+                    val repeatBannerTv = TextView(this).apply {
+                        text = repeatDetail
+                        setTextColor(activeTheme.secondaryAccentColor)
+                        setTag(R.id.iv_theme_watermark_bg, 0x123456)
+                        background = android.graphics.drawable.GradientDrawable().apply {
+                            shape = android.graphics.drawable.GradientDrawable.RECTANGLE
+                            cornerRadius = 5f * density
+                            setColor(withAlpha(activeTheme.secondaryAccentColor, 0x26))
+                            setStroke((1f * density).toInt().coerceAtLeast(1), withAlpha(activeTheme.secondaryAccentColor, 0x80))
+                        }
+                        textSize = 10f
+                        setTypeface(typeface, android.graphics.Typeface.BOLD)
+                        val pH = (7 * density).toInt()
+                        val pV = (3 * density).toInt()
+                        setPadding(pH, pV, pH, pV)
+                        layoutParams = LinearLayout.LayoutParams(
+                            LinearLayout.LayoutParams.WRAP_CONTENT,
+                            LinearLayout.LayoutParams.WRAP_CONTENT
+                        ).apply {
+                            bottomMargin = (4 * density).toInt()
+                        }
+                    }
+                    qualityRow.addView(repeatBannerTv)
                 }
 
                 if (entryQuality != null) {
@@ -2417,6 +3958,7 @@ class MainActivity : AppCompatActivity() {
                 battleLogContainer.addView(card)
             }
         }
+        applyCurrentAppThemeToSubtree(battleLogContainer)
     }
 
     private fun deleteBattleLogEntry(entry: BattleLogEntry) {
@@ -2458,9 +4000,9 @@ class MainActivity : AppCompatActivity() {
             setTextColor(0xFF94A3B8.toInt())
             textSize = 11f
         }
-        val resultsArr = arrayOf("WIN", "LOSS")
+        val resultsArr = listOf("WIN", "LOSS")
         val spinnerResult = Spinner(this).apply {
-            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, resultsArr)
+            adapter = createThemedSpinnerAdapter(resultsArr)
             val idx = if (existing?.result.equals("LOSS", ignoreCase = true)) 1 else 0
             setSelection(idx)
         }
@@ -2472,9 +4014,9 @@ class MainActivity : AppCompatActivity() {
             textSize = 11f
             setPadding(0, (8 * density).toInt(), 0, 0)
         }
-        val leadsArr = arrayOf("FAVORABLE", "NEUTRAL", "NEGATIVE")
+        val leadsArr = listOf("FAVORABLE", "NEUTRAL", "NEGATIVE")
         val spinnerLead = Spinner(this).apply {
-            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, leadsArr)
+            adapter = createThemedSpinnerAdapter(leadsArr)
             val idx = leadsArr.indexOfFirst { it.equals(existing?.leadMatchup ?: "NEUTRAL", ignoreCase = true) }.coerceAtLeast(0)
             setSelection(idx)
         }
@@ -2488,7 +4030,7 @@ class MainActivity : AppCompatActivity() {
         }
         val presetDisplayNames = presets.map { "${it.name} (${it.league})" }
         val spinnerPreset = Spinner(this).apply {
-            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, presetDisplayNames)
+            adapter = createThemedSpinnerAdapter(presetDisplayNames)
             val initIdx = if (existing != null) {
                 presets.indexOfFirst { it.id == existing.presetId || it.name.equals(existing.userTeamName, ignoreCase = true) }
                     .takeIf { it >= 0 } ?: 0
@@ -2537,9 +4079,10 @@ class MainActivity : AppCompatActivity() {
         container.addView(editOpp2)
         container.addView(editOpp3)
 
-        AlertDialog.Builder(this)
+        val themedContainer = wrapViewWithThemeWatermark(container, watermarkSizeDp = 220)
+        val dialog = AlertDialog.Builder(this)
             .setTitle(if (existing != null) "✏️ Modify Logged Battle" else "+ Log GBL Battle")
-            .setView(container)
+            .setView(themedContainer)
             .setPositiveButton("Save Battle") { _, _ ->
                 val chosenPreset = presets.getOrNull(spinnerPreset.selectedItemPosition) ?: selectedPreset
                 val opps = listOf(
@@ -2610,6 +4153,7 @@ class MainActivity : AppCompatActivity() {
             }
             .setNegativeButton("Cancel", null)
             .show()
+        styleThemedAlertDialog(dialog)
     }
 
     inner class ReplayJavascriptBridge(
@@ -2775,9 +4319,14 @@ class MainActivity : AppCompatActivity() {
             val pushReplayStateToWeb: () -> Unit = {
                 try {
                     val payloadJson = replayEngine.buildBattlePayloadJson(isReplayMode = true)
+                    val activeThemeId = getActiveAppTheme().id
+                    val showWatermark = prefs.getBoolean(OverlayService.PREFS_KEY_SHOW_THEME_WATERMARK, true) && getActiveAppTheme().emblemDrawableRes != null
+                    val replayTransPct = if (showWatermark) 42 else 18
                     replayWebView.post {
                         try {
-                            replayWebView.evaluateJavascript("if (window.setOverlayTransparencyPct) setOverlayTransparencyPct(15);", null)
+                            replayWebView.evaluateJavascript("if (window.setOverlayTransparencyPct) setOverlayTransparencyPct($replayTransPct);", null)
+                            replayWebView.evaluateJavascript("if (window.setOverlayTheme) setOverlayTheme('$activeThemeId');", null)
+                            replayWebView.evaluateJavascript("if (window.setOverlayWatermark) setOverlayWatermark($showWatermark);", null)
                             replayWebView.evaluateJavascript("if (window.updateBattleData) updateBattleData($payloadJson);", null)
                         } catch (_: Exception) {}
                     }
@@ -2798,14 +4347,17 @@ class MainActivity : AppCompatActivity() {
 
             dialogContainer.addView(hintTv)
             dialogContainer.addView(replayWebView)
+            val themedReplayRoot = wrapViewWithThemeWatermark(dialogContainer, watermarkSizeDp = 250)
 
-            AlertDialog.Builder(this)
-                .setView(dialogContainer)
+            val dialog = AlertDialog.Builder(this)
+                .setTitle("🎬 Battle Matrix Replay • $safeLeague")
+                .setView(themedReplayRoot)
                 .setPositiveButton("Close Replay", null)
                 .setNeutralButton("✏️ Edit Log") { _, _ ->
                     showEditOrCreateBattleLogDialog(entry)
                 }
                 .show()
+            styleThemedAlertDialog(dialog)
         } catch (e: Exception) {
             Toast.makeText(this, "Error opening Battle Recap: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
         }
@@ -2820,6 +4372,10 @@ class MainActivity : AppCompatActivity() {
             btnToggleOppCountBasis.text = "My Fasts"
             textOppCountBasisDesc.text = "Default: Counts & 50e/Xf relative to My Fast Moves"
         }
+        if (::prefs.isInitialized) {
+            btnToggleOppCountBasis.backgroundTintList = android.content.res.ColorStateList.valueOf(getActiveAppTheme().buttonAccentColor)
+            btnToggleOppCountBasis.setTextColor(0xFFFFFFFF.toInt())
+        }
     }
 
     private fun updateOppChargedMovesUi() {
@@ -2831,17 +4387,24 @@ class MainActivity : AppCompatActivity() {
             btnToggleOppChargedMoves.text = "3 Moves"
             textOppChargedMovesDesc.text = "Default: 3 Charged Moves (Official + Top Usage)"
         }
+        if (::prefs.isInitialized) {
+            btnToggleOppChargedMoves.backgroundTintList = android.content.res.ColorStateList.valueOf(getActiveAppTheme().buttonAccentColor)
+            btnToggleOppChargedMoves.setTextColor(0xFFFFFFFF.toInt())
+        }
     }
 
     private fun updateBattleToastsUi() {
         val disableToasts = prefs.getBoolean(PREFS_KEY_DISABLE_BATTLE_TOASTS, false)
+        val theme = if (::prefs.isInitialized) getActiveAppTheme() else APP_THEME_COLLECTION.first()
         if (disableToasts) {
             btnToggleBattleToasts.text = "Toasts Off"
-            btnToggleBattleToasts.backgroundTintList = android.content.res.ColorStateList.valueOf(0xFF64748B.toInt())
+            btnToggleBattleToasts.backgroundTintList = android.content.res.ColorStateList.valueOf(theme.elevatedColor)
+            btnToggleBattleToasts.setTextColor(theme.primaryTextColor)
             textBattleToastsDesc.text = "Active: In-game Battle Toast popups disabled"
         } else {
             btnToggleBattleToasts.text = "Toasts On"
-            btnToggleBattleToasts.backgroundTintList = android.content.res.ColorStateList.valueOf(0xFF0284C7.toInt())
+            btnToggleBattleToasts.backgroundTintList = android.content.res.ColorStateList.valueOf(theme.buttonAccentColor)
+            btnToggleBattleToasts.setTextColor(0xFFFFFFFF.toInt())
             textBattleToastsDesc.text = "Default: Popups shown for Battle Start/Stop, Switches & Logs"
         }
     }
@@ -2955,6 +4518,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun launchOverlayServiceNow(resultCode: Int, data: Intent?) {
+        // Recalculate all saved team presets' Lead BR, Swap BR, and Machine BR against latest current-season logs + PvPoke meta
+        recalculateAllPresetsWithSeasonMeta()
         val serviceIntent = Intent(this, OverlayService::class.java).apply {
             action = OverlayService.ACTION_START_OVERLAY
             putExtra(OverlayService.EXTRA_RESULT_CODE, resultCode)
@@ -2967,13 +4532,13 @@ class MainActivity : AppCompatActivity() {
             putExtra(OverlayService.EXTRA_DISABLE_BATTLE_TOASTS, prefs.getBoolean(PREFS_KEY_DISABLE_BATTLE_TOASTS, false))
             putExtra(OverlayService.EXTRA_OVERLAY_SCALE_PCT, prefs.getInt(PREFS_KEY_OVERLAY_SCALE_PCT, DEFAULT_OVERLAY_SCALE_PCT))
             putExtra(OverlayService.EXTRA_OVERLAY_TRANSPARENCY_PCT, prefs.getInt(PREFS_KEY_OVERLAY_TRANSPARENCY_PCT, DEFAULT_OVERLAY_TRANSPARENCY_PCT))
+            putExtra(OverlayService.EXTRA_APP_THEME_ID, prefs.getString(OverlayService.PREFS_KEY_APP_THEME_ID, "slate") ?: "slate")
         }
 
         try {
             ContextCompat.startForegroundService(this, serviceIntent)
             isOverlayRunning = true
-            btnToggleOverlay.text = "Stop Battle Overlay"
-            statusText.text = "Status: Overlay Active (Option 1 Sky Trench loaded)"
+            syncOverlayRunningUiState()
             Toast.makeText(this, "GBL Battle Overlay launched! Check your screen", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
             Toast.makeText(this, "Failed to start overlay: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
@@ -2987,8 +4552,7 @@ class MainActivity : AppCompatActivity() {
         }
         startService(serviceIntent)
         isOverlayRunning = false
-        btnToggleOverlay.text = "Start Battle Overlay"
-        statusText.text = "Status: Idle"
+        syncOverlayRunningUiState()
     }
 
     /**
@@ -3113,21 +4677,28 @@ class MainActivity : AppCompatActivity() {
         val presets = loadPresets()
         val selectedId = prefs.getString(PREFS_KEY_SELECTED_PRESET, null) ?: presets.firstOrNull()?.id
 
-        presets.forEachIndexed { index, preset ->
+        presets.forEachIndexed { index, rawPreset ->
+            val preset = evaluatePresetMetrics(rawPreset, autoReorder = false)
             val itemView = layoutInflater.inflate(R.layout.item_team_preset, presetsContainer, false)
             val dragHandle = itemView.findViewById<TextView>(R.id.drag_handle_preset)
             val textName = itemView.findViewById<TextView>(R.id.text_preset_name)
+            val textArchetype = itemView.findViewById<TextView>(R.id.text_preset_archetype_badge)
             val textLeague = itemView.findViewById<TextView>(R.id.text_preset_league)
+            val textMetricsBadges = itemView.findViewById<TextView>(R.id.text_preset_metrics_badges)
             val textPokemon = itemView.findViewById<TextView>(R.id.text_preset_pokemon)
             val radioSelected = itemView.findViewById<RadioButton>(R.id.radio_selected)
             val btnMoveUp = itemView.findViewById<TextView>(R.id.btn_move_preset_up)
             val btnMoveDown = itemView.findViewById<TextView>(R.id.btn_move_preset_down)
+            val btnAutoDetect = itemView.findViewById<Button>(R.id.btn_auto_detect_preset)
             val btnEdit = itemView.findViewById<ImageButton>(R.id.btn_edit_preset)
             val btnDelete = itemView.findViewById<ImageButton>(R.id.btn_delete_preset)
 
             val isCurrent = preset.id == selectedId
             radioSelected.isChecked = isCurrent
             textName.text = preset.name
+
+            val isAbb = preset.archetype.equals("ABB", ignoreCase = true)
+            textArchetype?.text = if (isAbb) "ABB" else "ABC"
 
             val maxCp = preset.pokemon.maxOfOrNull { it.cp } ?: 0
             val resolvedLeague = when {
@@ -3137,17 +4708,68 @@ class MainActivity : AppCompatActivity() {
                 else -> "MASTER LEAGUE"
             }
             textLeague.text = resolvedLeague
+
+            val (leadTier, leadHex) = getMatchupTierCodeAndHex(preset.leadAggBr)
+            val (machTier, machHex) = getMachineBrTierLabelAndHex(preset.machineAggBr)
+            val (swap2Tier, swap2Hex) = getMatchupTierCodeAndHex(preset.safeSwapBr)
+            val (swap3Tier, swap3Hex) = getMatchupTierCodeAndHex(preset.closerSwapBr)
+
+            val metricsHtml = "Lead BR: <font color='$leadHex'>${preset.leadAggBr} ($leadTier)</font>  •  " +
+                "Mach BR: <font color='$machHex'>${preset.machineAggBr} ($machTier)</font>  •  " +
+                "Swap BR: <font color='$swap2Hex'>#2 ${preset.safeSwapBr} ($swap2Tier)</font> / <font color='$swap3Hex'>#3 ${preset.closerSwapBr} ($swap3Tier)</font>"
+            textMetricsBadges?.text = android.text.Html.fromHtml(metricsHtml, android.text.Html.FROM_HTML_MODE_LEGACY)
+
+            val roleLabels = if (isAbb) {
+                listOf("Lead (A)", "Bait Swap (B1)", "Sweeper (B2)")
+            } else {
+                listOf("Lead", "Safe Swap", "Closer")
+            }
+            val slotBrLabels = listOf(
+                "Lead BR ${preset.leadAggBr} ($leadTier)",
+                "Swap BR ${preset.safeSwapBr} ($swap2Tier)",
+                "Swap BR ${preset.closerSwapBr} ($swap3Tier)"
+            )
+
+            textPokemon.text = preset.pokemon.mapIndexed { sIdx, slot ->
+                val ivLabel = if (!slot.ivs.isNullOrBlank()) " · IV ${slot.ivs}" else ""
+                val rTag = roleLabels.getOrElse(sIdx) { "Slot ${sIdx + 1}" }
+                val brTag = slotBrLabels.getOrElse(sIdx) { "" }
+                "• [$rTag · $brTag] ${slot.name} (CP ${slot.cp}$ivLabel) — ${slot.fastMove} | ${slot.chargedMove1}, ${slot.chargedMove2}"
+            }.joinToString("\n")
+            applyCurrentAppThemeToSubtree(itemView)
+            val activeTheme = getActiveAppTheme()
+            textArchetype?.setTextColor(if (isAbb) 0xFFFBBF24.toInt() else activeTheme.accentColor)
             textLeague.setTextColor(
                 when (resolvedLeague) {
-                    "GREAT LEAGUE" -> 0xFF38BDF8.toInt()
+                    "GREAT LEAGUE" -> activeTheme.accentColor
                     "ULTRA LEAGUE" -> 0xFFFBBF24.toInt()
                     "MEGA MASTER LEAGUE" -> 0xFFE879F9.toInt()
                     else -> 0xFFC084FC.toInt()
                 }
             )
-            textPokemon.text = preset.pokemon.joinToString("\n") {
-                val ivLabel = if (!it.ivs.isNullOrBlank()) " · IV ${it.ivs}" else ""
-                "• ${it.name} (CP ${it.cp}$ivLabel) — ${it.fastMove} | ${it.chargedMove1}, ${it.chargedMove2}"
+
+            btnAutoDetect?.setOnClickListener {
+                val reordered = evaluatePresetMetrics(preset, autoReorder = true).copy(updatedAt = System.currentTimeMillis())
+                val mutableList = loadPresets().toMutableList()
+                val idxInList = mutableList.indexOfFirst { it.id == preset.id }
+                if (idxInList >= 0) {
+                    mutableList[idxInList] = reordered
+                    savePresets(mutableList)
+                    refreshPresetsUi()
+                    if (isCurrent && isOverlayRunning) {
+                        val updateIntent = Intent(this, OverlayService::class.java).apply {
+                            action = OverlayService.ACTION_UPDATE_PRESET
+                            putExtra(OverlayService.EXTRA_PRESET_JSON, gson.toJson(reordered))
+                        }
+                        startService(updateIntent)
+                    }
+                    val orderSummary = reordered.pokemon.joinToString(" → ") { it.name }
+                    Toast.makeText(
+                        this,
+                        "⚡ Auto-Detected ${reordered.archetype}: $orderSummary (Swap BR: ${reordered.safeSwapBr})",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
             }
 
             btnMoveUp?.alpha = if (index == 0) 0.3f else 1.0f
@@ -3241,6 +4863,7 @@ class MainActivity : AppCompatActivity() {
 
             presetsContainer.addView(itemView)
         }
+        applyCurrentAppThemeToSubtree(presetsContainer)
     }
 
     private inner class PokemonAutocompleteAdapter(
@@ -3298,6 +4921,7 @@ class MainActivity : AppCompatActivity() {
 
             container.addView(topRow)
             container.addView(movesTv)
+            applyCurrentAppThemeToSubtree(container)
             return container
         }
 
@@ -3359,8 +4983,8 @@ class MainActivity : AppCompatActivity() {
         val editP3C1 = dialogView.findViewById<EditText>(R.id.edit_p3_c1)
         val editP3C2 = dialogView.findViewById<EditText>(R.id.edit_p3_c2)
 
-        val leagues = arrayOf("GREAT LEAGUE", "ULTRA LEAGUE", "MASTER LEAGUE", "MEGA MASTER LEAGUE")
-        spinnerLeague.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, leagues)
+        val leagues = listOf("GREAT LEAGUE", "ULTRA LEAGUE", "MASTER LEAGUE", "MEGA MASTER LEAGUE")
+        spinnerLeague.adapter = createThemedSpinnerAdapter(leagues)
 
         val currentLeagueProvider = {
             spinnerLeague.selectedItem?.toString() ?: "GREAT LEAGUE"
@@ -3533,8 +5157,149 @@ class MainActivity : AppCompatActivity() {
             )
         }
 
-        AlertDialog.Builder(this)
-            .setTitle(if (existingPreset != null) "Edit Team & Moves" else "Create Custom GBL Team")
+        // Team Style (ABB vs ABC), Aggregate BR & Slot Swap Wiring inside Create/Edit Dialog
+        val textDialogArchetypeSummary = dialogView.findViewById<TextView>(R.id.text_dialog_archetype_summary)
+        val textDialogMetaBlendInfo = dialogView.findViewById<TextView>(R.id.text_dialog_meta_blend_info)
+        val btnDialogAutoDetect = dialogView.findViewById<Button>(R.id.btn_dialog_auto_detect_style)
+        val btnSwapSlot12 = dialogView.findViewById<Button>(R.id.btn_swap_slot_1_2)
+        val btnSwapSlot23 = dialogView.findViewById<Button>(R.id.btn_swap_slot_2_3)
+        val textP1RoleTitle = dialogView.findViewById<TextView>(R.id.text_p1_role_title)
+        val textP2RoleTitle = dialogView.findViewById<TextView>(R.id.text_p2_role_title)
+        val textP3RoleTitle = dialogView.findViewById<TextView>(R.id.text_p3_role_title)
+        val textP1LeadBr = dialogView.findViewById<TextView>(R.id.text_p1_lead_br)
+        val textP2SwapBr = dialogView.findViewById<TextView>(R.id.text_p2_swap_br)
+        val textP3SwapBr = dialogView.findViewById<TextView>(R.id.text_p3_swap_br)
+
+        fun applySlotsToDialogInputs(slots: List<PokemonSlot>) {
+            slots.getOrNull(0)?.let {
+                editP1.setText(it.name, false)
+                editP1Cp.setText(it.cp.toString())
+                editP1Ivs.setText(it.ivs ?: "")
+                editP1Fast.setText(it.fastMove)
+                editP1C1.setText(it.chargedMove1)
+                editP1C2.setText(it.chargedMove2)
+            }
+            slots.getOrNull(1)?.let {
+                editP2.setText(it.name, false)
+                editP2Cp.setText(it.cp.toString())
+                editP2Ivs.setText(it.ivs ?: "")
+                editP2Fast.setText(it.fastMove)
+                editP2C1.setText(it.chargedMove1)
+                editP2C2.setText(it.chargedMove2)
+            }
+            slots.getOrNull(2)?.let {
+                editP3.setText(it.name, false)
+                editP3Cp.setText(it.cp.toString())
+                editP3Ivs.setText(it.ivs ?: "")
+                editP3Fast.setText(it.fastMove)
+                editP3C1.setText(it.chargedMove1)
+                editP3C2.setText(it.chargedMove2)
+            }
+        }
+
+        fun refreshDialogTeamEvaluation(autoReorder: Boolean): OverlayService.Companion.TeamArchetypeEvaluationResult {
+            val lg = currentLeagueProvider()
+            val top3Defaults = getLeagueTop3Defaults(lg)
+            val s1 = buildResolvedSlot(editP1, editP1Cp, editP1Ivs, editP1Fast, editP1C1, editP1C2, lg, top3Defaults[0])
+            val s2 = buildResolvedSlot(editP2, editP2Cp, editP2Ivs, editP2Fast, editP2C1, editP2C2, lg, top3Defaults[1])
+            val s3 = buildResolvedSlot(editP3, editP3Cp, editP3Ivs, editP3Fast, editP3C1, editP3C2, lg, top3Defaults[2])
+            val seasonLogs = getCurrentSeasonLogsForLeague(lg)
+            val eval = OverlayService.evaluateOrAutoOrderTeamStatic(
+                slots = listOf(
+                    OverlayService.TeamMember(s1.name, s1.cp, s1.fastMove, s1.chargedMove1, s1.chargedMove2, s1.ivs),
+                    OverlayService.TeamMember(s2.name, s2.cp, s2.fastMove, s2.chargedMove1, s2.chargedMove2, s2.ivs),
+                    OverlayService.TeamMember(s3.name, s3.cp, s3.fastMove, s3.chargedMove1, s3.chargedMove2, s3.ivs)
+                ),
+                league = lg,
+                seasonLogs = seasonLogs,
+                autoReorder = autoReorder
+            )
+            if (autoReorder) {
+                val orderedSlots = eval.orderedSlots.map {
+                    PokemonSlot(it.name, it.cp, it.fastMove, it.chargedMove1, it.chargedMove2, it.ivs)
+                }
+                applySlotsToDialogInputs(orderedSlots)
+            }
+
+            val isAbb = eval.archetype.equals("ABB", ignoreCase = true)
+            val (leadTier, leadHex) = getMatchupTierCodeAndHex(eval.leadAggBr)
+            val (machTier, machHex) = getMachineBrTierLabelAndHex(eval.machineAggBr)
+            val (swap2Tier, swap2Hex) = getMatchupTierCodeAndHex(eval.safeSwapBr)
+            val (swap3Tier, swap3Hex) = getMatchupTierCodeAndHex(eval.closerSwapBr)
+
+            val weakNote = if (eval.sharedWeaknesses.isNotEmpty()) " (Shared: ${eval.sharedWeaknesses.joinToString("/")})" else ""
+            val summaryHtml = "Style: <font color='${if (isAbb) "#fbbf24" else "#38bdf8"}'>${eval.archetype}$weakNote</font>  •  " +
+                "Lead BR: <font color='$leadHex'>${eval.leadAggBr} ($leadTier)</font>  •  " +
+                "Mach BR: <font color='$machHex'>${eval.machineAggBr} ($machTier)</font>"
+            textDialogArchetypeSummary?.text = android.text.Html.fromHtml(summaryHtml, android.text.Html.FROM_HTML_MODE_LEGACY)
+            textDialogMetaBlendInfo?.text =
+                "Current Season Meta Blend: ${eval.histWeightPct}% Recency-Weighted Logs (${eval.seasonMatchCount} matches) / ${100 - eval.histWeightPct}% PvPoke"
+
+            textP1RoleTitle?.text = if (isAbb) "⚔️ Lead Pokémon (Slot 1 · A) & Moveset" else "⚔️ Lead Pokémon (Slot 1) & Moveset"
+            textP2RoleTitle?.text = if (isAbb) "🔄 Bait Swap (Slot 2 · B1) & Moveset" else "🔄 Safe Swap (Slot 2) & Moveset"
+            textP3RoleTitle?.text = if (isAbb) "🛡️ Sweeper (Slot 3 · B2) & Moveset" else "🛡️ Closer (Slot 3) & Moveset"
+
+            textP1LeadBr?.text = "Lead BR: ${eval.leadAggBr} ($leadTier)"
+            textP1LeadBr?.setTextColor(android.graphics.Color.parseColor(leadHex))
+
+            textP2SwapBr?.text = "Swap BR: ${eval.safeSwapBr} ($swap2Tier)"
+            textP2SwapBr?.setTextColor(android.graphics.Color.parseColor(swap2Hex))
+
+            textP3SwapBr?.text = "Swap BR: ${eval.closerSwapBr} ($swap3Tier)"
+            textP3SwapBr?.setTextColor(android.graphics.Color.parseColor(swap3Hex))
+
+            return eval
+        }
+
+        btnDialogAutoDetect?.setOnClickListener {
+            val eval = refreshDialogTeamEvaluation(autoReorder = true)
+            val orderNames = eval.orderedSlots.joinToString(" → ") { it.name }
+            Toast.makeText(
+                this,
+                "⚡ Auto-Detected ${eval.archetype}: $orderNames (Slot 2 Swap BR: ${eval.safeSwapBr})",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+
+        btnSwapSlot12?.setOnClickListener {
+            val lg = currentLeagueProvider()
+            val top3Defaults = getLeagueTop3Defaults(lg)
+            val s1 = buildResolvedSlot(editP1, editP1Cp, editP1Ivs, editP1Fast, editP1C1, editP1C2, lg, top3Defaults[0])
+            val s2 = buildResolvedSlot(editP2, editP2Cp, editP2Ivs, editP2Fast, editP2C1, editP2C2, lg, top3Defaults[1])
+            val s3 = buildResolvedSlot(editP3, editP3Cp, editP3Ivs, editP3Fast, editP3C1, editP3C2, lg, top3Defaults[2])
+            applySlotsToDialogInputs(listOf(s2, s1, s3))
+            refreshDialogTeamEvaluation(autoReorder = false)
+        }
+
+        btnSwapSlot23?.setOnClickListener {
+            val lg = currentLeagueProvider()
+            val top3Defaults = getLeagueTop3Defaults(lg)
+            val s1 = buildResolvedSlot(editP1, editP1Cp, editP1Ivs, editP1Fast, editP1C1, editP1C2, lg, top3Defaults[0])
+            val s2 = buildResolvedSlot(editP2, editP2Cp, editP2Ivs, editP2Fast, editP2C1, editP2C2, lg, top3Defaults[1])
+            val s3 = buildResolvedSlot(editP3, editP3Cp, editP3Ivs, editP3Fast, editP3C1, editP3C2, lg, top3Defaults[2])
+            applySlotsToDialogInputs(listOf(s1, s3, s2))
+            refreshDialogTeamEvaluation(autoReorder = false)
+        }
+
+        refreshDialogTeamEvaluation(autoReorder = false)
+
+        // Apply active theme & optional background watermark logo to the Team Edit dialog
+        val activeTheme = getActiveAppTheme()
+        val showWatermark = prefs.getBoolean(OverlayService.PREFS_KEY_SHOW_THEME_WATERMARK, true) && activeTheme.emblemDrawableRes != null
+        dialogView.findViewById<android.view.View>(R.id.root_preset_dialog_frame)?.setBackgroundColor(activeTheme.bgColor)
+        dialogView.findViewById<ImageView>(R.id.iv_preset_dialog_watermark)?.let { iv ->
+            if (showWatermark && activeTheme.emblemDrawableRes != null) {
+                iv.setImageResource(activeTheme.emblemDrawableRes)
+                iv.alpha = if (activeTheme.isLight) 0.24f else 0.20f
+                iv.visibility = android.view.View.VISIBLE
+            } else {
+                iv.visibility = android.view.View.GONE
+            }
+        }
+        applyThemeRecursively(dialogView, activeTheme, showWatermark)
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(if (existingPreset != null) "⚔️ Edit Team & Moves" else "➕ Create Custom GBL Team")
             .setView(dialogView)
             .setPositiveButton("Save Team") { _, _ ->
                 val league = spinnerLeague.selectedItem.toString()
@@ -3545,7 +5310,7 @@ class MainActivity : AppCompatActivity() {
                 val p2 = buildResolvedSlot(editP2, editP2Cp, editP2Ivs, editP2Fast, editP2C1, editP2C2, league, top3Defaults[1])
                 val p3 = buildResolvedSlot(editP3, editP3Cp, editP3Ivs, editP3Fast, editP3C1, editP3C2, league, top3Defaults[2])
 
-                val savedPreset = TeamPreset(
+                val rawPreset = TeamPreset(
                     id = existingPreset?.id ?: UUID.randomUUID().toString(),
                     name = name,
                     league = league,
@@ -3553,6 +5318,7 @@ class MainActivity : AppCompatActivity() {
                     isSelected = existingPreset?.isSelected ?: false,
                     updatedAt = System.currentTimeMillis()
                 )
+                val savedPreset = evaluatePresetMetrics(rawPreset, autoReorder = false)
 
                 val list = loadPresets().toMutableList()
                 val existingIdx = list.indexOfFirst { it.id == savedPreset.id }
@@ -3565,10 +5331,15 @@ class MainActivity : AppCompatActivity() {
                 setSelectedPreset(savedPreset.id)
                 setupBattleLogFilters()
                 triggerTwoDeviceCloudSync(silent = true)
-                Toast.makeText(this, "Saved '${name}' & updated moves!", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    this,
+                    "Saved '${name}' (${savedPreset.archetype} • Lead BR ${savedPreset.leadAggBr} • Mach BR ${savedPreset.machineAggBr})!",
+                    Toast.LENGTH_SHORT
+                ).show()
             }
             .setNegativeButton("Cancel", null)
             .show()
+        styleThemedAlertDialog(dialog)
     }
 
     private fun formatDbAndLeagueStatusText(): String {
@@ -3676,6 +5447,273 @@ class MainActivity : AppCompatActivity() {
                     dbStatusText.text = "Database Sync Failed: ${e.localizedMessage}\n${formatDbAndLeagueStatusText()}"
                     btnDownloadDb.isEnabled = true
                     Toast.makeText(this@MainActivity, "Sync error: ${e.message}", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Headless Translucent Activity for Tasker Automation:
+ * Starts or stops the floating PvP overlay over the current foreground app (e.g., Pokémon GO)
+ * without opening MainActivity or leaving the game.
+ */
+class TaskerOverlayActivity : Activity() {
+
+    private var requestedTeamExtra: String? = null
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        @Suppress("DEPRECATION")
+        overridePendingTransition(0, 0)
+        handleTaskerIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleTaskerIntent(intent)
+    }
+
+    private fun handleTaskerIntent(incoming: Intent?) {
+        val act = incoming?.action.orEmpty()
+        val cmd = (incoming?.getStringExtra("cmd") ?: incoming?.getStringExtra("command")).orEmpty().trim()
+        requestedTeamExtra = incoming?.getStringExtra(OverlayService.EXTRA_TEAM_NAME)
+            ?: incoming?.getStringExtra("preset")
+
+        val isStop = act.equals(OverlayService.ACTION_STOP_OVERLAY, ignoreCase = true) ||
+            act.equals(OverlayService.ACTION_SHORT_STOP, ignoreCase = true) ||
+            cmd.equals("stop", ignoreCase = true)
+
+        val isToggle = act.equals(OverlayService.ACTION_TOGGLE_OVERLAY, ignoreCase = true) ||
+            act.equals(OverlayService.ACTION_SHORT_TOGGLE, ignoreCase = true) ||
+            cmd.equals("toggle", ignoreCase = true)
+
+        val isMinimize = act.equals(OverlayService.ACTION_MINIMIZE_OVERLAY, ignoreCase = true) ||
+            cmd.equals("minimize", ignoreCase = true)
+
+        val isRestore = act.equals(OverlayService.ACTION_RESTORE_OVERLAY, ignoreCase = true) ||
+            cmd.equals("restore", ignoreCase = true)
+
+        val isOpenBattleLog = act.equals(OverlayService.ACTION_OPEN_BATTLE_LOG, ignoreCase = true) ||
+            act.equals(OverlayService.ACTION_SHORT_BATTLE_LOG, ignoreCase = true) ||
+            cmd.equals("battle_log", ignoreCase = true)
+
+        when {
+            isOpenBattleLog -> {
+                val mainIntent = Intent(this, MainActivity::class.java).apply {
+                    action = OverlayService.ACTION_OPEN_BATTLE_LOG
+                    putExtra("page", "battle_log")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                }
+                startActivity(mainIntent)
+                finishQuietly()
+            }
+            isStop || (isToggle && OverlayService.isInstanceRunning) -> {
+                val stopIntent = Intent(this, OverlayService::class.java).apply {
+                    action = OverlayService.ACTION_STOP_OVERLAY
+                }
+                try {
+                    startService(stopIntent)
+                } catch (_: Exception) {
+                    stopService(Intent(this, OverlayService::class.java))
+                }
+                finishQuietly()
+            }
+            isMinimize -> {
+                if (OverlayService.isInstanceRunning) {
+                    val minIntent = Intent(this, OverlayService::class.java).apply {
+                        action = OverlayService.ACTION_MINIMIZE_OVERLAY
+                    }
+                    startService(minIntent)
+                }
+                finishQuietly()
+            }
+            isRestore -> {
+                if (OverlayService.isInstanceRunning) {
+                    val resIntent = Intent(this, OverlayService::class.java).apply {
+                        action = OverlayService.ACTION_RESTORE_OVERLAY
+                    }
+                    startService(resIntent)
+                }
+                finishQuietly()
+            }
+            else -> {
+                // Default / ACTION_START_OVERLAY
+                if (!Settings.canDrawOverlays(this)) {
+                    val permIntent = Intent(
+                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:$packageName")
+                    ).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    Toast.makeText(this, "Grant 'Display over other apps' permission for SilphScope PvP", Toast.LENGTH_LONG).show()
+                    startActivity(permIntent)
+                    finishQuietly()
+                    return
+                }
+
+                val manualMode = incoming?.getBooleanExtra("manual_mode", false) == true
+                if ((OverlayService.isInstanceRunning && OverlayService.hasActiveMediaProjection) || manualMode) {
+                    startOverlayServiceWithResult(0, null)
+                    finishQuietly()
+                    return
+                }
+
+                val projMgr = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as? MediaProjectionManager
+                if (projMgr != null) {
+                    try {
+                        @Suppress("DEPRECATION")
+                        startActivityForResult(projMgr.createScreenCaptureIntent(), REQ_TASKER_MEDIA_PROJECTION)
+                    } catch (_: Exception) {
+                        startOverlayServiceWithResult(0, null)
+                        finishQuietly()
+                    }
+                } else {
+                    startOverlayServiceWithResult(0, null)
+                    finishQuietly()
+                }
+            }
+        }
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQ_TASKER_MEDIA_PROJECTION) {
+            if (resultCode == RESULT_OK && data != null) {
+                startOverlayServiceWithResult(resultCode, data)
+            } else {
+                startOverlayServiceWithResult(0, null)
+            }
+            finishQuietly()
+        }
+    }
+
+    private fun startOverlayServiceWithResult(resultCode: Int, data: Intent?) {
+        val prefs = getSharedPreferences("gbl_overlay_prefs", Context.MODE_PRIVATE)
+        val serviceIntent = Intent(this, OverlayService::class.java).apply {
+            action = OverlayService.ACTION_START_OVERLAY
+            putExtra(OverlayService.EXTRA_RESULT_CODE, resultCode)
+            if (data != null) {
+                putExtra(OverlayService.EXTRA_RESULT_DATA, data)
+            }
+            if (!requestedTeamExtra.isNullOrBlank()) {
+                putExtra(OverlayService.EXTRA_TEAM_NAME, requestedTeamExtra)
+            }
+            putExtra(OverlayService.EXTRA_OPP_COUNT_MODE, prefs.getString("opp_count_mode", "my_fasts") ?: "my_fasts")
+            putExtra(OverlayService.EXTRA_ENABLE_4_CHARGED_MOVES, prefs.getBoolean(OverlayService.PREFS_KEY_ENABLE_4_CHARGED_MOVES, false))
+            putExtra(OverlayService.EXTRA_DISABLE_BATTLE_TOASTS, prefs.getBoolean(OverlayService.PREFS_KEY_DISABLE_BATTLE_TOASTS, false))
+            putExtra(OverlayService.EXTRA_OVERLAY_SCALE_PCT, prefs.getInt("overlay_scale_pct", 78))
+            putExtra(OverlayService.EXTRA_OVERLAY_TRANSPARENCY_PCT, prefs.getInt(OverlayService.PREFS_KEY_OVERLAY_TRANSPARENCY_PCT, 72))
+            putExtra(OverlayService.EXTRA_APP_THEME_ID, prefs.getString(OverlayService.PREFS_KEY_APP_THEME_ID, "slate") ?: "slate")
+        }
+        try {
+            ContextCompat.startForegroundService(this, serviceIntent)
+        } catch (_: Exception) {
+            try {
+                startService(serviceIntent)
+            } catch (_: Exception) {}
+        }
+    }
+
+    private fun finishQuietly() {
+        finish()
+        @Suppress("DEPRECATION")
+        overridePendingTransition(0, 0)
+    }
+
+    companion object {
+        private const val REQ_TASKER_MEDIA_PROJECTION = 9401
+    }
+}
+
+/**
+ * BroadcastReceiver for Tasker Send Intent (Target: Broadcast Receiver):
+ * Supports starting, stopping, toggling, minimizing, or restoring the overlay and launching the Battle Log page.
+ */
+class TaskerBroadcastReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent?) {
+        val act = intent?.action.orEmpty()
+        val cmd = (intent?.getStringExtra("cmd") ?: intent?.getStringExtra("command")).orEmpty().trim()
+
+        val isStop = act.equals(OverlayService.ACTION_STOP_OVERLAY, ignoreCase = true) ||
+            act.equals(OverlayService.ACTION_SHORT_STOP, ignoreCase = true) ||
+            cmd.equals("stop", ignoreCase = true)
+
+        val isToggle = act.equals(OverlayService.ACTION_TOGGLE_OVERLAY, ignoreCase = true) ||
+            act.equals(OverlayService.ACTION_SHORT_TOGGLE, ignoreCase = true) ||
+            cmd.equals("toggle", ignoreCase = true)
+
+        val isMinimize = act.equals(OverlayService.ACTION_MINIMIZE_OVERLAY, ignoreCase = true) ||
+            cmd.equals("minimize", ignoreCase = true)
+
+        val isRestore = act.equals(OverlayService.ACTION_RESTORE_OVERLAY, ignoreCase = true) ||
+            cmd.equals("restore", ignoreCase = true)
+
+        val isOpenBattleLog = act.equals(OverlayService.ACTION_OPEN_BATTLE_LOG, ignoreCase = true) ||
+            act.equals(OverlayService.ACTION_SHORT_BATTLE_LOG, ignoreCase = true) ||
+            cmd.equals("battle_log", ignoreCase = true)
+
+        when {
+            isOpenBattleLog -> {
+                val mainIntent = Intent(context, MainActivity::class.java).apply {
+                    action = OverlayService.ACTION_OPEN_BATTLE_LOG
+                    putExtra("page", "battle_log")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                }
+                context.startActivity(mainIntent)
+            }
+            isStop || (isToggle && OverlayService.isInstanceRunning) -> {
+                if (OverlayService.isInstanceRunning) {
+                    val stopIntent = Intent(context, OverlayService::class.java).apply {
+                        action = OverlayService.ACTION_STOP_OVERLAY
+                    }
+                    try {
+                        context.startService(stopIntent)
+                    } catch (_: Exception) {
+                        context.stopService(Intent(context, OverlayService::class.java))
+                    }
+                } else {
+                    context.stopService(Intent(context, OverlayService::class.java))
+                }
+            }
+            isMinimize -> {
+                if (OverlayService.isInstanceRunning) {
+                    context.startService(Intent(context, OverlayService::class.java).apply {
+                        action = OverlayService.ACTION_MINIMIZE_OVERLAY
+                    })
+                }
+            }
+            isRestore -> {
+                if (OverlayService.isInstanceRunning) {
+                    context.startService(Intent(context, OverlayService::class.java).apply {
+                        action = OverlayService.ACTION_RESTORE_OVERLAY
+                    })
+                }
+            }
+            else -> {
+                val manualMode = intent?.getBooleanExtra("manual_mode", false) == true
+                if ((OverlayService.isInstanceRunning && OverlayService.hasActiveMediaProjection) || manualMode) {
+                    val prefs = context.getSharedPreferences("gbl_overlay_prefs", Context.MODE_PRIVATE)
+                    val srvIntent = Intent(context, OverlayService::class.java).apply {
+                        action = OverlayService.ACTION_START_OVERLAY
+                        intent?.getStringExtra(OverlayService.EXTRA_TEAM_NAME)?.let { putExtra(OverlayService.EXTRA_TEAM_NAME, it) }
+                        putExtra(OverlayService.EXTRA_OPP_COUNT_MODE, prefs.getString("opp_count_mode", "my_fasts") ?: "my_fasts")
+                        putExtra(OverlayService.EXTRA_ENABLE_4_CHARGED_MOVES, prefs.getBoolean(OverlayService.PREFS_KEY_ENABLE_4_CHARGED_MOVES, false))
+                        putExtra(OverlayService.EXTRA_DISABLE_BATTLE_TOASTS, prefs.getBoolean(OverlayService.PREFS_KEY_DISABLE_BATTLE_TOASTS, false))
+                        putExtra(OverlayService.EXTRA_OVERLAY_SCALE_PCT, prefs.getInt("overlay_scale_pct", 78))
+                        putExtra(OverlayService.EXTRA_OVERLAY_TRANSPARENCY_PCT, prefs.getInt(OverlayService.PREFS_KEY_OVERLAY_TRANSPARENCY_PCT, 72))
+                        putExtra(OverlayService.EXTRA_APP_THEME_ID, prefs.getString(OverlayService.PREFS_KEY_APP_THEME_ID, "slate") ?: "slate")
+                    }
+                    ContextCompat.startForegroundService(context, srvIntent)
+                } else {
+                    val actIntent = Intent(context, TaskerOverlayActivity::class.java).apply {
+                        action = OverlayService.ACTION_START_OVERLAY
+                        intent?.extras?.let { putExtras(it) }
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NO_ANIMATION)
+                    }
+                    context.startActivity(actIntent)
                 }
             }
         }

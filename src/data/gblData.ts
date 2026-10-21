@@ -73,6 +73,15 @@ export interface TeamPreset {
   league: LeagueType;
   pokemon: TeamMember[];
   isSelected?: boolean;
+  archetype?: "ABB" | "ABC";
+  isArchetypeManual?: boolean;
+  leadAggBr?: number;
+  machineAggBr?: number;
+  safeSwapBr?: number;
+  closerSwapBr?: number;
+  closerBr?: number;
+  sharedWeaknesses?: string[];
+  metricsUpdatedAt?: number;
 }
 
 // Type effectiveness table for Pokémon GO PvP (1.6x SE, 0.625x NVE, 0.390625x Immune)
@@ -3896,7 +3905,959 @@ export function calculateShieldMatrix(
   return result;
 }
 
-export const INITIAL_PRESETS: TeamPreset[] = [
+export interface MachineBrThresholds {
+  eliteMin: number;
+  solidMin: number;
+  playableMin: number;
+  riskyMin: number;
+}
+
+export const DEFAULT_MACHINE_BR_THRESHOLDS: MachineBrThresholds = {
+  eliteMin: 650,
+  solidMin: 610,
+  playableMin: 580,
+  riskyMin: 540
+};
+
+export const MACHINE_BR_THRESHOLDS_STORAGE_KEY = "gbl_machine_br_thresholds_v1";
+
+export function getStoredMachineBrThresholds(): MachineBrThresholds {
+  try {
+    if (typeof window === "undefined" || !window.localStorage) {
+      return { ...DEFAULT_MACHINE_BR_THRESHOLDS };
+    }
+    const raw = window.localStorage.getItem(MACHINE_BR_THRESHOLDS_STORAGE_KEY);
+    if (!raw) return { ...DEFAULT_MACHINE_BR_THRESHOLDS };
+    const parsed = JSON.parse(raw);
+    const riskyMin = Math.max(350, Math.min(800, Number(parsed?.riskyMin) || DEFAULT_MACHINE_BR_THRESHOLDS.riskyMin));
+    const playableMin = Math.max(riskyMin + 1, Math.min(850, Number(parsed?.playableMin) || DEFAULT_MACHINE_BR_THRESHOLDS.playableMin));
+    const solidMin = Math.max(playableMin + 1, Math.min(900, Number(parsed?.solidMin) || DEFAULT_MACHINE_BR_THRESHOLDS.solidMin));
+    const eliteMin = Math.max(solidMin + 1, Math.min(950, Number(parsed?.eliteMin) || DEFAULT_MACHINE_BR_THRESHOLDS.eliteMin));
+    return { eliteMin, solidMin, playableMin, riskyMin };
+  } catch {
+    return { ...DEFAULT_MACHINE_BR_THRESHOLDS };
+  }
+}
+
+export interface BrTierBadgeStyle {
+  tier: string;
+  label: string;
+  colorHex: string;
+  badgeClass: string;
+  textClass: string;
+}
+
+/**
+ * Color codes single-slot aggregate ratings (Lead Agg BR, Safe Swap BR, Closer Swap BR)
+ * using the 5-Tier Matchup Thresholds (SW / W / N / L / SL) configured in Settings.
+ */
+export function getSingleSlotBrTierInfo(
+  rating: number,
+  customThresholds?: MatchupTierThresholds
+): BrTierBadgeStyle {
+  const t = customThresholds || getStoredMatchupTierThresholds();
+  const r = Math.round(Number.isFinite(rating) ? rating : 500);
+  if (r >= t.swMin) {
+    return {
+      tier: "SW",
+      label: "Strong Win",
+      colorHex: "#10b981",
+      badgeClass: "bg-emerald-500/20 text-emerald-300 border-emerald-500/50",
+      textClass: "text-emerald-400"
+    };
+  }
+  if (r >= t.wMin) {
+    return {
+      tier: "W",
+      label: "Favorable",
+      colorHex: "#4ade80",
+      badgeClass: "bg-green-500/20 text-green-300 border-green-500/40",
+      textClass: "text-green-400"
+    };
+  }
+  if (r > t.lMax) {
+    return {
+      tier: "N",
+      label: "Neutral",
+      colorHex: "#94a3b8",
+      badgeClass: "bg-slate-700/60 text-slate-200 border-slate-500/40",
+      textClass: "text-slate-300"
+    };
+  }
+  if (r > t.slMax) {
+    return {
+      tier: "L",
+      label: "Unfavorable",
+      colorHex: "#f87171",
+      badgeClass: "bg-red-500/20 text-red-300 border-red-500/40",
+      textClass: "text-red-400"
+    };
+  }
+  return {
+    tier: "SL",
+    label: "Strong Loss",
+    colorHex: "#f43f5e",
+    badgeClass: "bg-rose-600/25 text-rose-300 border-rose-500/50",
+    textClass: "text-rose-400"
+  };
+}
+
+/**
+ * Color codes 3-Pokemon Machine Aggregate BR (theoretical alignment ceiling)
+ * using the dedicated Machine Aggregate BR Thresholds from Settings.
+ */
+export function getMachineBrTierInfo(
+  rating: number,
+  customThresholds?: MachineBrThresholds
+): BrTierBadgeStyle {
+  const t = customThresholds || getStoredMachineBrThresholds();
+  const r = Math.round(Number.isFinite(rating) ? rating : 600);
+  if (r >= t.eliteMin) {
+    return {
+      tier: "ELITE",
+      label: "Well-Rounded Core",
+      colorHex: "#10b981",
+      badgeClass: "bg-emerald-500/20 text-emerald-300 border-emerald-500/50",
+      textClass: "text-emerald-400"
+    };
+  }
+  if (r >= t.solidMin) {
+    return {
+      tier: "SOLID",
+      label: "Solid Coverage",
+      colorHex: "#4ade80",
+      badgeClass: "bg-green-500/20 text-green-300 border-green-500/40",
+      textClass: "text-green-400"
+    };
+  }
+  if (r >= t.playableMin) {
+    return {
+      tier: "PLAYABLE",
+      label: "Playable / Moderate Gaps",
+      colorHex: "#fbbf24",
+      badgeClass: "bg-amber-500/20 text-amber-300 border-amber-500/45",
+      textClass: "text-amber-300"
+    };
+  }
+  if (r >= t.riskyMin) {
+    return {
+      tier: "VULNERABLE",
+      label: "Core Vulnerability",
+      colorHex: "#fb923c",
+      badgeClass: "bg-orange-500/20 text-orange-300 border-orange-500/45",
+      textClass: "text-orange-400"
+    };
+  }
+  return {
+    tier: "BLINDSPOT",
+    label: "Severe Blindspot",
+    colorHex: "#f43f5e",
+    badgeClass: "bg-rose-600/25 text-rose-300 border-rose-500/50",
+    textClass: "text-rose-400"
+  };
+}
+
+const ALL_18_TYPES = [
+  "normal", "fire", "water", "electric", "grass", "ice",
+  "fighting", "poison", "ground", "flying", "psychic", "bug",
+  "rock", "ghost", "dragon", "dark", "steel", "fairy"
+] as const;
+
+function resolveCombatPokemonForEngine(
+  input: TeamMember | string,
+  league: string = "GREAT LEAGUE"
+): {
+  stats: PokemonStats & { resolvedCp: number };
+  isShadow: boolean;
+  fastMove: FastMove;
+  chargedMoves: ChargedMove[];
+} {
+  const rawName = typeof input === "string" ? input : input.name;
+  const customCp = typeof input === "object" ? input.cp : undefined;
+  const customIvs = typeof input === "object" ? input.ivs : undefined;
+  const isShadow =
+    /^Shadow\s+/i.test(rawName || "") ||
+    (rawName || "").toLowerCase().includes("(shadow)");
+  const cleanName = (rawName || "")
+    .replace(/^Shadow\s+/i, "")
+    .replace(/\s*\(Shadow\)/i, "")
+    .trim();
+
+  const dbValues = Object.values(POKEMON_DATABASE);
+  const rawBase =
+    POKEMON_DATABASE[rawName] ||
+    POKEMON_DATABASE[cleanName] ||
+    dbValues.find(
+      (p) =>
+        p.name.toLowerCase() === (rawName || "").toLowerCase() ||
+        p.name.toLowerCase() === cleanName.toLowerCase() ||
+        p.speciesId.toLowerCase() === cleanName.toLowerCase().replace(/[^a-z0-9]+/g, "_")
+    ) ||
+    dbValues.find((p) => p.name.toLowerCase().includes(cleanName.toLowerCase())) ||
+    dbValues[0];
+
+  const rankedStats = applyRankingMovesToPokemonStats(rawBase, league, isShadow);
+  const effectiveStats = computeEffectiveStatsForLeague(
+    rankedStats,
+    league,
+    customCp,
+    customIvs,
+    isShadow
+  );
+
+  const customFastName = typeof input === "object" ? input.fastMove : undefined;
+  const fastMove = resolveFastMove(effectiveStats, customFastName);
+
+  let chargedMoves = effectiveStats.chargedMoves.slice(0, 2);
+  if (typeof input === "object") {
+    const customNames = [input.chargedMove1, input.chargedMove2].filter(
+      (m): m is string => Boolean(m && m.trim())
+    );
+    if (customNames.length > 0) {
+      chargedMoves = customNames.map((mName) =>
+        buildChargedMoveFromName(mName, effectiveStats.types[0], effectiveStats.chargedMoves)
+      );
+    }
+  }
+  if (chargedMoves.length === 0) {
+    chargedMoves = [
+      { name: "Body Slam", code: "BS", type: "normal", power: 65, energyCost: 40 }
+    ];
+  }
+
+  return {
+    stats: effectiveStats,
+    isShadow,
+    fastMove,
+    chargedMoves
+  };
+}
+
+/**
+ * Evaluates a discrete head-to-head Battle Rating (150..850, 500 neutral)
+ * for any shield combination (userShields in 0..2, oppShields in 0..2).
+ */
+export function evaluateDiscreteShieldBattleRating(
+  userInput: TeamMember | string,
+  oppInput: TeamMember | string,
+  userShields: number,
+  oppShields: number,
+  league: string = "GREAT LEAGUE"
+): number {
+  const sUser = Math.max(0, Math.min(2, Math.round(userShields)));
+  const sOpp = Math.max(0, Math.min(2, Math.round(oppShields)));
+
+  const userResolved = resolveCombatPokemonForEngine(userInput, league);
+  const oppResolved = resolveCombatPokemonForEngine(oppInput, league);
+
+  const myStats = userResolved.stats;
+  const oppStats = oppResolved.stats;
+
+  const myChargedDamages = userResolved.chargedMoves.slice(0, 2).map(
+    (cm) => calculateChargedDamage(myStats, oppStats, cm, userResolved.isShadow, oppResolved.isShadow).percentage
+  );
+  const bestUserCharged = myChargedDamages.length ? Math.max(...myChargedDamages) : 45;
+  const minUserCharged = myChargedDamages.length ? Math.min(...myChargedDamages) : 35;
+
+  const oppChargedDamages = oppResolved.chargedMoves.slice(0, 2).map(
+    (cm) => calculateChargedDamage(oppStats, myStats, cm, oppResolved.isShadow, userResolved.isShadow).percentage
+  );
+  const bestOppCharged = oppChargedDamages.length ? Math.max(...oppChargedDamages) : 45;
+  const minOppCharged = oppChargedDamages.length ? Math.min(...oppChargedDamages) : 35;
+
+  const userFastEff = getTypeMultiplier(userResolved.fastMove.type, oppStats.types);
+  const oppFastEff = getTypeMultiplier(oppResolved.fastMove.type, myStats.types);
+
+  const shadowBulkDelta = (userResolved.isShadow ? -12 : 0) + (oppResolved.isShadow ? 12 : 0);
+
+  const chargedPressure = (bestPct: number, minPct: number, defShields: number): number => {
+    if (defShields === 0) return bestPct * 1.7;
+    if (defShields === 1) return ((bestPct + minPct) * 0.5) * 1.4;
+    return minPct * 1.0;
+  };
+
+  const userChargedImpact = chargedPressure(bestUserCharged, minUserCharged, sOpp);
+  const oppChargedImpact = chargedPressure(bestOppCharged, minOppCharged, sUser);
+  const chargedDelta = 2.0 * (userChargedImpact - oppChargedImpact);
+
+  const avgShields = (sUser + sOpp) * 0.5;
+  const fastWeight = avgShields <= 1 ? 95 + avgShields * 25 : 120 + (avgShields - 1) * 35;
+  const fastDelta = (userFastEff - oppFastEff) * fastWeight;
+
+  const shadowMultiplier = avgShields <= 1 ? 1 : avgShields;
+  const effectiveShadowDelta = shadowBulkDelta * shadowMultiplier;
+
+  const shieldDiff = sUser - sOpp;
+  const shieldAdvantageDelta =
+    shieldDiff * (85 + 0.65 * ((bestOppCharged + bestUserCharged) * 0.5));
+
+  const rawRating = Math.round(
+    500 + chargedDelta + fastDelta + effectiveShadowDelta + shieldAdvantageDelta
+  );
+
+  return Math.max(150, Math.min(850, rawRating));
+}
+
+export interface PositionWeightedMatchupRatings {
+  leadBr: number;
+  swapBr: number;
+  closerBr: number;
+}
+
+/**
+ * Computes Position-Weighted Shield Scenario Ratings for a single matchup (User vs Opponent):
+ * - Slot 1 (Lead): 0.45 * 1v1 + 0.35 * 2v2 + 0.10 * 0v0 + 0.05 * 1v2 + 0.05 * 2v1
+ * - Slot 2 (Safe Swap / Bait): 0.40 * 1v1 + 0.20 * 1v0 + 0.20 * 0v1 + 0.10 * 2v1 + 0.10 * 0v0
+ * - Slot 3 (Closer / Sweeper): 0.50 * 0v0 + 0.20 * 1v0 + 0.15 * 0v1 + 0.15 * 1v1
+ */
+export function evaluatePositionWeightedBr(
+  userInput: TeamMember | string,
+  oppInput: TeamMember | string,
+  league: string = "GREAT LEAGUE"
+): PositionWeightedMatchupRatings {
+  const r0v0 = evaluateDiscreteShieldBattleRating(userInput, oppInput, 0, 0, league);
+  const r0v1 = evaluateDiscreteShieldBattleRating(userInput, oppInput, 0, 1, league);
+  const r1v0 = evaluateDiscreteShieldBattleRating(userInput, oppInput, 1, 0, league);
+  const r1v1 = evaluateDiscreteShieldBattleRating(userInput, oppInput, 1, 1, league);
+  const r1v2 = evaluateDiscreteShieldBattleRating(userInput, oppInput, 1, 2, league);
+  const r2v1 = evaluateDiscreteShieldBattleRating(userInput, oppInput, 2, 1, league);
+  const r2v2 = evaluateDiscreteShieldBattleRating(userInput, oppInput, 2, 2, league);
+
+  const leadBr =
+    0.45 * r1v1 +
+    0.35 * r2v2 +
+    0.10 * r0v0 +
+    0.05 * r1v2 +
+    0.05 * r2v1;
+
+  const swapBr =
+    0.40 * r1v1 +
+    0.20 * r1v0 +
+    0.20 * r0v1 +
+    0.10 * r2v1 +
+    0.10 * r0v0;
+
+  const closerBr =
+    0.50 * r0v0 +
+    0.20 * r1v0 +
+    0.15 * r0v1 +
+    0.15 * r1v1;
+
+  return { leadBr, swapBr, closerBr };
+}
+
+export interface BlendedSeasonMetaDistribution {
+  league: string;
+  seasonMatchCount: number;
+  wHist: number;
+  wMeta: number;
+  leadProbabilities: Map<string, number>;
+  fieldProbabilities: Map<string, number>;
+}
+
+function getLeagueTopMetaSpeciesNames(league: string, maxCount: number = 24): string[] {
+  const upper = (league || "GREAT LEAGUE").toUpperCase();
+  const normLeague = upper.includes("MEGA")
+    ? "MEGA MASTER LEAGUE"
+    : upper.includes("GREAT")
+    ? "GREAT LEAGUE"
+    : upper.includes("ULTRA")
+    ? "ULTRA LEAGUE"
+    : "MASTER LEAGUE";
+
+  const liveMap = LIVE_RANKINGS_MAP[normLeague];
+  if (liveMap && liveMap.size > 0) {
+    const sortedEntries = Array.from(liveMap.values()).sort((a, b) => b.score - a.score);
+    const names: string[] = [];
+    const seen = new Set<string>();
+    for (const entry of sortedEntries) {
+      const sid = entry.speciesId.toLowerCase();
+      const matchedMon = Object.values(POKEMON_DATABASE).find(
+        (p) => p.speciesId.toLowerCase() === sid
+      );
+      let displayName = matchedMon?.name;
+      if (!displayName) {
+        const isShad = sid.endsWith("_shadow");
+        const cleanSid = sid.replace(/_shadow$/i, "");
+        const baseMatch = Object.values(POKEMON_DATABASE).find(
+          (p) => p.speciesId.toLowerCase() === cleanSid
+        );
+        if (baseMatch) {
+          displayName = isShad && !baseMatch.name.toLowerCase().startsWith("shadow ")
+            ? `Shadow ${baseMatch.name}`
+            : baseMatch.name;
+        }
+      }
+      if (displayName) {
+        const key = displayName.toLowerCase();
+        if (!seen.has(key)) {
+          seen.add(key);
+          names.push(displayName);
+          if (names.length >= maxCount) break;
+        }
+      }
+    }
+    if (names.length >= 6) return names;
+  }
+
+  // Fallback curated meta pool per league
+  if (normLeague === "GREAT LEAGUE") {
+    return [
+      "Clodsire", "Feraligatr", "Mandibuzz", "Azumarill", "Annihilape",
+      "Gastrodon", "Gatr (Shadow)", "Jumpluff", "Dunsparce", "Drapion",
+      "Talonflame", "Wigglytuff", "Lickilicky", "Toxapex", "Malamar",
+      "Corsola (Galarian)", "Primeape", "Serperior", "Dewgong", "feraligatr"
+    ].filter((v, idx, arr) => arr.findIndex((x) => x.toLowerCase() === v.toLowerCase()) === idx);
+  }
+  if (normLeague === "ULTRA LEAGUE") {
+    return [
+      "Zygarde", "Feraligatr", "Giratina (Altered)", "Cresselia", "Talonflame",
+      "Clefable", "Drapion", "Tentacruel", "Poliwrath", "Skeledirge",
+      "Annihilape", "Lickilicky", "Virizion", "Cobalion", "Registeel",
+      "Tapu Fini", "Swampert", "Mandibuzz"
+    ];
+  }
+  if (normLeague === "MEGA MASTER LEAGUE") {
+    return [
+      "Mega Rayquaza", "Primal Groudon", "Primal Kyogre", "Zacian (Crowned)",
+      "Palkia (Origin)", "Dialga (Origin)", "Necrozma (Dusk Mane)", "Necrozma (Dawn Wings)",
+      "Mewtwo", "Ho-Oh", "Zygarde", "Xerneas", "Yveltal", "Landorus (Therian)"
+    ];
+  }
+  return [
+    "Palkia (Origin)", "Zacian (Crowned)", "Dialga (Origin)", "Necrozma (Dusk Mane)",
+    "Necrozma (Dawn Wings)", "Ho-Oh", "Landorus (Therian)", "Zygarde",
+    "Rhyperior", "Xerneas", "Yveltal", "Kyogre", "Groudon", "Mewtwo",
+    "Solgaleo", "Meloetta (Aria)", "Florges", "Dragonite"
+  ];
+}
+
+function canonicalizeMetaPokemonName(rawName: string): string {
+  const trimmed = (rawName || "").trim();
+  if (!trimmed || trimmed.toLowerCase() === "unknown" || trimmed.toLowerCase() === "waiting...") {
+    return "";
+  }
+  const isShadow = /^Shadow\s+/i.test(trimmed) || /\(Shadow\)/i.test(trimmed);
+  const clean = trimmed.replace(/^Shadow\s+/i, "").replace(/\s*\(Shadow\)/i, "").trim();
+  const dbMatch =
+    POKEMON_DATABASE[trimmed] ||
+    POKEMON_DATABASE[clean] ||
+    Object.values(POKEMON_DATABASE).find(
+      (p) => p.name.toLowerCase() === clean.toLowerCase()
+    );
+  if (dbMatch) {
+    if (isShadow && !dbMatch.name.toLowerCase().startsWith("shadow ")) {
+      return `Shadow ${dbMatch.name}`;
+    }
+    return dbMatch.name;
+  }
+  return isShadow ? `Shadow ${clean}` : clean;
+}
+
+/**
+ * Computes the Blended Opponent Distribution P_lead(p) and P_field(p)
+ * bound strictly to the current season's battle logs for the specified league,
+ * using:
+ * 1. Linear Confidence Ramp (0..50 matches): w_hist = 0.70 * min(1, N / 50), w_meta = 1 - w_hist
+ * 2. PvPoke Meta Prior P_meta(p) with rank exponential decay W_meta(r) = exp(-0.05 * (r - 1))
+ * 3. Battle Log Recency Decay P_hist_lead(p) & P_hist_field(p) with newest-first match index k = 1..N
+ *    weighted by the identical exponential decay W_hist(k) = exp(-0.05 * (k - 1)).
+ */
+export function computeBlendedSeasonMeta(
+  league: string,
+  seasonBattleLogs?: Array<{ timestampMs: number; league: string; opponents: string[] }>,
+  currentSeason?: { startMs: number; endMs: number }
+): BlendedSeasonMetaDistribution {
+  const upperLeague = (league || "GREAT LEAGUE").toUpperCase();
+  const normLeague = upperLeague.includes("MEGA")
+    ? "MEGA MASTER LEAGUE"
+    : upperLeague.includes("GREAT")
+    ? "GREAT LEAGUE"
+    : upperLeague.includes("ULTRA")
+    ? "ULTRA LEAGUE"
+    : "MASTER LEAGUE";
+
+  const metaSpecies = getLeagueTopMetaSpeciesNames(normLeague, 24);
+  const pMeta = new Map<string, number>();
+  let totalMetaWeight = 0;
+  metaSpecies.forEach((monName, idx) => {
+    const canon = canonicalizeMetaPokemonName(monName) || monName;
+    const w = Math.exp(-0.05 * idx);
+    pMeta.set(canon, (pMeta.get(canon) || 0) + w);
+    totalMetaWeight += w;
+  });
+  if (totalMetaWeight > 0) {
+    for (const [k, v] of pMeta.entries()) {
+      pMeta.set(k, v / totalMetaWeight);
+    }
+  }
+
+  // Filter logs strictly to current season & matching league, sorted newest-first (k = 1 most recent)
+  const matchingLogs = (seasonBattleLogs || [])
+    .filter((entry) => {
+      if (!entry || !Array.isArray(entry.opponents) || entry.opponents.length === 0) return false;
+      const entryLeague = (entry.league || "").toUpperCase();
+      if (entryLeague !== normLeague) return false;
+      if (currentSeason && currentSeason.startMs > 0 && currentSeason.endMs > currentSeason.startMs) {
+        if (entry.timestampMs < currentSeason.startMs || entry.timestampMs > currentSeason.endMs) {
+          return false;
+        }
+      }
+      const firstOpp = canonicalizeMetaPokemonName(entry.opponents[0]);
+      return Boolean(firstOpp);
+    })
+    .sort((a, b) => b.timestampMs - a.timestampMs);
+
+  const N = matchingLogs.length;
+  const wHist = 0.70 * Math.min(1.0, N / 50.0);
+  const wMeta = 1.0 - wHist;
+
+  const pHistLead = new Map<string, number>();
+  const pHistField = new Map<string, number>();
+  let totalHistLeadWeight = 0;
+  let totalHistFieldWeight = 0;
+
+  matchingLogs.forEach((entry, idx) => {
+    // k = idx + 1 (1-indexed from newest match k=1 to oldest match k=N)
+    const wMatch = Math.exp(-0.05 * idx);
+    const leadOpp = canonicalizeMetaPokemonName(entry.opponents[0] || "");
+    if (leadOpp) {
+      pHistLead.set(leadOpp, (pHistLead.get(leadOpp) || 0) + wMatch);
+      totalHistLeadWeight += wMatch;
+    }
+    entry.opponents.slice(0, 3).forEach((rawOpp) => {
+      const oppName = canonicalizeMetaPokemonName(rawOpp || "");
+      if (oppName) {
+        pHistField.set(oppName, (pHistField.get(oppName) || 0) + wMatch);
+        totalHistFieldWeight += wMatch;
+      }
+    });
+  });
+
+  if (totalHistLeadWeight > 0) {
+    for (const [k, v] of pHistLead.entries()) {
+      pHistLead.set(k, v / totalHistLeadWeight);
+    }
+  }
+  if (totalHistFieldWeight > 0) {
+    for (const [k, v] of pHistField.entries()) {
+      pHistField.set(k, v / totalHistFieldWeight);
+    }
+  }
+
+  const allLeadSpecies = new Set<string>([...pMeta.keys(), ...pHistLead.keys()]);
+  const allFieldSpecies = new Set<string>([...pMeta.keys(), ...pHistField.keys()]);
+
+  const leadProbabilities = new Map<string, number>();
+  const fieldProbabilities = new Map<string, number>();
+
+  if (totalHistLeadWeight === 0 || wHist === 0) {
+    for (const [k, v] of pMeta.entries()) leadProbabilities.set(k, v);
+  } else {
+    let sumLead = 0;
+    for (const sp of allLeadSpecies) {
+      const val = wHist * (pHistLead.get(sp) || 0) + wMeta * (pMeta.get(sp) || 0);
+      if (val > 0) {
+        leadProbabilities.set(sp, val);
+        sumLead += val;
+      }
+    }
+    if (sumLead > 0) {
+      for (const [k, v] of leadProbabilities.entries()) leadProbabilities.set(k, v / sumLead);
+    }
+  }
+
+  if (totalHistFieldWeight === 0 || wHist === 0) {
+    for (const [k, v] of pMeta.entries()) fieldProbabilities.set(k, v);
+  } else {
+    let sumField = 0;
+    for (const sp of allFieldSpecies) {
+      const val = wHist * (pHistField.get(sp) || 0) + wMeta * (pMeta.get(sp) || 0);
+      if (val > 0) {
+        fieldProbabilities.set(sp, val);
+        sumField += val;
+      }
+    }
+    if (sumField > 0) {
+      for (const [k, v] of fieldProbabilities.entries()) fieldProbabilities.set(k, v / sumField);
+    }
+  }
+
+  return {
+    league: normLeague,
+    seasonMatchCount: N,
+    wHist,
+    wMeta,
+    leadProbabilities,
+    fieldProbabilities
+  };
+}
+
+export interface SlotEvaluatedMetrics {
+  leadBr: number;
+  swapMeanBr: number;
+  swapSigmaBr: number;
+  swapBr: number;
+  closerBr: number;
+  baitScore: number;
+  closerScore: number;
+  weaknesses: string[];
+  doubleWeaknesses: string[];
+  resistances: string[];
+}
+
+export function evaluateSingleSlotAgainstBlendedMeta(
+  member: TeamMember,
+  league: string,
+  blendedMeta: BlendedSeasonMetaDistribution
+): SlotEvaluatedMetrics {
+  const resolved = resolveCombatPokemonForEngine(member, league);
+  const myTypes = resolved.stats.types;
+
+  const weaknesses: string[] = [];
+  const doubleWeaknesses: string[] = [];
+  const resistances: string[] = [];
+
+  for (const atkType of ALL_18_TYPES) {
+    const mult = getTypeMultiplier(atkType, myTypes);
+    if (mult >= 1.55) {
+      weaknesses.push(atkType);
+      if (mult >= 2.2) {
+        doubleWeaknesses.push(atkType);
+      }
+    } else if (mult <= 0.65) {
+      resistances.push(atkType);
+    }
+  }
+
+  let leadMean = 0;
+  for (const [oppName, prob] of blendedMeta.leadProbabilities.entries()) {
+    const pw = evaluatePositionWeightedBr(member, oppName, league);
+    leadMean += prob * pw.leadBr;
+  }
+
+  let swapMean = 0;
+  const swapEntries: Array<{ prob: number; val: number }> = [];
+  let closerMean = 0;
+
+  for (const [oppName, prob] of blendedMeta.fieldProbabilities.entries()) {
+    const pw = evaluatePositionWeightedBr(member, oppName, league);
+    swapMean += prob * pw.swapBr;
+    swapEntries.push({ prob, val: pw.swapBr });
+    closerMean += prob * pw.closerBr;
+  }
+
+  let swapVariance = 0;
+  for (const item of swapEntries) {
+    const diff = item.val - swapMean;
+    swapVariance += item.prob * diff * diff;
+  }
+  const swapSigma = Math.sqrt(Math.max(0, swapVariance));
+  const swapBr = Math.round(swapMean - 0.5 * swapSigma);
+
+  // Bait vs Closer score for ABB ordering
+  const ept = (resolved.fastMove.energyGain || 6) / Math.max(1, resolved.fastMove.turns || 2);
+  const minEnergy = Math.min(
+    ...resolved.chargedMoves.map((cm) => cm.energyCost || 50),
+    50
+  );
+  const maxPower = Math.max(
+    ...resolved.chargedMoves.map((cm) => cm.power || 75),
+    75
+  );
+  const baitScore = swapBr + ept * 18 + (60 - minEnergy) * 1.4;
+  const closerScore = closerMean + maxPower * 0.45 + (resolved.isShadow ? 18 : 0);
+
+  return {
+    leadBr: Math.round(leadMean),
+    swapMeanBr: Math.round(swapMean),
+    swapSigmaBr: Math.round(swapSigma),
+    swapBr,
+    closerBr: Math.round(closerMean),
+    baitScore,
+    closerScore,
+    weaknesses,
+    doubleWeaknesses,
+    resistances
+  };
+}
+
+export interface TeamDetectionResult {
+  orderedPokemon: TeamMember[];
+  archetype: "ABB" | "ABC";
+  sharedWeaknesses: string[];
+  leadAggBr: number;
+  machineAggBr: number;
+  safeSwapBr: number;
+  closerSwapBr: number;
+  closerBr: number;
+  seasonMatchCount: number;
+  wHistPct: number;
+  wMetaPct: number;
+  slotMetrics: Array<{
+    leadBr: number;
+    swapBr: number;
+    closerBr: number;
+    roleCode: string;
+    roleLabel: string;
+  }>;
+  reasonSummary: string;
+}
+
+/**
+ * Evaluates a 3-Pokémon team (either in its current order or with Auto-Detect & Order):
+ * - When `reorderSlots = true`:
+ *   - Runs the 18-type defensive vulnerability audit across all 3 pairs.
+ *   - If any pair (U_i, U_j) shares >= 2 weaknesses (or >= 1 double weakness) AND the 3rd Pokémon U_k
+ *     resists all those shared weaknesses, classifies as ABB (unless manualArchetypeOverride === "ABC"):
+ *     - Moves U_k (Lead A) to Slot 1.
+ *     - Places the higher bait/safe-swap B Pokémon in Slot 2 (B1 Bait) and the stronger closer in Slot 3 (B2 Sweeper).
+ *   - Otherwise classifies as ABC:
+ *     - Keeps Slot 1 fixed as Lead.
+ *     - Places the backline member with the higher volatility-adjusted Swap BR in Slot 2 (Safe Swap) and the other in Slot 3 (Closer).
+ */
+export function evaluateOrAutoOrderTeam(
+  members: TeamMember[],
+  league: string,
+  options?: {
+    reorderSlots?: boolean;
+    manualArchetypeOverride?: "ABB" | "ABC";
+    seasonBattleLogs?: Array<{ timestampMs: number; league: string; opponents: string[] }>;
+    currentSeason?: { startMs: number; endMs: number };
+    cachedBlendedMeta?: BlendedSeasonMetaDistribution;
+  }
+): TeamDetectionResult {
+  const reorderSlots = options?.reorderSlots ?? false;
+  const blendedMeta =
+    options?.cachedBlendedMeta ||
+    computeBlendedSeasonMeta(league, options?.seasonBattleLogs, options?.currentSeason);
+
+  const safeMembers = (members || []).slice(0, 3);
+  if (safeMembers.length < 3) {
+    return {
+      orderedPokemon: safeMembers,
+      archetype: options?.manualArchetypeOverride || "ABC",
+      sharedWeaknesses: [],
+      leadAggBr: 500,
+      machineAggBr: 600,
+      safeSwapBr: 500,
+      closerSwapBr: 500,
+      closerBr: 500,
+      seasonMatchCount: blendedMeta.seasonMatchCount,
+      wHistPct: Math.round(blendedMeta.wHist * 100),
+      wMetaPct: Math.round(blendedMeta.wMeta * 100),
+      slotMetrics: [],
+      reasonSummary: "Enter 3 Pokémon to evaluate team archetype and aggregate ratings."
+    };
+  }
+
+  const evals = safeMembers.map((m) => evaluateSingleSlotAgainstBlendedMeta(m, league, blendedMeta));
+
+  // Audit all 3 pairs for ABB candidate: pair (i, j) with remaining k as Lead A
+  const pairCandidates: Array<{
+    leadIdx: number;
+    bPairIndices: [number, number];
+    sharedWeaknesses: string[];
+    resistedCount: number;
+    allResisted: boolean;
+    score: number;
+  }> = [];
+
+  const indexTriples: Array<[number, number, number]> = [
+    [0, 1, 2], // Lead = 0, Backline = (1, 2)
+    [1, 0, 2], // Lead = 1, Backline = (0, 2)
+    [2, 0, 1]  // Lead = 2, Backline = (0, 1)
+  ];
+
+  for (const [k, i, j] of indexTriples) {
+    const wI = new Set(evals[i].weaknesses);
+    const shared = evals[j].weaknesses.filter((w) => wI.has(w));
+    if (shared.length === 0) continue;
+
+    const hasSharedDouble = shared.some(
+      (w) => evals[i].doubleWeaknesses.includes(w) || evals[j].doubleWeaknesses.includes(w)
+    );
+    const qualifiesWeaknessOverlap = shared.length >= 2 || (shared.length >= 1 && hasSharedDouble);
+    if (!qualifiesWeaknessOverlap) continue;
+
+    const leadResists = new Set(evals[k].resistances);
+    const leadWeaks = new Set(evals[k].weaknesses);
+    const resistedByLead = shared.filter((w) => leadResists.has(w));
+    const leadNotWeakToAny = shared.every((w) => !leadWeaks.has(w));
+    const allResisted = resistedByLead.length === shared.length || (resistedByLead.length >= 1 && leadNotWeakToAny && shared.length >= 2);
+
+    if (allResisted) {
+      // Prefer keeping current Slot 0 as Lead if tied
+      const score = shared.length * 100 + resistedByLead.length * 50 + (k === 0 ? 15 : 0);
+      pairCandidates.push({
+        leadIdx: k,
+        bPairIndices: [i, j],
+        sharedWeaknesses: shared,
+        resistedCount: resistedByLead.length,
+        allResisted: true,
+        score
+      });
+    }
+  }
+
+  pairCandidates.sort((a, b) => b.score - a.score);
+  const bestAbbCandidate = pairCandidates[0];
+
+  const resolvedArchetype: "ABB" | "ABC" =
+    options?.manualArchetypeOverride || (bestAbbCandidate ? "ABB" : "ABC");
+
+  let finalOrderIndices: [number, number, number] = [0, 1, 2];
+  let detectedSharedWeaknesses: string[] = bestAbbCandidate?.sharedWeaknesses || [];
+
+  if (reorderSlots) {
+    if (resolvedArchetype === "ABB") {
+      const leadIdx = bestAbbCandidate ? bestAbbCandidate.leadIdx : 0;
+      const [bA, bB] = bestAbbCandidate
+        ? bestAbbCandidate.bPairIndices
+        : ([1, 2] as [number, number]);
+
+      // Order B1 (Bait Swap in Slot 2) vs B2 (Sweeper/Closer in Slot 3):
+      // B1 should have higher Swap BR / faster bait pressure relative to its closer score
+      const aBaitAdvantage = evals[bA].baitScore - evals[bA].closerScore * 0.35;
+      const bBaitAdvantage = evals[bB].baitScore - evals[bB].closerScore * 0.35;
+      if (aBaitAdvantage >= bBaitAdvantage) {
+        finalOrderIndices = [leadIdx, bA, bB];
+      } else {
+        finalOrderIndices = [leadIdx, bB, bA];
+      }
+    } else {
+      // ABC: Keep Slot 1 (index 0) fixed as Lead; put higher Swap BR in Slot 2
+      if (evals[2].swapBr > evals[1].swapBr) {
+        finalOrderIndices = [0, 2, 1];
+      } else {
+        finalOrderIndices = [0, 1, 2];
+      }
+    }
+  } else if (resolvedArchetype === "ABB" && !bestAbbCandidate) {
+    // Check shared weaknesses between current slots 1 and 2
+    const w1 = new Set(evals[1].weaknesses);
+    detectedSharedWeaknesses = evals[2].weaknesses.filter((w) => w1.has(w));
+  }
+
+  const orderedPokemon = finalOrderIndices.map((idx) => safeMembers[idx]);
+  const orderedEvals = finalOrderIndices.map((idx) => evals[idx]);
+
+  const leadAggBr = orderedEvals[0].leadBr;
+  const safeSwapBr = orderedEvals[1].swapBr;
+  const closerSwapBr = orderedEvals[2].swapBr;
+  const closerBr = orderedEvals[2].closerBr;
+
+  // Compute Machine Aggregate BR using position-weighted ratings across the blended field distribution:
+  // sum_{p in Meta} P_field(p) * max(BR_Lead(U1, p), BR_Swap(U2, p), BR_Closer(U3, p))
+  let machineAggSum = 0;
+  for (const [oppName, prob] of blendedMeta.fieldProbabilities.entries()) {
+    const r1 = evaluatePositionWeightedBr(orderedPokemon[0], oppName, league).leadBr;
+    const r2 = evaluatePositionWeightedBr(orderedPokemon[1], oppName, league).swapBr;
+    const r3 = evaluatePositionWeightedBr(orderedPokemon[2], oppName, league).closerBr;
+    machineAggSum += prob * Math.max(r1, r2, r3);
+  }
+  const machineAggBr = Math.round(machineAggSum);
+
+  const slotMetrics = [
+    {
+      leadBr: orderedEvals[0].leadBr,
+      swapBr: orderedEvals[0].swapBr,
+      closerBr: orderedEvals[0].closerBr,
+      roleCode: resolvedArchetype === "ABB" ? "A" : "Lead",
+      roleLabel: resolvedArchetype === "ABB" ? "[A] Lead" : "[Lead] Starter"
+    },
+    {
+      leadBr: orderedEvals[1].leadBr,
+      swapBr: orderedEvals[1].swapBr,
+      closerBr: orderedEvals[1].closerBr,
+      roleCode: resolvedArchetype === "ABB" ? "B1" : "Swap",
+      roleLabel: resolvedArchetype === "ABB" ? "[B1] Bait Swap" : "[Swap] Safe Swap"
+    },
+    {
+      leadBr: orderedEvals[2].leadBr,
+      swapBr: orderedEvals[2].swapBr,
+      closerBr: orderedEvals[2].closerBr,
+      roleCode: resolvedArchetype === "ABB" ? "B2" : "Closer",
+      roleLabel: resolvedArchetype === "ABB" ? "[B2] Sweeper" : "[Closer] Anchor"
+    }
+  ];
+
+  const reasonSummary =
+    resolvedArchetype === "ABB"
+      ? detectedSharedWeaknesses.length > 0
+        ? `ABB Backline shares ${detectedSharedWeaknesses.map((t) => t.toUpperCase()).join("/")} weakness covered by ${orderedPokemon[0].name} lead. ${orderedPokemon[1].name} placed in Slot 2 as Bait Swap (Swap BR ${safeSwapBr}).`
+        : `ABB Lineup: ${orderedPokemon[0].name} (Lead A) covers ${orderedPokemon[1].name} (Bait B1, Swap BR ${safeSwapBr}) & ${orderedPokemon[2].name} (Sweeper B2, Swap BR ${closerSwapBr}).`
+      : `ABC Balanced Core: ${orderedPokemon[0].name} Lead (Lead BR ${leadAggBr}), ${orderedPokemon[1].name} selected as Slot 2 Safe Swap (Swap BR ${safeSwapBr} vs ${closerSwapBr}).`;
+
+  return {
+    orderedPokemon,
+    archetype: resolvedArchetype,
+    sharedWeaknesses: detectedSharedWeaknesses,
+    leadAggBr,
+    machineAggBr,
+    safeSwapBr,
+    closerSwapBr,
+    closerBr,
+    seasonMatchCount: blendedMeta.seasonMatchCount,
+    wHistPct: Math.round(blendedMeta.wHist * 100),
+    wMetaPct: Math.round(blendedMeta.wMeta * 100),
+    slotMetrics,
+    reasonSummary
+  };
+}
+
+/**
+ * Evaluates a TeamPreset's aggregate metrics in-place (preserving current slot order)
+ * using the current-season blended meta distribution.
+ */
+export function evaluateTeamPresetMetrics(
+  preset: TeamPreset,
+  seasonBattleLogs?: Array<{ timestampMs: number; league: string; opponents: string[] }>,
+  currentSeason?: { startMs: number; endMs: number },
+  cachedBlendedMeta?: BlendedSeasonMetaDistribution
+): TeamPreset {
+  const res = evaluateOrAutoOrderTeam(preset.pokemon, preset.league, {
+    reorderSlots: false,
+    manualArchetypeOverride: preset.isArchetypeManual ? preset.archetype : undefined,
+    seasonBattleLogs,
+    currentSeason,
+    cachedBlendedMeta
+  });
+  return {
+    ...preset,
+    archetype: res.archetype,
+    leadAggBr: res.leadAggBr,
+    machineAggBr: res.machineAggBr,
+    safeSwapBr: res.safeSwapBr,
+    closerSwapBr: res.closerSwapBr,
+    closerBr: res.closerBr,
+    sharedWeaknesses: res.sharedWeaknesses,
+    metricsUpdatedAt: Date.now()
+  };
+}
+
+/**
+ * Recalculates Lead Agg BR, Machine Agg BR, Safe Swap BR, Closer Swap BR, and Archetype
+ * across all saved team presets using the latest current-season battle logs and PvPoke rankings.
+ */
+export function recalculateAllPresetsMetrics(
+  presets: TeamPreset[],
+  seasonBattleLogs?: Array<{ timestampMs: number; league: string; opponents: string[] }>,
+  currentSeason?: { startMs: number; endMs: number }
+): TeamPreset[] {
+  const metaCacheByLeague = new Map<string, BlendedSeasonMetaDistribution>();
+  return (presets || []).map((preset) => {
+    const lg = (preset.league || "GREAT LEAGUE").toUpperCase();
+    let blended = metaCacheByLeague.get(lg);
+    if (!blended) {
+      blended = computeBlendedSeasonMeta(lg, seasonBattleLogs, currentSeason);
+      metaCacheByLeague.set(lg, blended);
+    }
+    return evaluateTeamPresetMetrics(preset, seasonBattleLogs, currentSeason, blended);
+  });
+}
+
+export const INITIAL_PRESETS: TeamPreset[] = recalculateAllPresetsMetrics([
   {
     id: "preset-ml-1",
     name: "Master: Palkia-O / Zacian-C / Dialga-O",
@@ -3916,5 +4877,6 @@ export const INITIAL_PRESETS: TeamPreset[] = [
     league: "GREAT LEAGUE",
     pokemon: getLeagueTop3Template("GREAT LEAGUE")
   }
-];
+]);
+
 

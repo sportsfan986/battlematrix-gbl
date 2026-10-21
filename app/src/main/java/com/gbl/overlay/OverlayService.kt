@@ -134,16 +134,34 @@ class OverlayService : LifecycleService() {
         const val DEFAULT_TIER_L_MAX = 470
         const val DEFAULT_TIER_SL_MAX = 380
 
+        const val PREFS_KEY_MACH_ELITE_MIN = "gbl_mach_elite_min"
+        const val PREFS_KEY_MACH_SOLID_MIN = "gbl_mach_solid_min"
+        const val PREFS_KEY_MACH_PLAYABLE_MIN = "gbl_mach_playable_min"
+        const val PREFS_KEY_MACH_RISKY_MIN = "gbl_mach_risky_min"
+        const val DEFAULT_MACH_ELITE_MIN = 650
+        const val DEFAULT_MACH_SOLID_MIN = 610
+        const val DEFAULT_MACH_PLAYABLE_MIN = 580
+        const val DEFAULT_MACH_RISKY_MIN = 540
+
         @Volatile var activeTierSwMin: Int = DEFAULT_TIER_SW_MIN
         @Volatile var activeTierWMin: Int = DEFAULT_TIER_W_MIN
         @Volatile var activeTierLMax: Int = DEFAULT_TIER_L_MAX
         @Volatile var activeTierSlMax: Int = DEFAULT_TIER_SL_MAX
+
+        @Volatile var activeMachEliteMin: Int = DEFAULT_MACH_ELITE_MIN
+        @Volatile var activeMachSolidMin: Int = DEFAULT_MACH_SOLID_MIN
+        @Volatile var activeMachPlayableMin: Int = DEFAULT_MACH_PLAYABLE_MIN
+        @Volatile var activeMachRiskyMin: Int = DEFAULT_MACH_RISKY_MIN
 
         fun syncTierThresholdsFromPrefs(prefs: SharedPreferences) {
             activeTierSwMin = prefs.getInt(PREFS_KEY_TIER_SW_MIN, DEFAULT_TIER_SW_MIN).coerceIn(150, 950)
             activeTierWMin = prefs.getInt(PREFS_KEY_TIER_W_MIN, DEFAULT_TIER_W_MIN).coerceIn(150, 950)
             activeTierLMax = prefs.getInt(PREFS_KEY_TIER_L_MAX, DEFAULT_TIER_L_MAX).coerceIn(100, 900)
             activeTierSlMax = prefs.getInt(PREFS_KEY_TIER_SL_MAX, DEFAULT_TIER_SL_MAX).coerceIn(100, 900)
+            activeMachEliteMin = prefs.getInt(PREFS_KEY_MACH_ELITE_MIN, DEFAULT_MACH_ELITE_MIN).coerceIn(450, 840)
+            activeMachSolidMin = prefs.getInt(PREFS_KEY_MACH_SOLID_MIN, DEFAULT_MACH_SOLID_MIN).coerceIn(420, 820)
+            activeMachPlayableMin = prefs.getInt(PREFS_KEY_MACH_PLAYABLE_MIN, DEFAULT_MACH_PLAYABLE_MIN).coerceIn(390, 800)
+            activeMachRiskyMin = prefs.getInt(PREFS_KEY_MACH_RISKY_MIN, DEFAULT_MACH_RISKY_MIN).coerceIn(350, 780)
         }
         const val PREFS_KEY_SYNC_GIST_ID = "gbl_sync_gist_id"
         const val PREFS_KEY_SYNC_LAST_AT = "gbl_sync_last_at"
@@ -203,7 +221,15 @@ class OverlayService : LifecycleService() {
             val league: String,
             val pokemon: List<SyncTeamSlot>,
             val isSelected: Boolean = false,
-            val updatedAt: Long = System.currentTimeMillis()
+            val updatedAt: Long = System.currentTimeMillis(),
+            val archetype: String = "ABC",
+            val isArchetypeManual: Boolean = false,
+            val leadAggBr: Int = 500,
+            val machineAggBr: Int = 600,
+            val safeSwapBr: Int = 500,
+            val closerSwapBr: Int = 500,
+            val closerBr: Int = 500,
+            val sharedWeaknesses: List<String> = emptyList()
         )
 
         data class SyncVaultPayload(
@@ -3494,6 +3520,311 @@ class OverlayService : LifecycleService() {
                 totalWeight = totalWeight
             )
         }
+
+        data class BlendedSeasonMetaDistribution(
+            val leadWeights: Map<String, Double>,
+            val fieldWeights: Map<String, Double>,
+            val seasonMatchCount: Int,
+            val histWeightPct: Int,
+            val metaWeightPct: Int
+        )
+
+        data class TeamArchetypeEvaluationResult(
+            val orderedSlots: List<TeamMember>,
+            val archetype: String, // "ABB" or "ABC"
+            val leadAggBr: Int,
+            val machineAggBr: Int,
+            val safeSwapBr: Int,
+            val closerSwapBr: Int,
+            val closerBr: Int,
+            val sharedWeaknesses: List<String>,
+            val histWeightPct: Int,
+            val seasonMatchCount: Int
+        )
+
+        private val ALL_18_TYPES = listOf(
+            "normal", "fire", "water", "electric", "grass", "ice",
+            "fighting", "poison", "ground", "flying", "psychic", "bug",
+            "rock", "ghost", "dragon", "dark", "steel", "fairy"
+        )
+
+        private val CRITICAL_META_TYPES = setOf(
+            "ground", "water", "fighting", "fairy", "flying", "steel", "dark", "ghost", "dragon", "ice", "electric"
+        )
+
+        fun computePositionWeightedBrStatic(
+            slot: TeamMember,
+            oppName: String,
+            league: String,
+            role: String // "LEAD" | "SWAP" | "CLOSER"
+        ): Double {
+            fun br(sU: Int, sO: Int): Double = calculateMatchupRatingStatic(
+                myName = slot.name,
+                oppName = oppName,
+                userShields = sU,
+                oppShields = sO,
+                league = league,
+                myFastMove = slot.fastMove,
+                myCharged1 = slot.chargedMove1,
+                myCharged2 = slot.chargedMove2,
+                myCp = slot.cp,
+                myIvs = slot.ivs
+            ).toDouble()
+
+            return when (role.uppercase()) {
+                "LEAD" -> 0.45 * br(1, 1) + 0.35 * br(2, 2) + 0.10 * br(0, 0) + 0.05 * br(1, 2) + 0.05 * br(2, 1)
+                "SWAP" -> 0.40 * br(1, 1) + 0.20 * br(1, 0) + 0.20 * br(0, 1) + 0.10 * br(2, 1) + 0.10 * br(0, 0)
+                else -> 0.50 * br(0, 0) + 0.20 * br(1, 0) + 0.15 * br(0, 1) + 0.15 * br(1, 1)
+            }
+        }
+
+        fun computeBlendedSeasonMetaStatic(
+            league: String,
+            seasonLogs: List<Pair<Long, List<String>>>
+        ): BlendedSeasonMetaDistribution {
+            val isGreat = league.contains("GREAT", ignoreCase = true)
+            val isUltra = league.contains("ULTRA", ignoreCase = true)
+            val rankedPool = getAllPokemonMeta()
+                .filter { !it.speciesId.endsWith("_shadow", ignoreCase = true) && !it.name.startsWith("Shadow ", ignoreCase = true) }
+                .sortedBy {
+                    when {
+                        isGreat -> it.glRank
+                        isUltra -> it.ulRank
+                        else -> it.mlRank
+                    }
+                }
+                .take(30)
+                .map { it.name }
+                .ifEmpty { getTopMetaPoolForLeagueStatic(league) }
+
+            val rawMeta = LinkedHashMap<String, Double>()
+            var rawMetaSum = 0.0
+            rankedPool.forEachIndexed { idx, name ->
+                val w = kotlin.math.exp(-0.05 * idx.toDouble())
+                rawMeta[name] = (rawMeta[name] ?: 0.0) + w
+                rawMetaSum += w
+            }
+            val pMeta = rawMeta.mapValues { (_, v) -> if (rawMetaSum > 0.0) v / rawMetaSum else 0.0 }
+
+            // Sort current-season logs newest-first so k=1 is most recent and decays via exp(-0.05 * (k - 1))
+            val sortedLogs = seasonLogs
+                .filter { it.second.any { opp -> opp.isNotBlank() && !opp.equals("Waiting...", ignoreCase = true) } }
+                .sortedByDescending { it.first }
+
+            val nMatches = sortedLogs.size
+            val wHist = if (nMatches > 0) 0.70 * min(1.0, nMatches.toDouble() / 50.0) else 0.0
+            val wMeta = 1.0 - wHist
+
+            val rawHistLead = LinkedHashMap<String, Double>()
+            var rawHistLeadSum = 0.0
+            val rawHistField = LinkedHashMap<String, Double>()
+            var rawHistFieldSum = 0.0
+
+            sortedLogs.forEachIndexed { idx, (_, opps) ->
+                val recencyWeight = kotlin.math.exp(-0.05 * idx.toDouble())
+                val leadName = opps.firstOrNull()?.trim().orEmpty()
+                if (leadName.isNotEmpty() && !leadName.equals("Waiting...", ignoreCase = true)) {
+                    rawHistLead[leadName] = (rawHistLead[leadName] ?: 0.0) + recencyWeight
+                    rawHistLeadSum += recencyWeight
+                }
+                opps.forEach { oppRaw ->
+                    val cleaned = oppRaw.trim()
+                    if (cleaned.isNotEmpty() && !cleaned.equals("Waiting...", ignoreCase = true)) {
+                        rawHistField[cleaned] = (rawHistField[cleaned] ?: 0.0) + recencyWeight
+                        rawHistFieldSum += recencyWeight
+                    }
+                }
+            }
+
+            val allSpecies = (pMeta.keys + rawHistLead.keys + rawHistField.keys).distinct()
+            val leadWeights = LinkedHashMap<String, Double>()
+            val fieldWeights = LinkedHashMap<String, Double>()
+
+            for (sp in allSpecies) {
+                val mProb = pMeta[sp] ?: 0.0
+                val lProb = if (rawHistLeadSum > 0.0) (rawHistLead[sp] ?: 0.0) / rawHistLeadSum else mProb
+                val fProb = if (rawHistFieldSum > 0.0) (rawHistField[sp] ?: 0.0) / rawHistFieldSum else mProb
+                leadWeights[sp] = wHist * lProb + wMeta * mProb
+                fieldWeights[sp] = wHist * fProb + wMeta * mProb
+            }
+
+            val lTotal = leadWeights.values.sum().takeIf { it > 0.0 } ?: 1.0
+            val fTotal = fieldWeights.values.sum().takeIf { it > 0.0 } ?: 1.0
+
+            return BlendedSeasonMetaDistribution(
+                leadWeights = leadWeights.mapValues { it.value / lTotal },
+                fieldWeights = fieldWeights.mapValues { it.value / fTotal },
+                seasonMatchCount = nMatches,
+                histWeightPct = (wHist * 100.0).roundToInt(),
+                metaWeightPct = (wMeta * 100.0).roundToInt()
+            )
+        }
+
+        fun evaluateOrAutoOrderTeamStatic(
+            slots: List<TeamMember>,
+            league: String,
+            seasonLogs: List<Pair<Long, List<String>>>,
+            autoReorder: Boolean
+        ): TeamArchetypeEvaluationResult {
+            val padded = if (slots.size >= 3) slots.take(3) else {
+                val top = getTopMetaPoolForLeagueStatic(league)
+                (slots + listOf(
+                    TeamMember(top.getOrElse(0) { "Clodsire" }, 1500, "Poison Sting", "Earthquake", "Stone Edge"),
+                    TeamMember(top.getOrElse(1) { "Feraligatr" }, 1500, "Shadow Claw", "Hydro Cannon", "Ice Beam"),
+                    TeamMember(top.getOrElse(2) { "Mandibuzz" }, 1500, "Snarl", "Dark Pulse", "Aerial Ace")
+                )).take(3)
+            }
+
+            val dist = computeBlendedSeasonMetaStatic(league, seasonLogs)
+
+            fun getTypesFor(slot: TeamMember): List<String> {
+                val meta = resolveRecommendedMovesForSpecies(slot.name, league)
+                return meta?.types?.map { it.lowercase() }?.ifEmpty { listOf("normal") } ?: listOf("normal")
+            }
+
+            fun getWeaknesses(types: List<String>): Set<String> {
+                return ALL_18_TYPES.filter { atkType ->
+                    getTypeEffectivenessStatic(atkType, types) > 1.05
+                }.toSet()
+            }
+
+            fun resistsAll(types: List<String>, sharedWeaknesses: Set<String>): Boolean {
+                if (sharedWeaknesses.isEmpty()) return false
+                return sharedWeaknesses.all { wType ->
+                    getTypeEffectivenessStatic(wType, types) < 0.95
+                }
+            }
+
+            fun computeSwapStats(slot: TeamMember): Pair<Double, Double> {
+                var mu = 0.0
+                val perOpp = HashMap<String, Double>()
+                for ((opp, prob) in dist.fieldWeights) {
+                    if (prob <= 0.0) continue
+                    val br = computePositionWeightedBrStatic(slot, opp, league, "SWAP")
+                    perOpp[opp] = br
+                    mu += prob * br
+                }
+                var variance = 0.0
+                for ((opp, prob) in dist.fieldWeights) {
+                    if (prob <= 0.0) continue
+                    val diff = (perOpp[opp] ?: mu) - mu
+                    variance += prob * diff * diff
+                }
+                val sigma = kotlin.math.sqrt(max(0.0, variance))
+                return (mu - 0.5 * sigma) to mu
+            }
+
+            fun computeCloserStats(slot: TeamMember): Double {
+                var mu = 0.0
+                for ((opp, prob) in dist.fieldWeights) {
+                    if (prob <= 0.0) continue
+                    mu += prob * computePositionWeightedBrStatic(slot, opp, league, "CLOSER")
+                }
+                return mu
+            }
+
+            fun computeBaitVsSweeperScore(slot: TeamMember, swapSafeScore: Double, closerMean: Double): Pair<Double, Double> {
+                val c1Stats = resolveChargedMoveStatsStatic(slot.chargedMove1)
+                val c2Stats = resolveChargedMoveStatsStatic(slot.chargedMove2)
+                val minEnergy = min(c1Stats.energyCost, c2Stats.energyCost).toDouble()
+                val maxPower = max(c1Stats.power, c2Stats.power).toDouble()
+                val isShadow = slot.name.contains("Shadow", ignoreCase = true)
+                val baitScore = swapSafeScore + (55.0 - minEnergy) * 1.4 - (if (isShadow) 8.0 else 0.0)
+                val sweeperScore = closerMean + (maxPower - 80.0) * 0.45 + (if (isShadow) 14.0 else 0.0)
+                return baitScore to sweeperScore
+            }
+
+            val typesList = padded.map { getTypesFor(it) }
+            val weakList = typesList.map { getWeaknesses(it) }
+
+            // Check candidate B-pairs: (1,2) with Lead 0, (0,2) with Lead 1, (0,1) with Lead 2
+            val candidatePairs = listOf(
+                Triple(0, 1, 2),
+                Triple(1, 0, 2),
+                Triple(2, 0, 1)
+            )
+
+            var detectedAbbTriplet: Triple<Int, Int, Int>? = null
+            var detectedSharedWeaknesses: List<String> = emptyList()
+            var bestSharedScore = -1
+
+            for ((aIdx, b1Idx, b2Idx) in candidatePairs) {
+                val shared = weakList[b1Idx].intersect(weakList[b2Idx])
+                val hasCritical = shared.any { it in CRITICAL_META_TYPES }
+                if ((shared.size >= 2 || (shared.size == 1 && hasCritical)) && resistsAll(typesList[aIdx], shared)) {
+                    val score = shared.size * 10 + (if (aIdx == 0) 3 else 0)
+                    if (score > bestSharedScore) {
+                        bestSharedScore = score
+                        detectedAbbTriplet = Triple(aIdx, b1Idx, b2Idx)
+                        detectedSharedWeaknesses = shared.map { it.replaceFirstChar { c -> c.uppercase() } }
+                    }
+                }
+            }
+
+            val swapScores = padded.map { computeSwapStats(it).first }
+            val closerMeans = padded.map { computeCloserStats(it) }
+
+            val finalOrderIndices: List<Int>
+            val archetype: String
+
+            if (detectedAbbTriplet != null) {
+                archetype = "ABB"
+                if (autoReorder) {
+                    val (aIdx, bA, bB) = detectedAbbTriplet
+                    val (baitA, sweepA) = computeBaitVsSweeperScore(padded[bA], swapScores[bA], closerMeans[bA])
+                    val (baitB, sweepB) = computeBaitVsSweeperScore(padded[bB], swapScores[bB], closerMeans[bB])
+                    val b1First = (baitA + sweepB) >= (baitB + sweepA)
+                    finalOrderIndices = if (b1First) listOf(aIdx, bA, bB) else listOf(aIdx, bB, bA)
+                } else {
+                    finalOrderIndices = listOf(0, 1, 2)
+                }
+            } else {
+                archetype = "ABC"
+                if (autoReorder) {
+                    // Keep Slot 1 (index 0) fixed; place higher Swap BR backline member in Slot 2
+                    finalOrderIndices = if (swapScores[1] >= swapScores[2]) listOf(0, 1, 2) else listOf(0, 2, 1)
+                } else {
+                    finalOrderIndices = listOf(0, 1, 2)
+                }
+            }
+
+            val ordered = finalOrderIndices.map { padded[it] }
+            val slot1 = ordered[0]
+            val slot2 = ordered[1]
+            val slot3 = ordered[2]
+
+            var leadAgg = 0.0
+            for ((opp, prob) in dist.leadWeights) {
+                if (prob <= 0.0) continue
+                leadAgg += prob * computePositionWeightedBrStatic(slot1, opp, league, "LEAD")
+            }
+
+            var machAgg = 0.0
+            for ((opp, prob) in dist.fieldWeights) {
+                if (prob <= 0.0) continue
+                val r1 = computePositionWeightedBrStatic(slot1, opp, league, "LEAD")
+                val r2 = computePositionWeightedBrStatic(slot2, opp, league, "SWAP")
+                val r3 = computePositionWeightedBrStatic(slot3, opp, league, "CLOSER")
+                machAgg += prob * max(r1, max(r2, r3))
+            }
+
+            val safeSwapBrVal = computeSwapStats(slot2).first.roundToInt().coerceIn(150, 850)
+            val closerSwapBrVal = computeSwapStats(slot3).first.roundToInt().coerceIn(150, 850)
+            val closerBrVal = computeCloserStats(slot3).roundToInt().coerceIn(150, 850)
+
+            return TeamArchetypeEvaluationResult(
+                orderedSlots = ordered,
+                archetype = archetype,
+                leadAggBr = leadAgg.roundToInt().coerceIn(150, 850),
+                machineAggBr = machAgg.roundToInt().coerceIn(150, 850),
+                safeSwapBr = safeSwapBrVal,
+                closerSwapBr = closerSwapBrVal,
+                closerBr = closerBrVal,
+                sharedWeaknesses = detectedSharedWeaknesses,
+                histWeightPct = dist.histWeightPct,
+                seasonMatchCount = dist.seasonMatchCount
+            )
+        }
     }
 
     private lateinit var windowManager: WindowManager
@@ -3737,7 +4068,15 @@ class OverlayService : LifecycleService() {
         val league: String,
         val pokemon: List<TeamMember>,
         var isSelected: Boolean = false,
-        val updatedAt: Long = System.currentTimeMillis()
+        val updatedAt: Long = System.currentTimeMillis(),
+        val archetype: String = "ABC",
+        val isArchetypeManual: Boolean = false,
+        val leadAggBr: Int = 500,
+        val machineAggBr: Int = 600,
+        val safeSwapBr: Int = 500,
+        val closerSwapBr: Int = 500,
+        val closerBr: Int = 500,
+        val sharedWeaknesses: List<String> = emptyList()
     )
 
     override fun onCreate() {

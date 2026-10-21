@@ -48,7 +48,15 @@ data class TeamPreset(
     val league: String = "GREAT LEAGUE", // "MASTER LEAGUE", "ULTRA LEAGUE", "GREAT LEAGUE"
     val pokemon: List<PokemonSlot> = emptyList(),
     val isSelected: Boolean = false,
-    val updatedAt: Long = System.currentTimeMillis()
+    val updatedAt: Long = System.currentTimeMillis(),
+    val archetype: String = "ABC",
+    val isArchetypeManual: Boolean = false,
+    val leadAggBr: Int = 500,
+    val machineAggBr: Int = 600,
+    val safeSwapBr: Int = 500,
+    val closerSwapBr: Int = 500,
+    val closerBr: Int = 500,
+    val sharedWeaknesses: List<String> = emptyList()
 )
 
 data class BattleLogEntry(
@@ -162,6 +170,13 @@ class MainActivity : AppCompatActivity() {
     private lateinit var editTierSlMax: EditText
     private lateinit var btnSaveTierThresholds: Button
     private lateinit var btnRestoreTierThresholds: Button
+    private lateinit var textMachineBrDefinitionsSummary: TextView
+    private lateinit var editMachEliteMin: EditText
+    private lateinit var editMachSolidMin: EditText
+    private lateinit var editMachPlayableMin: EditText
+    private lateinit var editMachRiskyMin: EditText
+    private lateinit var btnSaveMachThresholds: Button
+    private lateinit var btnRestoreMachThresholds: Button
     private lateinit var presetsContainer: LinearLayout
     private lateinit var battleLogContainer: LinearLayout
     private lateinit var textBattleLogTotal: TextView
@@ -1066,6 +1081,13 @@ class MainActivity : AppCompatActivity() {
         editTierSlMax = findViewById(R.id.edit_tier_sl_max)
         btnSaveTierThresholds = findViewById(R.id.btn_save_tier_thresholds)
         btnRestoreTierThresholds = findViewById(R.id.btn_restore_tier_thresholds)
+        textMachineBrDefinitionsSummary = findViewById(R.id.text_machine_br_definitions_summary)
+        editMachEliteMin = findViewById(R.id.edit_mach_elite_min)
+        editMachSolidMin = findViewById(R.id.edit_mach_solid_min)
+        editMachPlayableMin = findViewById(R.id.edit_mach_playable_min)
+        editMachRiskyMin = findViewById(R.id.edit_mach_risky_min)
+        btnSaveMachThresholds = findViewById(R.id.btn_save_mach_thresholds)
+        btnRestoreMachThresholds = findViewById(R.id.btn_restore_mach_thresholds)
         presetsContainer = findViewById(R.id.layout_presets_list)
         battleLogContainer = findViewById(R.id.layout_battle_log_list)
         textBattleLogTotal = findViewById(R.id.text_battle_log_total)
@@ -1178,6 +1200,14 @@ class MainActivity : AppCompatActivity() {
         }
         btnRestoreTierThresholds.setOnClickListener {
             restoreDefaultTierThresholds()
+        }
+
+        loadAndRenderMachineBrThresholdsUi()
+        btnSaveMachThresholds.setOnClickListener {
+            saveMachineBrThresholdsFromInputs(showToast = true)
+        }
+        btnRestoreMachThresholds.setOnClickListener {
+            restoreDefaultMachineBrThresholds()
         }
 
         findViewById<Button>(R.id.btn_copy_tasker_start)?.setOnClickListener {
@@ -3070,6 +3100,7 @@ class MainActivity : AppCompatActivity() {
             .apply()
         OverlayService.syncTierThresholdsFromPrefs(prefs)
         loadAndRenderTierThresholdsUi()
+        refreshPresetsUi()
         if (isOverlayRunning) {
             val updateIntent = Intent(this, OverlayService::class.java).apply {
                 action = OverlayService.ACTION_UPDATE_SETTINGS
@@ -3081,6 +3112,141 @@ class MainActivity : AppCompatActivity() {
             "Restored default 5-Tier Thresholds (620 / 530 / 470 / 380)",
             Toast.LENGTH_SHORT
         ).show()
+    }
+
+    private fun loadAndRenderMachineBrThresholdsUi() {
+        if (!::editMachEliteMin.isInitialized) return
+        OverlayService.syncTierThresholdsFromPrefs(prefs)
+        val elite = OverlayService.activeMachEliteMin
+        val solid = OverlayService.activeMachSolidMin
+        val playable = OverlayService.activeMachPlayableMin
+        val risky = OverlayService.activeMachRiskyMin
+        editMachEliteMin.setText(elite.toString())
+        editMachSolidMin.setText(solid.toString())
+        editMachPlayableMin.setText(playable.toString())
+        editMachRiskyMin.setText(risky.toString())
+        if (::textMachineBrDefinitionsSummary.isInitialized) {
+            textMachineBrDefinitionsSummary.text =
+                "• Elite Coverage >= $elite (Default: 650)\n" +
+                "• Solid Coverage >= $solid (Default: 610)\n" +
+                "• Playable Core >= $playable (Default: 580)\n" +
+                "• Risky Core >= $risky (Default: 540)\n" +
+                "• Blindspot Warning < $risky"
+        }
+    }
+
+    private fun saveMachineBrThresholdsFromInputs(showToast: Boolean) {
+        val rawElite = editMachEliteMin.text.toString().trim().toIntOrNull() ?: OverlayService.DEFAULT_MACH_ELITE_MIN
+        val rawSolid = editMachSolidMin.text.toString().trim().toIntOrNull() ?: OverlayService.DEFAULT_MACH_SOLID_MIN
+        val rawPlayable = editMachPlayableMin.text.toString().trim().toIntOrNull() ?: OverlayService.DEFAULT_MACH_PLAYABLE_MIN
+        val rawRisky = editMachRiskyMin.text.toString().trim().toIntOrNull() ?: OverlayService.DEFAULT_MACH_RISKY_MIN
+
+        val risky = rawRisky.coerceIn(350, 750)
+        val playable = rawPlayable.coerceIn(risky + 5, 780)
+        val solid = rawSolid.coerceIn(playable + 5, 810)
+        val elite = rawElite.coerceIn(solid + 5, 845)
+
+        prefs.edit()
+            .putInt(OverlayService.PREFS_KEY_MACH_ELITE_MIN, elite)
+            .putInt(OverlayService.PREFS_KEY_MACH_SOLID_MIN, solid)
+            .putInt(OverlayService.PREFS_KEY_MACH_PLAYABLE_MIN, playable)
+            .putInt(OverlayService.PREFS_KEY_MACH_RISKY_MIN, risky)
+            .apply()
+        OverlayService.syncTierThresholdsFromPrefs(prefs)
+        loadAndRenderMachineBrThresholdsUi()
+        refreshPresetsUi()
+        if (showToast) {
+            Toast.makeText(
+                this,
+                "Saved Machine Aggregate BR Scale: Elite>=$elite, Solid>=$solid, Playable>=$playable, Risky>=$risky",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
+    private fun restoreDefaultMachineBrThresholds() {
+        prefs.edit()
+            .putInt(OverlayService.PREFS_KEY_MACH_ELITE_MIN, OverlayService.DEFAULT_MACH_ELITE_MIN)
+            .putInt(OverlayService.PREFS_KEY_MACH_SOLID_MIN, OverlayService.DEFAULT_MACH_SOLID_MIN)
+            .putInt(OverlayService.PREFS_KEY_MACH_PLAYABLE_MIN, OverlayService.DEFAULT_MACH_PLAYABLE_MIN)
+            .putInt(OverlayService.PREFS_KEY_MACH_RISKY_MIN, OverlayService.DEFAULT_MACH_RISKY_MIN)
+            .apply()
+        OverlayService.syncTierThresholdsFromPrefs(prefs)
+        loadAndRenderMachineBrThresholdsUi()
+        refreshPresetsUi()
+        Toast.makeText(
+            this,
+            "Restored default Machine Aggregate BR Thresholds (650 / 610 / 580 / 540)",
+            Toast.LENGTH_SHORT
+        ).show()
+    }
+
+    private fun getMatchupTierCodeAndHex(rating: Int): Pair<String, String> {
+        OverlayService.syncTierThresholdsFromPrefs(prefs)
+        return when {
+            rating >= OverlayService.activeTierSwMin -> "SW" to "#34d399"
+            rating >= OverlayService.activeTierWMin -> "W" to "#4ade80"
+            rating <= OverlayService.activeTierSlMax -> "SL" to "#f43f5e"
+            rating <= OverlayService.activeTierLMax -> "L" to "#fb923c"
+            else -> "N" to "#cbd5e1"
+        }
+    }
+
+    private fun getMachineBrTierLabelAndHex(rating: Int): Pair<String, String> {
+        OverlayService.syncTierThresholdsFromPrefs(prefs)
+        return when {
+            rating >= OverlayService.activeMachEliteMin -> "Elite" to "#34d399"
+            rating >= OverlayService.activeMachSolidMin -> "Solid" to "#4ade80"
+            rating >= OverlayService.activeMachPlayableMin -> "Playable" to "#facc15"
+            rating >= OverlayService.activeMachRiskyMin -> "Risky" to "#fb923c"
+            else -> "Blindspot" to "#f43f5e"
+        }
+    }
+
+    private fun getCurrentSeasonLogsForLeague(league: String): List<Pair<Long, List<String>>> {
+        val (currSeason, _) = getCurrentAndPreviousSeason()
+        val allLogs = loadBattleLogs()
+        return allLogs.filter { entry ->
+            entry.timestampMs in currSeason.startMs..currSeason.endMs &&
+                entry.league.equals(league, ignoreCase = true)
+        }.map { it.timestampMs to it.opponents }
+    }
+
+    private fun evaluatePresetMetrics(preset: TeamPreset, autoReorder: Boolean): TeamPreset {
+        val seasonLogs = getCurrentSeasonLogsForLeague(preset.league)
+        val serviceMembers = preset.pokemon.map {
+            OverlayService.TeamMember(it.name, it.cp, it.fastMove, it.chargedMove1, it.chargedMove2, it.ivs)
+        }
+        val eval = OverlayService.evaluateOrAutoOrderTeamStatic(
+            slots = serviceMembers,
+            league = preset.league,
+            seasonLogs = seasonLogs,
+            autoReorder = autoReorder
+        )
+        val orderedPokemon = eval.orderedSlots.map {
+            PokemonSlot(it.name, it.cp, it.fastMove, it.chargedMove1, it.chargedMove2, it.ivs)
+        }
+        return preset.copy(
+            pokemon = orderedPokemon,
+            archetype = if (preset.isArchetypeManual && !autoReorder) preset.archetype else eval.archetype,
+            isArchetypeManual = if (autoReorder) false else preset.isArchetypeManual,
+            leadAggBr = eval.leadAggBr,
+            machineAggBr = eval.machineAggBr,
+            safeSwapBr = eval.safeSwapBr,
+            closerSwapBr = eval.closerSwapBr,
+            closerBr = eval.closerBr,
+            sharedWeaknesses = eval.sharedWeaknesses
+        )
+    }
+
+    private fun recalculateAllPresetsWithSeasonMeta() {
+        val existing = loadPresets()
+        if (existing.isEmpty()) return
+        val updated = existing.map { evaluatePresetMetrics(it, autoReorder = false) }
+        savePresets(updated)
+        if (::presetsContainer.isInitialized) {
+            refreshPresetsUi()
+        }
     }
 
     private fun showHelpAndMetricGuideDialog(initialTopic: String = "wae") {
@@ -4352,6 +4518,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun launchOverlayServiceNow(resultCode: Int, data: Intent?) {
+        // Recalculate all saved team presets' Lead BR, Swap BR, and Machine BR against latest current-season logs + PvPoke meta
+        recalculateAllPresetsWithSeasonMeta()
         val serviceIntent = Intent(this, OverlayService::class.java).apply {
             action = OverlayService.ACTION_START_OVERLAY
             putExtra(OverlayService.EXTRA_RESULT_CODE, resultCode)
@@ -4509,21 +4677,28 @@ class MainActivity : AppCompatActivity() {
         val presets = loadPresets()
         val selectedId = prefs.getString(PREFS_KEY_SELECTED_PRESET, null) ?: presets.firstOrNull()?.id
 
-        presets.forEachIndexed { index, preset ->
+        presets.forEachIndexed { index, rawPreset ->
+            val preset = evaluatePresetMetrics(rawPreset, autoReorder = false)
             val itemView = layoutInflater.inflate(R.layout.item_team_preset, presetsContainer, false)
             val dragHandle = itemView.findViewById<TextView>(R.id.drag_handle_preset)
             val textName = itemView.findViewById<TextView>(R.id.text_preset_name)
+            val textArchetype = itemView.findViewById<TextView>(R.id.text_preset_archetype_badge)
             val textLeague = itemView.findViewById<TextView>(R.id.text_preset_league)
+            val textMetricsBadges = itemView.findViewById<TextView>(R.id.text_preset_metrics_badges)
             val textPokemon = itemView.findViewById<TextView>(R.id.text_preset_pokemon)
             val radioSelected = itemView.findViewById<RadioButton>(R.id.radio_selected)
             val btnMoveUp = itemView.findViewById<TextView>(R.id.btn_move_preset_up)
             val btnMoveDown = itemView.findViewById<TextView>(R.id.btn_move_preset_down)
+            val btnAutoDetect = itemView.findViewById<Button>(R.id.btn_auto_detect_preset)
             val btnEdit = itemView.findViewById<ImageButton>(R.id.btn_edit_preset)
             val btnDelete = itemView.findViewById<ImageButton>(R.id.btn_delete_preset)
 
             val isCurrent = preset.id == selectedId
             radioSelected.isChecked = isCurrent
             textName.text = preset.name
+
+            val isAbb = preset.archetype.equals("ABB", ignoreCase = true)
+            textArchetype?.text = if (isAbb) "ABB" else "ABC"
 
             val maxCp = preset.pokemon.maxOfOrNull { it.cp } ?: 0
             val resolvedLeague = when {
@@ -4533,12 +4708,37 @@ class MainActivity : AppCompatActivity() {
                 else -> "MASTER LEAGUE"
             }
             textLeague.text = resolvedLeague
-            textPokemon.text = preset.pokemon.joinToString("\n") {
-                val ivLabel = if (!it.ivs.isNullOrBlank()) " · IV ${it.ivs}" else ""
-                "• ${it.name} (CP ${it.cp}$ivLabel) — ${it.fastMove} | ${it.chargedMove1}, ${it.chargedMove2}"
+
+            val (leadTier, leadHex) = getMatchupTierCodeAndHex(preset.leadAggBr)
+            val (machTier, machHex) = getMachineBrTierLabelAndHex(preset.machineAggBr)
+            val (swap2Tier, swap2Hex) = getMatchupTierCodeAndHex(preset.safeSwapBr)
+            val (swap3Tier, swap3Hex) = getMatchupTierCodeAndHex(preset.closerSwapBr)
+
+            val metricsHtml = "Lead BR: <font color='$leadHex'>${preset.leadAggBr} ($leadTier)</font>  •  " +
+                "Mach BR: <font color='$machHex'>${preset.machineAggBr} ($machTier)</font>  •  " +
+                "Swap BR: <font color='$swap2Hex'>#2 ${preset.safeSwapBr} ($swap2Tier)</font> / <font color='$swap3Hex'>#3 ${preset.closerSwapBr} ($swap3Tier)</font>"
+            textMetricsBadges?.text = android.text.Html.fromHtml(metricsHtml, android.text.Html.FROM_HTML_MODE_LEGACY)
+
+            val roleLabels = if (isAbb) {
+                listOf("Lead (A)", "Bait Swap (B1)", "Sweeper (B2)")
+            } else {
+                listOf("Lead", "Safe Swap", "Closer")
             }
+            val slotBrLabels = listOf(
+                "Lead BR ${preset.leadAggBr} ($leadTier)",
+                "Swap BR ${preset.safeSwapBr} ($swap2Tier)",
+                "Swap BR ${preset.closerSwapBr} ($swap3Tier)"
+            )
+
+            textPokemon.text = preset.pokemon.mapIndexed { sIdx, slot ->
+                val ivLabel = if (!slot.ivs.isNullOrBlank()) " · IV ${slot.ivs}" else ""
+                val rTag = roleLabels.getOrElse(sIdx) { "Slot ${sIdx + 1}" }
+                val brTag = slotBrLabels.getOrElse(sIdx) { "" }
+                "• [$rTag · $brTag] ${slot.name} (CP ${slot.cp}$ivLabel) — ${slot.fastMove} | ${slot.chargedMove1}, ${slot.chargedMove2}"
+            }.joinToString("\n")
             applyCurrentAppThemeToSubtree(itemView)
             val activeTheme = getActiveAppTheme()
+            textArchetype?.setTextColor(if (isAbb) 0xFFFBBF24.toInt() else activeTheme.accentColor)
             textLeague.setTextColor(
                 when (resolvedLeague) {
                     "GREAT LEAGUE" -> activeTheme.accentColor
@@ -4547,6 +4747,30 @@ class MainActivity : AppCompatActivity() {
                     else -> 0xFFC084FC.toInt()
                 }
             )
+
+            btnAutoDetect?.setOnClickListener {
+                val reordered = evaluatePresetMetrics(preset, autoReorder = true).copy(updatedAt = System.currentTimeMillis())
+                val mutableList = loadPresets().toMutableList()
+                val idxInList = mutableList.indexOfFirst { it.id == preset.id }
+                if (idxInList >= 0) {
+                    mutableList[idxInList] = reordered
+                    savePresets(mutableList)
+                    refreshPresetsUi()
+                    if (isCurrent && isOverlayRunning) {
+                        val updateIntent = Intent(this, OverlayService::class.java).apply {
+                            action = OverlayService.ACTION_UPDATE_PRESET
+                            putExtra(OverlayService.EXTRA_PRESET_JSON, gson.toJson(reordered))
+                        }
+                        startService(updateIntent)
+                    }
+                    val orderSummary = reordered.pokemon.joinToString(" → ") { it.name }
+                    Toast.makeText(
+                        this,
+                        "⚡ Auto-Detected ${reordered.archetype}: $orderSummary (Swap BR: ${reordered.safeSwapBr})",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
 
             btnMoveUp?.alpha = if (index == 0) 0.3f else 1.0f
             btnMoveDown?.alpha = if (index == presets.lastIndex) 0.3f else 1.0f
@@ -4933,6 +5157,132 @@ class MainActivity : AppCompatActivity() {
             )
         }
 
+        // Team Style (ABB vs ABC), Aggregate BR & Slot Swap Wiring inside Create/Edit Dialog
+        val textDialogArchetypeSummary = dialogView.findViewById<TextView>(R.id.text_dialog_archetype_summary)
+        val textDialogMetaBlendInfo = dialogView.findViewById<TextView>(R.id.text_dialog_meta_blend_info)
+        val btnDialogAutoDetect = dialogView.findViewById<Button>(R.id.btn_dialog_auto_detect_style)
+        val btnSwapSlot12 = dialogView.findViewById<Button>(R.id.btn_swap_slot_1_2)
+        val btnSwapSlot23 = dialogView.findViewById<Button>(R.id.btn_swap_slot_2_3)
+        val textP1RoleTitle = dialogView.findViewById<TextView>(R.id.text_p1_role_title)
+        val textP2RoleTitle = dialogView.findViewById<TextView>(R.id.text_p2_role_title)
+        val textP3RoleTitle = dialogView.findViewById<TextView>(R.id.text_p3_role_title)
+        val textP1LeadBr = dialogView.findViewById<TextView>(R.id.text_p1_lead_br)
+        val textP2SwapBr = dialogView.findViewById<TextView>(R.id.text_p2_swap_br)
+        val textP3SwapBr = dialogView.findViewById<TextView>(R.id.text_p3_swap_br)
+
+        fun applySlotsToDialogInputs(slots: List<PokemonSlot>) {
+            slots.getOrNull(0)?.let {
+                editP1.setText(it.name, false)
+                editP1Cp.setText(it.cp.toString())
+                editP1Ivs.setText(it.ivs ?: "")
+                editP1Fast.setText(it.fastMove)
+                editP1C1.setText(it.chargedMove1)
+                editP1C2.setText(it.chargedMove2)
+            }
+            slots.getOrNull(1)?.let {
+                editP2.setText(it.name, false)
+                editP2Cp.setText(it.cp.toString())
+                editP2Ivs.setText(it.ivs ?: "")
+                editP2Fast.setText(it.fastMove)
+                editP2C1.setText(it.chargedMove1)
+                editP2C2.setText(it.chargedMove2)
+            }
+            slots.getOrNull(2)?.let {
+                editP3.setText(it.name, false)
+                editP3Cp.setText(it.cp.toString())
+                editP3Ivs.setText(it.ivs ?: "")
+                editP3Fast.setText(it.fastMove)
+                editP3C1.setText(it.chargedMove1)
+                editP3C2.setText(it.chargedMove2)
+            }
+        }
+
+        fun refreshDialogTeamEvaluation(autoReorder: Boolean): OverlayService.Companion.TeamArchetypeEvaluationResult {
+            val lg = currentLeagueProvider()
+            val top3Defaults = getLeagueTop3Defaults(lg)
+            val s1 = buildResolvedSlot(editP1, editP1Cp, editP1Ivs, editP1Fast, editP1C1, editP1C2, lg, top3Defaults[0])
+            val s2 = buildResolvedSlot(editP2, editP2Cp, editP2Ivs, editP2Fast, editP2C1, editP2C2, lg, top3Defaults[1])
+            val s3 = buildResolvedSlot(editP3, editP3Cp, editP3Ivs, editP3Fast, editP3C1, editP3C2, lg, top3Defaults[2])
+            val seasonLogs = getCurrentSeasonLogsForLeague(lg)
+            val eval = OverlayService.evaluateOrAutoOrderTeamStatic(
+                slots = listOf(
+                    OverlayService.TeamMember(s1.name, s1.cp, s1.fastMove, s1.chargedMove1, s1.chargedMove2, s1.ivs),
+                    OverlayService.TeamMember(s2.name, s2.cp, s2.fastMove, s2.chargedMove1, s2.chargedMove2, s2.ivs),
+                    OverlayService.TeamMember(s3.name, s3.cp, s3.fastMove, s3.chargedMove1, s3.chargedMove2, s3.ivs)
+                ),
+                league = lg,
+                seasonLogs = seasonLogs,
+                autoReorder = autoReorder
+            )
+            if (autoReorder) {
+                val orderedSlots = eval.orderedSlots.map {
+                    PokemonSlot(it.name, it.cp, it.fastMove, it.chargedMove1, it.chargedMove2, it.ivs)
+                }
+                applySlotsToDialogInputs(orderedSlots)
+            }
+
+            val isAbb = eval.archetype.equals("ABB", ignoreCase = true)
+            val (leadTier, leadHex) = getMatchupTierCodeAndHex(eval.leadAggBr)
+            val (machTier, machHex) = getMachineBrTierLabelAndHex(eval.machineAggBr)
+            val (swap2Tier, swap2Hex) = getMatchupTierCodeAndHex(eval.safeSwapBr)
+            val (swap3Tier, swap3Hex) = getMatchupTierCodeAndHex(eval.closerSwapBr)
+
+            val weakNote = if (eval.sharedWeaknesses.isNotEmpty()) " (Shared: ${eval.sharedWeaknesses.joinToString("/")})" else ""
+            val summaryHtml = "Style: <font color='${if (isAbb) "#fbbf24" else "#38bdf8"}'>${eval.archetype}$weakNote</font>  •  " +
+                "Lead BR: <font color='$leadHex'>${eval.leadAggBr} ($leadTier)</font>  •  " +
+                "Mach BR: <font color='$machHex'>${eval.machineAggBr} ($machTier)</font>"
+            textDialogArchetypeSummary?.text = android.text.Html.fromHtml(summaryHtml, android.text.Html.FROM_HTML_MODE_LEGACY)
+            textDialogMetaBlendInfo?.text =
+                "Current Season Meta Blend: ${eval.histWeightPct}% Recency-Weighted Logs (${eval.seasonMatchCount} matches) / ${100 - eval.histWeightPct}% PvPoke"
+
+            textP1RoleTitle?.text = if (isAbb) "⚔️ Lead Pokémon (Slot 1 · A) & Moveset" else "⚔️ Lead Pokémon (Slot 1) & Moveset"
+            textP2RoleTitle?.text = if (isAbb) "🔄 Bait Swap (Slot 2 · B1) & Moveset" else "🔄 Safe Swap (Slot 2) & Moveset"
+            textP3RoleTitle?.text = if (isAbb) "🛡️ Sweeper (Slot 3 · B2) & Moveset" else "🛡️ Closer (Slot 3) & Moveset"
+
+            textP1LeadBr?.text = "Lead BR: ${eval.leadAggBr} ($leadTier)"
+            textP1LeadBr?.setTextColor(android.graphics.Color.parseColor(leadHex))
+
+            textP2SwapBr?.text = "Swap BR: ${eval.safeSwapBr} ($swap2Tier)"
+            textP2SwapBr?.setTextColor(android.graphics.Color.parseColor(swap2Hex))
+
+            textP3SwapBr?.text = "Swap BR: ${eval.closerSwapBr} ($swap3Tier)"
+            textP3SwapBr?.setTextColor(android.graphics.Color.parseColor(swap3Hex))
+
+            return eval
+        }
+
+        btnDialogAutoDetect?.setOnClickListener {
+            val eval = refreshDialogTeamEvaluation(autoReorder = true)
+            val orderNames = eval.orderedSlots.joinToString(" → ") { it.name }
+            Toast.makeText(
+                this,
+                "⚡ Auto-Detected ${eval.archetype}: $orderNames (Slot 2 Swap BR: ${eval.safeSwapBr})",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+
+        btnSwapSlot12?.setOnClickListener {
+            val lg = currentLeagueProvider()
+            val top3Defaults = getLeagueTop3Defaults(lg)
+            val s1 = buildResolvedSlot(editP1, editP1Cp, editP1Ivs, editP1Fast, editP1C1, editP1C2, lg, top3Defaults[0])
+            val s2 = buildResolvedSlot(editP2, editP2Cp, editP2Ivs, editP2Fast, editP2C1, editP2C2, lg, top3Defaults[1])
+            val s3 = buildResolvedSlot(editP3, editP3Cp, editP3Ivs, editP3Fast, editP3C1, editP3C2, lg, top3Defaults[2])
+            applySlotsToDialogInputs(listOf(s2, s1, s3))
+            refreshDialogTeamEvaluation(autoReorder = false)
+        }
+
+        btnSwapSlot23?.setOnClickListener {
+            val lg = currentLeagueProvider()
+            val top3Defaults = getLeagueTop3Defaults(lg)
+            val s1 = buildResolvedSlot(editP1, editP1Cp, editP1Ivs, editP1Fast, editP1C1, editP1C2, lg, top3Defaults[0])
+            val s2 = buildResolvedSlot(editP2, editP2Cp, editP2Ivs, editP2Fast, editP2C1, editP2C2, lg, top3Defaults[1])
+            val s3 = buildResolvedSlot(editP3, editP3Cp, editP3Ivs, editP3Fast, editP3C1, editP3C2, lg, top3Defaults[2])
+            applySlotsToDialogInputs(listOf(s1, s3, s2))
+            refreshDialogTeamEvaluation(autoReorder = false)
+        }
+
+        refreshDialogTeamEvaluation(autoReorder = false)
+
         // Apply active theme & optional background watermark logo to the Team Edit dialog
         val activeTheme = getActiveAppTheme()
         val showWatermark = prefs.getBoolean(OverlayService.PREFS_KEY_SHOW_THEME_WATERMARK, true) && activeTheme.emblemDrawableRes != null
@@ -4960,7 +5310,7 @@ class MainActivity : AppCompatActivity() {
                 val p2 = buildResolvedSlot(editP2, editP2Cp, editP2Ivs, editP2Fast, editP2C1, editP2C2, league, top3Defaults[1])
                 val p3 = buildResolvedSlot(editP3, editP3Cp, editP3Ivs, editP3Fast, editP3C1, editP3C2, league, top3Defaults[2])
 
-                val savedPreset = TeamPreset(
+                val rawPreset = TeamPreset(
                     id = existingPreset?.id ?: UUID.randomUUID().toString(),
                     name = name,
                     league = league,
@@ -4968,6 +5318,7 @@ class MainActivity : AppCompatActivity() {
                     isSelected = existingPreset?.isSelected ?: false,
                     updatedAt = System.currentTimeMillis()
                 )
+                val savedPreset = evaluatePresetMetrics(rawPreset, autoReorder = false)
 
                 val list = loadPresets().toMutableList()
                 val existingIdx = list.indexOfFirst { it.id == savedPreset.id }
@@ -4980,7 +5331,11 @@ class MainActivity : AppCompatActivity() {
                 setSelectedPreset(savedPreset.id)
                 setupBattleLogFilters()
                 triggerTwoDeviceCloudSync(silent = true)
-                Toast.makeText(this, "Saved '${name}' & updated moves!", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    this,
+                    "Saved '${name}' (${savedPreset.archetype} • Lead BR ${savedPreset.leadAggBr} • Mach BR ${savedPreset.machineAggBr})!",
+                    Toast.LENGTH_SHORT
+                ).show()
             }
             .setNegativeButton("Cancel", null)
             .show()
