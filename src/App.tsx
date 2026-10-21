@@ -2437,7 +2437,7 @@ export default function App() {
                     backgroundColor: `${activeTheme.accentHex}1A`
                   }}
                 >
-                  v3.07 • Android Native Overlay
+                  v3.08 • Android Native Overlay
                 </span>
               </div>
               <p className="text-xs hidden sm:block" style={{ color: activeTheme.textSecondaryHex }}>
@@ -5441,7 +5441,7 @@ export default function App() {
                           'Content-Type': 'application/json'
                         },
                         body: JSON.stringify({
-                          description: 'SilphScope PvP v3.07 Multi-Device Delta Sync Vault',
+                          description: 'SilphScope PvP v3.08 Multi-Device Delta Sync Vault',
                           public: false,
                           files: {
                             'gbl_delta_sync_v2.json': { content: bundleStr }
@@ -5896,7 +5896,7 @@ export default function App() {
               `SilphScope PvP Battle Log — ${leagueHeader}`,
               `Team: ${teamName}`,
               `Range: ${rangeTitle}`,
-              `Overall Record: ${w}W - ${l}L (${pct}%) • Leads: ${fv} Fav / ${nu} Neu / ${ng} Neg / ${uq} Unique • WAE: ${waeInfo.formatted} • Luck: ${waeInfo.luckFormatted}`
+              `Overall Record:${w}W-${l}L(${pct}%) • Leads:${fv} Fav/${nu} Neu/${ng} Neg/${uq} Unique • WAE:${waeInfo.formatted} • Luck:${waeInfo.luckFormatted}`
             ];
             if (list.length === 0) {
               lines.push('', 'No battles logged in this timeframe.');
@@ -5961,7 +5961,7 @@ export default function App() {
                 const dwae = calculateAggregateWAE(teamItems, presets);
                 lines.push(
                   '',
-                  `=== ${dayStr} - ${tInfo.teamName} ${tInfo.monsBracket} Daily Record: ${dw}W - ${dl}L (${dpct}%) [Leads: ${dfv} Fav / ${dnu} Neu / ${dng} Neg / ${duq} Unique] • WAE: ${dwae.formatted} • Luck: ${dwae.luckFormatted} ===`
+                  `=== ${dayStr} - ${tInfo.teamName} ${tInfo.monsBracket} Daily Record:${dw}W-${dl}L(${dpct}%) [Leads:${dfv} Fav/${dnu} Neu/${dng} Neg/${duq} Unique] • WAE:${dwae.formatted} • Luck:${dwae.luckFormatted} ===`
                 );
                 [...teamItems]
                   .sort((a, b) => b.timestampMs - a.timestampMs)
@@ -6154,8 +6154,8 @@ export default function App() {
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
                     LEAD MATCHUPS
                   </span>
-                  <strong className="text-xs sm:text-sm font-extrabold text-sky-400 tabular-nums">
-                    {favCount} Fav / {neuCount} Neu / {negCount} Neg / {uniqueCount} Unique
+                  <strong className="text-base sm:text-lg font-extrabold text-sky-400 tabular-nums">
+                    {favCount}+/{neuCount}o/{negCount}-/{uniqueCount}u
                   </strong>
                 </div>
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 text-center shadow-xl">
@@ -6282,7 +6282,7 @@ export default function App() {
                         <div key={dayGroup.dayLabel} className="space-y-2">
                           <div className="px-2 py-1 text-[11.5px] font-bold text-sky-400 flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80">
                             <span>
-                              📅 {dayGroup.dayLabel} — Daily Record: {dWins}W - {dLosses}L ({dPct}%) • Leads: {dFav} Fav / {dNeu} Neu / {dNeg} Neg / {dUnique} Unique • WAE:{' '}
+                              📅 {dayGroup.dayLabel} — Daily Record:{dWins}W-{dLosses}L({dPct}%) • Leads:{dFav} Fav/{dNeu} Neu/{dNeg} Neg/{dUnique} Unique • WAE:
                               <span
                                 style={{
                                   color:
@@ -6295,7 +6295,7 @@ export default function App() {
                               >
                                 {dWae.formatted}
                               </span>
-                              {' '}• Luck:{' '}
+                              {' '}• Luck:
                               <span
                                 style={{
                                   color:
@@ -7075,7 +7075,7 @@ export default function App() {
               <div>
                 <h2 className="text-lg font-bold text-white flex items-center gap-2">
                   <Info className="w-5 h-5 text-sky-400" />
-                  <span>📖 Complete Help, HUD Instructions, Tips &amp; Tactics Guide (v3.07)</span>
+                  <span>📖 Complete Help, HUD Instructions, Tips &amp; Tactics Guide (v3.08)</span>
                 </h2>
                 <p className="text-xs text-slate-400">
                   Everything you need to master the floating PvP overlay, 3x3 matchup &amp; shield matrix, bottom 3-column damage grid, 50s swap clocks, move pacing, Battle Log analytics, and Tasker automation.
@@ -7979,7 +7979,7 @@ export default function App() {
               <div className="flex items-center justify-between border-b border-slate-800 pb-3 shrink-0">
                 <div>
                   <h3 className="font-bold text-base text-white flex items-center gap-2">
-                    <span>🎯 Overlay HUD &amp; Battle Flow Guide (v3.07)</span>
+                    <span>🎯 Overlay HUD &amp; Battle Flow Guide (v3.08)</span>
                   </h3>
                   <p className="text-xs text-slate-400 mt-0.5">
                     How to interact with the floating overlay, read 3x3 damage % &amp; shield dots, track 50s swap clocks, and log battles
@@ -8122,7 +8122,7 @@ export default function App() {
           color: activeTheme.textSecondaryHex
         }}
       >
-        SilphScope PvP v3.07 Overlay • Built with Kotlin, WindowManager TYPE_APPLICATION_OVERLAY, MediaProjection in-memory frame capture, and ML Kit Text Recognition.
+        SilphScope PvP v3.08 Overlay • Built with Kotlin, WindowManager TYPE_APPLICATION_OVERLAY, MediaProjection in-memory frame capture, and ML Kit Text Recognition.
       </footer>
     </div>
   );

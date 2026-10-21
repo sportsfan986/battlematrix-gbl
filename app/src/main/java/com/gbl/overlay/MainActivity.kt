@@ -2935,7 +2935,7 @@ class MainActivity : AppCompatActivity() {
         sb.append("SilphScope PvP Battle Log — $leagueTitle\n")
         sb.append("Team: $teamTitle\n")
         sb.append("Range: $rangeLabel\n")
-        sb.append("Overall Record: ${wins}W - ${losses}L ($winPct%) • Leads: $favCount Fav / $neuCount Neu / $negCount Neg / $uniqueLeadsTotal Unique • WAE: ${aggWae.formatted} • Luck: ${aggWae.luckFormatted}\n")
+        sb.append("Overall Record:${wins}W-${losses}L($winPct%) • Leads:$favCount Fav/$neuCount Neu/$negCount Neg/$uniqueLeadsTotal Unique • WAE:${aggWae.formatted} • Luck:${aggWae.luckFormatted}\n")
 
         if (filtered.isEmpty()) {
             sb.append("\nNo battles logged in this timeframe.\n")
@@ -2970,7 +2970,7 @@ class MainActivity : AppCompatActivity() {
                 val dUnique = countUniqueLeads(teamDayEntries)
                 val dWae = OverlayService.calculateAggregateWAEStatic(teamDayEntries.map { resolveEntryQuality(it, presets) })
 
-                sb.append("\n=== $dayStr - ${teamInfo.teamName} ${teamInfo.monsBracket} Daily Record: ${dWins}W - ${dLosses}L ($dPct%) [Leads: $dFav Fav / $dNeu Neu / $dNeg Neg / $dUnique Unique] • WAE: ${dWae.formatted} • Luck: ${dWae.luckFormatted} ===\n")
+                sb.append("\n=== $dayStr - ${teamInfo.teamName} ${teamInfo.monsBracket} Daily Record:${dWins}W-${dLosses}L($dPct%) [Leads:$dFav Fav/$dNeu Neu/$dNeg Neg/$dUnique Unique] • WAE:${dWae.formatted} • Luck:${dWae.luckFormatted} ===\n")
                 for (entry in teamDayEntries.sortedByDescending { it.timestampMs }) {
                     val wl = if (entry.result.equals("WIN", ignoreCase = true)) "W" else "L"
                     val leadTag = when (entry.leadMatchup.uppercase()) {
@@ -3385,8 +3385,8 @@ class MainActivity : AppCompatActivity() {
         val presets = loadPresets()
         val aggWae = OverlayService.calculateAggregateWAEStatic(filtered.map { resolveEntryQuality(it, presets) })
 
-        textBattleLogTotal.text = "${wins}W - ${losses}L ($total)"
-        textBattleLogLeague.text = "$favCount Fav / $neuCount Neu / $negCount Neg / $uniqueLeadCount Unique"
+        textBattleLogTotal.text = "${wins}W-${losses}L ($total)"
+        textBattleLogLeague.text = "${favCount}+/${neuCount}o/${negCount}-/${uniqueLeadCount}u"
         textBattleLogWinrate.text = if (total == 0) "—%" else "$winPct%"
         textBattleLogWae.text = aggWae.formatted
         textBattleLogWae.setTextColor(
@@ -3477,7 +3477,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             val dayHeader = TextView(this).apply {
-                text = "📅 $dayStr — Daily Record: ${dWins}W - ${dLosses}L ($dPct%) • Leads: $dFav Fav / $dNeu Neu / $dNeg Neg / $dUnique Unique • WAE: ${dayWae.formatted} • Luck: ${dayWae.luckFormatted}"
+                text = "📅 $dayStr — Daily Record:${dWins}W-${dLosses}L($dPct%) • Leads:$dFav Fav/$dNeu Neu/$dNeg Neg/$dUnique Unique • WAE:${dayWae.formatted} • Luck:${dayWae.luckFormatted}"
                 setTextColor(0xFF38BDF8.toInt())
                 textSize = 11f
                 setTypeface(typeface, android.graphics.Typeface.BOLD)

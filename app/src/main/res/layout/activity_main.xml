@@ -60,7 +60,7 @@
                 android:id="@+id/tv_app_main_subtitle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Real-Time PvP Floating Overlay • v3.07"
+                android:text="Real-Time PvP Floating Overlay • v3.08"
                 android:textSize="11sp"
                 android:textColor="#94a3b8"
                 android:layout_marginTop="1dp" />
@@ -1450,9 +1450,9 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:singleLine="true"
-                    android:text="0W - 0L"
+                    android:text="0W-0L (0)"
                     android:textColor="#38bdf8"
-                    android:textSize="10.5sp"
+                    android:textSize="9.5sp"
                     android:textStyle="bold"
                     android:layout_marginTop="2dp" />
             </LinearLayout>
@@ -1480,9 +1480,9 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:singleLine="true"
-                    android:text="0 Fav / 0 Neu / 0 Neg / 0 Unique"
+                    android:text="0+/0o/0-/0u"
                     android:textColor="#34d399"
-                    android:textSize="9sp"
+                    android:textSize="9.5sp"
                     android:textStyle="bold"
                     android:layout_marginTop="2dp" />
             </LinearLayout>

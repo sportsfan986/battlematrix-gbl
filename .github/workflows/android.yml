@@ -123,24 +123,16 @@ jobs:
           tag_name: ${{ steps.version.outputs.tag }}
           name: "SilphScope PvP ${{ steps.version.outputs.tag }}"
           body: |
-            ## SilphScope PvP ${{ steps.version.outputs.tag }} — Official v3.07 Release (League-Rated Default Form & Shadow Selection, Mew/Mewtwo Disambiguation, Repeated Daily Lead Highlighting & Yesterday Filter)
+            ## SilphScope PvP ${{ steps.version.outputs.tag }} — Official v3.08 Release (Compact Battle Log Lead Matchups & Tightened Daily Summary Spacing)
             
-            ### What's New in v3.07
-            - **Highest-Rated League Default Form & Shadow Selection on Scan**:
-              - Scanning an opponent Pokémon with multiple forms or Shadow variants now evaluates all form variants and their Shadow counterparts in the active league and selects the highest-ranked default automatically:
-                - **Great League (`1500`)**: `"Ninetales"` defaults to **Shadow Kanto Ninetales**.
-                - **Ultra League (`2500`)**: `"Mewtwo"` defaults to **Armored Mewtwo** (`Mewtwo (Armored)`).
-                - **Master League (`10000`)**: `"Mewtwo"` defaults to **Shadow Mewtwo**.
-              - Added `Mewtwo (Armored)` and `Mew` to built-in and live PvPoke metadata and recommended movesets.
-            - **Strict `Mew` vs. `Mewtwo` Disambiguation**:
-              - `"Mew"` and `"Mewtwo"` are strictly disambiguated across OCR token/prefix/fuzzy matching, switch detection, and stats resolution so neither ever evaluates as the other.
-            - **Battle Log: Same-Day Repeated Lead Highlighting, `/ # Unique` Lead Counts & Markdown Share Formatting**:
-              - Added **`/ # Unique`** after **`/ # Neg`** in the Battle Log top summary, daily record headers, and Share log lines (`Leads: # Fav / # Neu / # Neg / # Unique`).
-              - Highlighted any opponent lead faced more than once on the same calendar day with an accent card border, **`🔁 Repeat Lead (#1 of 2 Today)` / `🔁 Repeat Lead (#2 of 2 Today)`** adaptation badge, and **`**lead_name**`** Markdown bold formatting in Share output.
-            - **New `"Yesterday"` Timeframe Filter**:
-              - Added **`Yesterday`** to the Battle Log timeframe filter dropdown and the **Share** / **Copy GBL** export range chooser dialogs.
+            ### What's New in v3.08
+            - **Compact Lead Matchups Box (`#+/#o/#-/#u`)**:
+              - Changed the Battle Log **Lead Matchups** summary box format to `#+/#o/#-/#u` (e.g. `22+/25o/17-/50u`) and tightened the **Record (W - L)** card formatting so all summary values fit cleanly inside their boxes without overrun.
+            - **Tightened Daily Summary & Share Spacing**:
+              - Removed unneeded spaces in the daily summary header and plain-text export lines (e.g. `Daily Record:10W-13L(43%) • Leads:11 Fav/4 Neu/8 Neg/23 Unique • WAE:-10.9% • Luck:55.9%`).
 
-            ### Highlights Since v3.00 (`v3.02` – `v3.06`)
+            ### Highlights Since v3.00 (`v3.02` – `v3.07`)
+            - **v3.07 — League-Rated Default Form & Shadow Selection, Strict `Mew`/`Mewtwo` Disambiguation, Same-Day Repeated Lead Highlighting & `Yesterday` Filter**.
             - **v3.06 — Dual-Accent Theme Engine, ✨ Shiny Origin Dialga Midnight Theme, Full Modal/Button Theming & Page Transparency**.
             - **v3.05 — Interactive Overlay Header Shield Counters (`🛡️ You` & `🛡️ Opp`)**.
             - **v3.02–v3.03 — Dynamic Overlay Emblem Icons & Background Crest Watermarks**.

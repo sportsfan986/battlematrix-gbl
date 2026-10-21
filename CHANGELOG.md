@@ -1,5 +1,13 @@
 # SilphScope PvP Changelog (Since v3.00)
 
+## [v3.08] — 2026-10-21 — Battle Log Page Reformat: Compact Lead Matchups (`#+/#o/#-/#u`) & Tightened Daily Summary Spacing
+- **Compact Lead Matchups Summary Box (`#+/#o/#-/#u`)**:
+  - Reformatted the Battle Log **Lead Matchups** card value to `#+#o/#-/#u` (e.g., `22+/25o/17-/50u` for favorable, neutral, negative, and unique leads) and tightened the **Record (W - L)** card formatting (`${wins}W-${losses}L ($total)`) so all summary metrics fit cleanly inside their cards without text overrun.
+- **Tightened Daily Summary & Share Export Spacing**:
+  - Removed unneeded spaces in the daily record header and plain-text export summaries (`Daily Record:10W-13L(43%) • Leads:11 Fav/4 Neu/8 Neg/23 Unique • WAE:-10.9% • Luck:55.9%`).
+
+---
+
 ## [v3.07] — 2026-10-21 — League-Rated Default Form & Shadow Selection, Strict Mew/Mewtwo Disambiguation, Same-Day Repeated Lead Highlighting & Yesterday Filter
 - **Highest-Rated League Default Form & Shadow Selection on Scan (`FormResolver` & `OverlayService`)**:
   - Scanning an opponent with multiple forms or Shadow variants now evaluates all form variants and their `_shadow` counterparts against the active league's live PvPoke rankings (plus curated current-meta fallbacks) and selects the highest-rated form + Shadow state automatically:
