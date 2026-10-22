@@ -2378,12 +2378,12 @@ class OverlayService : LifecycleService() {
             }
 
             val cleanSpeciesId = meta.speciesId.lowercase().removeSuffix("_shadow").removeSuffix("_alolan").removeSuffix("_galarian").removeSuffix("_hisuian").removeSuffix("_paldean")
-            val baseKey = FormResolver.extractBaseSpecies(meta.name).lowercase()
+            val speciesBaseKey = FormResolver.extractBaseSpecies(meta.name).lowercase()
 
             val gmFastPool = SPECIES_FAST_MOVES_POOL[meta.speciesId.lowercase()]
                 ?: SPECIES_FAST_MOVES_POOL[cleanSpeciesId]
                 ?: SPECIES_FAST_MOVES_POOL[meta.name.lowercase()]
-                ?: SPECIES_FAST_MOVES_POOL[baseKey]
+                ?: SPECIES_FAST_MOVES_POOL[speciesBaseKey]
                 ?: SPECIES_FAST_MOVES_POOL["${cleanSpeciesId}_shield"]
                 ?: SPECIES_FAST_MOVES_POOL["${cleanSpeciesId}_full_belly"]
 
@@ -2391,7 +2391,7 @@ class OverlayService : LifecycleService() {
                 gmFastPool
             } else {
                 FALLBACK_SPECIES_FAST_POOL[cleanSpeciesId]
-                    ?: FALLBACK_SPECIES_FAST_POOL[baseKey]
+                    ?: FALLBACK_SPECIES_FAST_POOL[speciesBaseKey]
                     ?: FALLBACK_SPECIES_FAST_POOL[meta.name.lowercase()]
             }
 
@@ -2418,7 +2418,7 @@ class OverlayService : LifecycleService() {
             val gmChargedPool = SPECIES_CHARGED_MOVES_POOL[meta.speciesId.lowercase()]
                 ?: SPECIES_CHARGED_MOVES_POOL[cleanSpeciesId]
                 ?: SPECIES_CHARGED_MOVES_POOL[meta.name.lowercase()]
-                ?: SPECIES_CHARGED_MOVES_POOL[baseKey]
+                ?: SPECIES_CHARGED_MOVES_POOL[speciesBaseKey]
                 ?: SPECIES_CHARGED_MOVES_POOL["${cleanSpeciesId}_shield"]
                 ?: SPECIES_CHARGED_MOVES_POOL["${cleanSpeciesId}_full_belly"]
 
@@ -2426,7 +2426,7 @@ class OverlayService : LifecycleService() {
                 gmChargedPool
             } else {
                 FALLBACK_SPECIES_CHARGED_POOL[cleanSpeciesId]
-                    ?: FALLBACK_SPECIES_CHARGED_POOL[baseKey]
+                    ?: FALLBACK_SPECIES_CHARGED_POOL[speciesBaseKey]
                     ?: FALLBACK_SPECIES_CHARGED_POOL[meta.name.lowercase()]
             }
 

@@ -123,30 +123,24 @@ jobs:
           tag_name: ${{ steps.version.outputs.tag }}
           name: "SilphScope PvP ${{ steps.version.outputs.tag }}"
           body: |
-            ## SilphScope PvP ${{ steps.version.outputs.tag }} — Official v3.14 Release (Single-Screen Scanner Mode Unmasked Capture, Best-Match-Across-Team Player Switch OCR & Single-Tap Stop Overlay Button Fix)
+            ## SilphScope PvP ${{ steps.version.outputs.tag }} — Official v3.20 Release (Top-200 Precomputed 9x9 Overlay Shield Matrix, Anti-Meta Team Builder & Special Mechanics Validator Audit)
             
-            ### What's New in v3.14
-            - **Single-Screen Scanner Mode Unmasked Capture (`captureAndProcessBattleRegions`)**:
-              - Removed all black-rectangle screen masking (`overlayView` and `statusToastView`) and overlay chip-bar filtering so single-app screen capture mode never masks out Pokémon GO HUD or move button pixels underneath the floating overlay or status toasts.
-            - **Best-Match-Across-Team Player Switch OCR (`handlePlayerSwitchLines` & `scoreTeamMemberOnLine`)**:
-              - Replaced sequential slot-order matching (which evaluated Slot 0 / Lead first and returned on the first fuzzy or shared-CP match, such as `Tinkaton` 2499 and `Swampert` 2499) with simultaneous scoring across all 3 team Pokémon to select the strictly best match across the entire team regardless of slot order.
-              - Added High-Contrast B&W nameplate extraction (`createHighContrastWhiteTextBitmap`) for the top-left player nameplate and full 5-variant OCR confusable normalization (`rn -> m`, `1 -> i/l`, `0 -> o`, `v -> y`, `vv -> w`) so `"Swarnpert"` normalizes to `"swampert"` (exact match, score `0`).
-            - **Single-Tap "Stop Battle Overlay" Button Fix (`MainActivity`)**:
-              - Synchronously clears `OverlayService.isInstanceRunning` and updates `MainActivity` button state on the first tap of **Stop Battle Overlay** (plus live `onRunningStateChanged` callback), eliminating the need to tap Stop twice to restore **Start Battle Overlay**.
-            - **Top-5 Role Upgrade Recommendations (`Top-200` Candidate Pool vs. `Top-100` Blended Meta)**:
-              - Displays the **Top 5 distinct-species upgrade alternatives per role** (`#1 Lead`, `#2 Safe Swap`, `#3 Closer`) with one-tap replacement chips inside the Create Team and Edit Team dialogs.
-              - Simulates the **Top 200 Meta Pokémon** for the active league (including eligible Shadows and enforcing the GBL species clause) against the **Top 100** blended current-season meta distribution.
-            - **Renamed `Mach BR` (`Machine Aggregate BR`) → `Core BR` (`Core Coverage BR`)**:
-              - Replaced unclear `Mach BR` / `Machine Aggregate BR` terminology with **`Core BR`** / **`Core Coverage BR (Core BR — 3-Mon Team Ceiling)`** across team preset cards, Team Editor badges, role upgrade chips, and Settings threshold scales.
-            - **Enhanced Mimikyu (`Disguise`) & Aegislash (`Stance Change`) Battle Ranking Math**:
-              - **Mimikyu (`Disguise`)**: Computes the exact average of **(a) using all Protect Shields before busting Disguise** and **(b) busting Disguise first before using Protect Shields**, while modeling that opponents always throw their **fastest (lowest-energy) Charged Attack** until Disguise is busted.
-              - **Aegislash (`Shield ⇄ Sword Forme`)**: Models the shift in **both damage AND energy generation** between Shield Forme (`97 Atk / 291 Def`, `1 HP` fast damage, boosted `1.28x` high energy generation) and Sword/Blade Forme (`291 Atk / 97 Def`, full `291 Atk` fast & charged damage, lower energy generation rate until reverting via Protect Shield).
-              - **Morpeko (`Aura Wheel`) & Cramorant (`Gulp Missile`)**: Full support for alternating Electric/Dark STAB + `+1 Atk` buff cycles and Gulping/Gorging retaliation damage + `-1 Def / -1 Atk` debuffs.
-            - **Auto Team Style Detection (`ABB` vs. `ABC`), Non-Blocking Background Sim & Position-Weighted Shield Ratings**:
-              - Instantaneous background thread evaluation, `[ABB]` / `[ABC]` style classification, safe swap slot reordering, and current-season blended meta distribution with exponential recency decay.
+            ### What's New in v3.20
+            - **Precomputed 9x9 Shield Matrix for Active Team vs. Top-200 League Meta (`OverlayService.kt` & `gblData.ts`)**:
+              - Precomputes all 9 shield permutations (`0v0` through `2v2`) using full weighted move-combo math (`75%` primary + `25%` alternate PvPoke move combinations) for your active 3-Pokémon team against the **Top 200 League Meta** before launching the overlay (and automatically whenever the active team or league changes).
+              - Real-time overlay battling serves Top-200 matchups in **O(1) time** from the precomputed 9x9 matrix cache, while falling back to fast single-moveset real-time rough math for non-Top-200 spice matchups.
+            - **Anti-Meta Team Builder on Team Presets Page (`ABB` / `ABC`)**:
+              - **2a**: Select any **League** and enter **0, 1, or 2 Featured Pokémon** with live autocomplete and GBL species-clause validation.
+              - **2b**: Generates and ranks the **Best 5 ABB** and **Best 5 ABC** anti-meta team options that include your selected Featured Pokémon, displaying `Core BR`, `Lead BR`, `Swap BR`, `Closer BR`, and key Top-Meta targets countered.
+              - **2c**: Selecting any generated ABB or ABC option creates the team with default name **`<LeagueAbbreviation> Anti-Meta <YYYY-MM-DD>`** (e.g., `GL Anti-Meta 2026-10-22`) and immediately opens the **Edit Team** screen so you can customize moves, IVs, or role upgrades like any other team.
+            - **Special Mechanics Math Validator & Double-Bonus Elimination**:
+              - Scoped the Form Change & Special Mechanics Math Validator exclusively to Pokémon with **in-battle special mechanics**: **Morpeko** (`Hunger Switch` + `Aura Wheel`), **Cramorant** (`Gulp Missile` Gulping/Gorging forms), **Aegislash** (`Stance Change` Shield ⇄ Blade Forme), and **Mimikyu** (`Disguise` + Busted Form).
+              - Eliminated double-bonus multipliers (`Aegislash` `2.85x -> 1.22x` Stance Change factor and duplicate flat BR deltas) so Aegislash Shield Forme is no longer artificially inflated in Team Builder or Overlay matrices.
+              - Strictly sourced all Top-Meta pools and Top-5 DB Scores from live PvPoke rankings (`1500` / `2500` / `10000`) rather than static Gamemaster order.
             
-            ### Download & Install
-            Download **`silphscope-pvp-${{ steps.version.outputs.tag }}.apk`** from the **Assets** section below and install on your Android device.
+            ### Live Web Simulator & Download
+            - **Live Web Simulator**: [https://sportsfan986.github.io/silphscope-pvp/](https://sportsfan986.github.io/silphscope-pvp/)
+            - **Android APK**: Download **`silphscope-pvp-${{ steps.version.outputs.tag }}.apk`** from the **Assets** section below and install on your Android device.
           files: |
             app/build/outputs/apk/release/named/silphscope-pvp-${{ steps.version.outputs.tag }}.apk
           draft: false
