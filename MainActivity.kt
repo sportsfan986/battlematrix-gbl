@@ -197,6 +197,20 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnUndoBannerAction: Button
     private lateinit var btnUndoBannerDismiss: TextView
     private lateinit var btnTrashTeams: Button
+    private lateinit var btnToggleAntiMetaBuilder: Button
+    private lateinit var cardAntiMetaBuilder: LinearLayout
+    private lateinit var btnCollapseAntiMetaPanel: Button
+    private lateinit var layoutAntiMetaBody: LinearLayout
+    private lateinit var spinnerAntiMetaLeague: Spinner
+    private lateinit var editAntiMetaFeat1: AutoCompleteTextView
+    private lateinit var btnClearAntiMetaFeat1: Button
+    private lateinit var editAntiMetaFeat2: AutoCompleteTextView
+    private lateinit var btnClearAntiMetaFeat2: Button
+    private lateinit var btnGenerateAntiMetaTeams: Button
+    private lateinit var textAntiMetaStatus: TextView
+    private lateinit var layoutAntiMetaResults: LinearLayout
+    private var antiMetaJob: kotlinx.coroutines.Job? = null
+    private var isAntiMetaBodyExpanded: Boolean = true
     private lateinit var btnTrashBattleLog: Button
     private lateinit var spinnerAppTheme: Spinner
     private lateinit var ivThemePreviewEmblem: ImageView
@@ -1006,6 +1020,14 @@ class MainActivity : AppCompatActivity() {
             btnAddPreset.backgroundTintList = primaryBtnTint
             btnAddPreset.setTextColor(0xFFFFFFFF.toInt())
         }
+        if (::btnToggleAntiMetaBuilder.isInitialized) {
+            btnToggleAntiMetaBuilder.backgroundTintList = secondaryBtnTint
+            btnToggleAntiMetaBuilder.setTextColor(0xFFFFFFFF.toInt())
+        }
+        if (::btnGenerateAntiMetaTeams.isInitialized) {
+            btnGenerateAntiMetaTeams.backgroundTintList = primaryBtnTint
+            btnGenerateAntiMetaTeams.setTextColor(0xFFFFFFFF.toInt())
+        }
         if (::btnTrashTeams.isInitialized) {
             btnTrashTeams.backgroundTintList = elevatedBtnTint
             btnTrashTeams.setTextColor(theme.secondaryAccentColor)
@@ -1164,6 +1186,18 @@ class MainActivity : AppCompatActivity() {
         btnUndoBannerAction = findViewById(R.id.btn_undo_action)
         btnUndoBannerDismiss = findViewById(R.id.btn_undo_dismiss)
         btnTrashTeams = findViewById(R.id.btn_trash_presets)
+        btnToggleAntiMetaBuilder = findViewById(R.id.btn_toggle_anti_meta_builder)
+        cardAntiMetaBuilder = findViewById(R.id.card_anti_meta_builder)
+        btnCollapseAntiMetaPanel = findViewById(R.id.btn_collapse_anti_meta_panel)
+        layoutAntiMetaBody = findViewById(R.id.layout_anti_meta_body)
+        spinnerAntiMetaLeague = findViewById(R.id.spinner_antimeta_league)
+        editAntiMetaFeat1 = findViewById(R.id.edit_antimeta_feat1)
+        btnClearAntiMetaFeat1 = findViewById(R.id.btn_clear_antimeta_feat1)
+        editAntiMetaFeat2 = findViewById(R.id.edit_antimeta_feat2)
+        btnClearAntiMetaFeat2 = findViewById(R.id.btn_clear_antimeta_feat2)
+        btnGenerateAntiMetaTeams = findViewById(R.id.btn_generate_antimeta_teams)
+        textAntiMetaStatus = findViewById(R.id.text_antimeta_status)
+        layoutAntiMetaResults = findViewById(R.id.layout_antimeta_results)
         btnTrashBattleLog = findViewById(R.id.btn_trash_battle_log)
         spinnerAppTheme = findViewById(R.id.spinner_app_theme)
         ivThemePreviewEmblem = findViewById(R.id.iv_theme_preview_emblem)
@@ -1360,6 +1394,8 @@ class MainActivity : AppCompatActivity() {
         btnAddPreset.setOnClickListener {
             showPresetEditorDialog(null)
         }
+
+        setupAntiMetaTeamBuilderUi()
 
         btnLogManualBattle.setOnClickListener {
             showEditOrCreateBattleLogDialog(null)
@@ -5063,6 +5099,354 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    private fun setupAntiMetaTeamBuilderUi() {
+        if (!::spinnerAntiMetaLeague.isInitialized) return
+        val leagues = listOf("GREAT LEAGUE", "ULTRA LEAGUE", "MASTER LEAGUE", "MEGA MASTER LEAGUE")
+        spinnerAntiMetaLeague.adapter = createThemedSpinnerAdapter(leagues)
+
+        val antiMetaLeagueProvider = {
+            spinnerAntiMetaLeague.selectedItem?.toString() ?: "GREAT LEAGUE"
+        }
+
+        fun updateAntiMetaStatusDefaultName() {
+            val lg = antiMetaLeagueProvider()
+            val defaultTeamName = OverlayService.formatAntiMetaDefaultTeamNameStatic(lg)
+            val f1 = editAntiMetaFeat1.text.toString().trim()
+            val f2 = editAntiMetaFeat2.text.toString().trim()
+            val picks = listOf(f1, f2).filter { it.isNotEmpty() }
+            val picksStr = if (picks.isEmpty()) "0 Featured Picks (Full Meta)" else "Featuring: ${picks.joinToString(" + ")}"
+            textAntiMetaStatus.text = "Default Team Name: \"$defaultTeamName\" • $picksStr • Tap Generate to rank Best 5 ABB & 5 ABC options."
+        }
+
+        val feat1Adapter = PokemonAutocompleteAdapter(antiMetaLeagueProvider)
+        editAntiMetaFeat1.setAdapter(feat1Adapter)
+        editAntiMetaFeat1.threshold = 1
+        editAntiMetaFeat1.setOnItemClickListener { parent, _, position, _ ->
+            val chosen = parent.getItemAtPosition(position) as? OverlayService.Companion.PokemonAutocompleteSuggestion ?: return@setOnItemClickListener
+            editAntiMetaFeat1.setText(chosen.name, false)
+            updateAntiMetaStatusDefaultName()
+            runAntiMetaTeamBuilderGeneration()
+        }
+
+        val feat2Adapter = PokemonAutocompleteAdapter(antiMetaLeagueProvider)
+        editAntiMetaFeat2.setAdapter(feat2Adapter)
+        editAntiMetaFeat2.threshold = 1
+        editAntiMetaFeat2.setOnItemClickListener { parent, _, position, _ ->
+            val chosen = parent.getItemAtPosition(position) as? OverlayService.Companion.PokemonAutocompleteSuggestion ?: return@setOnItemClickListener
+            editAntiMetaFeat2.setText(chosen.name, false)
+            updateAntiMetaStatusDefaultName()
+            runAntiMetaTeamBuilderGeneration()
+        }
+
+        btnClearAntiMetaFeat1.setOnClickListener {
+            editAntiMetaFeat1.setText("", false)
+            updateAntiMetaStatusDefaultName()
+            if (layoutAntiMetaResults.childCount > 0) {
+                runAntiMetaTeamBuilderGeneration()
+            }
+        }
+
+        btnClearAntiMetaFeat2.setOnClickListener {
+            editAntiMetaFeat2.setText("", false)
+            updateAntiMetaStatusDefaultName()
+            if (layoutAntiMetaResults.childCount > 0) {
+                runAntiMetaTeamBuilderGeneration()
+            }
+        }
+
+        spinnerAntiMetaLeague.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
+                val lg = leagues.getOrElse(position) { "GREAT LEAGUE" }
+                val top3 = getLeagueTop3Defaults(lg)
+                editAntiMetaFeat1.hint = "Featured #1 (optional, e.g. ${top3[0].name})"
+                editAntiMetaFeat2.hint = "Featured #2 (optional, e.g. ${top3[1].name})"
+                updateAntiMetaStatusDefaultName()
+                if (layoutAntiMetaResults.childCount > 0) {
+                    runAntiMetaTeamBuilderGeneration()
+                }
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
+
+        fun setAntiMetaExpanded(expanded: Boolean) {
+            isAntiMetaBodyExpanded = expanded
+            cardAntiMetaBuilder.visibility = android.view.View.VISIBLE
+            layoutAntiMetaBody.visibility = if (expanded) android.view.View.VISIBLE else android.view.View.GONE
+            btnCollapseAntiMetaPanel.text = if (expanded) "Hide ▲" else "Open ▼"
+        }
+
+        btnCollapseAntiMetaPanel.setOnClickListener {
+            setAntiMetaExpanded(!isAntiMetaBodyExpanded)
+        }
+
+        btnToggleAntiMetaBuilder.setOnClickListener {
+            if (!isAntiMetaBodyExpanded) {
+                setAntiMetaExpanded(true)
+            }
+            if (layoutAntiMetaResults.childCount == 0) {
+                runAntiMetaTeamBuilderGeneration()
+            } else {
+                Toast.makeText(this, "Anti-Meta Team Builder (ABB & ABC) ready above your presets!", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        btnGenerateAntiMetaTeams.setOnClickListener {
+            setAntiMetaExpanded(true)
+            runAntiMetaTeamBuilderGeneration()
+        }
+
+        updateAntiMetaStatusDefaultName()
+    }
+
+    private fun runAntiMetaTeamBuilderGeneration() {
+        if (!::spinnerAntiMetaLeague.isInitialized) return
+        val lg = spinnerAntiMetaLeague.selectedItem?.toString() ?: "GREAT LEAGUE"
+        val f1 = editAntiMetaFeat1.text.toString().trim()
+        val f2 = editAntiMetaFeat2.text.toString().trim()
+        if (f1.isNotEmpty() && f2.isNotEmpty() &&
+            OverlayService.FormResolver.extractBaseSpecies(f1).equals(
+                OverlayService.FormResolver.extractBaseSpecies(f2),
+                ignoreCase = true
+            )
+        ) {
+            Toast.makeText(
+                this,
+                "GBL Species Clause: Featured #1 and #2 cannot share the same base species ($f1 / $f2).",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+
+        val featuredList = listOf(f1, f2).filter { it.isNotEmpty() }
+        val preloadedLogs = loadBattleLogs()
+        val seasonLogs = getCurrentSeasonLogsForLeague(lg, preloadedLogs)
+        val defaultNamePreview = OverlayService.formatAntiMetaDefaultTeamNameStatic(lg)
+
+        btnGenerateAntiMetaTeams.isEnabled = false
+        btnGenerateAntiMetaTeams.text = "⏳ Generating Best 5 ABB & 5 ABC Teams..."
+        textAntiMetaStatus.text = "Simulating $lg Anti-Meta lineups (${if (featuredList.isEmpty()) "0 Featured" else featuredList.joinToString(" + ")})..."
+
+        antiMetaJob?.cancel()
+        antiMetaJob = lifecycleScope.launch(Dispatchers.Default) {
+            val result = OverlayService.generateAntiMetaTeamOptionsStatic(
+                league = lg,
+                featuredPokemonNames = featuredList,
+                seasonLogs = seasonLogs
+            )
+            withContext(Dispatchers.Main) {
+                btnGenerateAntiMetaTeams.isEnabled = true
+                btnGenerateAntiMetaTeams.text = "⚡ Generate Best 5 ABB & 5 ABC Anti-Meta Teams"
+                val featLabel = if (result.featuredPokemon.isEmpty()) {
+                    "0 Featured Picks (Full Meta)"
+                } else {
+                    "Featuring ${result.featuredPokemon.joinToString(" + ")}"
+                }
+                textAntiMetaStatus.text =
+                    "✅ Generated Top ${result.top5AbbTeams.size} ABB & Top ${result.top5AbcTeams.size} ABC Teams ($featLabel • ${result.candidatesEvaluated} trios in ${result.elapsedMs}ms) • Default Name: \"$defaultNamePreview\""
+                renderAntiMetaBuilderResults(result)
+            }
+        }
+    }
+
+    private fun renderAntiMetaBuilderResults(result: OverlayService.Companion.AntiMetaTeamBuilderResult) {
+        layoutAntiMetaResults.removeAllViews()
+        val density = resources.displayMetrics.density
+        val activeTheme = getActiveAppTheme()
+        val defaultTeamName = OverlayService.formatAntiMetaDefaultTeamNameStatic(result.league)
+
+        fun addSectionHeader(title: String, subtitle: String, titleColor: Int) {
+            val hdrBox = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    topMargin = (8 * density).toInt()
+                    bottomMargin = (4 * density).toInt()
+                }
+            }
+            val titleTv = TextView(this).apply {
+                text = title
+                textSize = 12.5f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(titleColor)
+            }
+            val subTv = TextView(this).apply {
+                text = subtitle
+                textSize = 10.5f
+                setTextColor(activeTheme.secondaryTextColor)
+            }
+            hdrBox.addView(titleTv)
+            hdrBox.addView(subTv)
+            layoutAntiMetaResults.addView(hdrBox)
+        }
+
+        fun addOptionCard(opt: OverlayService.Companion.AntiMetaTeamOption) {
+            val isAbb = opt.archetype.equals("ABB", ignoreCase = true)
+            val card = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setBackgroundColor(activeTheme.innerCardColor)
+                val pad = (10 * density).toInt()
+                setPadding(pad, pad, pad, pad)
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    bottomMargin = (8 * density).toInt()
+                }
+            }
+
+            val topRow = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+            }
+
+            val (leadTier, leadHex) = getMatchupTierCodeAndHex(opt.leadAggBr)
+            val (machTier, machHex) = getMachineBrTierLabelAndHex(opt.machineAggBr)
+            val (swapTier, swapHex) = getMatchupTierCodeAndHex(opt.safeSwapBr)
+            val (closeTier, closeHex) = getMatchupTierCodeAndHex(opt.closerBr)
+            val archHex = if (isAbb) "#fbbf24" else "#38bdf8"
+
+            val badgeTv = TextView(this).apply {
+                val html = "<b><font color='$archHex'>[#${opt.rank} ${opt.archetype}]</font></b>  " +
+                    "Core: <font color='$machHex'><b>${opt.machineAggBr} ($machTier)</b></font>  •  " +
+                    "Beats <b>${opt.topMetaWinsCount}/15</b> Top Meta"
+                text = android.text.Html.fromHtml(html, android.text.Html.FROM_HTML_MODE_LEGACY)
+                textSize = 11.5f
+                setTextColor(activeTheme.primaryTextColor)
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            }
+
+            val selectBtn = Button(this).apply {
+                text = "✅ Use & Edit"
+                textSize = 10.5f
+                minWidth = 0
+                minimumWidth = 0
+                val padH = (10 * density).toInt()
+                setPadding(padH, 0, padH, 0)
+                backgroundTintList = android.content.res.ColorStateList.valueOf(0xFF059669.toInt())
+                setTextColor(0xFFFFFFFF.toInt())
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    (32 * density).toInt()
+                )
+                setOnClickListener {
+                    selectAntiMetaTeamOptionAndOpenEditor(opt)
+                }
+            }
+
+            topRow.addView(badgeTv)
+            topRow.addView(selectBtn)
+            card.addView(topRow)
+
+            val roleLabels = if (isAbb) {
+                listOf("Lead (A)", "Bait Swap (B1)", "Sweeper (B2)")
+            } else {
+                listOf("Lead", "Safe Swap", "Closer")
+            }
+            val roleBrHtml = listOf(
+                "<font color='$leadHex'>Lead BR ${opt.leadAggBr} ($leadTier)</font>",
+                "<font color='$swapHex'>Swap BR ${opt.safeSwapBr} ($swapTier)</font>",
+                "<font color='$closeHex'>Closer BR ${opt.closerBr} ($closeTier)</font>"
+            )
+
+            val slotsHtml = opt.pokemon.mapIndexed { idx, m ->
+                val rLabel = roleLabels.getOrElse(idx) { "Slot ${idx + 1}" }
+                val brStr = roleBrHtml.getOrElse(idx) { "" }
+                val isFeat = opt.featuredNamesIncluded.any { it.equals(m.name, ignoreCase = true) }
+                val featBadge = if (isFeat) " <font color='#fbbf24'><b>[★ Featured]</b></font>" else ""
+                "• <b>[$rLabel · $brStr]</b> ${m.name}$featBadge (CP ${m.cp}) — ${m.fastMove} | ${m.chargedMove1}, ${m.chargedMove2}"
+            }.joinToString("<br>")
+
+            val slotsTv = TextView(this).apply {
+                text = android.text.Html.fromHtml(slotsHtml, android.text.Html.FROM_HTML_MODE_LEGACY)
+                textSize = 11f
+                setTextColor(activeTheme.primaryTextColor)
+                setPadding(0, (4 * density).toInt(), 0, (4 * density).toInt())
+            }
+            card.addView(slotsTv)
+
+            val keyWinsStr = if (opt.keyMetaTargetsBeaten.isNotEmpty()) {
+                " • Key Wins: ${opt.keyMetaTargetsBeaten.take(4).joinToString(", ")}"
+            } else {
+                ""
+            }
+            val summaryTv = TextView(this).apply {
+                text = "${opt.synergySummary}$keyWinsStr\nTap '✅ Use & Edit' to create \"$defaultTeamName\" & open Edit Team screen."
+                textSize = 10f
+                setTextColor(activeTheme.secondaryTextColor)
+            }
+            card.addView(summaryTv)
+
+            card.setOnClickListener {
+                selectAntiMetaTeamOptionAndOpenEditor(opt)
+            }
+
+            layoutAntiMetaResults.addView(card)
+        }
+
+        addSectionHeader(
+            title = "🛡️ Best 5 ABB Anti-Meta Lineups (Bait & Sweep)",
+            subtitle = "Lead (A) covers shared backline weaknesses for Bait Swap (B1) & Sweeper (B2)",
+            titleColor = 0xFFFBBF24.toInt()
+        )
+        result.top5AbbTeams.forEach { addOptionCard(it) }
+
+        addSectionHeader(
+            title = "⚔️ Best 5 ABC Anti-Meta Lineups (Balanced Core)",
+            subtitle = "Diversified Lead / Safe Swap / Closer anti-meta coverage",
+            titleColor = 0xFF38BDF8.toInt()
+        )
+        result.top5AbcTeams.forEach { addOptionCard(it) }
+    }
+
+    private fun selectAntiMetaTeamOptionAndOpenEditor(option: OverlayService.Companion.AntiMetaTeamOption) {
+        val defaultName = OverlayService.formatAntiMetaDefaultTeamNameStatic(option.league)
+        val slots = option.pokemon.map {
+            PokemonSlot(
+                name = it.name,
+                cp = it.cp,
+                fastMove = it.fastMove,
+                chargedMove1 = it.chargedMove1,
+                chargedMove2 = it.chargedMove2,
+                ivs = it.ivs
+            )
+        }
+        val rawPreset = TeamPreset(
+            id = UUID.randomUUID().toString(),
+            name = defaultName,
+            league = option.league,
+            pokemon = slots,
+            isSelected = true,
+            updatedAt = System.currentTimeMillis(),
+            archetype = option.archetype,
+            isArchetypeManual = true,
+            leadAggBr = option.leadAggBr,
+            machineAggBr = option.machineAggBr,
+            safeSwapBr = option.safeSwapBr,
+            closerSwapBr = option.closerSwapBr,
+            closerBr = option.closerBr,
+            sharedWeaknesses = option.sharedWeaknesses
+        )
+        val createdPreset = evaluatePresetMetrics(rawPreset, autoReorder = false)
+
+        val list = loadPresets().toMutableList()
+        list.add(0, createdPreset)
+        savePresets(list)
+        setSelectedPreset(createdPreset.id)
+        setupBattleLogFilters()
+        triggerTwoDeviceCloudSync(silent = true)
+
+        Toast.makeText(
+            this,
+            "Created '${createdPreset.name}' (${createdPreset.archetype} • Core BR ${createdPreset.machineAggBr}) — opening Edit Team!",
+            Toast.LENGTH_SHORT
+        ).show()
+
+        // Requirement 2c: Open immediately to Edit Team screen for user to modify like any other team
+        showPresetEditorDialog(createdPreset)
     }
 
     private fun showPresetEditorDialog(existingPreset: TeamPreset?) {

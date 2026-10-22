@@ -123,16 +123,16 @@ jobs:
           tag_name: ${{ steps.version.outputs.tag }}
           name: "SilphScope PvP ${{ steps.version.outputs.tag }}"
           body: |
-            ## SilphScope PvP ${{ steps.version.outputs.tag }} — Official v3.20 Release (Top-200 Precomputed 9x9 Overlay Shield Matrix, Anti-Meta Team Builder & Special Mechanics Validator Audit)
+            ## SilphScope PvP ${{ steps.version.outputs.tag }} — Official v3.21 Release (Anti-Meta Team Builder on Team Presets Page, Top-200 Precomputed 9x9 Overlay Shield Matrix & Special Mechanics Validator Audit)
             
-            ### What's New in v3.20
+            ### What's New in v3.21
+            - **Anti-Meta Team Builder on Team Presets Page (`MainActivity.kt`, `OverlayService.kt`, `activity_main.xml` & Web Simulator)**:
+              - **2a — League & Featured Pokémon Selection**: Added an **Anti-Meta Team Builder (`ABB` / `ABC`)** panel and header button (`🧪 Anti-Meta`) on the **Team Presets** page where you can select any **League** and enter **0, 1, or 2 Featured Pokémon** with live autocomplete and GBL species-clause checks.
+              - **2b — Best 5 ABB & Best 5 ABC Team Options**: Generates and ranks the **Best 5 ABB** and **Best 5 ABC** anti-meta team options that include your selected Featured Pokémon, displaying `Core BR`, `Lead BR`, `Swap BR`, `Closer BR`, and key Top-Meta targets countered.
+              - **2c — One-Tap Team Creation & Immediate Edit Modal**: Selecting any generated ABB or ABC option creates the team with the default name **`<LeagueAbbreviation> Anti-Meta <YYYY-MM-DD>`** (e.g., `GL Anti-Meta 2026-10-22`) and immediately opens the **Edit Team** screen so you can customize moves, IVs, or role upgrades like any other team.
             - **Precomputed 9x9 Shield Matrix for Active Team vs. Top-200 League Meta (`OverlayService.kt` & `gblData.ts`)**:
               - Precomputes all 9 shield permutations (`0v0` through `2v2`) using full weighted move-combo math (`75%` primary + `25%` alternate PvPoke move combinations) for your active 3-Pokémon team against the **Top 200 League Meta** before launching the overlay (and automatically whenever the active team or league changes).
               - Real-time overlay battling serves Top-200 matchups in **O(1) time** from the precomputed 9x9 matrix cache, while falling back to fast single-moveset real-time rough math for non-Top-200 spice matchups.
-            - **Anti-Meta Team Builder on Team Presets Page (`ABB` / `ABC`)**:
-              - **2a**: Select any **League** and enter **0, 1, or 2 Featured Pokémon** with live autocomplete and GBL species-clause validation.
-              - **2b**: Generates and ranks the **Best 5 ABB** and **Best 5 ABC** anti-meta team options that include your selected Featured Pokémon, displaying `Core BR`, `Lead BR`, `Swap BR`, `Closer BR`, and key Top-Meta targets countered.
-              - **2c**: Selecting any generated ABB or ABC option creates the team with default name **`<LeagueAbbreviation> Anti-Meta <YYYY-MM-DD>`** (e.g., `GL Anti-Meta 2026-10-22`) and immediately opens the **Edit Team** screen so you can customize moves, IVs, or role upgrades like any other team.
             - **Special Mechanics Math Validator & Double-Bonus Elimination**:
               - Scoped the Form Change & Special Mechanics Math Validator exclusively to Pokémon with **in-battle special mechanics**: **Morpeko** (`Hunger Switch` + `Aura Wheel`), **Cramorant** (`Gulp Missile` Gulping/Gorging forms), **Aegislash** (`Stance Change` Shield ⇄ Blade Forme), and **Mimikyu** (`Disguise` + Busted Form).
               - Eliminated double-bonus multipliers (`Aegislash` `2.85x -> 1.22x` Stance Change factor and duplicate flat BR deltas) so Aegislash Shield Forme is no longer artificially inflated in Team Builder or Overlay matrices.

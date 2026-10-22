@@ -1,5 +1,11 @@
 # SilphScope PvP Changelog
 
+## [v3.21] — 2026-10-22 — Native Android & Web Anti-Meta Team Builder (`ABB` / `ABC`) on Team Presets Page
+- **Anti-Meta Team Builder on Team Presets Page (`MainActivity.kt`, `OverlayService.kt`, `activity_main.xml`, `App.tsx`, `gblData.ts`)**:
+  - **2a — League & Featured Pokémon Selection**: Added an **Anti-Meta Team Builder (`ABB` / `ABC`)** panel and header button (`🧪 Anti-Meta`) directly on the **Team Presets** page where you can select any **League** (`GREAT LEAGUE`, `ULTRA LEAGUE`, `MASTER LEAGUE`, `MEGA MASTER LEAGUE`) and enter **0, 1, or 2 Featured Pokémon** with live autocomplete and GBL species-clause checks.
+  - **2b — Best 5 ABB & Best 5 ABC Team Options**: Generates and ranks the **Best 5 ABB** and **Best 5 ABC** anti-meta team options that must include your selected Featured Pokémon, displaying `Core BR`, `Lead BR`, `Swap BR`, `Closer BR`, and key Top-Meta targets countered.
+  - **2c — One-Tap Team Creation & Immediate Edit Screen**: Selecting any generated ABB or ABC option creates the team with the default name **`<LeagueAbbreviation> Anti-Meta <YYYY-MM-DD>`** (e.g., `GL Anti-Meta 2026-10-22`) and immediately opens the **Edit Team** screen (`showPresetEditorDialog` / `openEditPresetModal`) so you can customize moves, IVs, or role upgrades like any other team.
+
 ## [v3.20] — 2026-10-22 — Top-200 Precomputed 9x9 Overlay Shield Matrix, Anti-Meta Team Builder (ABB/ABC) & Special Mechanics Validator Audit
 - **Precomputed 9x9 Shield Matrix for Active Team vs. Top-200 League Meta (`gblData.ts`, `App.tsx`, `OverlayService.kt`)**:
   - Precomputes the full 9x9 weighted move-combo shield matrix (`0v0` through `2v2`) for the 3 members of the active team against the **Top 200 League Meta** before launching the overlay (and automatically on team/league switch).

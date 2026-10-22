@@ -5365,6 +5365,585 @@ class OverlayService : LifecycleService() {
                 top3OverallMovesets = top3Overall
             )
         }
+
+        data class AntiMetaTeamOption(
+            val id: String,
+            val archetype: String, // "ABB" or "ABC"
+            val rank: Int,
+            val league: String,
+            val pokemon: List<TeamMember>,
+            val featuredNamesIncluded: List<String>,
+            val leadAggBr: Int,
+            val machineAggBr: Int,
+            val safeSwapBr: Int,
+            val closerSwapBr: Int,
+            val closerBr: Int,
+            val sharedWeaknesses: List<String>,
+            val compositeAntiMetaScore: Double,
+            val topMetaWinsCount: Int,
+            val keyMetaTargetsBeaten: List<String>,
+            val synergySummary: String
+        )
+
+        data class AntiMetaTeamBuilderResult(
+            val league: String,
+            val leagueAbbr: String,
+            val featuredPokemon: List<String>,
+            val top5AbbTeams: List<AntiMetaTeamOption>,
+            val top5AbcTeams: List<AntiMetaTeamOption>,
+            val candidatesEvaluated: Int,
+            val elapsedMs: Long
+        )
+
+        fun getLeagueAbbreviationStatic(league: String): String {
+            return when {
+                league.contains("MEGA", ignoreCase = true) -> "MML"
+                league.contains("GREAT", ignoreCase = true) -> "GL"
+                league.contains("ULTRA", ignoreCase = true) -> "UL"
+                else -> "ML"
+            }
+        }
+
+        fun formatAntiMetaDefaultTeamNameStatic(league: String, timestampMs: Long = System.currentTimeMillis()): String {
+            val abbr = getLeagueAbbreviationStatic(league)
+            val dateStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date(timestampMs))
+            return "$abbr Anti-Meta $dateStr"
+        }
+
+        /**
+         * Generates the Best 5 ABB and Best 5 ABC Anti-Meta team options for the selected league
+         * that MUST include the 0, 1, or 2 user-selected featured Pokémon, enforcing the GBL Species Clause
+         * and 1-Mega limit.
+         */
+        fun generateAntiMetaTeamOptionsStatic(
+            league: String,
+            featuredPokemonNames: List<String>,
+            seasonLogs: List<Pair<Long, List<String>>> = emptyList()
+        ): AntiMetaTeamBuilderResult {
+            val t0 = System.currentTimeMillis()
+            val normLeague = when {
+                league.contains("MEGA", ignoreCase = true) -> "MEGA MASTER LEAGUE"
+                league.contains("GREAT", ignoreCase = true) -> "GREAT LEAGUE"
+                league.contains("ULTRA", ignoreCase = true) -> "ULTRA LEAGUE"
+                else -> "MASTER LEAGUE"
+            }
+            val allowMega = normLeague == "MEGA MASTER LEAGUE"
+            val isGreat = normLeague == "GREAT LEAGUE"
+            val isUltra = normLeague == "ULTRA LEAGUE"
+
+            val dist = computeBlendedSeasonMetaStatic(normLeague, seasonLogs)
+            val topMetaPool = getTop100MetaCandidatesForLeagueStatic(normLeague, 45)
+            val top15MetaThreats = dist.fieldWeights.entries
+                .sortedByDescending { it.value }
+                .map { it.key }
+                .distinct()
+                .take(15)
+                .ifEmpty { getTopMetaPoolForLeagueStatic(normLeague).take(15) }
+
+            fun isMegaOrPrimal(name: String, speciesId: String = ""): Boolean {
+                val n = name.lowercase()
+                val s = speciesId.lowercase()
+                return n.startsWith("mega ") || n.startsWith("primal ") || s.contains("_mega") || s.contains("_primal")
+            }
+
+            fun buildMemberFromName(rawName: String): TeamMember? {
+                val trimmed = rawName.trim()
+                if (trimmed.isEmpty()) return null
+                val resolved = resolveRecommendedMovesForSpecies(trimmed, normLeague) ?: return null
+                if (!allowMega && isMegaOrPrimal(resolved.name, resolved.speciesId)) return null
+                val scaled = computeEffectiveCombatStats(resolved, normLeague)
+                val finalDisplayName = if (trimmed.startsWith("Shadow ", ignoreCase = true) && !scaled.name.startsWith("Shadow ", ignoreCase = true)) {
+                    "Shadow ${scaled.name}"
+                } else {
+                    scaled.name
+                }
+                val ivDefault = when {
+                    isGreat -> scaled.defaultIvsGl
+                    isUltra -> scaled.defaultIvsUl
+                    else -> "15/15/15"
+                }
+                return TeamMember(
+                    name = finalDisplayName,
+                    cp = scaled.defaultCp,
+                    fastMove = scaled.defaultFastMove,
+                    chargedMove1 = scaled.chargedMove1,
+                    chargedMove2 = scaled.chargedMove2,
+                    ivs = ivDefault
+                )
+            }
+
+            val resolvedFeatured = ArrayList<TeamMember>(2)
+            val featuredBaseSet = HashSet<String>()
+            var featuredHasMega = false
+            for (raw in featuredPokemonNames.take(2)) {
+                val member = buildMemberFromName(raw) ?: continue
+                val baseSp = FormResolver.extractBaseSpecies(member.name).lowercase()
+                if (!featuredBaseSet.add(baseSp)) continue
+                val memberIsMega = isMegaOrPrimal(member.name)
+                if (memberIsMega && featuredHasMega) {
+                    featuredBaseSet.remove(baseSp)
+                    continue
+                }
+                if (memberIsMega) featuredHasMega = true
+                resolvedFeatured.add(member)
+            }
+
+            val candidatePool = ArrayList<TeamMember>(48)
+            val seenNames = HashSet<String>()
+            for (c in (resolvedFeatured + topMetaPool)) {
+                val k = c.name.lowercase()
+                if (seenNames.add(k)) {
+                    candidatePool.add(c)
+                }
+            }
+
+            val allOpps = (dist.leadWeights.keys + dist.fieldWeights.keys + top15MetaThreats).distinct()
+
+            data class CandidateSlotEval(
+                val member: TeamMember,
+                val baseSpecies: String,
+                val isMega: Boolean,
+                val weaknesses: List<String>,
+                val doubleWeaknesses: List<String>,
+                val resistances: List<String>,
+                val leadBr: Int,
+                val swapBr: Int,
+                val closerBr: Int,
+                val leadByOpp: Map<String, Double>,
+                val swapByOpp: Map<String, Double>,
+                val closerByOpp: Map<String, Double>
+            )
+
+            val slotEvalCache = HashMap<String, CandidateSlotEval>(candidatePool.size)
+
+            for (cand in candidatePool) {
+                val key = cand.name.lowercase()
+                val baseSpecies = FormResolver.extractBaseSpecies(cand.name).lowercase()
+                val meta = resolveRecommendedMovesForSpecies(cand.name, normLeague)
+                val types = meta?.types?.map { it.lowercase() }?.ifEmpty { listOf("normal") } ?: listOf("normal")
+
+                val weaknesses = ArrayList<String>()
+                val doubleWeaknesses = ArrayList<String>()
+                val resistances = ArrayList<String>()
+                for (atkType in ALL_18_TYPES) {
+                    val m = getTypeEffectivenessStatic(atkType, types)
+                    if (m > 1.9) {
+                        weaknesses.add(atkType)
+                        doubleWeaknesses.add(atkType)
+                    } else if (m > 1.05) {
+                        weaknesses.add(atkType)
+                    } else if (m < 0.95) {
+                        resistances.add(atkType)
+                    }
+                }
+
+                val leadByOpp = HashMap<String, Double>(allOpps.size)
+                val swapByOpp = HashMap<String, Double>(allOpps.size)
+                val closerByOpp = HashMap<String, Double>(allOpps.size)
+
+                for (opp in allOpps) {
+                    val b00 = calculateMatchupRatingStatic(cand.name, opp, 0, 0, normLeague, cand.fastMove, cand.chargedMove1, cand.chargedMove2, cand.cp, cand.ivs).toDouble()
+                    val b01 = calculateMatchupRatingStatic(cand.name, opp, 0, 1, normLeague, cand.fastMove, cand.chargedMove1, cand.chargedMove2, cand.cp, cand.ivs).toDouble()
+                    val b10 = calculateMatchupRatingStatic(cand.name, opp, 1, 0, normLeague, cand.fastMove, cand.chargedMove1, cand.chargedMove2, cand.cp, cand.ivs).toDouble()
+                    val b11 = calculateMatchupRatingStatic(cand.name, opp, 1, 1, normLeague, cand.fastMove, cand.chargedMove1, cand.chargedMove2, cand.cp, cand.ivs).toDouble()
+                    val b12 = calculateMatchupRatingStatic(cand.name, opp, 1, 2, normLeague, cand.fastMove, cand.chargedMove1, cand.chargedMove2, cand.cp, cand.ivs).toDouble()
+                    val b21 = calculateMatchupRatingStatic(cand.name, opp, 2, 1, normLeague, cand.fastMove, cand.chargedMove1, cand.chargedMove2, cand.cp, cand.ivs).toDouble()
+                    val b22 = calculateMatchupRatingStatic(cand.name, opp, 2, 2, normLeague, cand.fastMove, cand.chargedMove1, cand.chargedMove2, cand.cp, cand.ivs).toDouble()
+
+                    leadByOpp[opp] = 0.45 * b11 + 0.35 * b22 + 0.10 * b00 + 0.05 * b12 + 0.05 * b21
+                    swapByOpp[opp] = 0.40 * b11 + 0.20 * b10 + 0.20 * b01 + 0.10 * b21 + 0.10 * b00
+                    closerByOpp[opp] = 0.50 * b00 + 0.20 * b10 + 0.15 * b01 + 0.15 * b11
+                }
+
+                var leadSum = 0.0
+                for ((oppName, prob) in dist.leadWeights) {
+                    if (prob > 0.0) leadSum += prob * (leadByOpp[oppName] ?: 500.0)
+                }
+                var swapMean = 0.0
+                var closerSum = 0.0
+                for ((oppName, prob) in dist.fieldWeights) {
+                    if (prob > 0.0) {
+                        swapMean += prob * (swapByOpp[oppName] ?: 500.0)
+                        closerSum += prob * (closerByOpp[oppName] ?: 500.0)
+                    }
+                }
+                var swapVar = 0.0
+                for ((oppName, prob) in dist.fieldWeights) {
+                    if (prob > 0.0) {
+                        val d = (swapByOpp[oppName] ?: swapMean) - swapMean
+                        swapVar += prob * d * d
+                    }
+                }
+                val swapSigma = kotlin.math.sqrt(max(0.0, swapVar))
+                val safeSwapVal = (swapMean - 0.5 * swapSigma).roundToInt().coerceIn(150, 850)
+
+                slotEvalCache[key] = CandidateSlotEval(
+                    member = cand,
+                    baseSpecies = baseSpecies,
+                    isMega = isMegaOrPrimal(cand.name),
+                    weaknesses = weaknesses,
+                    doubleWeaknesses = doubleWeaknesses,
+                    resistances = resistances,
+                    leadBr = leadSum.roundToInt().coerceIn(150, 850),
+                    swapBr = safeSwapVal,
+                    closerBr = closerSum.roundToInt().coerceIn(150, 850),
+                    leadByOpp = leadByOpp,
+                    swapByOpp = swapByOpp,
+                    closerByOpp = closerByOpp
+                )
+            }
+
+            val abbCandidates = ArrayList<AntiMetaTeamOption>()
+            val abcCandidates = ArrayList<AntiMetaTeamOption>()
+            val seenTrios = HashSet<String>()
+            var candidatesEvaluated = 0
+
+            val triosToEvaluate = ArrayList<Triple<TeamMember, TeamMember, TeamMember>>()
+            val poolLimit = if (resolvedFeatured.isEmpty()) min(26, candidatePool.size) else min(36, candidatePool.size)
+
+            when (resolvedFeatured.size) {
+                2 -> {
+                    val f1 = resolvedFeatured[0]
+                    val f2 = resolvedFeatured[1]
+                    val e1 = slotEvalCache[f1.name.lowercase()]
+                    val e2 = slotEvalCache[f2.name.lowercase()]
+                    val b1 = e1?.baseSpecies ?: f1.name.lowercase()
+                    val b2 = e2?.baseSpecies ?: f2.name.lowercase()
+                    val hasMega12 = (e1?.isMega == true) || (e2?.isMega == true)
+                    for (i in 0 until candidatePool.size) {
+                        val c3 = candidatePool[i]
+                        val e3 = slotEvalCache[c3.name.lowercase()] ?: continue
+                        if (e3.baseSpecies == b1 || e3.baseSpecies == b2) continue
+                        if (hasMega12 && e3.isMega) continue
+                        triosToEvaluate.add(Triple(f1, f2, c3))
+                    }
+                }
+                1 -> {
+                    val f1 = resolvedFeatured[0]
+                    val e1 = slotEvalCache[f1.name.lowercase()]
+                    val b1 = e1?.baseSpecies ?: f1.name.lowercase()
+                    val m1 = e1?.isMega == true
+                    for (i in 0 until poolLimit) {
+                        val c2 = candidatePool[i]
+                        val e2 = slotEvalCache[c2.name.lowercase()] ?: continue
+                        if (e2.baseSpecies == b1) continue
+                        if (m1 && e2.isMega) continue
+                        for (j in (i + 1) until poolLimit) {
+                            val c3 = candidatePool[j]
+                            val e3 = slotEvalCache[c3.name.lowercase()] ?: continue
+                            if (e3.baseSpecies == b1 || e3.baseSpecies == e2.baseSpecies) continue
+                            if ((m1 || e2.isMega) && e3.isMega) continue
+                            triosToEvaluate.add(Triple(f1, c2, c3))
+                        }
+                    }
+                }
+                else -> {
+                    for (i in 0 until poolLimit) {
+                        val c1 = candidatePool[i]
+                        val e1 = slotEvalCache[c1.name.lowercase()] ?: continue
+                        for (j in (i + 1) until poolLimit) {
+                            val c2 = candidatePool[j]
+                            val e2 = slotEvalCache[c2.name.lowercase()] ?: continue
+                            if (e2.baseSpecies == e1.baseSpecies) continue
+                            if (e1.isMega && e2.isMega) continue
+                            for (k in (j + 1) until poolLimit) {
+                                val c3 = candidatePool[k]
+                                val e3 = slotEvalCache[c3.name.lowercase()] ?: continue
+                                if (e3.baseSpecies == e1.baseSpecies || e3.baseSpecies == e2.baseSpecies) continue
+                                if ((e1.isMega || e2.isMega) && e3.isMega) continue
+                                triosToEvaluate.add(Triple(c1, c2, c3))
+                            }
+                        }
+                    }
+                }
+            }
+
+            val indexPermutations = listOf(
+                Triple(0, 1, 2),
+                Triple(1, 0, 2),
+                Triple(2, 0, 1)
+            )
+            val all6Perms = listOf(
+                Triple(0, 1, 2),
+                Triple(0, 2, 1),
+                Triple(1, 0, 2),
+                Triple(1, 2, 0),
+                Triple(2, 0, 1),
+                Triple(2, 1, 0)
+            )
+
+            for (trio in triosToEvaluate) {
+                val list3 = listOf(trio.first, trio.second, trio.third)
+                val sig = list3.map { it.name.lowercase() }.sorted().joinToString("||")
+                if (!seenTrios.add(sig)) continue
+                candidatesEvaluated++
+
+                val e0 = slotEvalCache[list3[0].name.lowercase()] ?: continue
+                val e1 = slotEvalCache[list3[1].name.lowercase()] ?: continue
+                val e2 = slotEvalCache[list3[2].name.lowercase()] ?: continue
+                val evals = listOf(e0, e1, e2)
+
+                var bestAbbOrder: Triple<Int, Int, Int>? = null
+                var bestAbbShared: List<String> = emptyList()
+                var bestAbbStructureScore = Double.NEGATIVE_INFINITY
+
+                for ((leadIdx, bI, bJ) in indexPermutations) {
+                    val wI = evals[bI].weaknesses.toSet()
+                    val shared = evals[bJ].weaknesses.filter { it in wI }
+                    if (shared.isEmpty()) continue
+
+                    val hasSharedDouble = shared.any { w ->
+                        w in evals[bI].doubleWeaknesses || w in evals[bJ].doubleWeaknesses
+                    }
+                    val hasCritical = shared.any { it in CRITICAL_META_TYPES }
+                    val qualifiesOverlap = shared.size >= 2 || (shared.size >= 1 && (hasSharedDouble || hasCritical))
+                    if (!qualifiesOverlap) continue
+
+                    val leadResists = evals[leadIdx].resistances.toSet()
+                    val leadWeaks = evals[leadIdx].weaknesses.toSet()
+                    val resistedByLead = shared.filter { it in leadResists }
+                    val leadNotWeak = shared.all { it !in leadWeaks }
+
+                    if (resistedByLead.isNotEmpty() && leadNotWeak) {
+                        val b1First = evals[bI].swapBr >= evals[bJ].swapBr
+                        val ordered = if (b1First) Triple(leadIdx, bI, bJ) else Triple(leadIdx, bJ, bI)
+                        val sScore = resistedByLead.size * 40.0 +
+                            shared.size * 25.0 +
+                            evals[ordered.first].leadBr * 0.40 +
+                            evals[ordered.second].swapBr * 0.35 +
+                            evals[ordered.third].closerBr * 0.25
+                        if (sScore > bestAbbStructureScore) {
+                            bestAbbStructureScore = sScore
+                            bestAbbOrder = ordered
+                            bestAbbShared = shared
+                        }
+                    }
+                }
+
+                var bestAbcOrder = Triple(0, 1, 2)
+                var bestAbcRoleSum = Double.NEGATIVE_INFINITY
+                for ((lIdx, sIdx, cIdx) in all6Perms) {
+                    val roleSum = 0.40 * evals[lIdx].leadBr + 0.32 * evals[sIdx].swapBr + 0.28 * evals[cIdx].closerBr
+                    if (roleSum > bestAbcRoleSum) {
+                        bestAbcRoleSum = roleSum
+                        bestAbcOrder = Triple(lIdx, sIdx, cIdx)
+                    }
+                }
+
+                fun evaluateOrderedLineup(
+                    order: Triple<Int, Int, Int>,
+                    archetype: String,
+                    sharedWeaks: List<String>
+                ): AntiMetaTeamOption {
+                    val m0 = evals[order.first]
+                    val m1 = evals[order.second]
+                    val m2 = evals[order.third]
+
+                    var coreSum = 0.0
+                    for ((oppName, prob) in dist.fieldWeights) {
+                        if (prob <= 0.0) continue
+                        val r0 = m0.leadByOpp[oppName] ?: 500.0
+                        val r1 = m1.swapByOpp[oppName] ?: 500.0
+                        val r2 = m2.closerByOpp[oppName] ?: 500.0
+                        coreSum += prob * max(r0, max(r1, r2))
+                    }
+                    val machineAggBr = coreSum.roundToInt().coerceIn(150, 850)
+
+                    val beatenTargets = ArrayList<String>()
+                    for (threat in top15MetaThreats) {
+                        val r0 = m0.leadByOpp[threat] ?: 500.0
+                        val r1 = m1.swapByOpp[threat] ?: 500.0
+                        val r2 = m2.closerByOpp[threat] ?: 500.0
+                        if (max(r0, max(r1, r2)) >= 535.0) {
+                            beatenTargets.add(threat)
+                        }
+                    }
+
+                    var unresistedTripleWeakPenalty = 0.0
+                    for (atkType in ALL_18_TYPES) {
+                        val weakCount = listOf(m0, m1, m2).count { atkType in it.weaknesses }
+                        val resistCount = listOf(m0, m1, m2).count { atkType in it.resistances }
+                        if (weakCount >= 2 && resistCount == 0) {
+                            unresistedTripleWeakPenalty += if (weakCount == 3) 35.0 else 14.0
+                        }
+                    }
+
+                    val rawComposite = 0.50 * machineAggBr.toDouble() +
+                        0.20 * m0.leadBr.toDouble() +
+                        0.16 * m1.swapBr.toDouble() +
+                        0.14 * m2.closerBr.toDouble() +
+                        beatenTargets.size * 2.2 -
+                        (if (archetype == "ABC") unresistedTripleWeakPenalty else 0.0)
+                    val compositeAntiMetaScore = (rawComposite * 10.0).roundToInt() / 10.0
+
+                    val synergySummary = if (archetype == "ABB") {
+                        "ABB Lineup: ${m0.member.name} (Lead A) covers backline ${sharedWeaks.joinToString("/") { it.uppercase() }} weakness for ${m1.member.name} (Bait B1) & ${m2.member.name} (Sweeper B2). Beats ${beatenTargets.size}/15 top meta."
+                    } else {
+                        "ABC Balanced Core: ${m0.member.name} Lead (${m0.leadBr} BR) + ${m1.member.name} Safe Swap (${m1.swapBr} BR) + ${m2.member.name} Closer (${m2.closerBr} BR). Beats ${beatenTargets.size}/15 top meta."
+                    }
+
+                    return AntiMetaTeamOption(
+                        id = "anti-meta-${archetype.lowercase()}-$sig",
+                        archetype = archetype,
+                        rank = 0,
+                        league = normLeague,
+                        pokemon = listOf(m0.member, m1.member, m2.member),
+                        featuredNamesIncluded = resolvedFeatured.map { it.name },
+                        leadAggBr = m0.leadBr,
+                        machineAggBr = machineAggBr,
+                        safeSwapBr = m1.swapBr,
+                        closerSwapBr = m2.swapBr,
+                        closerBr = m2.closerBr,
+                        sharedWeaknesses = sharedWeaks,
+                        compositeAntiMetaScore = compositeAntiMetaScore,
+                        topMetaWinsCount = beatenTargets.size,
+                        keyMetaTargetsBeaten = beatenTargets.take(6),
+                        synergySummary = synergySummary
+                    )
+                }
+
+                if (bestAbbOrder != null) {
+                    abbCandidates.add(evaluateOrderedLineup(bestAbbOrder, "ABB", bestAbbShared))
+                } else {
+                    abcCandidates.add(evaluateOrderedLineup(bestAbcOrder, "ABC", emptyList()))
+                }
+            }
+
+            // Ensure both ABB and ABC have at least 5 options even when 2 featured Pokemon strongly favor one archetype
+            if (abbCandidates.size < 5 || abcCandidates.size < 5) {
+                for (trio in triosToEvaluate.take(60)) {
+                    val list3 = listOf(trio.first, trio.second, trio.third)
+                    val e0 = slotEvalCache[list3[0].name.lowercase()] ?: continue
+                    val e1 = slotEvalCache[list3[1].name.lowercase()] ?: continue
+                    val e2 = slotEvalCache[list3[2].name.lowercase()] ?: continue
+                    val evals = listOf(e0, e1, e2)
+                    val sig = list3.map { it.name.lowercase() }.sorted().joinToString("||")
+
+                    if (abbCandidates.size < 5 && abbCandidates.none { it.id.endsWith(sig) }) {
+                        for ((leadIdx, bI, bJ) in indexPermutations) {
+                            val wI = evals[bI].weaknesses.toSet()
+                            val shared = evals[bJ].weaknesses.filter { it in wI }
+                            if (shared.isNotEmpty()) {
+                                val ordered = if (evals[bI].swapBr >= evals[bJ].swapBr) Triple(leadIdx, bI, bJ) else Triple(leadIdx, bJ, bI)
+                                val m0 = evals[ordered.first]
+                                val m1 = evals[ordered.second]
+                                val m2 = evals[ordered.third]
+                                var coreSum = 0.0
+                                for ((oppName, prob) in dist.fieldWeights) {
+                                    if (prob <= 0.0) continue
+                                    coreSum += prob * max(m0.leadByOpp[oppName] ?: 500.0, max(m1.swapByOpp[oppName] ?: 500.0, m2.closerByOpp[oppName] ?: 500.0))
+                                }
+                                val machineAggBr = coreSum.roundToInt().coerceIn(150, 850)
+                                val beaten = top15MetaThreats.filter { t ->
+                                    max(m0.leadByOpp[t] ?: 500.0, max(m1.swapByOpp[t] ?: 500.0, m2.closerByOpp[t] ?: 500.0)) >= 535.0
+                                }
+                                abbCandidates.add(
+                                    AntiMetaTeamOption(
+                                        id = "anti-meta-abb-fallback-$sig",
+                                        archetype = "ABB",
+                                        rank = 0,
+                                        league = normLeague,
+                                        pokemon = listOf(m0.member, m1.member, m2.member),
+                                        featuredNamesIncluded = resolvedFeatured.map { it.name },
+                                        leadAggBr = m0.leadBr,
+                                        machineAggBr = machineAggBr,
+                                        safeSwapBr = m1.swapBr,
+                                        closerSwapBr = m2.swapBr,
+                                        closerBr = m2.closerBr,
+                                        sharedWeaknesses = shared,
+                                        compositeAntiMetaScore = ((0.50 * machineAggBr + 0.20 * m0.leadBr + 0.16 * m1.swapBr + 0.14 * m2.closerBr) * 10.0).roundToInt() / 10.0,
+                                        topMetaWinsCount = beaten.size,
+                                        keyMetaTargetsBeaten = beaten.take(6),
+                                        synergySummary = "ABB Lineup: ${m0.member.name} (Lead A) + ${m1.member.name} (Bait B1) & ${m2.member.name} (Sweeper B2) sharing ${shared.joinToString("/") { it.uppercase() }} weakness."
+                                    )
+                                )
+                                break
+                            }
+                        }
+                    }
+
+                    if (abcCandidates.size < 5 && abcCandidates.none { it.id.endsWith(sig) }) {
+                        val m0 = e0
+                        val m1 = if (e1.swapBr >= e2.swapBr) e1 else e2
+                        val m2 = if (e1.swapBr >= e2.swapBr) e2 else e1
+                        var coreSum = 0.0
+                        for ((oppName, prob) in dist.fieldWeights) {
+                            if (prob <= 0.0) continue
+                            coreSum += prob * max(m0.leadByOpp[oppName] ?: 500.0, max(m1.swapByOpp[oppName] ?: 500.0, m2.closerByOpp[oppName] ?: 500.0))
+                        }
+                        val machineAggBr = coreSum.roundToInt().coerceIn(150, 850)
+                        val beaten = top15MetaThreats.filter { t ->
+                            max(m0.leadByOpp[t] ?: 500.0, max(m1.swapByOpp[t] ?: 500.0, m2.closerByOpp[t] ?: 500.0)) >= 535.0
+                        }
+                        abcCandidates.add(
+                            AntiMetaTeamOption(
+                                id = "anti-meta-abc-fallback-$sig",
+                                archetype = "ABC",
+                                rank = 0,
+                                league = normLeague,
+                                pokemon = listOf(m0.member, m1.member, m2.member),
+                                featuredNamesIncluded = resolvedFeatured.map { it.name },
+                                leadAggBr = m0.leadBr,
+                                machineAggBr = machineAggBr,
+                                safeSwapBr = m1.swapBr,
+                                closerSwapBr = m2.swapBr,
+                                closerBr = m2.closerBr,
+                                sharedWeaknesses = emptyList(),
+                                compositeAntiMetaScore = ((0.50 * machineAggBr + 0.20 * m0.leadBr + 0.16 * m1.swapBr + 0.14 * m2.closerBr) * 10.0).roundToInt() / 10.0,
+                                topMetaWinsCount = beaten.size,
+                                keyMetaTargetsBeaten = beaten.take(6),
+                                synergySummary = "ABC Balanced Core: ${m0.member.name} Lead + ${m1.member.name} Safe Swap + ${m2.member.name} Closer."
+                            )
+                        )
+                    }
+                }
+            }
+
+            abbCandidates.sortByDescending { it.compositeAntiMetaScore }
+            abcCandidates.sortByDescending { it.compositeAntiMetaScore }
+
+            fun pickTop5Diverse(list: List<AntiMetaTeamOption>): List<AntiMetaTeamOption> {
+                val picked = ArrayList<AntiMetaTeamOption>(5)
+                val memberUsage = HashMap<String, Int>()
+                val nonFeaturedLimit = if (resolvedFeatured.size == 2) 5 else 2
+
+                for (item in list) {
+                    if (picked.size >= 5) break
+                    val nonFeaturedNames = item.pokemon
+                        .map { it.name.lowercase() }
+                        .filter { n -> resolvedFeatured.none { f -> f.name.equals(n, ignoreCase = true) } }
+                    val overused = nonFeaturedNames.any { n -> (memberUsage[n] ?: 0) >= nonFeaturedLimit }
+                    if (overused && list.size - picked.size > 5) continue
+                    for (n in nonFeaturedNames) {
+                        memberUsage[n] = (memberUsage[n] ?: 0) + 1
+                    }
+                    picked.add(item.copy(rank = picked.size + 1))
+                }
+
+                if (picked.size < 5) {
+                    for (item in list) {
+                        if (picked.size >= 5) break
+                        if (picked.any { it.id == item.id }) continue
+                        picked.add(item.copy(rank = picked.size + 1))
+                    }
+                }
+                return picked
+            }
+
+            val top5Abb = pickTop5Diverse(abbCandidates)
+            val top5Abc = pickTop5Diverse(abcCandidates)
+            val elapsed = max(1L, System.currentTimeMillis() - t0)
+
+            return AntiMetaTeamBuilderResult(
+                league = normLeague,
+                leagueAbbr = getLeagueAbbreviationStatic(normLeague),
+                featuredPokemon = resolvedFeatured.map { it.name },
+                top5AbbTeams = top5Abb,
+                top5AbcTeams = top5Abc,
+                candidatesEvaluated = candidatesEvaluated,
+                elapsedMs = elapsed
+            )
+        }
     }
 
     private lateinit var windowManager: WindowManager
