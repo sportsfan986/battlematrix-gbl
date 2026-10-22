@@ -5366,14 +5366,15 @@ class MainActivity : AppCompatActivity() {
                 val altInfo = opt.altMovesetSlots.getOrNull(idx)
                 val isAlt = altInfo?.isAltMoveset == true
                 val altBadge = if (isAlt) {
-                    val gainPart = if ((altInfo?.brGain ?: 0) > 0) " +${altInfo?.brGain} BR" else ""
+                    val gainVal = max(altInfo?.roleBrDelta ?: 0, altInfo?.coreBrDelta ?: 0)
+                    val gainPart = if (gainVal > 0) " +$gainVal BR" else ""
                     " <font color='#c4b5fd'><b>[⚡ Alt Moveset$gainPart]</b></font>"
                 } else {
                     ""
                 }
                 val movesColor = if (isAlt) "#ddd6fe" else "#cbd5e1"
                 val stdNote = if (isAlt && altInfo != null) {
-                    " <font color='#94a3b8'><i>(Std: ${altInfo.standardFastMove} + ${altInfo.standardChargedMove1}/${altInfo.standardChargedMove2})</i></font>"
+                    " <font color='#94a3b8'><i>(Std: ${altInfo.standardFastMove} + ${altInfo.standardCharged1}/${altInfo.standardCharged2})</i></font>"
                 } else {
                     ""
                 }
@@ -5453,7 +5454,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             val top25Html = result.top25MetaList.joinToString("  •  ") { entry ->
-                "<b><font color='#38bdf8'>#${entry.rank}</font> ${entry.name}</b> <font color='#94a3b8'>(${String.format(java.util.Locale.US, "%.1f", entry.fieldSharePct)}%)</font>"
+                "<b><font color='#38bdf8'>#${entry.rank}</font> ${entry.name}</b> <font color='#94a3b8'>(${String.format(java.util.Locale.US, "%.1f", entry.weightPct)}%)</font>"
             }
             val metaTv = TextView(this).apply {
                 text = android.text.Html.fromHtml(top25Html, android.text.Html.FROM_HTML_MODE_LEGACY)

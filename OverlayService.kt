@@ -5503,12 +5503,10 @@ class OverlayService : LifecycleService() {
                 val baseW = kotlin.math.exp(-0.022 * idx.toDouble()) * rankTierBoost
                 val candMember = candidateByName[monName.lowercase()]
                 val fastLower = candMember?.fastMove?.lowercase() ?: ""
-                val e1 = CHARGED_MOVE_ENERGY[candMember?.chargedMove1 ?: ""] ?: 45
-                val e2 = CHARGED_MOVE_ENERGY[candMember?.chargedMove2 ?: ""] ?: 55
-                val minEnergy = min(e1, e2)
-                val p1 = CHARGED_MOVE_POWER[candMember?.chargedMove1 ?: ""] ?: 75
-                val p2 = CHARGED_MOVE_POWER[candMember?.chargedMove2 ?: ""] ?: 85
-                val maxPower = max(p1, p2)
+                val c1Stats = resolveChargedMoveStatsStatic(candMember?.chargedMove1 ?: "")
+                val c2Stats = resolveChargedMoveStatsStatic(candMember?.chargedMove2 ?: "")
+                val minEnergy = min(c1Stats.energyCost, c2Stats.energyCost)
+                val maxPower = max(c1Stats.power, c2Stats.power)
                 val isShadow = monName.startsWith("Shadow ", ignoreCase = true)
 
                 val leadMult = (if (minEnergy <= 45) 1.22 else 1.0) *
