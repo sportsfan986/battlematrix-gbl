@@ -5366,7 +5366,7 @@ class MainActivity : AppCompatActivity() {
                 val altInfo = opt.altMovesetSlots.getOrNull(idx)
                 val isAlt = altInfo?.isAltMoveset == true
                 val altBadge = if (isAlt) {
-                    val gainVal = max(altInfo?.roleBrDelta ?: 0, altInfo?.coreBrDelta ?: 0)
+                    val gainVal = kotlin.math.max(altInfo?.roleBrDelta ?: 0, altInfo?.coreBrDelta ?: 0)
                     val gainPart = if (gainVal > 0) " +$gainVal BR" else ""
                     " <font color='#c4b5fd'><b>[⚡ Alt Moveset$gainPart]</b></font>"
                 } else {
