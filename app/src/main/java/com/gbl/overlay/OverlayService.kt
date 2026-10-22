@@ -1487,6 +1487,184 @@ class OverlayService : LifecycleService() {
         val DYNAMIC_FAST_ENERGY = java.util.concurrent.ConcurrentHashMap<String, Int>()
         val DYNAMIC_FAST_POWER = java.util.concurrent.ConcurrentHashMap<String, Int>()
         val DYNAMIC_FAST_TYPE = java.util.concurrent.ConcurrentHashMap<String, String>()
+        val SPECIES_FAST_MOVES_POOL = java.util.concurrent.ConcurrentHashMap<String, List<String>>()
+        val SPECIES_CHARGED_MOVES_POOL = java.util.concurrent.ConcurrentHashMap<String, List<String>>()
+
+        val FALLBACK_SPECIES_FAST_POOL: Map<String, List<String>> = mapOf(
+            "tinkaton" to listOf("Fairy Wind", "Rock Smash"),
+            "mimikyu" to listOf("Shadow Claw", "Charm"),
+            "swampert" to listOf("Mud Shot", "Water Gun"),
+            "feraligatr" to listOf("Shadow Claw", "Waterfall", "Ice Fang"),
+            "clodsire" to listOf("Poison Sting", "Mud Shot"),
+            "azumarill" to listOf("Bubble", "Rock Smash"),
+            "annihilape" to listOf("Counter", "Low Kick"),
+            "primeape" to listOf("Karate Chop", "Counter"),
+            "mandibuzz" to listOf("Snarl", "Air Slash"),
+            "talonflame" to listOf("Incinerate", "Fire Spin", "Peck"),
+            "skeledirge" to listOf("Incinerate", "Bite"),
+            "cresselia" to listOf("Psycho Cut", "Confusion"),
+            "giratina_altered" to listOf("Shadow Claw", "Dragon Breath"),
+            "giratina_origin" to listOf("Shadow Claw", "Dragon Tail"),
+            "poliwrath" to listOf("Counter", "Mud Shot", "Bubble"),
+            "gastrodon" to listOf("Mud-Slap", "Hidden Power"),
+            "quagsire" to listOf("Mud Shot", "Water Gun"),
+            "whiscash" to listOf("Mud Shot", "Water Gun"),
+            "lickilicky" to listOf("Rollout", "Lick"),
+            "serperior" to listOf("Vine Whip", "Iron Tail"),
+            "corviknight" to listOf("Sand Attack", "Steel Wing", "Air Slash"),
+            "aegislash" to listOf("Psycho Cut", "Fury Cutter"),
+            "cramorant" to listOf("Wing Attack", "Water Gun"),
+            "morpeko" to listOf("Thunder Shock", "Bite"),
+            "palkia_origin" to listOf("Dragon Breath", "Dragon Tail"),
+            "dialga_origin" to listOf("Dragon Breath", "Metal Claw"),
+            "zacian_crowned" to listOf("Metal Claw", "Snarl", "Quick Attack"),
+            "zacian_hero" to listOf("Snarl", "Quick Attack", "Metal Claw"),
+            "zamazenta_crowned" to listOf("Metal Claw", "Snarl", "Ice Fang"),
+            "kyurem_black" to listOf("Shadow Claw", "Dragon Tail"),
+            "kyurem_white" to listOf("Dragon Breath", "Ice Fang", "Steel Wing"),
+            "landorus_therian" to listOf("Mud Shot", "Extrasensory"),
+            "ho_oh" to listOf("Incinerate", "Hidden Power"),
+            "necrozma_dusk_mane" to listOf("Shadow Claw", "Psycho Cut", "Metal Claw"),
+            "necrozma_dawn_wings" to listOf("Shadow Claw", "Psycho Cut", "Metal Claw"),
+            "rhyperior" to listOf("Mud-Slap", "Smack Down"),
+            "yveltal" to listOf("Sucker Punch", "Snarl", "Gust"),
+            "xerneas" to listOf("Geomancy", "Tackle"),
+            "mewtwo" to listOf("Psycho Cut", "Confusion"),
+            "mewtwo_armored" to listOf("Confusion", "Iron Tail"),
+            "zygarde_complete" to listOf("Dragon Tail", "Bite"),
+            "florges" to listOf("Fairy Wind", "Vine Whip"),
+            "dragonite" to listOf("Dragon Breath", "Dragon Tail", "Steel Wing"),
+            "metagross" to listOf("Bullet Punch", "Zen Headbutt"),
+            "excadrill" to listOf("Mud Shot", "Mud-Slap", "Metal Claw"),
+            "mamoswine" to listOf("Powder Snow", "Mud-Slap"),
+            "groudon" to listOf("Mud Shot", "Dragon Tail"),
+            "kyogre" to listOf("Waterfall", "Dragon Tail"),
+            "lugia" to listOf("Dragon Tail", "Extrasensory"),
+            "snorlax" to listOf("Lick", "Zen Headbutt"),
+            "greninja" to listOf("Water Shuriken", "Bubble", "Feint Attack"),
+            "trevenant" to listOf("Shadow Claw", "Sucker Punch"),
+            "dewgong" to listOf("Ice Shard", "Frost Breath"),
+            "walrein" to listOf("Powder Snow", "Frost Breath", "Waterfall"),
+            "sandslash_alolan" to listOf("Powder Snow", "Shadow Claw"),
+            "ninetales_alolan" to listOf("Powder Snow", "Charm"),
+            "ninetales" to listOf("Ember", "Fire Spin", "Feint Attack"),
+            "weezing_galarian" to listOf("Fairy Wind", "Tackle"),
+            "drapion" to listOf("Poison Sting", "Ice Fang", "Bite"),
+            "dunsparce" to listOf("Rollout", "Astonish", "Bite"),
+            "wigglytuff" to listOf("Charm", "Feint Attack"),
+            "clefable" to listOf("Fairy Wind", "Charm"),
+            "bastiodon" to listOf("Smack Down", "Iron Tail"),
+            "carbink" to listOf("Rock Throw", "Tackle"),
+            "umbreon" to listOf("Snarl", "Feint Attack"),
+            "medicham" to listOf("Counter", "Psycho Cut"),
+            "sableye" to listOf("Shadow Claw", "Feint Attack"),
+            "skarmory" to listOf("Steel Wing", "Air Slash"),
+            "altaria" to listOf("Dragon Breath", "Peck"),
+            "pelipper" to listOf("Wing Attack", "Water Gun"),
+            "mantine" to listOf("Wing Attack", "Bubble", "Bullet Seed"),
+            "lanturn" to listOf("Spark", "Water Gun"),
+            "jellicent" to listOf("Hex", "Bubble"),
+            "abomasnow" to listOf("Powder Snow", "Leafage"),
+            "venusaur" to listOf("Vine Whip", "Razor Leaf"),
+            "charizard" to listOf("Wing Attack", "Dragon Breath", "Fire Spin"),
+            "machamp" to listOf("Counter", "Karate Chop"),
+            "scrafty" to listOf("Counter", "Snarl"),
+            "obstagoon" to listOf("Counter", "Lick"),
+            "malamar" to listOf("Psywave", "Psycho Cut"),
+            "guzzlord" to listOf("Dragon Tail", "Snarl"),
+            "cobalion" to listOf("Double Kick", "Metal Claw"),
+            "virizion" to listOf("Double Kick", "Quick Attack"),
+            "registeel" to listOf("Lock-On", "Metal Claw"),
+            "tapu_fini" to listOf("Water Gun", "Hidden Power")
+        )
+
+        val FALLBACK_SPECIES_CHARGED_POOL: Map<String, List<String>> = mapOf(
+            "tinkaton" to listOf("Gigaton Hammer", "Play Rough", "Bulldoze", "Brutal Swing", "Heavy Slam"),
+            "mimikyu" to listOf("Play Rough", "Shadow Sneak", "Shadow Ball"),
+            "swampert" to listOf("Hydro Cannon", "Earthquake", "Sludge Wave", "Surf", "Muddy Water"),
+            "feraligatr" to listOf("Hydro Cannon", "Ice Beam", "Crunch", "Water Pulse"),
+            "clodsire" to listOf("Earthquake", "Stone Edge", "Sludge Bomb", "Megahorn", "Acid Spray"),
+            "azumarill" to listOf("Ice Beam", "Play Rough", "Hydro Pump"),
+            "annihilape" to listOf("Rage Fist", "Ice Punch", "Close Combat", "Shadow Ball", "Night Slash"),
+            "primeape" to listOf("Rage Fist", "Close Combat", "Ice Punch", "Night Slash"),
+            "mandibuzz" to listOf("Dark Pulse", "Aerial Ace", "Foul Play", "Shadow Ball"),
+            "talonflame" to listOf("Fly", "Flame Charge", "Brave Bird", "Incinerate"),
+            "skeledirge" to listOf("Torch Song", "Shadow Ball", "Disarming Voice", "Crunch"),
+            "cresselia" to listOf("Grass Knot", "Moonblast", "Future Sight", "Aurora Beam"),
+            "giratina_altered" to listOf("Dragon Claw", "Ancient Power", "Shadow Sneak", "Shadow Force"),
+            "giratina_origin" to listOf("Shadow Ball", "Ominous Wind", "Dragon Pulse", "Shadow Force"),
+            "poliwrath" to listOf("Icy Wind", "Scald", "Dynamic Punch", "Ice Punch", "Power-Up Punch"),
+            "gastrodon" to listOf("Body Slam", "Earth Power", "Water Pulse", "Earthquake"),
+            "quagsire" to listOf("Aqua Tail", "Stone Edge", "Mud Bomb", "Sludge Bomb", "Earthquake"),
+            "whiscash" to listOf("Scald", "Mud Bomb", "Blizzard", "Water Pulse"),
+            "lickilicky" to listOf("Body Slam", "Shadow Ball", "Earthquake", "Solar Beam"),
+            "serperior" to listOf("Frenzy Plant", "Aerial Ace", "Leaf Tornado"),
+            "corviknight" to listOf("Air Cutter", "Iron Head", "Sky Attack", "Payback"),
+            "aegislash" to listOf("Shadow Ball", "Flash Cannon", "Gyro Ball", "Psychic"),
+            "cramorant" to listOf("Surf", "Fly", "Brave Bird", "Drill Peck"),
+            "morpeko" to listOf("Aura Wheel", "Psychic Fangs", "Outrage", "Seed Bomb"),
+            "palkia_origin" to listOf("Spacial Rend", "Aqua Tail", "Hydro Pump", "Fire Blast"),
+            "dialga_origin" to listOf("Roar of Time", "Iron Head", "Thunder", "Flash Cannon"),
+            "zacian_crowned" to listOf("Behemoth Blade", "Close Combat", "Play Rough", "Wild Charge"),
+            "zacian_hero" to listOf("Close Combat", "Play Rough", "Wild Charge", "Iron Head"),
+            "zamazenta_crowned" to listOf("Behemoth Bash", "Close Combat", "Moonblast", "Crunch"),
+            "kyurem_black" to listOf("Freeze Shock", "Fusion Bolt", "Outrage", "Blizzard", "Iron Head"),
+            "kyurem_white" to listOf("Ice Burn", "Fusion Flare", "Blizzard", "Dragon Pulse", "Focus Blast"),
+            "landorus_therian" to listOf("Sandsear Storm", "Stone Edge", "Superpower", "Earthquake"),
+            "ho_oh" to listOf("Sacred Fire", "Brave Bird", "Earthquake", "Solar Beam"),
+            "necrozma_dusk_mane" to listOf("Sunsteel Strike", "Dark Pulse", "Iron Head", "Outrage"),
+            "necrozma_dawn_wings" to listOf("Moongeist Beam", "Dark Pulse", "Iron Head", "Outrage"),
+            "rhyperior" to listOf("Rock Wrecker", "Breaking Swipe", "Superpower", "Surf", "Earthquake"),
+            "yveltal" to listOf("Dark Pulse", "Oblivion Wing", "Focus Blast", "Hurricane"),
+            "xerneas" to listOf("Close Combat", "Moonblast", "Megahorn", "Thunder"),
+            "mewtwo" to listOf("Psystrike", "Shadow Ball", "Focus Blast", "Ice Beam", "Flamethrower"),
+            "mewtwo_armored" to listOf("Psystrike", "Dynamic Punch", "Earthquake", "Rock Slide"),
+            "zygarde_complete" to listOf("Crunch", "Earthquake", "Outrage", "Bulldoze"),
+            "florges" to listOf("Disarming Voice", "Moonblast", "Trailblaze", "Psychic"),
+            "dragonite" to listOf("Dragon Claw", "Superpower", "Outrage", "Hurricane", "Draco Meteor"),
+            "metagross" to listOf("Meteor Mash", "Earthquake", "Psychic", "Flash Cannon"),
+            "excadrill" to listOf("Drill Run", "Rock Slide", "Iron Head", "Earthquake"),
+            "mamoswine" to listOf("Avalanche", "High Horsepower", "Stone Edge", "Bulldoze"),
+            "groudon" to listOf("Precipice Blades", "Fire Punch", "Earthquake", "Solar Beam"),
+            "kyogre" to listOf("Surf", "Origin Pulse", "Blizzard", "Thunder", "Hydro Pump"),
+            "lugia" to listOf("Sky Attack", "Aeroblast", "Hydro Pump", "Future Sight"),
+            "snorlax" to listOf("Body Slam", "Superpower", "Earthquake", "Outrage"),
+            "greninja" to listOf("Hydro Cannon", "Night Slash", "Brutal Swing", "Aerial Ace"),
+            "trevenant" to listOf("Seed Bomb", "Shadow Ball", "Foul Play"),
+            "dewgong" to listOf("Icy Wind", "Drill Run", "Blizzard", "Water Pulse"),
+            "walrein" to listOf("Icicle Spear", "Earthquake", "Blizzard", "Water Pulse"),
+            "sandslash_alolan" to listOf("Ice Punch", "Drill Run", "Blizzard", "Bulldoze"),
+            "ninetales_alolan" to listOf("Weather Ball (Ice)", "Chilling Water", "Psyshock", "Dazzling Gleam"),
+            "ninetales" to listOf("Weather Ball (Fire)", "Overheat", "Scorching Sands", "Psyshock", "Solar Beam"),
+            "weezing_galarian" to listOf("Brutal Swing", "Overheat", "Play Rough", "Sludge"),
+            "drapion" to listOf("Crunch", "Aqua Tail", "Sludge Bomb", "Fell Stinger"),
+            "dunsparce" to listOf("Rock Slide", "Drill Run", "Ice Beam"),
+            "wigglytuff" to listOf("Icy Wind", "Swift", "Disarming Voice", "Play Rough"),
+            "clefable" to listOf("Swift", "Meteor Mash", "Moonblast", "Psychic"),
+            "bastiodon" to listOf("Stone Edge", "Flamethrower", "Flash Cannon"),
+            "carbink" to listOf("Rock Slide", "Moonblast", "Power Gem"),
+            "umbreon" to listOf("Foul Play", "Last Resort", "Dark Pulse", "Psychic"),
+            "medicham" to listOf("Ice Punch", "Dynamic Punch", "Psychic", "Power-Up Punch"),
+            "sableye" to listOf("Foul Play", "Power Gem", "Shadow Sneak"),
+            "skarmory" to listOf("Sky Attack", "Brave Bird", "Flash Cannon"),
+            "altaria" to listOf("Sky Attack", "Moonblast", "Dazzling Gleam", "Dragon Pulse"),
+            "pelipper" to listOf("Weather Ball", "Hurricane", "Blizzard", "Hydro Pump"),
+            "mantine" to listOf("Aerial Ace", "Ice Beam", "Water Pulse", "Bubble Beam"),
+            "lanturn" to listOf("Surf", "Thunderbolt", "Water Pulse", "Hydro Pump"),
+            "jellicent" to listOf("Surf", "Shadow Ball", "Ice Beam", "Bubble Beam"),
+            "abomasnow" to listOf("Weather Ball (Ice)", "Energy Ball", "Icy Wind", "Outrage"),
+            "venusaur" to listOf("Frenzy Plant", "Sludge Bomb", "Petal Blizzard"),
+            "charizard" to listOf("Blast Burn", "Dragon Claw", "Overheat"),
+            "machamp" to listOf("Cross Chop", "Rock Slide", "Payback", "Close Combat"),
+            "scrafty" to listOf("Thunder Punch", "Foul Play", "Power-Up Punch", "Acid Spray"),
+            "obstagoon" to listOf("Night Slash", "Cross Chop", "Obstruct", "Hyper Beam"),
+            "malamar" to listOf("Superpower", "Foul Play", "Psybeam", "Hyper Beam"),
+            "guzzlord" to listOf("Dragon Claw", "Crunch", "Brutal Swing", "Sludge Bomb"),
+            "cobalion" to listOf("Sacred Sword", "Stone Edge", "Iron Head"),
+            "virizion" to listOf("Sacred Sword", "Leaf Blade", "Stone Edge"),
+            "registeel" to listOf("Focus Blast", "Zap Cannon", "Flash Cannon"),
+            "tapu_fini" to listOf("Surf", "Nature's Madness", "Moonblast", "Ice Beam")
+        )
 
         val FAST_MOVE_ENERGY: Map<String, Int> = mapOf(
             "dragon breath" to 3,
@@ -2649,16 +2827,41 @@ class OverlayService : LifecycleService() {
                                 ?: LIVE_RANKINGS_MAP["MEGA MASTER LEAGUE"]?.get(speciesId.lowercase())
 
                             val fastMovesArr = obj.optJsonArray("fastMoves")
-                            val firstFastId = rankEntry?.moveset?.getOrNull(0)?.takeIf { it.isNotBlank() }
-                                ?: rankEntry?.moves?.fastMoves?.firstOrNull()?.moveId
-                                ?: if (fastMovesArr != null && fastMovesArr.size() > 0 && !fastMovesArr.get(0).isJsonNull) fastMovesArr.get(0).asString else "TACKLE"
+                            val eliteArr = obj.optJsonArray("eliteMoves")
+                            val orderedFastIds = mutableListOf<String>()
+                            rankEntry?.moveset?.getOrNull(0)?.takeIf { it.isNotBlank() }?.let { orderedFastIds.add(it) }
+                            rankEntry?.moves?.fastMoves?.forEach { fm ->
+                                if (fm.moveId.isNotBlank() && !orderedFastIds.contains(fm.moveId)) {
+                                    orderedFastIds.add(fm.moveId)
+                                }
+                            }
+                            if (eliteArr != null) {
+                                for (em in eliteArr) {
+                                    if (em != null && !em.isJsonNull && em.isJsonPrimitive) {
+                                        val emId = em.asString
+                                        if (fastMoveNames.containsKey(emId) && !orderedFastIds.contains(emId)) {
+                                            orderedFastIds.add(emId)
+                                        }
+                                    }
+                                }
+                            }
+                            if (fastMovesArr != null) {
+                                for (fm in fastMovesArr) {
+                                    if (fm != null && !fm.isJsonNull && fm.isJsonPrimitive) {
+                                        val fmId = fm.asString
+                                        if (fmId.isNotBlank() && !orderedFastIds.contains(fmId)) {
+                                            orderedFastIds.add(fmId)
+                                        }
+                                    }
+                                }
+                            }
+                            val firstFastId = orderedFastIds.firstOrNull() ?: "TACKLE"
                             val fastMoveName = fastMoveNames[firstFastId]
                                 ?: formatMoveIdDisplay(firstFastId)
                             val fastTurns = DYNAMIC_FAST_TURNS[fastMoveName.lowercase()]
                                 ?: FAST_MOVE_TURNS[fastMoveName.lowercase()] ?: 2
 
                             val chargedArr = obj.optJsonArray("chargedMoves")
-                            val eliteArr = obj.optJsonArray("eliteMoves")
                             val orderedChargedIds = mutableListOf<String>()
                             rankEntry?.moveset?.drop(1)?.forEach { msId ->
                                 if (msId.isNotBlank() && !orderedChargedIds.contains(msId)) {
@@ -2689,6 +2892,17 @@ class OverlayService : LifecycleService() {
                                         }
                                     }
                                 }
+                            }
+
+                            val formattedFastPool = orderedFastIds.map { fastMoveNames[it] ?: formatMoveIdDisplay(it) }.filter { it.isNotBlank() }.distinct()
+                            val formattedChargedPool = orderedChargedIds.map { formatMoveIdDisplay(it) }.filter { it.isNotBlank() }.distinct()
+                            if (formattedFastPool.isNotEmpty()) {
+                                SPECIES_FAST_MOVES_POOL[speciesId.lowercase()] = formattedFastPool
+                                SPECIES_FAST_MOVES_POOL[speciesName.lowercase()] = formattedFastPool
+                            }
+                            if (formattedChargedPool.isNotEmpty()) {
+                                SPECIES_CHARGED_MOVES_POOL[speciesId.lowercase()] = formattedChargedPool
+                                SPECIES_CHARGED_MOVES_POOL[speciesName.lowercase()] = formattedChargedPool
                             }
 
                             val c1Id = orderedChargedIds.getOrNull(0) ?: "BODY_SLAM"
@@ -2838,9 +3052,74 @@ class OverlayService : LifecycleService() {
             Triple(2, 2, "2v2")
         )
 
+        fun getAvailableMovePoolForSpeciesStatic(
+            rawName: String,
+            league: String = "GREAT LEAGUE"
+        ): Pair<List<String>, List<String>> {
+            val meta = resolveRecommendedMovesForSpecies(rawName, league)
+                ?: POKEMON_META_DATABASE.first()
+            val cleanSpeciesId = meta.speciesId.lowercase().removeSuffix("_shadow")
+            val baseKey = meta.baseSpecies.lowercase()
+            val normLeague = when {
+                league.contains("MEGA", ignoreCase = true) -> "MEGA MASTER LEAGUE"
+                league.contains("GREAT", ignoreCase = true) -> "GREAT LEAGUE"
+                league.contains("ULTRA", ignoreCase = true) -> "ULTRA LEAGUE"
+                else -> "MASTER LEAGUE"
+            }
+            val rankEntry = LIVE_RANKINGS_MAP[normLeague]?.let { map ->
+                map[meta.speciesId.lowercase()] ?: map[cleanSpeciesId] ?: map["${cleanSpeciesId}_shadow"]
+            }
+
+            val fastList = mutableListOf<String>()
+            fun addFast(name: String?) {
+                val trimmed = name?.trim().orEmpty()
+                if (trimmed.isNotEmpty() && fastList.none { it.equals(trimmed, ignoreCase = true) }) {
+                    fastList.add(trimmed)
+                }
+            }
+
+            addFast(meta.defaultFastMove)
+            rankEntry?.moveset?.getOrNull(0)?.let { addFast(formatMoveIdDisplay(it)) }
+            rankEntry?.moves?.fastMoves?.forEach { addFast(formatMoveIdDisplay(it.moveId)) }
+            SPECIES_FAST_MOVES_POOL[meta.speciesId.lowercase()]?.forEach { addFast(it) }
+            SPECIES_FAST_MOVES_POOL[cleanSpeciesId]?.forEach { addFast(it) }
+            SPECIES_FAST_MOVES_POOL[meta.name.lowercase()]?.forEach { addFast(it) }
+            FALLBACK_SPECIES_FAST_POOL[cleanSpeciesId]?.forEach { addFast(it) }
+            FALLBACK_SPECIES_FAST_POOL[baseKey]?.forEach { addFast(it) }
+
+            val chargedList = mutableListOf<String>()
+            fun addCharged(name: String?) {
+                val trimmed = name?.trim().orEmpty()
+                if (trimmed.isNotEmpty() && chargedList.none { it.equals(trimmed, ignoreCase = true) }) {
+                    chargedList.add(trimmed)
+                }
+            }
+
+            addCharged(meta.chargedMove1)
+            addCharged(meta.chargedMove2)
+            addCharged(meta.chargedMove3)
+            addCharged(meta.chargedMove4)
+            rankEntry?.moveset?.drop(1)?.forEach { addCharged(formatMoveIdDisplay(it)) }
+            rankEntry?.moves?.chargedMoves?.forEach { addCharged(formatMoveIdDisplay(it.moveId)) }
+            SPECIES_CHARGED_MOVES_POOL[meta.speciesId.lowercase()]?.forEach { addCharged(it) }
+            SPECIES_CHARGED_MOVES_POOL[cleanSpeciesId]?.forEach { addCharged(it) }
+            SPECIES_CHARGED_MOVES_POOL[meta.name.lowercase()]?.forEach { addCharged(it) }
+            FALLBACK_SPECIES_CHARGED_POOL[cleanSpeciesId]?.forEach { addCharged(it) }
+            FALLBACK_SPECIES_CHARGED_POOL[baseKey]?.forEach { addCharged(it) }
+            COMMON_THIRD_CHARGED_MOVE[meta.name]?.let { addCharged(it) }
+            COMMON_THIRD_CHARGED_MOVE[meta.baseSpecies]?.let { addCharged(it) }
+
+            return fastList to chargedList
+        }
+
         /**
          * Phase 1: Evaluates discrete battle rating across all 9 shield permutations
-         * (s_user v s_opp in {0, 1, 2}^2): 0v0, 0v1, 0v2, 1v0, 1v1, 1v2, 2v0, 2v1, 2v2.
+         * (s_user v s_opp in {0, 1, 2}^2): 0v0, 0v1, 0v2, 1v0, 1v1, 1v2, 2v0, 2v1, 2v2
+         * using a weighted average of opponent PvPoke move combinations:
+         *  - 1a (75% weight): default PvPoke moveset (fast1 / charge1 / charge2)
+         *  - 1b (25% weight split equally = 5% each):
+         *      fast1/charge1/charge3, fast1/charge1/charge4, fast1/charge2/charge3,
+         *      fast1/charge2/charge4, fast2/charge1/charge2
          * Explicitly models unique PvP mechanics for Morpeko (Hunger Switch + Aura Wheel),
          * Mimikyu (Disguise free 1st unshielded charged block + Busted Form -1 Def stage),
          * Aegislash (Stance Change Shield ⇄ Blade Forme), and Cramorant (Gulp Missile Gulping/Gorging Form).
@@ -2893,40 +3172,25 @@ class OverlayService : LifecycleService() {
                 else -> minUserCharged
             }
 
-            val oppC1Stats = resolveChargedMoveStatsStatic(oppMeta.chargedMove1, oppMeta.types.firstOrNull() ?: "normal")
-            val oppC2Stats = resolveChargedMoveStatsStatic(oppMeta.chargedMove2, oppMeta.types.firstOrNull() ?: "normal")
-            val oppC1Pct = calculateChargedMoveDamagePctStatic(oppMeta, myMeta, oppMeta.chargedMove1, oppShadow, myShadow)
-            val oppC2Pct = calculateChargedMoveDamagePctStatic(oppMeta, myMeta, oppMeta.chargedMove2, oppShadow, myShadow)
-            val bestOppCharged = max(oppC1Pct, oppC2Pct)
-            val minOppCharged = min(oppC1Pct, oppC2Pct)
-            val fastestOppChargedPct = when {
-                oppC1Stats.energyCost < oppC2Stats.energyCost -> oppC1Pct
-                oppC2Stats.energyCost < oppC1Stats.energyCost -> oppC2Pct
-                else -> minOppCharged
-            }
-
-            val userFastType = DYNAMIC_FAST_TYPE[uFast.lowercase()] ?: fastMoveTypeMapStatic[uFast.lowercase()] ?: myMeta.types.firstOrNull() ?: "normal"
-            val oppFastType = DYNAMIC_FAST_TYPE[oppMeta.defaultFastMove.lowercase()] ?: fastMoveTypeMapStatic[oppMeta.defaultFastMove.lowercase()] ?: oppMeta.types.firstOrNull() ?: "normal"
+            val uFastKey = uFast.lowercase().trim()
+            val userFastType = DYNAMIC_FAST_TYPE[uFastKey] ?: fastMoveTypeMapStatic[uFastKey] ?: myMeta.types.firstOrNull() ?: "normal"
+            val userFastTurns = (DYNAMIC_FAST_TURNS[uFastKey] ?: FAST_MOVE_TURNS[uFastKey] ?: myMeta.fastTurns).coerceAtLeast(1)
+            val userFastEnergy = (DYNAMIC_FAST_ENERGY[uFastKey] ?: FAST_MOVE_ENERGY[uFastKey] ?: (userFastTurns * 3)).coerceAtLeast(1)
+            val userFastEpt = userFastEnergy.toDouble() / userFastTurns.toDouble()
             val rawUserFastEff = getTypeEffectivenessStatic(userFastType, oppMeta.types)
-            val rawOppFastEff = getTypeEffectivenessStatic(oppFastType, myMeta.types)
 
-            // Aegislash Stance Change: Models both Fast Move Damage AND Energy Generation shift between
-            // Shield Forme (97 Atk / 291 Def, 1 HP fast damage, 1.28x high energy generation) and
-            // Sword/Blade Forme (291 Atk / 97 Def, full 291 Atk fast & charged damage, 0.78x lower energy generation until reverting via Protect Shield)
             fun getAegislashFastDmgMult(shields: Int): Double = when (shields) {
-                2 -> 0.42 // Mostly Shield Forme (1 HP fast move) with brief Sword Forme windows
-                1 -> 0.68 // Blended Shield Forme early + Sword Forme (291 Atk fast move) after shield spent
-                else -> 1.12 // 0 shields: stays in Sword Forme after 1st charged move, dealing full 291 Atk fast damage
+                2 -> 0.42
+                1 -> 0.68
+                else -> 1.12
             }
             fun getAegislashEnergyGenMult(shields: Int): Double = when (shields) {
-                2 -> 1.28 // Reverts to Shield Forme twice via 2 Protect Shields -> sustained high energy generation
-                1 -> 1.06 // Reverts to Shield Forme once -> high initial energy gen, then lower Sword Forme energy gen
-                else -> 0.86 // 0 shields -> cannot revert to Shield Forme after first charged attack; stuck at lower Sword Forme energy gen
+                2 -> 1.28
+                1 -> 1.06
+                else -> 0.86
             }
 
             val userFastEff = if (myIsAegislash) rawUserFastEff * getAegislashFastDmgMult(sUser) else rawUserFastEff
-            val oppFastEff = if (oppIsAegislash) rawOppFastEff * getAegislashFastDmgMult(sOpp) else rawOppFastEff
-
             val shadowBulkDelta = (if (myShadow) -12 else 0) + (if (oppShadow) 12 else 0)
 
             fun chargedPressureAgainstShields(bestPct: Int, minPct: Int, defShields: Int): Double = when (defShields) {
@@ -2935,12 +3199,6 @@ class OverlayService : LifecycleService() {
                 else -> minPct * 1.0
             }
 
-            // Mimikyu Disguise Simulation:
-            // Takes the exact average of:
-            //   Strategy A: Using all Protect Shields BEFORE busting Disguise (stays in Disguise Form with 100% Def longer;
-            //               opponent throws fastest/cheapest charged attack for the first S+1 throws knowing each will be blocked by shield or Disguise).
-            //   Strategy B: Busting Disguise FIRST before using Protect Shields (opponent throws fastest/cheapest charged attack on throw #1
-            //               to pop Disguise for 0 HP damage, then Mimikyu drops to Busted Form -1 Def stage for the rest of the match).
             fun computeMimikyuIncomingEvaluation(
                 mimiShields: Int,
                 oppBestPct: Int,
@@ -2950,7 +3208,6 @@ class OverlayService : LifecycleService() {
                 val cheaperBaitRatio = (oppFastestPct.toDouble() / max(1, oppBestPct).toDouble()).coerceIn(0.42, 1.0)
                 val baitTempoTax = (1.0 - cheaperBaitRatio) * 18.0
 
-                // Strategy A: All Protect Shields used first, Disguise used on throw #(mimiShields + 1)
                 val pressureAllShieldsFirst = when (mimiShields) {
                     0 -> ((oppFastestPct * 0.30 + oppBestPct * 0.70) * 1.22) - baitTempoTax
                     1 -> ((oppFastestPct * 0.55 + oppMinPct * 0.45) * 0.90) - baitTempoTax * 1.25
@@ -2962,7 +3219,6 @@ class OverlayService : LifecycleService() {
                     else -> 22.0 + oppBestPct * 0.15 - 3.0
                 }
 
-                // Strategy B: Disguise busted on throw #1 first, Protect Shields saved for post-bust Busted Form (-1 Def stage = 1.20x incoming damage)
                 val bustedMult = 1.20
                 val pressureDisguiseFirst = when (mimiShields) {
                     0 -> ((oppFastestPct * 0.30 + oppBestPct * 0.70 * bustedMult) * 1.28) - baitTempoTax * 0.85
@@ -2978,8 +3234,9 @@ class OverlayService : LifecycleService() {
                 return ((pressureAllShieldsFirst + pressureDisguiseFirst) * 0.5) to ((bonusAllShieldsFirst + bonusDisguiseFirst) * 0.5)
             }
 
-            val userChargedFreqMult = if (myIsAegislash) getAegislashEnergyGenMult(sUser) else 1.0
-            val oppChargedFreqMult = if (oppIsAegislash) getAegislashEnergyGenMult(sOpp) else 1.0
+            val avgUserCost = ((userC1Stats.energyCost + userC2Stats.energyCost) * 0.5).coerceIn(35.0, 80.0)
+            val userPacingFactor = ((userFastEpt / 3.5) * (50.0 / avgUserCost)).coerceIn(0.78, 1.26)
+            val userChargedFreqMult = (if (myIsAegislash) getAegislashEnergyGenMult(sUser) else 1.0) * (0.82 + 0.18 * userPacingFactor)
 
             val userRawPressure: Double
             val oppMimikyuDelta: Double
@@ -2992,36 +3249,6 @@ class OverlayService : LifecycleService() {
                 oppMimikyuDelta = 0.0
             }
 
-            val oppRawPressure: Double
-            val myMimikyuDelta: Double
-            if (myIsMimikyu) {
-                val (incPressure, mimiBonus) = computeMimikyuIncomingEvaluation(sUser, bestOppCharged, minOppCharged, fastestOppChargedPct)
-                oppRawPressure = incPressure
-                myMimikyuDelta = mimiBonus
-            } else {
-                oppRawPressure = chargedPressureAgainstShields(bestOppCharged, minOppCharged, sUser)
-                myMimikyuDelta = 0.0
-            }
-
-            val userChargedImpact = userRawPressure * userChargedFreqMult
-            val oppChargedImpact = oppRawPressure * oppChargedFreqMult
-            val chargedDelta = 2.0 * (userChargedImpact - oppChargedImpact)
-
-            val avgShields = (sUser + sOpp) * 0.5
-            val fastWeight = if (avgShields <= 1.0) {
-                95.0 + avgShields * 25.0
-            } else {
-                120.0 + (avgShields - 1.0) * 35.0
-            }
-            val fastDelta = (userFastEff - oppFastEff) * fastWeight
-
-            val shadowMultiplier = if (avgShields <= 1.0) 1.0 else avgShields
-            val effectiveShadowDelta = shadowBulkDelta * shadowMultiplier
-
-            val shieldDiff = (sUser - sOpp).toDouble()
-            val shieldAdvantageDelta = shieldDiff * (85.0 + 0.65 * ((bestOppCharged + bestUserCharged) * 0.5))
-
-            // 2. Aegislash Stance Change: Excels with shields (reverts Sword -> Shield Forme on shield use), vulnerable in 0S (97 Def in Sword Forme)
             val myAegislashDelta = if (myIsAegislash) {
                 when (sUser) { 2 -> 28.0; 1 -> 14.0; else -> -34.0 }
             } else 0.0
@@ -3029,7 +3256,6 @@ class OverlayService : LifecycleService() {
                 when (sOpp) { 2 -> 28.0; 1 -> 14.0; else -> -34.0 }
             } else 0.0
 
-            // 3. Morpeko Hunger Switch + Aura Wheel snowballing in shielded scenarios
             val myMorpekoDelta = if (myIsMorpeko) {
                 when (sUser) { 2 -> 18.0; 1 -> 10.0; else -> 4.0 }
             } else 0.0
@@ -3037,7 +3263,6 @@ class OverlayService : LifecycleService() {
                 when (sOpp) { 2 -> 18.0; 1 -> 10.0; else -> 4.0 }
             } else 0.0
 
-            // 4. Cramorant Gulp Missile (Gulping Arrokuda: retaliation chip + -1 Opp Def stage; Gorging Pikachu: retaliation chip + -1 Opp Atk stage)
             val myCramorantDelta = if (myIsCramorant) {
                 when (sUser) { 2 -> 22.0; 1 -> 18.0; else -> 12.0 }
             } else 0.0
@@ -3045,14 +3270,87 @@ class OverlayService : LifecycleService() {
                 when (sOpp) { 2 -> 22.0; 1 -> 18.0; else -> 12.0 }
             } else 0.0
 
-            val uniqueMechanicsDelta = (myMimikyuDelta - oppMimikyuDelta) +
-                (myAegislashDelta - oppAegislashDelta) +
-                (myMorpekoDelta - oppMorpekoDelta) +
-                (myCramorantDelta - oppCramorantDelta)
+            val avgShields = (sUser + sOpp) * 0.5
+            val fastWeight = if (avgShields <= 1.0) {
+                95.0 + avgShields * 25.0
+            } else {
+                120.0 + (avgShields - 1.0) * 35.0
+            }
+            val shadowMultiplier = if (avgShields <= 1.0) 1.0 else avgShields
+            val effectiveShadowDelta = shadowBulkDelta * shadowMultiplier
+            val shieldDiff = (sUser - sOpp).toDouble()
 
-            val totalDelta = chargedDelta + fastDelta + effectiveShadowDelta + shieldAdvantageDelta + uniqueMechanicsDelta
-            val roundedDelta = if (totalDelta >= 0.0) totalDelta.roundToInt() else -((-totalDelta).roundToInt())
-            return (500 + roundedDelta).coerceIn(150, 850)
+            fun evaluateAgainstOppMoveset(oFastName: String, oC1Name: String, oC2Name: String): Double {
+                val oppC1Stats = resolveChargedMoveStatsStatic(oC1Name, oppMeta.types.firstOrNull() ?: "normal")
+                val oppC2Stats = resolveChargedMoveStatsStatic(oC2Name, oppMeta.types.firstOrNull() ?: "normal")
+                val oppC1Pct = calculateChargedMoveDamagePctStatic(oppMeta, myMeta, oC1Name, oppShadow, myShadow)
+                val oppC2Pct = calculateChargedMoveDamagePctStatic(oppMeta, myMeta, oC2Name, oppShadow, myShadow)
+                val bestOppCharged = max(oppC1Pct, oppC2Pct)
+                val minOppCharged = min(oppC1Pct, oppC2Pct)
+                val fastestOppChargedPct = when {
+                    oppC1Stats.energyCost < oppC2Stats.energyCost -> oppC1Pct
+                    oppC2Stats.energyCost < oppC1Stats.energyCost -> oppC2Pct
+                    else -> minOppCharged
+                }
+
+                val oFastKey = oFastName.lowercase().trim()
+                val oppFastType = DYNAMIC_FAST_TYPE[oFastKey] ?: fastMoveTypeMapStatic[oFastKey] ?: oppMeta.types.firstOrNull() ?: "normal"
+                val oppFastTurns = (DYNAMIC_FAST_TURNS[oFastKey] ?: FAST_MOVE_TURNS[oFastKey] ?: oppMeta.fastTurns).coerceAtLeast(1)
+                val oppFastEnergy = (DYNAMIC_FAST_ENERGY[oFastKey] ?: FAST_MOVE_ENERGY[oFastKey] ?: (oppFastTurns * 3)).coerceAtLeast(1)
+                val oppFastEpt = oppFastEnergy.toDouble() / oppFastTurns.toDouble()
+                val rawOppFastEff = getTypeEffectivenessStatic(oppFastType, myMeta.types)
+                val oppFastEff = if (oppIsAegislash) rawOppFastEff * getAegislashFastDmgMult(sOpp) else rawOppFastEff
+
+                val avgOppCost = ((oppC1Stats.energyCost + oppC2Stats.energyCost) * 0.5).coerceIn(35.0, 80.0)
+                val oppPacingFactor = ((oppFastEpt / 3.5) * (50.0 / avgOppCost)).coerceIn(0.78, 1.26)
+                val oppChargedFreqMult = (if (oppIsAegislash) getAegislashEnergyGenMult(sOpp) else 1.0) * (0.82 + 0.18 * oppPacingFactor)
+
+                val oppRawPressure: Double
+                val myMimikyuDelta: Double
+                if (myIsMimikyu) {
+                    val (incPressure, mimiBonus) = computeMimikyuIncomingEvaluation(sUser, bestOppCharged, minOppCharged, fastestOppChargedPct)
+                    oppRawPressure = incPressure
+                    myMimikyuDelta = mimiBonus
+                } else {
+                    oppRawPressure = chargedPressureAgainstShields(bestOppCharged, minOppCharged, sUser)
+                    myMimikyuDelta = 0.0
+                }
+
+                val userChargedImpact = userRawPressure * userChargedFreqMult
+                val oppChargedImpact = oppRawPressure * oppChargedFreqMult
+                val chargedDelta = 2.0 * (userChargedImpact - oppChargedImpact)
+                val fastDelta = (userFastEff - oppFastEff) * fastWeight
+                val shieldAdvantageDelta = shieldDiff * (85.0 + 0.65 * ((bestOppCharged + bestUserCharged) * 0.5))
+
+                val uniqueMechanicsDelta = (myMimikyuDelta - oppMimikyuDelta) +
+                    (myAegislashDelta - oppAegislashDelta) +
+                    (myMorpekoDelta - oppMorpekoDelta) +
+                    (myCramorantDelta - oppCramorantDelta)
+
+                val totalDelta = chargedDelta + fastDelta + effectiveShadowDelta + shieldAdvantageDelta + uniqueMechanicsDelta
+                return (500.0 + totalDelta).coerceIn(150.0, 850.0)
+            }
+
+            val (oppFastPool, oppChargedPool) = getAvailableMovePoolForSpeciesStatic(oppMeta.name, league)
+            val fast1 = oppFastPool.getOrNull(0) ?: oppMeta.defaultFastMove
+            val fast2 = oppFastPool.getOrNull(1) ?: fast1
+            val charge1 = oppChargedPool.getOrNull(0) ?: oppMeta.chargedMove1
+            val charge2 = oppChargedPool.getOrNull(1) ?: oppMeta.chargedMove2.ifBlank { charge1 }
+            val charge3 = oppChargedPool.getOrNull(2) ?: oppMeta.chargedMove3.ifBlank { charge2 }
+            val charge4 = oppChargedPool.getOrNull(3) ?: oppMeta.chargedMove4.ifBlank { charge3 }
+
+            // 1a. 75% weight to default PvPoke moveset (fast1 / charge1 / charge2)
+            val br1a = evaluateAgainstOppMoveset(fast1, charge1, charge2)
+
+            // 1b. Equally weight (25% / 5 = 5% each) the 5 alternate PvPoke move combinations:
+            val br1b1 = evaluateAgainstOppMoveset(fast1, charge1, charge3)
+            val br1b2 = evaluateAgainstOppMoveset(fast1, charge1, charge4)
+            val br1b3 = evaluateAgainstOppMoveset(fast1, charge2, charge3)
+            val br1b4 = evaluateAgainstOppMoveset(fast1, charge2, charge4)
+            val br1b5 = evaluateAgainstOppMoveset(fast2, charge1, charge2)
+
+            val weightedBr = 0.75 * br1a + 0.05 * (br1b1 + br1b2 + br1b3 + br1b4 + br1b5)
+            return weightedBr.roundToInt().coerceIn(150, 850)
         }
 
         fun calculateAllShieldPermutationsStatic(
@@ -4508,6 +4806,232 @@ class OverlayService : LifecycleService() {
                 leadUpgrades = rankUpgradesForSlot(0),
                 safeSwapUpgrades = rankUpgradesForSlot(1),
                 closerUpgrades = rankUpgradesForSlot(2)
+            )
+        }
+
+        data class MovesetUpgradeSuggestion(
+            val slotIndex: Int,
+            val roleTitle: String,
+            val pokemonName: String,
+            val currentFastMove: String,
+            val currentCharged1: String,
+            val currentCharged2: String,
+            val proposedFastMove: String,
+            val proposedCharged1: String,
+            val proposedCharged2: String,
+            val currentRoleBr: Int,
+            val newRoleBr: Int,
+            val roleBrDelta: Int,
+            val currentMachineAggBr: Int,
+            val newMachineAggBr: Int,
+            val machineBrDelta: Int,
+            val currentLeadAggBr: Int,
+            val newLeadAggBr: Int,
+            val leadBrDelta: Int,
+            val compositeScore: Double
+        )
+
+        data class TeamMovesetRecommendationsResult(
+            val baselineEval: TeamArchetypeEvaluationResult,
+            val combosEvaluated: Int,
+            val slot1Movesets: List<MovesetUpgradeSuggestion>,
+            val slot2Movesets: List<MovesetUpgradeSuggestion>,
+            val slot3Movesets: List<MovesetUpgradeSuggestion>,
+            val top3OverallMovesets: List<MovesetUpgradeSuggestion>
+        )
+
+        fun recommendTop3MovesetsForTeamStatic(
+            slots: List<TeamMember>,
+            league: String,
+            seasonLogs: List<SyncBattleLogRecord>,
+            manualArchetypeOverride: String? = null
+        ): TeamMovesetRecommendationsResult {
+            val baselineEval = evaluateOrAutoOrderTeamStatic(
+                slots = slots,
+                league = league,
+                seasonLogs = seasonLogs,
+                autoReorder = false,
+                manualArchetypeOverride = manualArchetypeOverride
+            )
+            val curSlots = baselineEval.orderedSlots
+            val dist = computeHybridOpponentDistributionStatic(league, seasonLogs)
+            val isAbb = baselineEval.archetype.equals("ABB", ignoreCase = true)
+
+            val curLeadMap = Array(3) { HashMap<String, Double>() }
+            val curSwapMap = Array(3) { HashMap<String, Double>() }
+            val curCloserMap = Array(3) { HashMap<String, Double>() }
+
+            for (i in 0..2) {
+                val m = curSlots.getOrNull(i) ?: continue
+                for ((opp, _) in dist.fieldWeights) {
+                    val perms = calculateAllShieldPermutationsStatic(
+                        m.name, opp, league, m.fastMove, m.chargedMove1, m.chargedMove2, m.cp, m.ivs
+                    )
+                    val r1v1 = (perms["1v1"] ?: 500).toDouble()
+                    val r2v2 = (perms["2v2"] ?: 500).toDouble()
+                    val r0v0 = (perms["0v0"] ?: 500).toDouble()
+                    val r1v0 = (perms["1v0"] ?: 500).toDouble()
+                    val r1v2 = (perms["1v2"] ?: 500).toDouble()
+                    val r0v1 = (perms["0v1"] ?: 500).toDouble()
+
+                    curLeadMap[i][opp] = 0.65 * r1v1 + 0.35 * r2v2
+                    curSwapMap[i][opp] = 0.45 * r1v1 + 0.25 * r1v2 + 0.30 * r0v1
+                    curCloserMap[i][opp] = 0.55 * r0v0 + 0.45 * r1v0
+                }
+            }
+
+            var totalCombosEvaluated = 0
+
+            fun evaluateSlotMovesets(slotIdx: Int): List<MovesetUpgradeSuggestion> {
+                val m = curSlots.getOrNull(slotIdx) ?: return emptyList()
+                val roleTitle = when (slotIdx) {
+                    0 -> if (isAbb) "Lead (A)" else "Lead"
+                    1 -> if (isAbb) "Bait Swap (B1)" else "Safe Swap"
+                    else -> if (isAbb) "Sweeper (B2)" else "Closer"
+                }
+                val baselineRoleBr = when (slotIdx) {
+                    0 -> baselineEval.leadAggBr
+                    1 -> baselineEval.safeSwapBr
+                    else -> baselineEval.closerSwapBr
+                }
+
+                val (rawFastPool, rawChargedPool) = getAvailableMovePoolForSpeciesStatic(m.name, league)
+                val fastPool = rawFastPool.take(3).ifEmpty { listOf(m.fastMove) }
+                val chargedPool = rawChargedPool.take(5).ifEmpty { listOf(m.chargedMove1, m.chargedMove2) }
+
+                val cPairs = mutableListOf<Pair<String, String>>()
+                if (chargedPool.size <= 1) {
+                    val only = chargedPool.firstOrNull() ?: m.chargedMove1
+                    cPairs.add(only to only)
+                } else {
+                    for (i in 0 until chargedPool.size) {
+                        for (j in (i + 1) until chargedPool.size) {
+                            cPairs.add(chargedPool[i] to chargedPool[j])
+                        }
+                    }
+                }
+
+                val curFastNorm = m.fastMove.trim().lowercase()
+                val curChargedSet = setOf(m.chargedMove1.trim().lowercase(), m.chargedMove2.trim().lowercase())
+                val scored = mutableListOf<MovesetUpgradeSuggestion>()
+
+                for (fMove in fastPool) {
+                    for ((c1Move, c2Move) in cPairs) {
+                        val propFastNorm = fMove.trim().lowercase()
+                        val propChargedSet = setOf(c1Move.trim().lowercase(), c2Move.trim().lowercase())
+                        if (propFastNorm == curFastNorm && propChargedSet == curChargedSet) {
+                            continue
+                        }
+                        totalCombosEvaluated++
+
+                        val candLeadMap = HashMap<String, Double>()
+                        val candSwapMap = HashMap<String, Double>()
+                        val candCloserMap = HashMap<String, Double>()
+                        var leadSum = 0.0
+                        var swapSum = 0.0
+                        var closerSum = 0.0
+                        var swapVarianceSum = 0.0
+
+                        for ((opp, fProb) in dist.fieldWeights) {
+                            val lProb = dist.leadWeights[opp] ?: fProb
+                            val perms = calculateAllShieldPermutationsStatic(
+                                m.name, opp, league, fMove, c1Move, c2Move, m.cp, m.ivs
+                            )
+                            val r1v1 = (perms["1v1"] ?: 500).toDouble()
+                            val r2v2 = (perms["2v2"] ?: 500).toDouble()
+                            val r0v0 = (perms["0v0"] ?: 500).toDouble()
+                            val r1v0 = (perms["1v0"] ?: 500).toDouble()
+                            val r1v2 = (perms["1v2"] ?: 500).toDouble()
+                            val r0v1 = (perms["0v1"] ?: 500).toDouble()
+
+                            val lScore = 0.65 * r1v1 + 0.35 * r2v2
+                            val sScore = 0.45 * r1v1 + 0.25 * r1v2 + 0.30 * r0v1
+                            val cScore = 0.55 * r0v0 + 0.45 * r1v0
+
+                            candLeadMap[opp] = lScore
+                            candSwapMap[opp] = sScore
+                            candCloserMap[opp] = cScore
+
+                            leadSum += lProb * lScore
+                            swapSum += fProb * sScore
+                            closerSum += fProb * cScore
+                        }
+
+                        for ((opp, fProb) in dist.fieldWeights) {
+                            val diff = (candSwapMap[opp] ?: 500.0) - swapSum
+                            swapVarianceSum += fProb * diff * diff
+                        }
+                        val swapStdDev = kotlin.math.sqrt(swapVarianceSum)
+                        val candSafeSwapBr = (swapSum - 0.15 * swapStdDev).roundToInt().coerceIn(150, 850)
+                        val candLeadAggBr = leadSum.roundToInt().coerceIn(150, 850)
+                        val candCloserBr = closerSum.roundToInt().coerceIn(150, 850)
+                        val candCloserSwapBr = ((candSafeSwapBr * 0.55) + (candCloserBr * 0.45)).roundToInt().coerceIn(150, 850)
+
+                        val newRoleBr = when (slotIdx) {
+                            0 -> candLeadAggBr
+                            1 -> candSafeSwapBr
+                            else -> candCloserSwapBr
+                        }
+                        val roleDelta = newRoleBr - baselineRoleBr
+
+                        var newMachSum = 0.0
+                        for ((opp, prob) in dist.fieldWeights) {
+                            if (prob <= 0.0) continue
+                            val r0 = if (slotIdx == 0) (candLeadMap[opp] ?: 500.0) else (curLeadMap[0][opp] ?: 500.0)
+                            val r1 = if (slotIdx == 1) (candSwapMap[opp] ?: 500.0) else (curSwapMap[1][opp] ?: 500.0)
+                            val r2 = if (slotIdx == 2) (candCloserMap[opp] ?: 500.0) else (curCloserMap[2][opp] ?: 500.0)
+                            newMachSum += prob * max(r0, max(r1, r2))
+                        }
+                        val newMachBr = newMachSum.roundToInt().coerceIn(150, 850)
+                        val machDelta = newMachBr - baselineEval.machineAggBr
+                        val newLeadBr = if (slotIdx == 0) candLeadAggBr else baselineEval.leadAggBr
+                        val leadDelta = newLeadBr - baselineEval.leadAggBr
+
+                        val composite = 0.55 * machDelta.toDouble() + 0.45 * roleDelta.toDouble()
+                        scored.add(
+                            MovesetUpgradeSuggestion(
+                                slotIndex = slotIdx,
+                                roleTitle = roleTitle,
+                                pokemonName = m.name,
+                                currentFastMove = m.fastMove,
+                                currentCharged1 = m.chargedMove1,
+                                currentCharged2 = m.chargedMove2,
+                                proposedFastMove = fMove,
+                                proposedCharged1 = c1Move,
+                                proposedCharged2 = c2Move,
+                                currentRoleBr = baselineRoleBr,
+                                newRoleBr = newRoleBr,
+                                roleBrDelta = roleDelta,
+                                currentMachineAggBr = baselineEval.machineAggBr,
+                                newMachineAggBr = newMachBr,
+                                machineBrDelta = machDelta,
+                                currentLeadAggBr = baselineEval.leadAggBr,
+                                newLeadAggBr = newLeadBr,
+                                leadBrDelta = leadDelta,
+                                compositeScore = composite
+                            )
+                        )
+                    }
+                }
+
+                scored.sortByDescending { it.compositeScore }
+                return scored.take(3)
+            }
+
+            val s1Moves = evaluateSlotMovesets(0)
+            val s2Moves = evaluateSlotMovesets(1)
+            val s3Moves = evaluateSlotMovesets(2)
+            val top3Overall = (s1Moves + s2Moves + s3Moves)
+                .sortedByDescending { it.compositeScore }
+                .take(3)
+
+            return TeamMovesetRecommendationsResult(
+                baselineEval = baselineEval,
+                combosEvaluated = totalCombosEvaluated,
+                slot1Movesets = s1Moves,
+                slot2Movesets = s2Moves,
+                slot3Movesets = s3Moves,
+                top3OverallMovesets = top3Overall
             )
         }
     }
@@ -8918,39 +9442,48 @@ class OverlayService : LifecycleService() {
         fun evaluateSlot(slot: TeamMember?, fallbackName: String): String {
             val activeLeague = currentPreset?.league ?: "MASTER LEAGUE"
             val userName = slot?.name ?: fallbackName
-            val isUserShad = userName.contains("Shadow", ignoreCase = true)
-            val userMeta = computeEffectiveCombatStats(
-                getPokemonMeta(userName, activeLeague, isUserShad),
-                activeLeague,
-                slot?.cp,
-                slot?.ivs
+            val oppFullName = if (isOppShad && !oppMeta.name.startsWith("Shadow ", ignoreCase = true)) {
+                "Shadow ${oppMeta.name}"
+            } else {
+                oppMeta.name
+            }
+
+            val rating0s = calculateMatchupRatingStatic(
+                myName = userName,
+                oppName = oppFullName,
+                userShields = 0,
+                oppShields = 0,
+                league = activeLeague,
+                myFastMove = slot?.fastMove,
+                myCharged1 = slot?.chargedMove1,
+                myCharged2 = slot?.chargedMove2,
+                myCp = slot?.cp,
+                myIvs = slot?.ivs
             )
-
-            val uMove1 = slot?.chargedMove1?.takeIf { it.isNotBlank() } ?: userMeta.chargedMove1
-            val uMove2 = slot?.chargedMove2?.takeIf { it.isNotBlank() } ?: userMeta.chargedMove2
-
-            val userC1Pct = calculateChargedMoveDamagePercent(userMeta, oppMeta, uMove1, isUserShad, isOppShad)
-            val userC2Pct = calculateChargedMoveDamagePercent(userMeta, oppMeta, uMove2, isUserShad, isOppShad)
-            val bestUserCharged = max(userC1Pct, userC2Pct)
-            val minUserCharged = min(userC1Pct, userC2Pct)
-
-            val oppC1Pct = calculateChargedMoveDamagePercent(oppMeta, userMeta, oppMeta.chargedMove1, isOppShad, isUserShad)
-            val oppC2Pct = calculateChargedMoveDamagePercent(oppMeta, userMeta, oppMeta.chargedMove2, isOppShad, isUserShad)
-            val bestOppCharged = max(oppC1Pct, oppC2Pct)
-            val minOppCharged = min(oppC1Pct, oppC2Pct)
-
-            // Fast move type effectiveness ratio
-            val uFastKey = (slot?.fastMove?.takeIf { it.isNotBlank() } ?: userMeta.defaultFastMove).lowercase().trim()
-            val oFastKey = oppMeta.defaultFastMove.lowercase().trim()
-            val userFastType = DYNAMIC_FAST_TYPE[uFastKey] ?: fastMoveTypeMap[uFastKey] ?: userMeta.types.firstOrNull() ?: "normal"
-            val oppFastType = DYNAMIC_FAST_TYPE[oFastKey] ?: fastMoveTypeMap[oFastKey] ?: oppMeta.types.firstOrNull() ?: "normal"
-            val userFastEff = getTypeEffectiveness(userFastType, oppMeta.types)
-            val oppFastEff = getTypeEffectiveness(oppFastType, userMeta.types)
-
-            val shadowBulkDelta = (if (isUserShad) -12 else 0) + (if (isOppShad) 12 else 0)
-            val rating0s = (500.0 + (bestUserCharged - bestOppCharged) * 3.4 + (userFastEff - oppFastEff) * 95.0 + shadowBulkDelta).roundToInt()
-            val rating1s = (500.0 + ((bestUserCharged + minUserCharged) * 0.5 - (bestOppCharged + minOppCharged) * 0.5) * 2.8 + (userFastEff - oppFastEff) * 120.0 + shadowBulkDelta).roundToInt()
-            val rating2s = (500.0 + (minUserCharged - minOppCharged) * 2.0 + (userFastEff - oppFastEff) * 155.0 + shadowBulkDelta * 2).roundToInt()
+            val rating1s = calculateMatchupRatingStatic(
+                myName = userName,
+                oppName = oppFullName,
+                userShields = 1,
+                oppShields = 1,
+                league = activeLeague,
+                myFastMove = slot?.fastMove,
+                myCharged1 = slot?.chargedMove1,
+                myCharged2 = slot?.chargedMove2,
+                myCp = slot?.cp,
+                myIvs = slot?.ivs
+            )
+            val rating2s = calculateMatchupRatingStatic(
+                myName = userName,
+                oppName = oppFullName,
+                userShields = 2,
+                oppShields = 2,
+                league = activeLeague,
+                myFastMove = slot?.fastMove,
+                myCharged1 = slot?.chargedMove1,
+                myCharged2 = slot?.chargedMove2,
+                myCp = slot?.cp,
+                myIvs = slot?.ivs
+            )
 
             fun toTier(r: Int): String = when {
                 r >= swMin -> "SW"

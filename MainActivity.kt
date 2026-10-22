@@ -471,9 +471,9 @@ class MainActivity : AppCompatActivity() {
 
         initViews()
         val appVer = try {
-            packageManager.getPackageInfo(packageName, 0).versionName ?: "3.14"
+            packageManager.getPackageInfo(packageName, 0).versionName ?: "3.15"
         } catch (_: Exception) {
-            "3.14"
+            "3.15"
         }
         findViewById<TextView>(R.id.tv_app_main_subtitle)?.text = "Real-Time PvP Floating Overlay • v$appVer"
         ensureDefaultPresets()
@@ -5127,6 +5127,7 @@ class MainActivity : AppCompatActivity() {
         val textDialogAutoDetectBanner = dialogView.findViewById<TextView>(R.id.text_dialog_autodetect_banner)
         val btnDialogAutoDetect = dialogView.findViewById<Button>(R.id.btn_dialog_auto_detect_style)
         val btnDialogSuggestUpgrades = dialogView.findViewById<Button>(R.id.btn_dialog_suggest_upgrades)
+        val btnDialogOptimizeMovesets = dialogView.findViewById<Button>(R.id.btn_dialog_optimize_movesets)
         val btnSwapSlot12 = dialogView.findViewById<Button>(R.id.btn_swap_slot_1_2)
         val btnSwapSlot23 = dialogView.findViewById<Button>(R.id.btn_swap_slot_2_3)
         val textP1RoleTitle = dialogView.findViewById<TextView>(R.id.text_p1_role_title)
@@ -5673,6 +5674,141 @@ class MainActivity : AppCompatActivity() {
 
         btnDialogSuggestUpgrades?.setOnClickListener {
             runTop100RoleUpgradesSimulation(showBannerOnComplete = true)
+        }
+
+        var movesetOptJob: kotlinx.coroutines.Job? = null
+        fun runTeamMovesetOptimizationSimulation(showBannerOnComplete: Boolean) {
+            val lg = currentLeagueProvider()
+            val top3Defaults = getLeagueTop3Defaults(lg)
+            val s1 = buildResolvedSlot(editP1, editP1Cp, editP1Ivs, editP1Fast, editP1C1, editP1C2, lg, top3Defaults[0])
+            val s2 = buildResolvedSlot(editP2, editP2Cp, editP2Ivs, editP2Fast, editP2C1, editP2C2, lg, top3Defaults[1])
+            val s3 = buildResolvedSlot(editP3, editP3Cp, editP3Ivs, editP3Fast, editP3C1, editP3C2, lg, top3Defaults[2])
+            val seasonLogs = getCurrentSeasonLogsForLeague(lg, preloadedDialogLogs)
+            val manualArch = dialogManualArchetypeOverride
+
+            btnDialogOptimizeMovesets?.isEnabled = false
+            btnDialogOptimizeMovesets?.text = "⏳ Simulating All Team Move Options..."
+
+            movesetOptJob?.cancel()
+            movesetOptJob = lifecycleScope.launch(Dispatchers.Default) {
+                val moveResult = OverlayService.recommendTop3MovesetsForTeamStatic(
+                    slots = listOf(
+                        OverlayService.TeamMember(s1.name, s1.cp, s1.fastMove, s1.chargedMove1, s1.chargedMove2, s1.ivs),
+                        OverlayService.TeamMember(s2.name, s2.cp, s2.fastMove, s2.chargedMove1, s2.chargedMove2, s2.ivs),
+                        OverlayService.TeamMember(s3.name, s3.cp, s3.fastMove, s3.chargedMove1, s3.chargedMove2, s3.ivs)
+                    ),
+                    league = lg,
+                    seasonLogs = seasonLogs,
+                    manualArchetypeOverride = manualArch
+                )
+
+                withContext(Dispatchers.Main) {
+                    btnDialogOptimizeMovesets?.isEnabled = true
+                    btnDialogOptimizeMovesets?.text = "🎯 Simulate Moves & Propose Best 3 Alternate Movesets"
+
+                    fun formatSignedDelta(delta: Int): String = if (delta >= 0) "+$delta" else "$delta"
+
+                    fun bindMovesetChips(
+                        slotIndex: Int,
+                        roleLabel: String,
+                        roleMetricName: String,
+                        container: LinearLayout?,
+                        headerView: TextView?,
+                        buttons: List<Button?>,
+                        suggestions: List<OverlayService.Companion.MovesetUpgradeSuggestion>
+                    ) {
+                        if (suggestions.isEmpty()) {
+                            container?.visibility = android.view.View.GONE
+                            return
+                        }
+                        container?.visibility = android.view.View.VISIBLE
+                        headerView?.text = "🎯 Best 3 Alternate Movesets for Slot ${slotIndex + 1} ($roleLabel • Tap to Apply Moves):"
+                        buttons.forEachIndexed { idx, btn ->
+                            val sug = suggestions.getOrNull(idx)
+                            if (sug == null || idx >= 3) {
+                                btn?.visibility = android.view.View.GONE
+                            } else {
+                                btn?.visibility = android.view.View.VISIBLE
+                                val machDeltaStr = formatSignedDelta(sug.machineBrDelta)
+                                val roleDeltaStr = formatSignedDelta(sug.roleBrDelta)
+                                val leadDeltaStr = formatSignedDelta(sug.leadBrDelta)
+                                btn?.text = "${idx + 1}. ${sug.proposedFastMove} / ${sug.proposedCharged1} + ${sug.proposedCharged2}  •  Team Core ${sug.newMachineAggBr} ($machDeltaStr) • Pos $roleMetricName ${sug.newRoleBr} ($roleDeltaStr)"
+                                btn?.setOnClickListener {
+                                    when (slotIndex) {
+                                        0 -> {
+                                            editP1Fast.setText(sug.proposedFastMove)
+                                            editP1C1.setText(sug.proposedCharged1)
+                                            editP1C2.setText(sug.proposedCharged2)
+                                        }
+                                        1 -> {
+                                            editP2Fast.setText(sug.proposedFastMove)
+                                            editP2C1.setText(sug.proposedCharged1)
+                                            editP2C2.setText(sug.proposedCharged2)
+                                        }
+                                        else -> {
+                                            editP3Fast.setText(sug.proposedFastMove)
+                                            editP3C1.setText(sug.proposedCharged1)
+                                            editP3C2.setText(sug.proposedCharged2)
+                                        }
+                                    }
+                                    val evalAfter = refreshDialogTeamEvaluation(autoReorder = false)
+                                    textDialogAutoDetectBanner?.text =
+                                        "Applied Moveset to Slot ${slotIndex + 1} (${sug.pokemonName} → ${sug.proposedFastMove} + ${sug.proposedCharged1}/${sug.proposedCharged2}): Team Core BR ${evalAfter.machineAggBr} ($machDeltaStr) • Pos $roleMetricName ${sug.newRoleBr} ($roleDeltaStr) • Team Lead BR ${sug.newLeadAggBr} ($leadDeltaStr)"
+                                    textDialogAutoDetectBanner?.visibility = android.view.View.VISIBLE
+                                    runTeamMovesetOptimizationSimulation(showBannerOnComplete = false)
+                                }
+                            }
+                        }
+                    }
+
+                    bindMovesetChips(
+                        slotIndex = 0,
+                        roleLabel = "Lead",
+                        roleMetricName = "Lead BR",
+                        container = layoutP1Recs,
+                        headerView = textP1RecHeader,
+                        buttons = btnP1Recs,
+                        suggestions = moveResult.slot1Movesets
+                    )
+                    bindMovesetChips(
+                        slotIndex = 1,
+                        roleLabel = "Safe Swap",
+                        roleMetricName = "Swap BR",
+                        container = layoutP2Recs,
+                        headerView = textP2RecHeader,
+                        buttons = btnP2Recs,
+                        suggestions = moveResult.slot2Movesets
+                    )
+                    bindMovesetChips(
+                        slotIndex = 2,
+                        roleLabel = "Closer",
+                        roleMetricName = "Closer BR",
+                        container = layoutP3Recs,
+                        headerView = textP3RecHeader,
+                        buttons = btnP3Recs,
+                        suggestions = moveResult.slot3Movesets
+                    )
+
+                    if (showBannerOnComplete) {
+                        val topSummary = if (moveResult.top3OverallMovesets.isEmpty()) {
+                            "Current movesets are already optimal!"
+                        } else {
+                            moveResult.top3OverallMovesets.mapIndexed { i, m ->
+                                val cStr = formatSignedDelta(m.machineBrDelta)
+                                val rStr = formatSignedDelta(m.roleBrDelta)
+                                "#${i + 1} ${m.pokemonName} (${m.proposedFastMove}+${m.proposedCharged1}/${m.proposedCharged2}: Core $cStr, ${m.roleTitle} $rStr)"
+                            }.joinToString(" • ")
+                        }
+                        textDialogAutoDetectBanner?.text =
+                            "🎯 Best 3 Alternate Movesets (${moveResult.combosEvaluated} combos simulated): $topSummary"
+                        textDialogAutoDetectBanner?.visibility = android.view.View.VISIBLE
+                    }
+                }
+            }
+        }
+
+        btnDialogOptimizeMovesets?.setOnClickListener {
+            runTeamMovesetOptimizationSimulation(showBannerOnComplete = true)
         }
 
         refreshDialogTeamEvaluation(autoReorder = false)

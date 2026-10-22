@@ -254,12 +254,25 @@
                     android:id="@+id/btn_dialog_suggest_upgrades"
                     android:layout_width="match_parent"
                     android:layout_height="36dp"
-                    android:layout_marginBottom="6dp"
+                    android:layout_marginBottom="4dp"
                     android:paddingHorizontal="8dp"
                     android:text="✨ Suggest Top-200 Role Upgrades (5 Per Role)"
                     android:textSize="10.5sp"
                     android:textStyle="bold"
                     android:backgroundTint="#059669"
+                    android:textColor="#ffffff" />
+
+                <!-- Current Team Moveset Optimizer Button (Best 3 Alternate Movesets) -->
+                <Button
+                    android:id="@+id/btn_dialog_optimize_movesets"
+                    android:layout_width="match_parent"
+                    android:layout_height="36dp"
+                    android:layout_marginBottom="6dp"
+                    android:paddingHorizontal="8dp"
+                    android:text="🎯 Simulate Moves &amp; Propose Best 3 Alternate Movesets"
+                    android:textSize="10.5sp"
+                    android:textStyle="bold"
+                    android:backgroundTint="#4f46e5"
                     android:textColor="#ffffff" />
 
                 <!-- Backline Swap BR & Shared Weaknesses Breakdown -->

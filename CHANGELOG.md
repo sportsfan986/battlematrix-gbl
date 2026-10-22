@@ -1,5 +1,14 @@
 # SilphScope PvP Changelog
 
+## [v3.15] — 2026-10-22 — Weighted Move-Combo 9x9 Shield Matrix Math (75% Default + 25% Alternate Combos) & Team Moveset Optimizer (Best 3 Alternate Movesets)
+- **Weighted Move-Combo 9x9 Shield Matrix Math (`calculateMatchupRatingStatic` & `evaluateDiscreteShieldBattleRating`)**:
+  - Updated all 9 shield conditions (`0v0`, `0v1`, `0v2`, `1v0`, `1v1`, `1v2`, `2v0`, `2v1`, `2v2`) to simulate and compute a weighted average across opponent PvPoke move combinations:
+    - **1a (`75%` weight)**: Default PvPoke moveset (`fast1 / charge1 / charge2`).
+    - **1b (`25%` weight split equally = `5%` each)**: Alternate PvPoke move combinations (`fast1 / charge1 / charge3`, `fast1 / charge1 / charge4`, `fast1 / charge2 / charge3`, `fast1 / charge2 / charge4`, and `fast2 / charge1 / charge2`).
+  - Unified live overlay win/loss/neutral determination (`SW`, `W`, `N`, `L`, `SL` in `calculate3v3Matrix` and `calculateShieldMatrix`) and all team-building / battle-quality `0–1000` (`500` neutral) Battle Rating (`BR`) calculations to use the new weighted move-combo math.
+- **Current Team Moveset Optimizer (`🎯 Simulate Moves & Propose Best 3 Alternate Movesets`)**:
+  - Added a new button to the Team Edit page/dialog (Android & Web) right alongside the Role Upgrades button that keeps your current 3 Pokémon fixed, simulates all legal Fast + Charged move combinations for your team against the blended meta, and proposes the **Best 3 Alternate Movesets** (per slot and top 3 overall) with exact **Team Rating (`Core BR` & `Lead Agg BR` deltas)** and **Positional Ranking (`Lead BR`, `Safe Swap BR`, `Closer BR` deltas)** plus one-tap apply buttons.
+
 ## [v3.14] — 2026-10-22 — Single-Screen Scanner Mode Unmasked Capture, Best-Match-Across-Team Player Switch OCR & Single-Tap Stop Overlay Button Fix
 - **Single-Screen Scanner Mode Unmasked Capture (`captureAndProcessBattleRegions`)**:
   - Removed all black-rectangle screen masking (`overlayView` and `statusToastView`) and overlay chip-bar filtering so single-screen (single-app) scanner mode never masks out Pokémon GO HUD or move button pixels underneath the floating overlay or status toasts.

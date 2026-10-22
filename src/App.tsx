@@ -69,7 +69,10 @@ import {
   recalculateAllPresetsMetrics,
   RoleUpgradeSuggestion,
   TeamRoleRecommendationsResult,
-  recommendTop3UpgradesPerRole
+  recommendTop3UpgradesPerRole,
+  AlternateMovesetSuggestion,
+  TeamMovesetOptimizationResult,
+  recommendTop3AlternateMovesetsForTeam
 } from './data/gblData';
 import {
   BattleQualityMetadata,
@@ -1727,7 +1730,7 @@ export default function App() {
     const firstSeenOpp = scannedOpponents[0];
     const m = calculateShieldMatrix(
       firstSeenOpp,
-      activePreset.pokemon.map((p) => p.name),
+      activePreset.pokemon,
       safeActiveOppSlot === 0 && isOpponentShadow,
       activePreset.league
     );
@@ -2123,6 +2126,8 @@ export default function App() {
 
   const [modalRoleRecommendations, setModalRoleRecommendations] = useState<TeamRoleRecommendationsResult | null>(null);
   const [isSuggestingUpgrades, setIsSuggestingUpgrades] = useState<boolean>(false);
+  const [modalMovesetRecommendations, setModalMovesetRecommendations] = useState<TeamMovesetOptimizationResult | null>(null);
+  const [isSimulatingMovesets, setIsSimulatingMovesets] = useState<boolean>(false);
 
   const openCreatePresetModal = () => {
     const defaultLeague = activePreset?.league || 'GREAT LEAGUE';
@@ -2132,6 +2137,7 @@ export default function App() {
     setManualArchetypeOverride(undefined);
     setModalAutoDetectSummary(null);
     setModalRoleRecommendations(null);
+    setModalMovesetRecommendations(null);
     applyLeagueTop3TemplateToForm(defaultLeague);
     setIsNewPresetOpen(true);
   };
@@ -2143,6 +2149,7 @@ export default function App() {
     setManualArchetypeOverride(preset.isArchetypeManual ? preset.archetype : undefined);
     setModalAutoDetectSummary(null);
     setModalRoleRecommendations(null);
+    setModalMovesetRecommendations(null);
     const s1 = preset.pokemon[0];
     const s2 = preset.pokemon[1];
     const s3 = preset.pokemon[2];
@@ -2338,6 +2345,63 @@ export default function App() {
     );
   };
 
+  const handleOptimizeTeamMovesetsModal = () => {
+    setIsSimulatingMovesets(true);
+    setTimeout(() => {
+      try {
+        const members = buildModalMembersArray();
+        const res = recommendTop3AlternateMovesetsForTeam(
+          members,
+          newPresetLeague,
+          battleLogs,
+          activeSeasonBounds.startMs,
+          activeSeasonBounds.endMs,
+          manualArchetypeOverride
+        );
+        setModalMovesetRecommendations(res);
+        const top1 = res.top3OverallMovesets[0];
+        const topSummary = top1
+          ? `Best move swap: ${top1.pokemonName} → ${top1.proposedFastMove} + ${top1.proposedChargedMove1}/${top1.proposedChargedMove2} (${top1.deltaMachineBr >= 0 ? `+${top1.deltaMachineBr}` : top1.deltaMachineBr} Team Core BR, ${top1.deltaRoleBr >= 0 ? `+${top1.deltaRoleBr}` : top1.deltaRoleBr} ${top1.roleLabel} BR)`
+          : 'Current movesets are already optimal!';
+        setModalAutoDetectSummary(
+          `🎯 Simulated ${res.totalCombosSimulated} move combinations for your current team (75% default + 25% alt weighted 9x9 matrix) — ${topSummary}`
+        );
+      } finally {
+        setIsSimulatingMovesets(false);
+      }
+    }, 10);
+  };
+
+  const handleApplyMovesetUpgradeChip = (sug: AlternateMovesetSuggestion) => {
+    const members = buildModalMembersArray();
+    const next = [...members];
+    const idx = sug.slotIndex;
+    if (next[idx]) {
+      next[idx] = {
+        ...next[idx],
+        fastMove: sug.proposedFastMove,
+        chargedMove1: sug.proposedChargedMove1,
+        chargedMove2: sug.proposedChargedMove2
+      };
+    }
+    applyOrderedMembersToModalForm(next);
+    const updatedMoves = recommendTop3AlternateMovesetsForTeam(
+      next,
+      newPresetLeague,
+      battleLogs,
+      activeSeasonBounds.startMs,
+      activeSeasonBounds.endMs,
+      manualArchetypeOverride
+    );
+    setModalMovesetRecommendations(updatedMoves);
+    const machSign = sug.deltaMachineBr >= 0 ? `+${sug.deltaMachineBr}` : `${sug.deltaMachineBr}`;
+    const leadSign = sug.deltaLeadAggBr >= 0 ? `+${sug.deltaLeadAggBr}` : `${sug.deltaLeadAggBr}`;
+    const roleSign = sug.deltaRoleBr >= 0 ? `+${sug.deltaRoleBr}` : `${sug.deltaRoleBr}`;
+    setModalAutoDetectSummary(
+      `✅ Applied Moveset to Slot ${sug.slotIndex + 1} (${sug.pokemonName}): ${sug.proposedFastMove} + ${sug.proposedChargedMove1}/${sug.proposedChargedMove2} (${roleSign} ${sug.roleLabel} Positional BR • ${machSign} Team Core BR • ${leadSign} Team Lead BR)`
+    );
+  };
+
   const handleAutoDetectSavedPreset = (presetId: string) => {
     setPresets((prev) =>
       prev.map((p) => {
@@ -2452,7 +2516,7 @@ export default function App() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'SilphScope_PvP_v3.14_Android_Project.zip';
+      a.download = 'SilphScope_PvP_v3.15_Android_Project.zip';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -2700,7 +2764,7 @@ export default function App() {
                     backgroundColor: `${activeTheme.accentHex}1A`
                   }}
                 >
-                  v3.14 • Android Native Overlay
+                  v3.15 • Android Native Overlay
                 </span>
               </div>
               <p className="text-xs hidden sm:block" style={{ color: activeTheme.textSecondaryHex }}>
@@ -3493,8 +3557,9 @@ export default function App() {
                             const isActiveSlot = idx === safeActiveOppSlot;
                             const matrix = calculateShieldMatrix(
                               oppName,
-                              activePreset.pokemon.map(p => p.name),
-                              isActiveSlot && isOpponentShadow
+                              activePreset.pokemon,
+                              isActiveSlot && isOpponentShadow,
+                              activePreset.league
                             );
                             const fullOppDisplay = (isActiveSlot && isOpponentShadow ? 'S-' : '') + oppName;
                             const p1Init = activePreset.pokemon[0]?.name.charAt(0) || 'D';
@@ -4829,7 +4894,62 @@ export default function App() {
                                   : '✨ Suggest Top-200 Role Upgrades (5 Per Role)'}
                               </span>
                             </button>
+                            <button
+                              type="button"
+                              onClick={handleOptimizeTeamMovesetsModal}
+                              disabled={isSimulatingMovesets}
+                              className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-md transition"
+                              title="Simulate all legal Fast + Charged move combinations for your current 3 Pokémon using the 75%/25% weighted 9x9 shield matrix and propose the Best 3 alternate movesets with Team Rating and Positional Ranking impact"
+                            >
+                              <Swords className="w-3.5 h-3.5" />
+                              <span>
+                                {isSimulatingMovesets
+                                  ? '⏳ Simulating Team Move Combos...'
+                                  : '🎯 Simulate Moves & Propose Best 3 Alternate Movesets'}
+                              </span>
+                            </button>
                           </div>
+
+                          {modalMovesetRecommendations && modalMovesetRecommendations.top3OverallMovesets.length > 0 && (
+                            <div className="p-2.5 rounded-xl bg-indigo-950/60 border border-indigo-500/40 space-y-1.5">
+                              <div className="flex items-center justify-between flex-wrap gap-1 text-[10.5px] font-bold text-indigo-200">
+                                <span>
+                                  🎯 Best 3 Alternate Movesets Across Current Team ({modalMovesetRecommendations.totalCombosSimulated} Move Combos Simulated • Tap to Apply):
+                                </span>
+                                <span className="text-slate-400 font-mono text-[10px]">
+                                  Baseline Core BR: {modalMovesetRecommendations.baselineEval.machineAggBr} • Lead BR: {modalMovesetRecommendations.baselineEval.leadAggBr}
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-1 gap-1.5">
+                                {modalMovesetRecommendations.top3OverallMovesets.map((sug, idx) => (
+                                  <button
+                                    key={`overall-move-${sug.slotIndex}-${idx}-${sug.proposedFastMove}-${sug.proposedChargedMove1}-${sug.proposedChargedMove2}`}
+                                    type="button"
+                                    onClick={() => handleApplyMovesetUpgradeChip(sug)}
+                                    className="px-2.5 py-1.5 rounded-lg bg-indigo-900/50 hover:bg-indigo-800/70 border border-indigo-400/40 text-left transition flex flex-col sm:flex-row sm:items-center justify-between gap-1"
+                                  >
+                                    <div className="min-w-0">
+                                      <span className="text-[11px] font-extrabold text-indigo-200">
+                                        #{idx + 1} Slot {sug.slotIndex + 1} ({sug.roleLabel}) {sug.pokemonName}:{' '}
+                                      </span>
+                                      <span className="text-[11px] font-mono font-bold text-white">
+                                        {sug.proposedFastMove} + {sug.proposedChargedMove1} / {sug.proposedChargedMove2}
+                                      </span>
+                                    </div>
+                                    <div className="text-[10px] font-mono font-bold text-indigo-200 shrink-0 flex items-center gap-2">
+                                      <span className={sug.deltaMachineBr >= 0 ? 'text-emerald-300' : 'text-amber-300'}>
+                                        Team Core: {sug.newMachineBr} ({sug.deltaMachineBr >= 0 ? `+${sug.deltaMachineBr}` : sug.deltaMachineBr})
+                                      </span>
+                                      <span>•</span>
+                                      <span className={sug.deltaRoleBr >= 0 ? 'text-sky-300' : 'text-amber-300'}>
+                                        {sug.roleLabel} Pos BR: {sug.newRoleBr} ({sug.deltaRoleBr >= 0 ? `+${sug.deltaRoleBr}` : sug.deltaRoleBr})
+                                      </span>
+                                    </div>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
 
                           <div className="text-[10.5px] text-slate-300 font-mono flex flex-wrap items-center justify-between gap-2">
                             <span>
@@ -5060,6 +5180,43 @@ export default function App() {
                           )}
                         </div>
                       )}
+                      {modalMovesetRecommendations && (
+                        <div className="pt-1.5 border-t border-slate-800/80 space-y-1.5">
+                          <div className="flex items-center justify-between text-[10px] font-bold text-indigo-300">
+                            <span>🎯 Best 3 Alternate Movesets for {p1Name || 'Slot 1'} (Team Rating &amp; Lead Positional BR):</span>
+                            <span className="text-slate-400 font-mono">Current Lead BR: {modalMovesetRecommendations.baselineEval.leadAggBr}</span>
+                          </div>
+                          {modalMovesetRecommendations.slot1MovesetUpgrades.length === 0 ? (
+                            <div className="text-[10.5px] text-indigo-300 font-semibold">
+                              No alternate move combinations found for this Pokémon.
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-1 gap-1.5">
+                              {modalMovesetRecommendations.slot1MovesetUpgrades.map((sug, idx) => (
+                                <button
+                                  key={`s1-move-${idx}-${sug.proposedFastMove}-${sug.proposedChargedMove1}-${sug.proposedChargedMove2}`}
+                                  type="button"
+                                  onClick={() => handleApplyMovesetUpgradeChip(sug)}
+                                  className="px-2 py-1.5 rounded-lg bg-indigo-950/70 hover:bg-indigo-900/80 border border-indigo-500/50 text-left transition flex flex-col justify-between gap-0.5"
+                                  title={sug.summaryBadge}
+                                >
+                                  <div className="flex items-center justify-between gap-1">
+                                    <span className="text-[11px] font-extrabold text-indigo-200 truncate">
+                                      #{idx + 1} {sug.proposedFastMove} + {sug.proposedChargedMove1} / {sug.proposedChargedMove2}
+                                    </span>
+                                    <span className="text-[9.5px] font-mono font-bold text-emerald-300 shrink-0">
+                                      Team Core {sug.newMachineBr} ({sug.deltaMachineBr >= 0 ? `+${sug.deltaMachineBr}` : sug.deltaMachineBr})
+                                    </span>
+                                  </div>
+                                  <div className="text-[9.5px] font-mono text-slate-300 truncate">
+                                    Positional Lead BR: {sug.newRoleBr} ({sug.deltaRoleBr >= 0 ? `+${sug.deltaRoleBr}` : sug.deltaRoleBr}) • Team Lead Agg: {sug.newLeadAggBr} ({sug.deltaLeadAggBr >= 0 ? `+${sug.deltaLeadAggBr}` : sug.deltaLeadAggBr})
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {/* Slot 2 */}
@@ -5264,6 +5421,43 @@ export default function App() {
                           )}
                         </div>
                       )}
+                      {modalMovesetRecommendations && (
+                        <div className="pt-1.5 border-t border-slate-800/80 space-y-1.5">
+                          <div className="flex items-center justify-between text-[10px] font-bold text-indigo-300">
+                            <span>🎯 Best 3 Alternate Movesets for {p2Name || 'Slot 2'} (Team Rating &amp; Swap Positional BR):</span>
+                            <span className="text-slate-400 font-mono">Current Swap BR: {modalMovesetRecommendations.baselineEval.safeSwapBr}</span>
+                          </div>
+                          {modalMovesetRecommendations.slot2MovesetUpgrades.length === 0 ? (
+                            <div className="text-[10.5px] text-indigo-300 font-semibold">
+                              No alternate move combinations found for this Pokémon.
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-1 gap-1.5">
+                              {modalMovesetRecommendations.slot2MovesetUpgrades.map((sug, idx) => (
+                                <button
+                                  key={`s2-move-${idx}-${sug.proposedFastMove}-${sug.proposedChargedMove1}-${sug.proposedChargedMove2}`}
+                                  type="button"
+                                  onClick={() => handleApplyMovesetUpgradeChip(sug)}
+                                  className="px-2 py-1.5 rounded-lg bg-indigo-950/70 hover:bg-indigo-900/80 border border-indigo-500/50 text-left transition flex flex-col justify-between gap-0.5"
+                                  title={sug.summaryBadge}
+                                >
+                                  <div className="flex items-center justify-between gap-1">
+                                    <span className="text-[11px] font-extrabold text-indigo-200 truncate">
+                                      #{idx + 1} {sug.proposedFastMove} + {sug.proposedChargedMove1} / {sug.proposedChargedMove2}
+                                    </span>
+                                    <span className="text-[9.5px] font-mono font-bold text-emerald-300 shrink-0">
+                                      Team Core {sug.newMachineBr} ({sug.deltaMachineBr >= 0 ? `+${sug.deltaMachineBr}` : sug.deltaMachineBr})
+                                    </span>
+                                  </div>
+                                  <div className="text-[9.5px] font-mono text-slate-300 truncate">
+                                    Positional Swap BR: {sug.newRoleBr} ({sug.deltaRoleBr >= 0 ? `+${sug.deltaRoleBr}` : sug.deltaRoleBr}) • Team Lead Agg: {sug.newLeadAggBr} ({sug.deltaLeadAggBr >= 0 ? `+${sug.deltaLeadAggBr}` : sug.deltaLeadAggBr})
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {/* Slot 3 */}
@@ -5461,6 +5655,43 @@ export default function App() {
                                   </div>
                                   <div className="text-[9.5px] font-mono text-slate-300 truncate">
                                     Swap BR {sug.newRoleBr} ({sug.deltaRoleBr >= 0 ? `+${sug.deltaRoleBr}` : sug.deltaRoleBr}) • Core {sug.newMachineAggBr} [{sug.newArchetype}]
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {modalMovesetRecommendations && (
+                        <div className="pt-1.5 border-t border-slate-800/80 space-y-1.5">
+                          <div className="flex items-center justify-between text-[10px] font-bold text-indigo-300">
+                            <span>🎯 Best 3 Alternate Movesets for {p3Name || 'Slot 3'} (Team Rating &amp; Closer Positional BR):</span>
+                            <span className="text-slate-400 font-mono">Current Closer BR: {modalMovesetRecommendations.baselineEval.closerBr}</span>
+                          </div>
+                          {modalMovesetRecommendations.slot3MovesetUpgrades.length === 0 ? (
+                            <div className="text-[10.5px] text-indigo-300 font-semibold">
+                              No alternate move combinations found for this Pokémon.
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-1 gap-1.5">
+                              {modalMovesetRecommendations.slot3MovesetUpgrades.map((sug, idx) => (
+                                <button
+                                  key={`s3-move-${idx}-${sug.proposedFastMove}-${sug.proposedChargedMove1}-${sug.proposedChargedMove2}`}
+                                  type="button"
+                                  onClick={() => handleApplyMovesetUpgradeChip(sug)}
+                                  className="px-2 py-1.5 rounded-lg bg-indigo-950/70 hover:bg-indigo-900/80 border border-indigo-500/50 text-left transition flex flex-col justify-between gap-0.5"
+                                  title={sug.summaryBadge}
+                                >
+                                  <div className="flex items-center justify-between gap-1">
+                                    <span className="text-[11px] font-extrabold text-indigo-200 truncate">
+                                      #{idx + 1} {sug.proposedFastMove} + {sug.proposedChargedMove1} / {sug.proposedChargedMove2}
+                                    </span>
+                                    <span className="text-[9.5px] font-mono font-bold text-emerald-300 shrink-0">
+                                      Team Core {sug.newMachineBr} ({sug.deltaMachineBr >= 0 ? `+${sug.deltaMachineBr}` : sug.deltaMachineBr})
+                                    </span>
+                                  </div>
+                                  <div className="text-[9.5px] font-mono text-slate-300 truncate">
+                                    Positional Closer BR: {sug.newRoleBr} ({sug.deltaRoleBr >= 0 ? `+${sug.deltaRoleBr}` : sug.deltaRoleBr}) • Swap BR: {sug.newSwapBr}
                                   </div>
                                 </button>
                               ))}
@@ -7798,7 +8029,7 @@ export default function App() {
               <div>
                 <h2 className="text-lg font-bold text-white flex items-center gap-2">
                   <Info className="w-5 h-5 text-sky-400" />
-                  <span>📖 Complete Help, HUD Instructions, Tips &amp; Tactics Guide (v3.14)</span>
+                  <span>📖 Complete Help, HUD Instructions, Tips &amp; Tactics Guide (v3.15)</span>
                 </h2>
                 <p className="text-xs text-slate-400">
                   Everything you need to master the floating PvP overlay, 3x3 matchup &amp; shield matrix, bottom 3-column damage grid, 50s swap clocks, move pacing, Battle Log analytics, and Tasker automation.
