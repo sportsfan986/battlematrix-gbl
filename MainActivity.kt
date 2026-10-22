@@ -56,7 +56,14 @@ data class TeamPreset(
     val safeSwapBr: Int = 500,
     val closerSwapBr: Int = 500,
     val closerBr: Int = 500,
-    val sharedWeaknesses: List<String> = emptyList()
+    val sharedWeaknesses: List<String> = emptyList(),
+    val topMetaTargetsTotal: Int = 25,
+    val topMetaWinsCount: Int = 0,
+    val keyMetaTargetsBeaten: List<String> = emptyList(),
+    val keyThreats: List<String> = emptyList(),
+    val coreBreakers: List<String> = emptyList(),
+    val altMovesetSlots: List<OverlayService.Companion.AntiMetaAltMovesetInfo> = emptyList(),
+    val synergySummary: String = ""
 )
 
 data class BattleLogEntry(
@@ -3348,7 +3355,14 @@ class MainActivity : AppCompatActivity() {
             safeSwapBr = eval.safeSwapBr,
             closerSwapBr = eval.closerSwapBr,
             closerBr = eval.closerBr,
-            sharedWeaknesses = eval.sharedWeaknesses
+            sharedWeaknesses = eval.sharedWeaknesses,
+            topMetaTargetsTotal = eval.topMetaTargetsTotal,
+            topMetaWinsCount = eval.topMetaWinsCount,
+            keyMetaTargetsBeaten = eval.keyMetaTargetsBeaten,
+            keyThreats = eval.keyThreats,
+            coreBreakers = eval.coreBreakers,
+            altMovesetSlots = eval.altMovesetSlots,
+            synergySummary = eval.synergySummary
         )
     }
 
@@ -4839,7 +4853,7 @@ class MainActivity : AppCompatActivity() {
         var hasUncomputedMetrics = false
 
         presets.forEachIndexed { index, preset ->
-            if (preset.leadAggBr <= 0 || preset.machineAggBr <= 0 || preset.safeSwapBr <= 0) {
+            if (preset.leadAggBr <= 0 || preset.machineAggBr <= 0 || preset.safeSwapBr <= 0 || preset.synergySummary.isBlank()) {
                 hasUncomputedMetrics = true
             }
             val itemView = layoutInflater.inflate(R.layout.item_team_preset, presetsContainer, false)
@@ -4875,13 +4889,29 @@ class MainActivity : AppCompatActivity() {
             val (machTier, machHex) = getMachineBrTierLabelAndHex(preset.machineAggBr)
             val (swap2Tier, swap2Hex) = getMatchupTierCodeAndHex(preset.safeSwapBr)
             val (swap3Tier, swap3Hex) = getMatchupTierCodeAndHex(preset.closerSwapBr)
+            val (closeTier, closeHex) = getMatchupTierCodeAndHex(preset.closerBr)
 
             applyCurrentAppThemeToSubtree(itemView)
             val activeTheme = getActiveAppTheme()
 
-            val metricsHtml = "Lead BR: <font color='$leadHex'>${preset.leadAggBr} ($leadTier)</font>  •  " +
-                "Core BR: <font color='$machHex'>${preset.machineAggBr} ($machTier)</font>  •  " +
-                "Swap BR: <font color='$swap2Hex'>#2 ${preset.safeSwapBr} ($swap2Tier)</font> / <font color='$swap3Hex'>#3 ${preset.closerSwapBr} ($swap3Tier)</font>"
+            val targetTotal = preset.topMetaTargetsTotal.takeIf { it > 0 } ?: 25
+            val altCount = preset.altMovesetSlots.count { it.isAltMoveset }
+            val altHeaderBadge = if (altCount > 0) {
+                "  •  <font color='#c4b5fd'><b>[⚡ $altCount Alt Moveset${if (altCount > 1) "s" else ""}]</b></font>"
+            } else {
+                ""
+            }
+            val sharedWeakBadge = if (preset.sharedWeaknesses.isNotEmpty()) {
+                "  •  <font color='#fbbf24'>B-Weak: ${preset.sharedWeaknesses.joinToString("/").uppercase()}</font>"
+            } else {
+                ""
+            }
+
+            val metricsHtml = "Core: <font color='$machHex'><b>${preset.machineAggBr} ($machTier)</b></font>  •  " +
+                "Beats <font color='#6ee7b7'><b>${preset.topMetaWinsCount}/$targetTotal</b></font> Top Meta$altHeaderBadge<br>" +
+                "Lead BR: <font color='$leadHex'>${preset.leadAggBr} ($leadTier)</font>  •  " +
+                "Swap BR: <font color='$swap2Hex'>#2 ${preset.safeSwapBr} ($swap2Tier)</font> / <font color='$swap3Hex'>#3 ${preset.closerSwapBr} ($swap3Tier)</font>  •  " +
+                "Closer BR: <font color='$closeHex'>${preset.closerBr} ($closeTier)</font>$sharedWeakBadge"
             textMetricsBadges?.text = android.text.Html.fromHtml(metricsHtml, android.text.Html.FROM_HTML_MODE_LEGACY)
 
             val roleLabels = if (isAbb) {
@@ -4892,16 +4922,37 @@ class MainActivity : AppCompatActivity() {
             val slotBrHtmlLabels = listOf(
                 "<font color='$leadHex'>Lead BR ${preset.leadAggBr} ($leadTier)</font>",
                 "<font color='$swap2Hex'>Swap BR ${preset.safeSwapBr} ($swap2Tier)</font>",
-                "<font color='$swap3Hex'>Swap BR ${preset.closerSwapBr} ($swap3Tier)</font>"
+                "<font color='$closeHex'>Closer BR ${preset.closerBr} ($closeTier)</font>"
             )
 
-            val pokemonHtml = preset.pokemon.mapIndexed { sIdx, slot ->
+            val pokemonRowsHtml = preset.pokemon.mapIndexed { sIdx, slot ->
                 val ivLabel = if (!slot.ivs.isNullOrBlank()) " · IV ${slot.ivs}" else ""
                 val rTag = roleLabels.getOrElse(sIdx) { "Slot ${sIdx + 1}" }
                 val brTag = slotBrHtmlLabels.getOrElse(sIdx) { "" }
-                "• <b>[$rTag · $brTag]</b> ${slot.name} (CP ${slot.cp}$ivLabel) — ${slot.fastMove} | ${slot.chargedMove1}, ${slot.chargedMove2}"
+                val altInfo = preset.altMovesetSlots.getOrNull(sIdx)
+                val isAlt = altInfo?.isAltMoveset == true
+                val altBadge = if (isAlt) " <font color='#c4b5fd'><b>[⚡ Alt Moveset]</b></font>" else ""
+                val movesColor = if (isAlt) "#ddd6fe" else "#cbd5e1"
+                val stdNote = if (isAlt && altInfo != null) {
+                    " <font color='#94a3b8'><i>(Std: ${altInfo.standardFastMove} + ${altInfo.standardCharged1}/${altInfo.standardCharged2})</i></font>"
+                } else {
+                    ""
+                }
+                "• <b>[$rTag · $brTag]</b> ${slot.name}$altBadge (CP ${slot.cp}$ivLabel) — <font color='$movesColor'><b>${slot.fastMove} + ${slot.chargedMove1} / ${slot.chargedMove2}</b></font>$stdNote"
             }.joinToString("<br>")
-            textPokemon.text = android.text.Html.fromHtml(pokemonHtml, android.text.Html.FROM_HTML_MODE_LEGACY)
+
+            val winsList = if (preset.keyMetaTargetsBeaten.isNotEmpty()) preset.keyMetaTargetsBeaten.take(5).joinToString(", ") else "Balanced neutral coverage"
+            val threatsList = if (preset.keyThreats.isNotEmpty()) preset.keyThreats.take(4).joinToString(", ") else "No severe role threats"
+            val breakersList = if (preset.coreBreakers.isNotEmpty()) preset.coreBreakers.take(4).joinToString(", ") else "None in Top $targetTotal Meta!"
+            val breakersColor = if (preset.coreBreakers.isNotEmpty()) "#fda4af" else "#6ee7b7"
+
+            val summaryBlockHtml = "<br>" +
+                "<font color='#6ee7b7'><b>✅ Key Wins:</b></font> $winsList<br>" +
+                "<font color='#fcd34d'><b>⚠️ Key Threats (Slot 1/2/3 BR):</b></font> $threatsList<br>" +
+                "<font color='$breakersColor'><b>🚨 Core Breakers (Slot 1/2/3 BR):</b></font> $breakersList" +
+                (if (preset.synergySummary.isNotBlank()) "<br><font color='#94a3b8'><i>${preset.synergySummary}</i></font>" else "")
+
+            textPokemon.text = android.text.Html.fromHtml(pokemonRowsHtml + summaryBlockHtml, android.text.Html.FROM_HTML_MODE_LEGACY)
 
             textArchetype?.setTextColor(if (isAbb) 0xFFFBBF24.toInt() else activeTheme.accentColor)
             textLeague.setTextColor(
@@ -5160,8 +5211,8 @@ class MainActivity : AppCompatActivity() {
             override fun onItemSelected(parent: AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
                 val lg = leagues.getOrElse(position) { "GREAT LEAGUE" }
                 val top3 = getLeagueTop3Defaults(lg)
-                editAntiMetaFeat1.hint = "Featured #1 (optional, e.g. ${top3[0].name})"
-                editAntiMetaFeat2.hint = "Featured #2 (optional, e.g. ${top3[1].name})"
+                editAntiMetaFeat1.hint = "Featured #1 or Rank Range (e.g. ${top3[0].name}, -10, 100-200, 200-)"
+                editAntiMetaFeat2.hint = "Featured #2 or Rank Range (e.g. ${top3[1].name}, -10, 100-200, 200-)"
                 updateAntiMetaStatusDefaultName()
                 if (layoutAntiMetaResults.childCount > 0) {
                     runAntiMetaTeamBuilderGeneration()
@@ -5205,7 +5256,9 @@ class MainActivity : AppCompatActivity() {
         val lg = spinnerAntiMetaLeague.selectedItem?.toString() ?: "GREAT LEAGUE"
         val f1 = editAntiMetaFeat1.text.toString().trim()
         val f2 = editAntiMetaFeat2.text.toString().trim()
-        if (f1.isNotEmpty() && f2.isNotEmpty() &&
+        val f1Range = OverlayService.parseFeaturedRankRangeQueryStatic(f1)
+        val f2Range = OverlayService.parseFeaturedRankRangeQueryStatic(f2)
+        if (f1.isNotEmpty() && f2.isNotEmpty() && f1Range == null && f2Range == null &&
             OverlayService.Companion.FormResolver.extractBaseSpecies(f1).equals(
                 OverlayService.Companion.FormResolver.extractBaseSpecies(f2),
                 ignoreCase = true
@@ -5362,7 +5415,13 @@ class MainActivity : AppCompatActivity() {
                 val rLabel = roleLabels.getOrElse(idx) { "Slot ${idx + 1}" }
                 val brStr = roleBrHtml.getOrElse(idx) { "" }
                 val isFeat = opt.featuredNamesIncluded.any { it.equals(m.name, ignoreCase = true) }
-                val featBadge = if (isFeat) " <font color='#fbbf24'><b>[★ Featured]</b></font>" else ""
+                val featRank = opt.featuredRankMap[m.name]
+                val featBadge = if (isFeat) {
+                    val rankSuffix = if (featRank != null) " #$featRank" else ""
+                    " <font color='#fbbf24'><b>[★ Featured$rankSuffix]</b></font>"
+                } else {
+                    ""
+                }
                 val altInfo = opt.altMovesetSlots.getOrNull(idx)
                 val isAlt = altInfo?.isAltMoveset == true
                 val altBadge = if (isAlt) {
@@ -5396,8 +5455,8 @@ class MainActivity : AppCompatActivity() {
 
             val breakdownHtml =
                 "<font color='#6ee7b7'><b>✅ Key Wins:</b></font> $winsList<br>" +
-                "<font color='#fcd34d'><b>⚠️ Key Threats:</b></font> $threatsList<br>" +
-                "<font color='$breakersColor'><b>🚨 Core Breakers:</b></font> $breakersList"
+                "<font color='#fcd34d'><b>⚠️ Key Threats (Slot 1/2/3 BR):</b></font> $threatsList<br>" +
+                "<font color='$breakersColor'><b>🚨 Core Breakers (Slot 1/2/3 BR):</b></font> $breakersList"
 
             val breakdownTv = TextView(this).apply {
                 text = android.text.Html.fromHtml(breakdownHtml, android.text.Html.FROM_HTML_MODE_LEGACY)
@@ -5435,9 +5494,10 @@ class MainActivity : AppCompatActivity() {
         )
         result.top5AbcTeams.forEach { addOptionCard(it) }
 
-        if (result.top25MetaList.isNotEmpty()) {
+        val bottomMetaList = result.top50MetaList.ifEmpty { result.top25MetaList }
+        if (bottomMetaList.isNotEmpty()) {
             addSectionHeader(
-                title = "🎯 Top 25 ${result.league} Meta Determined by SilphScope (Target Audit Pool for /25 Wins)",
+                title = "🎯 Top ${bottomMetaList.size} ${result.league} Meta Determined by SilphScope (Meta Battle Ranking in Parentheses • #1–#25 = /25 Wins Pool)",
                 subtitle = "Teams are built & scored against the full Top-100 role-weighted synthetic meta + season logs",
                 titleColor = 0xFFC4B5FD.toInt()
             )
@@ -5453,11 +5513,12 @@ class MainActivity : AppCompatActivity() {
                     bottomMargin = (8 * density).toInt()
                 }
             }
-            val top25Html = result.top25MetaList.joinToString("  •  ") { entry ->
-                "<b><font color='#38bdf8'>#${entry.rank}</font> ${entry.name}</b> <font color='#94a3b8'>(${String.format(java.util.Locale.US, "%.1f", entry.weightPct)}%)</font>"
+            val top50Html = bottomMetaList.joinToString("  •  ") { entry ->
+                val rankColor = if (entry.rank <= 25) "#38bdf8" else "#c4b5fd"
+                "<b><font color='$rankColor'>#${entry.rank}</font> ${entry.name}</b> <font color='#94a3b8'>(${entry.metaBr} BR • ${String.format(java.util.Locale.US, "%.1f", entry.weightPct)}%)</font>"
             }
             val metaTv = TextView(this).apply {
-                text = android.text.Html.fromHtml(top25Html, android.text.Html.FROM_HTML_MODE_LEGACY)
+                text = android.text.Html.fromHtml(top50Html, android.text.Html.FROM_HTML_MODE_LEGACY)
                 textSize = 10.5f
                 setTextColor(activeTheme.primaryTextColor)
             }
@@ -5492,7 +5553,14 @@ class MainActivity : AppCompatActivity() {
             safeSwapBr = option.safeSwapBr,
             closerSwapBr = option.closerSwapBr,
             closerBr = option.closerBr,
-            sharedWeaknesses = option.sharedWeaknesses
+            sharedWeaknesses = option.sharedWeaknesses,
+            topMetaTargetsTotal = option.topMetaTargetsTotal,
+            topMetaWinsCount = option.topMetaWinsCount,
+            keyMetaTargetsBeaten = option.keyMetaTargetsBeaten,
+            keyThreats = option.keyThreats,
+            coreBreakers = option.coreBreakers,
+            altMovesetSlots = option.altMovesetSlots,
+            synergySummary = option.synergySummary
         )
         val createdPreset = evaluatePresetMetrics(rawPreset, autoReorder = false)
 
@@ -5739,15 +5807,17 @@ class MainActivity : AppCompatActivity() {
             val (machTier, machHex) = getMachineBrTierLabelAndHex(eval.machineAggBr)
             val (swap2Tier, swap2Hex) = getMatchupTierCodeAndHex(eval.safeSwapBr)
             val (swap3Tier, swap3Hex) = getMatchupTierCodeAndHex(eval.closerSwapBr)
+            val (closeTier, closeHex) = getMatchupTierCodeAndHex(eval.closerBr)
 
             val overrideSuffix = if (dialogManualArchetypeOverride != null) " • OVERRIDDEN" else ""
             textDialogArchetypeBadge?.text = "Style: [${eval.archetype}$overrideSuffix]"
             textDialogArchetypeBadge?.setTextColor(if (isAbb) 0xFFFBBF24.toInt() else 0xFF38BDF8.toInt())
 
-            textDialogLeadBrBadge?.text = "Lead Agg BR: ${eval.leadAggBr} ($leadTier)"
+            textDialogLeadBrBadge?.text = "Lead BR: ${eval.leadAggBr} ($leadTier)"
             textDialogLeadBrBadge?.setTextColor(android.graphics.Color.parseColor(leadHex))
 
-            textDialogMachBrBadge?.text = "Core BR: ${eval.machineAggBr} ($machTier)"
+            val targetTotal = eval.topMetaTargetsTotal.takeIf { it > 0 } ?: 25
+            textDialogMachBrBadge?.text = "Core: ${eval.machineAggBr} ($machTier) • Beats ${eval.topMetaWinsCount}/$targetTotal Meta"
             textDialogMachBrBadge?.setTextColor(android.graphics.Color.parseColor(machHex))
 
             val weakHtml = if (eval.sharedWeaknesses.isNotEmpty()) {
@@ -5755,17 +5825,35 @@ class MainActivity : AppCompatActivity() {
             } else {
                 ""
             }
+            val altSlotsActive = eval.altMovesetSlots.filter { it.isAltMoveset }
+            val altHtml = if (altSlotsActive.isNotEmpty()) {
+                "  •  <font color='#c4b5fd'><b>[⚡ ${altSlotsActive.size} Alt Moveset${if (altSlotsActive.size > 1) "s" else ""}]</b></font>"
+            } else {
+                ""
+            }
+            val winsList = if (eval.keyMetaTargetsBeaten.isNotEmpty()) eval.keyMetaTargetsBeaten.take(5).joinToString(", ") else "Broad neutral coverage"
+            val threatsList = if (eval.keyThreats.isNotEmpty()) eval.keyThreats.take(4).joinToString(", ") else "No severe role threats"
+            val breakersList = if (eval.coreBreakers.isNotEmpty()) eval.coreBreakers.take(4).joinToString(", ") else "None in Top $targetTotal Meta!"
+            val breakersColor = if (eval.coreBreakers.isNotEmpty()) "#fda4af" else "#6ee7b7"
+
             val summaryHtml = "Slot 2 Swap BR: <font color='$swap2Hex'>${eval.safeSwapBr} ($swap2Tier)</font>  •  " +
                 "Slot 3 Swap BR: <font color='$swap3Hex'>${eval.closerSwapBr} ($swap3Tier)</font>  •  " +
-                "Closer BR: <font color='#cbd5e1'>${eval.closerBr}</font>$weakHtml"
+                "Closer BR: <font color='$closeHex'>${eval.closerBr} ($closeTier)</font>$weakHtml$altHtml<br>" +
+                "<font color='#6ee7b7'><b>✅ Key Wins:</b></font> $winsList<br>" +
+                "<font color='#fcd34d'><b>⚠️ Key Threats (Slot 1/2/3 BR):</b></font> $threatsList<br>" +
+                "<font color='$breakersColor'><b>🚨 Core Breakers (Slot 1/2/3 BR):</b></font> $breakersList<br>" +
+                "<font color='#94a3b8'><i>${eval.synergySummary}</i></font>"
             textDialogArchetypeSummary?.text = android.text.Html.fromHtml(summaryHtml, android.text.Html.FROM_HTML_MODE_LEGACY)
 
             textDialogMetaBlendInfo?.text =
                 "Current Season Meta Blend: ${eval.histWeightPct}% Recency-Weighted Logs (${eval.seasonMatchCount} matches) / ${100 - eval.histWeightPct}% PvPoke"
 
-            textP1RoleTitle?.text = if (isAbb) "⚔️ Slot 1 (Lead A) & Moveset" else "⚔️ Slot 1 (Lead) & Moveset"
-            textP2RoleTitle?.text = if (isAbb) "🔄 Slot 2 (Bait Swap B1) & Moveset" else "🔄 Slot 2 (Safe Swap) & Moveset"
-            textP3RoleTitle?.text = if (isAbb) "🛡️ Slot 3 (Sweeper B2) & Moveset" else "🛡️ Slot 3 (Closer) & Moveset"
+            val alt1Tag = if (eval.altMovesetSlots.getOrNull(0)?.isAltMoveset == true) " ⚡Alt" else ""
+            val alt2Tag = if (eval.altMovesetSlots.getOrNull(1)?.isAltMoveset == true) " ⚡Alt" else ""
+            val alt3Tag = if (eval.altMovesetSlots.getOrNull(2)?.isAltMoveset == true) " ⚡Alt" else ""
+            textP1RoleTitle?.text = (if (isAbb) "⚔️ Slot 1 (Lead A) & Moveset" else "⚔️ Slot 1 (Lead) & Moveset") + alt1Tag
+            textP2RoleTitle?.text = (if (isAbb) "🔄 Slot 2 (Bait Swap B1) & Moveset" else "🔄 Slot 2 (Safe Swap) & Moveset") + alt2Tag
+            textP3RoleTitle?.text = (if (isAbb) "🛡️ Slot 3 (Sweeper B2) & Moveset" else "🛡️ Slot 3 (Closer) & Moveset") + alt3Tag
 
             textP1LeadBr?.text = "Lead BR: ${eval.leadAggBr} ($leadTier)"
             textP1LeadBr?.setTextColor(android.graphics.Color.parseColor(leadHex))
@@ -5773,8 +5861,8 @@ class MainActivity : AppCompatActivity() {
             textP2SwapBr?.text = "Swap BR: ${eval.safeSwapBr} ($swap2Tier)"
             textP2SwapBr?.setTextColor(android.graphics.Color.parseColor(swap2Hex))
 
-            textP3SwapBr?.text = "Swap BR: ${eval.closerSwapBr} ($swap3Tier)"
-            textP3SwapBr?.setTextColor(android.graphics.Color.parseColor(swap3Hex))
+            textP3SwapBr?.text = "Closer BR: ${eval.closerBr} ($closeTier)"
+            textP3SwapBr?.setTextColor(android.graphics.Color.parseColor(closeHex))
 
             return eval
         }
@@ -5953,11 +6041,11 @@ class MainActivity : AppCompatActivity() {
         btnDialogAutoDetect?.setOnClickListener {
             dialogManualArchetypeOverride = null
             val eval = refreshDialogTeamEvaluation(autoReorder = true)
-            textDialogAutoDetectBanner?.text = eval.reasonSummary
+            textDialogAutoDetectBanner?.text = "${eval.reasonSummary}\n${eval.synergySummary}"
             textDialogAutoDetectBanner?.visibility = android.view.View.VISIBLE
             Toast.makeText(
                 this,
-                eval.reasonSummary,
+                "Updated Team Summary (${eval.archetype} • Beats ${eval.topMetaWinsCount}/${eval.topMetaTargetsTotal} Meta)!",
                 Toast.LENGTH_LONG
             ).show()
         }

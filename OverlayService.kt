@@ -4384,7 +4384,14 @@ class OverlayService : LifecycleService() {
             val sharedWeaknesses: List<String>,
             val histWeightPct: Int,
             val seasonMatchCount: Int,
-            val reasonSummary: String = ""
+            val reasonSummary: String = "",
+            val topMetaTargetsTotal: Int = 25,
+            val topMetaWinsCount: Int = 0,
+            val keyMetaTargetsBeaten: List<String> = emptyList(),
+            val keyThreats: List<String> = emptyList(),
+            val coreBreakers: List<String> = emptyList(),
+            val altMovesetSlots: List<AntiMetaAltMovesetInfo> = emptyList(),
+            val synergySummary: String = ""
         )
 
         private val ALL_18_TYPES = listOf(
@@ -4704,11 +4711,118 @@ class OverlayService : LifecycleService() {
             val closerSwapBrVal = swapScores[i3].roundToInt().coerceIn(150, 850)
             val closerBrVal = closerMeans[i3].roundToInt().coerceIn(150, 850)
 
+            // Audit Top 25 Meta Targets for Key Wins, Key Threats (with BR1/BR2/BR3), and Core Breakers (with BR1/BR2/BR3)
+            val top25MetaThreats = dist.fieldWeights.entries
+                .sortedByDescending { it.value }
+                .map { it.key }
+                .take(25)
+                .ifEmpty { getTopMetaPoolForLeagueStatic(league).take(25) }
+            val targetAuditTotal = top25MetaThreats.size.takeIf { it > 0 } ?: 25
+
+            fun formatThreatWithMemberBrs(threatName: String): String {
+                val r0 = slotLeadBrMap[i1][threatName] ?: 500.0
+                val r1 = slotSwapBrMap[i2][threatName] ?: 500.0
+                val r2 = slotCloserBrMap[i3][threatName] ?: 500.0
+                val oppBr0 = (1000.0 - r0).roundToInt().coerceIn(100, 900)
+                val oppBr1 = (1000.0 - r1).roundToInt().coerceIn(100, 900)
+                val oppBr2 = (1000.0 - r2).roundToInt().coerceIn(100, 900)
+                return "$threatName($oppBr0/$oppBr1/$oppBr2)"
+            }
+
+            val beatenTargets = ArrayList<String>()
+            val coreBreakersRaw = ArrayList<String>()
+            val keyThreatsRaw = ArrayList<String>()
+
+            for (threat in top25MetaThreats) {
+                val r0 = slotLeadBrMap[i1][threat] ?: 500.0
+                val r1 = slotSwapBrMap[i2][threat] ?: 500.0
+                val r2 = slotCloserBrMap[i3][threat] ?: 500.0
+                val maxBr = max(r0, max(r1, r2))
+                val minBackBr = min(r1, r2)
+
+                if (maxBr >= 525.0) {
+                    beatenTargets.add(threat)
+                }
+
+                if (r0 < 495.0 && r1 < 495.0 && r2 < 495.0) {
+                    coreBreakersRaw.add(threat)
+                } else if ((r0 < 475.0 && minBackBr < 485.0) || maxBr < 512.0) {
+                    keyThreatsRaw.add(threat)
+                }
+            }
+
+            if (keyThreatsRaw.isEmpty()) {
+                val sortedTough = top25MetaThreats
+                    .filter { it !in coreBreakersRaw }
+                    .map { t ->
+                        val r0 = slotLeadBrMap[i1][t] ?: 500.0
+                        val r1 = slotSwapBrMap[i2][t] ?: 500.0
+                        val r2 = slotCloserBrMap[i3][t] ?: 500.0
+                        t to (min(r0, (r1 + r2) / 2.0) + max(r0, max(r1, r2)) * 0.35)
+                    }
+                    .sortedBy { it.second }
+                for ((tName, _) in sortedTough.take(3)) {
+                    keyThreatsRaw.add(tName)
+                }
+            }
+
+            val keyThreatsFormatted = keyThreatsRaw.take(5).map { formatThreatWithMemberBrs(it) }
+            val coreBreakersFormatted = coreBreakersRaw.take(5).map { formatThreatWithMemberBrs(it) }
+
+            val roleLabels = if (archetype == "ABB") {
+                listOf("Lead (A)", "Bait Swap (B1)", "Sweeper (B2)")
+            } else {
+                listOf("Lead", "Safe Swap", "Closer")
+            }
+
+            val altMovesetSlots = ordered.mapIndexed { sIdx, m ->
+                val stdMeta = resolveRecommendedMovesForSpecies(m.name, league, m.cp, m.ivs)
+                val stdFast = stdMeta?.defaultFastMove ?: m.fastMove
+                val stdC1 = stdMeta?.chargedMove1 ?: m.chargedMove1
+                val stdC2 = stdMeta?.chargedMove2 ?: m.chargedMove2
+                val stdPair = listOf(stdC1.lowercase(), stdC2.lowercase()).sorted().joinToString("+")
+                val curPair = listOf(m.chargedMove1.lowercase(), m.chargedMove2.lowercase()).sorted().joinToString("+")
+                val isAlt = !stdFast.equals(m.fastMove, ignoreCase = true) || stdPair != curPair
+                AntiMetaAltMovesetInfo(
+                    slotIndex = sIdx,
+                    roleLabel = roleLabels[sIdx],
+                    pokemonName = m.name,
+                    isAltMoveset = isAlt,
+                    standardFastMove = stdFast,
+                    standardCharged1 = stdC1,
+                    standardCharged2 = stdC2,
+                    fastMove = m.fastMove,
+                    chargedMove1 = m.chargedMove1,
+                    chargedMove2 = m.chargedMove2,
+                    roleBrDelta = 0,
+                    coreBrDelta = 0
+                )
+            }
+
+            val winsPreview = beatenTargets.take(5).joinToString(", ").ifEmpty { "Broad neutral coverage" }
+            val threatsPreview = keyThreatsFormatted.take(4).joinToString(", ").ifEmpty { "None prominent" }
+            val breakersPreview = if (coreBreakersFormatted.isNotEmpty()) {
+                coreBreakersFormatted.take(4).joinToString(", ")
+            } else {
+                "None (0 hard core breakers in Top 25)"
+            }
+            val altNotes = altMovesetSlots
+                .filter { it.isAltMoveset }
+                .map { "${it.pokemonName} (${it.fastMove} + ${it.chargedMove1}/${it.chargedMove2})" }
+            val altSuffix = if (altNotes.isNotEmpty()) " • Alt Moveset Tech: ${altNotes.joinToString("; ")}." else ""
+
+            val synergySummary = if (archetype == "ABB") {
+                val sharedStr = if (detectedSharedWeaknesses.isNotEmpty()) detectedSharedWeaknesses.joinToString("/").uppercase() else "BACKLINE"
+                "ABB Lineup: ${slot1.name} (Lead A) covers backline $sharedStr weakness for ${slot2.name} (Bait B1) & ${slot3.name} (Sweeper B2). Beats ${beatenTargets.size}/$targetAuditTotal Top Meta. Key Wins: $winsPreview. Key Threats: $threatsPreview. Core Breakers: $breakersPreview.$altSuffix"
+            } else {
+                "ABC Balanced Core: ${slot1.name} Lead ($leadAggVal BR) + ${slot2.name} Safe Swap ($safeSwapBrVal BR) + ${slot3.name} Closer ($closerBrVal BR). Beats ${beatenTargets.size}/$targetAuditTotal Top Meta. Key Wins: $winsPreview. Key Threats: $threatsPreview. Core Breakers: $breakersPreview.$altSuffix"
+            }
+
             val reasonSummary = if (archetype == "ABB") {
                 val sharedStr = if (detectedSharedWeaknesses.isNotEmpty()) detectedSharedWeaknesses.joinToString("/") else "Backline"
-                "⚡ Auto-Detected ABB Lineup (Shared $sharedStr weakness covered by ${slot1.name}) → #1 Lead (A): ${slot1.name} (Lead BR $leadAggVal) • #2 Bait Swap (B1): ${slot2.name} (Swap BR $safeSwapBrVal) • #3 Sweeper (B2): ${slot3.name} (Swap BR $closerSwapBrVal)"
+                "⚡ Auto-Detected ABB Lineup (Shared $sharedStr weakness covered by ${slot1.name}) → #1 Lead (A): ${slot1.name} (Lead BR $leadAggVal) • #2 Bait Swap (B1): ${slot2.name} (Swap BR $safeSwapBrVal) • #3 Sweeper (B2): ${slot3.name} (Closer BR $closerBrVal) • $synergySummary"
             } else {
-                "⚡ Auto-Detected ABC Balanced Core → #1 Lead kept: ${slot1.name} (Lead BR $leadAggVal) • #2 Safe Swap moved to Slot 2: ${slot2.name} (Swap BR $safeSwapBrVal) • #3 Closer: ${slot3.name} (Swap BR $closerSwapBrVal)"
+                "⚡ Auto-Detected ABC Balanced Core → #1 Lead kept: ${slot1.name} (Lead BR $leadAggVal) • #2 Safe Swap moved to Slot 2: ${slot2.name} (Swap BR $safeSwapBrVal) • #3 Closer: ${slot3.name} (Closer BR $closerBrVal) • $synergySummary"
             }
 
             return TeamArchetypeEvaluationResult(
@@ -4722,7 +4836,14 @@ class OverlayService : LifecycleService() {
                 sharedWeaknesses = detectedSharedWeaknesses,
                 histWeightPct = dist.histWeightPct,
                 seasonMatchCount = dist.seasonMatchCount,
-                reasonSummary = reasonSummary
+                reasonSummary = reasonSummary,
+                topMetaTargetsTotal = targetAuditTotal,
+                topMetaWinsCount = beatenTargets.size,
+                keyMetaTargetsBeaten = beatenTargets.take(6),
+                keyThreats = keyThreatsFormatted,
+                coreBreakers = coreBreakersFormatted,
+                altMovesetSlots = altMovesetSlots,
+                synergySummary = synergySummary
             )
         }
 
@@ -4844,6 +4965,17 @@ class OverlayService : LifecycleService() {
                         if (result.size < maxLimit && FormResolver.isShadowEligibleVariant(meta)) {
                             addCandidateFromName("Shadow ${meta.name}")
                         }
+                    }
+                }
+            }
+
+            if (result.size < maxLimit) {
+                for (meta in allMeta) {
+                    if (result.size >= maxLimit) break
+                    if (!allowMega && isMegaOrPrimal(meta.name, meta.speciesId)) continue
+                    addCandidateFromName(meta.name)
+                    if (result.size < maxLimit && !meta.name.startsWith("Shadow ", ignoreCase = true)) {
+                        addCandidateFromName("Shadow ${meta.name}")
                     }
                 }
             }
@@ -5366,6 +5498,58 @@ class OverlayService : LifecycleService() {
             )
         }
 
+        data class FeaturedRankRangeSpec(
+            val raw: String,
+            val minRank: Int,
+            val maxRank: Int,
+            val label: String
+        )
+
+        fun parseFeaturedRankRangeQueryStatic(rawInput: String): FeaturedRankRangeSpec? {
+            val cleaned = rawInput.trim()
+                .replace(Regex("^(rank|ranked|#)\\s*", RegexOption.IGNORE_CASE), "")
+                .trim()
+            if (cleaned.isEmpty()) return null
+
+            // Pattern 1: "200-" or "200+" => #200 or lower
+            Regex("^(\\d{1,3})\\s*[-+]$").matchEntire(cleaned)?.let { m ->
+                val minR = (m.groupValues[1].toIntOrNull() ?: 1).coerceIn(1, 500)
+                return FeaturedRankRangeSpec(
+                    raw = rawInput.trim(),
+                    minRank = minR,
+                    maxRank = 999,
+                    label = "Rank #$minR+"
+                )
+            }
+
+            // Pattern 2: "-10" or "<=10" => Top N (#1 to #N)
+            Regex("^(?:[-]|<=?)\\s*(\\d{1,3})$").matchEntire(cleaned)?.let { m ->
+                val maxR = (m.groupValues[1].toIntOrNull() ?: 10).coerceIn(1, 500)
+                return FeaturedRankRangeSpec(
+                    raw = rawInput.trim(),
+                    minRank = 1,
+                    maxRank = maxR,
+                    label = "Top $maxR (#1–#$maxR)"
+                )
+            }
+
+            // Pattern 3: "100-200" => #100 to #200
+            Regex("^(\\d{1,3})\\s*-\\s*(\\d{1,3})$").matchEntire(cleaned)?.let { m ->
+                val a = (m.groupValues[1].toIntOrNull() ?: 1).coerceIn(1, 500)
+                val b = (m.groupValues[2].toIntOrNull() ?: 500).coerceIn(1, 500)
+                val minR = min(a, b)
+                val maxR = max(a, b)
+                return FeaturedRankRangeSpec(
+                    raw = rawInput.trim(),
+                    minRank = minR,
+                    maxRank = maxR,
+                    label = "Rank #$minR–#$maxR"
+                )
+            }
+
+            return null
+        }
+
         data class AntiMetaAltMovesetInfo(
             val slotIndex: Int, // 0 = Lead, 1 = Swap/B1, 2 = Closer/B2
             val roleLabel: String,
@@ -5384,7 +5568,8 @@ class OverlayService : LifecycleService() {
         data class SilphScopeTopMetaEntry(
             val rank: Int,
             val name: String,
-            val weightPct: Double
+            val weightPct: Double,
+            val metaBr: Int = 500
         )
 
         data class AntiMetaTeamOption(
@@ -5394,6 +5579,7 @@ class OverlayService : LifecycleService() {
             val league: String,
             val pokemon: List<TeamMember>,
             val featuredNamesIncluded: List<String>,
+            val featuredRankMap: Map<String, Int> = emptyMap(),
             val leadAggBr: Int,
             val machineAggBr: Int,
             val safeSwapBr: Int,
@@ -5421,6 +5607,7 @@ class OverlayService : LifecycleService() {
             val metaTargetCount: Int = 25,
             val top25MetaNames: List<String> = emptyList(),
             val top25MetaList: List<SilphScopeTopMetaEntry> = emptyList(),
+            val top50MetaList: List<SilphScopeTopMetaEntry> = emptyList(),
             val metaSummaryLabel: String = "",
             val elapsedMs: Long
         )
@@ -5448,6 +5635,7 @@ class OverlayService : LifecycleService() {
             val top25Threats: List<String>,
             val top25MetaList: List<SilphScopeTopMetaEntry>,
             val top50Threats: List<String>,
+            val top50MetaList: List<SilphScopeTopMetaEntry>,
             val top100Species: List<String>,
             val wHistPct: Int,
             val wMetaPct: Int,
@@ -5612,10 +5800,30 @@ class OverlayService : LifecycleService() {
             val sortedField = fieldWeights.entries.sortedByDescending { it.value }.map { it.key }
             val top50Threats = sortedField.take(50).ifEmpty { top100Species.take(50) }
             val top25Threats = top50Threats.take(25).ifEmpty { top100Species.take(25) }
-            val top25MetaList = top25Threats.mapIndexed { i, name ->
+            val refOpps = top25Threats.take(12).ifEmpty { top100Species.take(12) }
+
+            val top50MetaList = top50Threats.mapIndexed { i, name ->
                 val pct = ((fieldWeights[name] ?: 0.0) * 1000.0).roundToInt() / 10.0
-                SilphScopeTopMetaEntry(rank = i + 1, name = name, weightPct = pct)
+                val cand = candidateByName[name.lowercase()]
+                var sumBr = 0.0
+                var wSum = 0.0
+                for (opp in refOpps) {
+                    if (opp.equals(name, ignoreCase = true)) continue
+                    val w = fieldWeights[opp] ?: 0.04
+                    val b11 = calculateMatchupRatingStatic(
+                        name, opp, 1, 1, normLeague,
+                        cand?.fastMove, cand?.chargedMove1, cand?.chargedMove2,
+                        cand?.cp, cand?.ivs
+                    ).toDouble()
+                    sumBr += w * b11
+                    wSum += w
+                }
+                val rawAvgBr = if (wSum > 0.0) sumBr / wSum else (542.0 - i * 1.1)
+                val rankPrior = 548.0 - i * 1.05
+                val metaBr = (0.60 * rawAvgBr + 0.40 * rankPrior).roundToInt().coerceIn(420, 650)
+                SilphScopeTopMetaEntry(rank = i + 1, name = name, weightPct = pct, metaBr = metaBr)
             }
+            val top25MetaList = top50MetaList.take(25)
 
             return RoleWeightedTop100MetaDist(
                 leadWeights = leadWeights,
@@ -5625,6 +5833,7 @@ class OverlayService : LifecycleService() {
                 top25Threats = top25Threats,
                 top25MetaList = top25MetaList,
                 top50Threats = top50Threats,
+                top50MetaList = top50MetaList,
                 top100Species = top100Species,
                 wHistPct = (wHist * 100.0).roundToInt(),
                 wMetaPct = (wMeta * 100.0).roundToInt(),
@@ -5634,10 +5843,11 @@ class OverlayService : LifecycleService() {
 
         /**
          * Generates the Best 5 ABB and Best 5 ABC Anti-Meta team options for the selected league
-         * that MUST include the 0, 1, or 2 user-selected featured Pokémon, building around performance
-         * against the Top-100 role-weighted synthetic meta blended with season logs, auditing
-         * Beats X/25 Top Meta (plus Key Wins, Key Threats & Core Breakers), and simulating alternate
-         * Fast + Charged movesets for all 3 team members on top candidate lineups.
+         * that MUST include the 0, 1, or 2 user-selected featured Pokémon (or rank-range queries
+         * such as `200-`, `-10`, `100-200`), building around performance against the Top-100
+         * role-weighted synthetic meta blended with season logs, auditing Beats X/25 Top Meta
+         * (plus Key Wins, Key Threats & Core Breakers with per-slot BRs in parentheses), and
+         * simulating alternate Fast + Charged movesets for all 3 team members on top candidate lineups.
          */
         fun generateAntiMetaTeamOptionsStatic(
             league: String,
@@ -5656,7 +5866,12 @@ class OverlayService : LifecycleService() {
             val isUltra = normLeague == "ULTRA LEAGUE"
 
             val roleMeta = computeRoleWeightedTop100MetaStatic(normLeague, seasonLogs)
-            val topMetaPool = getTop100MetaCandidatesForLeagueStatic(normLeague, 60)
+            val extendedRankedPool = getTop100MetaCandidatesForLeagueStatic(normLeague, 360)
+            val rankByNameLower = HashMap<String, Int>(extendedRankedPool.size)
+            extendedRankedPool.forEachIndexed { index, member ->
+                rankByNameLower.putIfAbsent(member.name.lowercase(), index + 1)
+            }
+            val topMetaPool = extendedRankedPool.take(60)
             val top25MetaThreats = roleMeta.top25Threats
             val top50MetaThreats = roleMeta.top50Threats
             val targetAuditTotal = top25MetaThreats.size.takeIf { it > 0 } ?: 25
@@ -5693,11 +5908,45 @@ class OverlayService : LifecycleService() {
                 )
             }
 
-            val resolvedFeatured = ArrayList<TeamMember>(2)
+            data class ResolvedFeaturedSlotConstraint(
+                val isRange: Boolean,
+                val displayLabel: String,
+                val fixedMember: TeamMember? = null,
+                val rangeSpec: FeaturedRankRangeSpec? = null,
+                val rangePool: List<TeamMember> = emptyList()
+            )
+
+            val slotConstraints = ArrayList<ResolvedFeaturedSlotConstraint>(2)
             val featuredBaseSet = HashSet<String>()
             var featuredHasMega = false
+
             for (raw in featuredPokemonNames.take(2)) {
-                val member = buildMemberFromName(raw) ?: continue
+                val trimmed = raw.trim()
+                if (trimmed.isEmpty()) continue
+                val parsedRange = parseFeaturedRankRangeQueryStatic(trimmed)
+                if (parsedRange != null) {
+                    val minIdx = (parsedRange.minRank - 1).coerceAtLeast(0)
+                    val maxIdx = min(extendedRankedPool.size - 1, parsedRange.maxRank - 1)
+                    val subList = if (minIdx <= maxIdx && extendedRankedPool.isNotEmpty()) {
+                        extendedRankedPool.subList(minIdx, maxIdx + 1)
+                    } else {
+                        extendedRankedPool.takeLast(min(20, extendedRankedPool.size))
+                    }
+                    val pickedRangeMembers = subList.take(18)
+                    if (pickedRangeMembers.isNotEmpty()) {
+                        slotConstraints.add(
+                            ResolvedFeaturedSlotConstraint(
+                                isRange = true,
+                                displayLabel = parsedRange.label,
+                                rangeSpec = parsedRange,
+                                rangePool = pickedRangeMembers
+                            )
+                        )
+                    }
+                    continue
+                }
+
+                val member = buildMemberFromName(trimmed) ?: continue
                 val baseSp = FormResolver.extractBaseSpecies(member.name).lowercase()
                 if (!featuredBaseSet.add(baseSp)) continue
                 val memberIsMega = isMegaOrPrimal(member.name)
@@ -5706,12 +5955,21 @@ class OverlayService : LifecycleService() {
                     continue
                 }
                 if (memberIsMega) featuredHasMega = true
-                resolvedFeatured.add(member)
+                slotConstraints.add(
+                    ResolvedFeaturedSlotConstraint(
+                        isRange = false,
+                        displayLabel = member.name,
+                        fixedMember = member
+                    )
+                )
             }
 
-            val candidatePool = ArrayList<TeamMember>(64)
+            val resolvedFeatured = slotConstraints.mapNotNull { it.fixedMember }
+            val rangeCandidates = slotConstraints.flatMap { it.rangePool }
+
+            val candidatePool = ArrayList<TeamMember>(84)
             val seenNames = HashSet<String>()
-            for (c in (resolvedFeatured + topMetaPool)) {
+            for (c in (resolvedFeatured + rangeCandidates + topMetaPool)) {
                 val k = c.name.lowercase()
                 if (seenNames.add(k)) {
                     candidatePool.add(c)
@@ -5855,7 +6113,15 @@ class OverlayService : LifecycleService() {
 
                 val beatenTargets = ArrayList<String>()
                 val coreBreakers = ArrayList<String>()
+                val coreBreakerSpecies = HashSet<String>()
                 val keyThreats = ArrayList<String>()
+
+                fun formatThreatWithSlotBrs(threatName: String, r0: Double, r1: Double, r2: Double): String {
+                    val oppBr0 = (1000.0 - r0).roundToInt().coerceIn(100, 900)
+                    val oppBr1 = (1000.0 - r1).roundToInt().coerceIn(100, 900)
+                    val oppBr2 = (1000.0 - r2).roundToInt().coerceIn(100, 900)
+                    return "$threatName($oppBr0/$oppBr1/$oppBr2)"
+                }
 
                 for (threat in top25MetaThreats) {
                     val r0 = m0.leadByOpp[threat] ?: 500.0
@@ -5863,30 +6129,32 @@ class OverlayService : LifecycleService() {
                     val r2 = m2.closerByOpp[threat] ?: 500.0
                     val maxBr = max(r0, max(r1, r2))
                     val minBackBr = min(r1, r2)
+                    val formattedThreat = formatThreatWithSlotBrs(threat, r0, r1, r2)
 
                     if (maxBr >= 525.0) {
                         beatenTargets.add(threat)
                     }
 
                     if (r0 < 495.0 && r1 < 495.0 && r2 < 495.0) {
-                        coreBreakers.add(threat)
+                        coreBreakers.add(formattedThreat)
+                        coreBreakerSpecies.add(threat)
                     } else if ((r0 < 475.0 && minBackBr < 485.0) || maxBr < 512.0) {
-                        keyThreats.add(threat)
+                        keyThreats.add(formattedThreat)
                     }
                 }
 
                 if (keyThreats.isEmpty()) {
                     val sortedTough = top25MetaThreats
-                        .filter { it !in coreBreakers }
+                        .filter { it !in coreBreakerSpecies }
                         .map { t ->
                             val r0 = m0.leadByOpp[t] ?: 500.0
                             val r1 = m1.swapByOpp[t] ?: 500.0
                             val r2 = m2.closerByOpp[t] ?: 500.0
-                            t to (min(r0, (r1 + r2) / 2.0) + max(r0, max(r1, r2)) * 0.35)
+                            formatThreatWithSlotBrs(t, r0, r1, r2) to (min(r0, (r1 + r2) / 2.0) + max(r0, max(r1, r2)) * 0.35)
                         }
                         .sortedBy { it.second }
-                    for ((tName, _) in sortedTough.take(3)) {
-                        keyThreats.add(tName)
+                    for ((formatted, _) in sortedTough.take(3)) {
+                        keyThreats.add(formatted)
                     }
                 }
 
@@ -5921,6 +6189,26 @@ class OverlayService : LifecycleService() {
                     .map { "${it.pokemonName} (${it.fastMove} + ${it.chargedMove1}/${it.chargedMove2})" }
                 val altSuffix = if (altNotes.isNotEmpty()) " • Alt Moveset Tech: ${altNotes.joinToString("; ")}." else ""
 
+                val teamMembers = listOf(m0.member, m1.member, m2.member)
+                val matchedFeaturedNames = ArrayList<String>()
+                val matchedFeaturedRanks = LinkedHashMap<String, Int>()
+                for (constraint in slotConstraints) {
+                    if (!constraint.isRange && constraint.fixedMember != null) {
+                        val fn = constraint.fixedMember.name
+                        if (teamMembers.any { it.name.equals(fn, ignoreCase = true) }) {
+                            matchedFeaturedNames.add(fn)
+                            rankByNameLower[fn.lowercase()]?.let { r -> matchedFeaturedRanks[fn] = r }
+                        }
+                    } else if (constraint.isRange && constraint.rangeSpec != null) {
+                        val rangeNamesLower = constraint.rangePool.map { it.name.lowercase() }.toSet()
+                        val matched = teamMembers.firstOrNull { it.name.lowercase() in rangeNamesLower }
+                        if (matched != null && matched.name !in matchedFeaturedNames) {
+                            matchedFeaturedNames.add(matched.name)
+                            rankByNameLower[matched.name.lowercase()]?.let { r -> matchedFeaturedRanks[matched.name] = r }
+                        }
+                    }
+                }
+
                 val synergySummary = if (archetype == "ABB") {
                     "ABB Lineup: ${m0.member.name} (Lead A) covers backline ${sharedWeaks.joinToString("/") { it.uppercase() }} weakness for ${m1.member.name} (Bait B1) & ${m2.member.name} (Sweeper B2). Beats ${beatenTargets.size}/$targetAuditTotal Top Meta. Key Wins: $winsPreview. Key Threats: $threatsPreview. Core Breakers: $breakersPreview.$altSuffix"
                 } else {
@@ -5932,8 +6220,9 @@ class OverlayService : LifecycleService() {
                     archetype = archetype,
                     rank = 0,
                     league = normLeague,
-                    pokemon = listOf(m0.member, m1.member, m2.member),
-                    featuredNamesIncluded = resolvedFeatured.map { it.name },
+                    pokemon = teamMembers,
+                    featuredNamesIncluded = matchedFeaturedNames,
+                    featuredRankMap = matchedFeaturedRanks,
                     leadAggBr = m0.leadBr,
                     machineAggBr = machineAggBr,
                     safeSwapBr = m1.swapBr,
@@ -5957,60 +6246,56 @@ class OverlayService : LifecycleService() {
             var candidatesEvaluated = 0
 
             val triosToEvaluate = ArrayList<Triple<TeamMember, TeamMember, TeamMember>>()
-            val poolLimit = if (resolvedFeatured.isEmpty()) min(32, candidatePool.size) else min(50, candidatePool.size)
+            val topStandardPool = topMetaPool.take(40)
 
-            when (resolvedFeatured.size) {
+            fun addValidTrioIfLegal(c1: TeamMember, c2: TeamMember, c3: TeamMember) {
+                val e1 = slotEvalCache[c1.name.lowercase()] ?: return
+                val e2 = slotEvalCache[c2.name.lowercase()] ?: return
+                val e3 = slotEvalCache[c3.name.lowercase()] ?: return
+                if (e1.baseSpecies == e2.baseSpecies || e1.baseSpecies == e3.baseSpecies || e2.baseSpecies == e3.baseSpecies) return
+                val megaCount = (if (e1.isMega) 1 else 0) + (if (e2.isMega) 1 else 0) + (if (e3.isMega) 1 else 0)
+                if (megaCount > 1) return
+                triosToEvaluate.add(Triple(c1, c2, c3))
+            }
+
+            when (slotConstraints.size) {
                 2 -> {
-                    val f1 = resolvedFeatured[0]
-                    val f2 = resolvedFeatured[1]
-                    val e1 = slotEvalCache[f1.name.lowercase()]
-                    val e2 = slotEvalCache[f2.name.lowercase()]
-                    val b1 = e1?.baseSpecies ?: f1.name.lowercase()
-                    val b2 = e2?.baseSpecies ?: f2.name.lowercase()
-                    val hasMega12 = (e1?.isMega == true) || (e2?.isMega == true)
-                    for (i in 0 until candidatePool.size) {
-                        val c3 = candidatePool[i]
-                        val e3 = slotEvalCache[c3.name.lowercase()] ?: continue
-                        if (e3.baseSpecies == b1 || e3.baseSpecies == b2) continue
-                        if (hasMega12 && e3.isMega) continue
-                        triosToEvaluate.add(Triple(f1, f2, c3))
+                    val poolA = if (slotConstraints[0].isRange) slotConstraints[0].rangePool.take(12) else listOfNotNull(slotConstraints[0].fixedMember)
+                    val poolB = if (slotConstraints[1].isRange) slotConstraints[1].rangePool.take(12) else listOfNotNull(slotConstraints[1].fixedMember)
+                    val thirdPool = if (slotConstraints[0].isRange && slotConstraints[1].isRange) topStandardPool.take(18) else candidatePool.take(45)
+                    for (f1 in poolA) {
+                        for (f2 in poolB) {
+                            for (c3 in thirdPool) {
+                                addValidTrioIfLegal(f1, f2, c3)
+                            }
+                        }
                     }
                 }
                 1 -> {
-                    val f1 = resolvedFeatured[0]
-                    val e1 = slotEvalCache[f1.name.lowercase()]
-                    val b1 = e1?.baseSpecies ?: f1.name.lowercase()
-                    val m1 = e1?.isMega == true
-                    for (i in 0 until poolLimit) {
-                        val c2 = candidatePool[i]
-                        val e2 = slotEvalCache[c2.name.lowercase()] ?: continue
-                        if (e2.baseSpecies == b1) continue
-                        if (m1 && e2.isMega) continue
-                        for (j in (i + 1) until poolLimit) {
-                            val c3 = candidatePool[j]
-                            val e3 = slotEvalCache[c3.name.lowercase()] ?: continue
-                            if (e3.baseSpecies == b1 || e3.baseSpecies == e2.baseSpecies) continue
-                            if ((m1 || e2.isMega) && e3.isMega) continue
-                            triosToEvaluate.add(Triple(f1, c2, c3))
+                    val c0 = slotConstraints[0]
+                    val poolA = if (c0.isRange) c0.rangePool.take(14) else listOfNotNull(c0.fixedMember)
+                    val partnerLimit = if (c0.isRange) min(22, topStandardPool.size) else min(48, candidatePool.size)
+                    val partnerPool = if (c0.isRange) topStandardPool else candidatePool
+                    for (f1 in poolA) {
+                        for (i in 0 until partnerLimit) {
+                            val c2 = partnerPool[i]
+                            for (j in (i + 1) until partnerLimit) {
+                                val c3 = partnerPool[j]
+                                addValidTrioIfLegal(f1, c2, c3)
+                            }
                         }
                     }
                 }
                 else -> {
+                    val poolLimit = min(32, candidatePool.size)
                     for (i in 0 until poolLimit) {
                         val c1 = candidatePool[i]
-                        val e1 = slotEvalCache[c1.name.lowercase()] ?: continue
                         for (j in (i + 1) until poolLimit) {
                             val c2 = candidatePool[j]
-                            val e2 = slotEvalCache[c2.name.lowercase()] ?: continue
-                            if (e2.baseSpecies == e1.baseSpecies) continue
-                            if (e1.isMega && e2.isMega) continue
                             val maxK = if (i < 10) min(50, candidatePool.size) else poolLimit
                             for (k in (j + 1) until maxK) {
                                 val c3 = candidatePool[k]
-                                val e3 = slotEvalCache[c3.name.lowercase()] ?: continue
-                                if (e3.baseSpecies == e1.baseSpecies || e3.baseSpecies == e2.baseSpecies) continue
-                                if ((e1.isMega || e2.isMega) && e3.isMega) continue
-                                triosToEvaluate.add(Triple(c1, c2, c3))
+                                addValidTrioIfLegal(c1, c2, c3)
                             }
                         }
                     }
@@ -6164,7 +6449,7 @@ class OverlayService : LifecycleService() {
             fun pickTopDiverseFinalists(list: List<AntiMetaTeamOption>, maxCount: Int): List<AntiMetaTeamOption> {
                 val picked = ArrayList<AntiMetaTeamOption>(maxCount)
                 val memberUsage = HashMap<String, Int>()
-                val nonFeaturedLimit = if (resolvedFeatured.size == 2) maxCount else 2
+                val nonFeaturedLimit = if (slotConstraints.size == 2 && slotConstraints.none { it.isRange }) maxCount else 2
 
                 for (item in list) {
                     if (picked.size >= maxCount) break
@@ -6381,7 +6666,7 @@ class OverlayService : LifecycleService() {
             return AntiMetaTeamBuilderResult(
                 league = normLeague,
                 leagueAbbr = getLeagueAbbreviationStatic(normLeague),
-                featuredPokemon = resolvedFeatured.map { it.name },
+                featuredPokemon = slotConstraints.map { it.displayLabel },
                 top5AbbTeams = top5Abb,
                 top5AbcTeams = top5Abc,
                 candidatesEvaluated = candidatesEvaluated,
@@ -6389,6 +6674,7 @@ class OverlayService : LifecycleService() {
                 metaTargetCount = targetAuditTotal,
                 top25MetaNames = roleMeta.top25Threats,
                 top25MetaList = roleMeta.top25MetaList,
+                top50MetaList = roleMeta.top50MetaList,
                 metaSummaryLabel = "Top-100 Flattened Role-Weighted Synthetic Meta (${roleMeta.wMetaPct}% PvPoke Role Meta / ${roleMeta.wHistPct}% Season Logs • Auditing Top $targetAuditTotal Threats)",
                 elapsedMs = elapsed
             )

@@ -92,6 +92,7 @@ import {
   PrecomputedTeam9x9State,
   generateAntiMetaTeamOptions,
   formatAntiMetaDefaultTeamName,
+  parseFeaturedRankRangeQuery,
   AntiMetaTeamOption,
   AntiMetaTeamBuilderResult
 } from './data/gblData';
@@ -2326,17 +2327,43 @@ export default function App() {
       manualArchetypeOverride
     );
     applyOrderedMembersToModalForm(res.orderedPokemon);
+    if (editingPresetId) {
+      setPresets((prev) =>
+        prev.map((p) => {
+          if (p.id !== editingPresetId) return p;
+          return {
+            ...p,
+            league: newPresetLeague,
+            pokemon: res.orderedPokemon,
+            archetype: res.archetype,
+            isArchetypeManual: !!manualArchetypeOverride,
+            leadAggBr: res.leadAggBr,
+            machineAggBr: res.machineAggBr,
+            safeSwapBr: res.safeSwapBr,
+            closerSwapBr: res.closerSwapBr,
+            sharedWeaknesses: res.sharedWeaknesses,
+            topMetaTargetsTotal: res.topMetaTargetsTotal,
+            topMetaWinsCount: res.topMetaWinsCount,
+            keyMetaTargetsBeaten: res.keyMetaTargetsBeaten,
+            keyThreats: res.keyThreats,
+            coreBreakers: res.coreBreakers,
+            altMovesetSlots: res.altMovesetSlots,
+            synergySummary: res.synergySummary
+          };
+        })
+      );
+    }
     const s1 = res.orderedPokemon[0];
     const s2 = res.orderedPokemon[1];
     const s3 = res.orderedPokemon[2];
     if (res.archetype === 'ABB') {
       const sharedStr = res.sharedWeaknesses.length > 0 ? res.sharedWeaknesses.join(', ').toUpperCase() : 'shared meta';
       setModalAutoDetectSummary(
-        `⚡ Auto-Detected ABB Lineup (Shared ${sharedStr} weakness covered by ${s1.name}) → #1 Lead (A): ${s1.name} (Lead BR ${res.leadAggBr}) • #2 Bait Swap (B1): ${s2.name} (Swap BR ${res.safeSwapBr}) • #3 Sweeper (B2): ${s3.name} (Swap BR ${res.closerSwapBr})`
+        `⚡ Auto-Detected ABB Lineup (Shared ${sharedStr} weakness covered by ${s1.name}) • Summary & Key Wins/Threats/Core Breakers Updated → #1 Lead (A): ${s1.name} (Lead BR ${res.leadAggBr}) • #2 Bait Swap (B1): ${s2.name} (Swap BR ${res.safeSwapBr}) • #3 Sweeper (B2): ${s3.name} (Closer BR ${res.closerSwapBr})`
       );
     } else {
       setModalAutoDetectSummary(
-        `⚡ Auto-Detected ABC Balanced Core → #1 Lead kept: ${s1.name} (Lead BR ${res.leadAggBr}) • #2 Safe Swap moved to Slot 2: ${s2.name} (Swap BR ${res.safeSwapBr}) • #3 Closer: ${s3.name} (Swap BR ${res.closerSwapBr})`
+        `⚡ Auto-Detected ABC Balanced Core • Summary & Key Wins/Threats/Core Breakers Updated → #1 Lead: ${s1.name} (Lead BR ${res.leadAggBr}) • #2 Safe Swap: ${s2.name} (Swap BR ${res.safeSwapBr}) • #3 Closer: ${s3.name} (Closer BR ${res.closerSwapBr})`
       );
     }
   };
@@ -4628,8 +4655,14 @@ export default function App() {
                 ANTI-META TEAM BUILDER PANEL (Requirements 2a, 2b, 2c)
                ===================================================================== */}
             {showAntiMetaBuilder && (() => {
-              const feat1Suggestions = getPokemonAutocompleteSuggestions(antiMetaFeat1, antiMetaLeague, 12);
-              const feat2Suggestions = getPokemonAutocompleteSuggestions(antiMetaFeat2, antiMetaLeague, 12);
+              const feat1RankRange = parseFeaturedRankRangeQuery(antiMetaFeat1);
+              const feat2RankRange = parseFeaturedRankRangeQuery(antiMetaFeat2);
+              const feat1Suggestions = feat1RankRange
+                ? []
+                : getPokemonAutocompleteSuggestions(antiMetaFeat1, antiMetaLeague, 12);
+              const feat2Suggestions = feat2RankRange
+                ? []
+                : getPokemonAutocompleteSuggestions(antiMetaFeat2, antiMetaLeague, 12);
               const defaultPreviewName = formatAntiMetaDefaultTeamName(antiMetaLeague, new Date());
 
               return (
@@ -4646,7 +4679,7 @@ export default function App() {
                         </span>
                       </div>
                       <p className="text-xs text-slate-400 mt-1">
-                        Select a League and optionally enter <strong className="text-slate-200">0, 1, or 2 Pokémon</strong> you want to feature. Generates the <strong className="text-amber-300">Best 5 ABB</strong> and <strong className="text-sky-300">Best 5 ABC</strong> Anti-Meta teams that include your picks. Selecting any team creates <code className="text-emerald-300 font-mono">{defaultPreviewName}</code> and opens the Edit Team screen immediately.
+                        Select a League and optionally enter <strong className="text-slate-200">0, 1, or 2 Pokémon or Rank Ranges</strong> (e.g. <code className="text-purple-300 font-mono">200-</code> for Rank #200+, <code className="text-purple-300 font-mono">-10</code> for Top 10, <code className="text-purple-300 font-mono">100-200</code> for #100–#200). Generates the <strong className="text-amber-300">Best 5 ABB</strong> and <strong className="text-sky-300">Best 5 ABC</strong> Anti-Meta teams. Selecting any team creates <code className="text-emerald-300 font-mono">{defaultPreviewName}</code> and opens the Edit Team screen immediately.
                       </p>
                     </div>
 
@@ -4662,7 +4695,7 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Step 2a: League + 0, 1, or 2 Featured Pokémon Inputs */}
+                  {/* Step 2a: League + 0, 1, or 2 Featured Pokémon or Rank Range Inputs */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {/* League Selection */}
                     <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-3.5 space-y-2">
@@ -4697,11 +4730,11 @@ export default function App() {
                       </div>
                     </div>
 
-                    {/* Featured Pokémon #1 (Optional) */}
+                    {/* Featured Pokémon / Rank Range #1 (Optional) */}
                     <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-3.5 space-y-2 relative">
                       <div className="flex items-center justify-between">
                         <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                          2. Featured Pokémon #1 (Optional)
+                          2. Featured Pokémon or Rank Range #1
                         </label>
                         {antiMetaFeat1 && (
                           <button
@@ -4725,9 +4758,30 @@ export default function App() {
                           setAntiMetaFeat1(e.target.value);
                           setAntiMetaDropdownSlot(1);
                         }}
-                        placeholder="Leave blank or type Pokémon (e.g. Feraligatr)..."
+                        placeholder="Pokémon or rank range (e.g. Feraligatr, 200-, -10, 100-200)..."
                         className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-sky-400"
                       />
+                      <div className="flex items-center gap-1 flex-wrap">
+                        <span className="text-[9.5px] text-slate-500">Quick Rank Range:</span>
+                        {(['-10', '100-200', '200-'] as const).map((rr) => (
+                          <button
+                            key={`f1-rr-${rr}`}
+                            type="button"
+                            onClick={() => {
+                              setAntiMetaFeat1(rr);
+                              setAntiMetaDropdownSlot(null);
+                              handleGenerateAntiMetaTeams(antiMetaLeague, rr, antiMetaFeat2);
+                            }}
+                            className={`px-1.5 py-0.5 rounded text-[9.5px] font-mono font-bold border transition ${
+                              antiMetaFeat1.trim() === rr
+                                ? 'bg-purple-500/25 border-purple-400 text-purple-200'
+                                : 'bg-slate-900 border-slate-700 text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            {rr}
+                          </button>
+                        ))}
+                      </div>
                       {antiMetaDropdownSlot === 1 && feat1Suggestions.length > 0 && (
                         <div className="absolute left-3.5 right-3.5 top-[76px] z-40 max-h-52 overflow-y-auto rounded-xl bg-slate-900 border border-slate-700 shadow-2xl divide-y divide-slate-800">
                           {feat1Suggestions.map((opt) => (
@@ -4751,17 +4805,19 @@ export default function App() {
                         </div>
                       )}
                       <p className="text-[10px] text-slate-400">
-                        {antiMetaFeat1.trim()
+                        {feat1RankRange
+                          ? `Must include: ${feat1RankRange.label}`
+                          : antiMetaFeat1.trim()
                           ? `Must include: ${antiMetaFeat1.trim()}`
                           : '0 picked: full league Anti-Meta scan'}
                       </p>
                     </div>
 
-                    {/* Featured Pokémon #2 (Optional) */}
+                    {/* Featured Pokémon / Rank Range #2 (Optional) */}
                     <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-3.5 space-y-2 relative">
                       <div className="flex items-center justify-between">
                         <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                          3. Featured Pokémon #2 (Optional)
+                          3. Featured Pokémon or Rank Range #2
                         </label>
                         {antiMetaFeat2 && (
                           <button
@@ -4785,9 +4841,30 @@ export default function App() {
                           setAntiMetaFeat2(e.target.value);
                           setAntiMetaDropdownSlot(2);
                         }}
-                        placeholder="Leave blank or type 2nd Pokémon..."
+                        placeholder="2nd Pokémon or rank range (e.g. 200-, -10, 100-200)..."
                         className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-sky-400"
                       />
+                      <div className="flex items-center gap-1 flex-wrap">
+                        <span className="text-[9.5px] text-slate-500">Quick Rank Range:</span>
+                        {(['-10', '100-200', '200-'] as const).map((rr) => (
+                          <button
+                            key={`f2-rr-${rr}`}
+                            type="button"
+                            onClick={() => {
+                              setAntiMetaFeat2(rr);
+                              setAntiMetaDropdownSlot(null);
+                              handleGenerateAntiMetaTeams(antiMetaLeague, antiMetaFeat1, rr);
+                            }}
+                            className={`px-1.5 py-0.5 rounded text-[9.5px] font-mono font-bold border transition ${
+                              antiMetaFeat2.trim() === rr
+                                ? 'bg-purple-500/25 border-purple-400 text-purple-200'
+                                : 'bg-slate-900 border-slate-700 text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            {rr}
+                          </button>
+                        ))}
+                      </div>
                       {antiMetaDropdownSlot === 2 && feat2Suggestions.length > 0 && (
                         <div className="absolute left-3.5 right-3.5 top-[76px] z-40 max-h-52 overflow-y-auto rounded-xl bg-slate-900 border border-slate-700 shadow-2xl divide-y divide-slate-800">
                           {feat2Suggestions.map((opt) => (
@@ -4811,7 +4888,9 @@ export default function App() {
                         </div>
                       )}
                       <p className="text-[10px] text-slate-400">
-                        {antiMetaFeat2.trim()
+                        {feat2RankRange
+                          ? `Must include: ${feat2RankRange.label}`
+                          : antiMetaFeat2.trim()
                           ? `Must include: ${antiMetaFeat2.trim()}`
                           : 'Leave blank for 0 or 1 featured Pokémon'}
                       </p>
@@ -4900,6 +4979,7 @@ export default function App() {
                               const isFeat = opt.featuredNamesIncluded.some(
                                 (fn) => fn.toLowerCase() === mon.name.toLowerCase()
                               );
+                              const featRankNum = opt.featuredRankMap?.[mon.name];
                               const altInfo = opt.altMovesetSlots?.[sIdx];
                               const isAltMove = Boolean(altInfo?.isAltMoveset);
 
@@ -4924,7 +5004,7 @@ export default function App() {
                                     <span>{mon.name}</span>
                                     {isFeat && (
                                       <span className="text-[9px] px-1 rounded bg-purple-500/30 text-purple-200 font-extrabold">
-                                        ★ Pick
+                                        ★ Pick{featRankNum ? ` (#${featRankNum})` : ''}
                                       </span>
                                     )}
                                     {isAltMove && (
@@ -4963,16 +5043,20 @@ export default function App() {
                                 </span>
                               </div>
                               <div className="bg-amber-950/25 border border-amber-500/30 rounded-lg px-2 py-1">
-                                <span className="font-bold text-amber-300 block">⚠️ Key Threats</span>
-                                <span className="text-slate-300">
+                                <span className="font-bold text-amber-300 block">
+                                  ⚠️ Key Threats (Slot 1/2/3 BR)
+                                </span>
+                                <span className="text-slate-300 font-mono text-[9.5px]">
                                   {opt.keyThreats && opt.keyThreats.length > 0
                                     ? opt.keyThreats.slice(0, 4).join(', ')
                                     : 'No severe lead+backline threats'}
                                 </span>
                               </div>
                               <div className="bg-rose-950/25 border border-rose-500/30 rounded-lg px-2 py-1">
-                                <span className="font-bold text-rose-300 block">🚨 Core Breakers</span>
-                                <span className="text-slate-300">
+                                <span className="font-bold text-rose-300 block">
+                                  🚨 Core Breakers (Slot 1/2/3 BR)
+                                </span>
+                                <span className="text-slate-300 font-mono text-[9.5px]">
                                   {opt.coreBreakers && opt.coreBreakers.length > 0
                                     ? opt.coreBreakers.slice(0, 4).join(', ')
                                     : 'None (0 in Top 25 Meta)'}
@@ -4983,6 +5067,8 @@ export default function App() {
                         </div>
                       );
                     };
+
+                    const displayedMetaList = currentResult.top50MetaList || currentResult.top25MetaList || [];
 
                     return (
                       <div className="space-y-4">
@@ -5032,24 +5118,26 @@ export default function App() {
                           </div>
                         </div>
 
-                        {/* Bottom Card: Top 25 Meta Determined by SilphScope */}
+                        {/* Bottom Card: Top 50 Meta Determined by SilphScope with Meta BR in Parentheses */}
                         <div className="bg-slate-950/85 border border-slate-800 rounded-xl p-4 space-y-2.5">
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <h5 className="text-xs font-extrabold text-purple-300 uppercase tracking-wider">
-                              🎯 Top 25 {currentResult.league} Meta Determined by SilphScope (Target Audit Pool for /25 Wins)
+                              🎯 Top 50 {currentResult.league} Meta Determined by SilphScope (Meta Battle Ranking in Parentheses • Top 25 Used for /25 Wins Audit)
                             </h5>
                             <span className="text-[10px] text-slate-400">
                               {currentResult.metaSummaryLabel || 'Built against Top-100 Synthetic Role-Weighted Meta blended with Season Logs'}
                             </span>
                           </div>
                           <div className="flex flex-wrap gap-1.5">
-                            {(currentResult.top25MetaList || []).map((entry) => (
+                            {displayedMetaList.map((entry) => (
                               <span
-                                key={`top25-meta-${entry.rank}-${entry.name}`}
+                                key={`top50-meta-${entry.rank}-${entry.name}`}
                                 className="px-2 py-1 rounded-lg bg-slate-900 border border-slate-800 text-[10px] text-slate-200 font-medium"
                               >
                                 <strong className="text-purple-400 font-mono">#{entry.rank}</strong> {entry.name}{' '}
-                                <span className="text-slate-500 font-mono">({entry.weightPct}%)</span>
+                                <span className="text-sky-300 font-mono">
+                                  ({entry.metaBr ?? 500} BR • {entry.weightPct}%)
+                                </span>
                               </span>
                             ))}
                           </div>
@@ -5061,8 +5149,8 @@ export default function App() {
               );
             })()}
 
-            {/* Presets Grid (Supports Drag-and-Drop Reordering + ABB/ABC Auto-Detect & Lead/Machine/Swap BR) */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {/* Presets Grid (Unified Anti-Meta Generator Look & Feel + Key Wins / Threats / Core Breakers Summary) */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
               {presets.map((preset, presetIdx) => {
                 const isSelected = preset.id === selectedPresetId;
                 const isDragged = draggedPresetIndex === presetIdx;
@@ -5076,6 +5164,9 @@ export default function App() {
                 const machTierInfo = getMachineBrTierInfo(machBr, machineBrThresholds);
                 const slot2SwapTierInfo = getSingleSlotBrTierInfo(safeSwapBr, tierThresholds);
                 const slot3SwapTierInfo = getSingleSlotBrTierInfo(closerSwapBr, tierThresholds);
+                const totalMetaDepth = preset.topMetaTargetsTotal || 25;
+                const topWinsCount = preset.topMetaWinsCount ?? 0;
+                const anyAltMoves = (preset.altMovesetSlots || []).some((s) => s.isAltMoveset);
 
                 return (
                   <div
@@ -5114,18 +5205,18 @@ export default function App() {
                       setDraggedPresetIndex(null);
                       setDragOverPresetIndex(null);
                     }}
-                    className={`rounded-2xl p-5 border transition-all flex flex-col justify-between cursor-grab active:cursor-grabbing ${
+                    className={`rounded-2xl p-5 border transition-all flex flex-col justify-between cursor-grab active:cursor-grabbing space-y-3 ${
                       isDragged ? 'opacity-45 scale-[0.98]' : ''
                     } ${
                       isDragOver
                         ? 'ring-2 ring-amber-400 border-amber-400 bg-slate-900'
                         : isSelected
                         ? 'bg-gradient-to-b from-sky-950/60 to-slate-900 border-sky-400 shadow-xl shadow-sky-500/10'
-                        : 'bg-slate-900/90 border-slate-800 hover:border-slate-700'
+                        : 'bg-slate-950/90 border-slate-800 hover:border-sky-500/60 shadow-md'
                     }`}
                   >
-                    <div>
-                      <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="space-y-3">
+                      <div className="flex items-start justify-between gap-2">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span
                             className="text-slate-500 hover:text-slate-300 cursor-grab active:cursor-grabbing p-0.5 rounded"
@@ -5145,22 +5236,28 @@ export default function App() {
                             {preset.league}
                           </span>
                           <span
-                            className={`text-[10px] font-extrabold px-2 py-0.5 rounded border uppercase ${
+                            className={`px-2 py-0.5 rounded text-[10px] font-black uppercase border ${
                               arch === 'ABB'
-                                ? 'bg-amber-500/20 text-amber-300 border-amber-400/45'
-                                : 'bg-sky-500/20 text-sky-300 border-sky-400/45'
+                                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                                : 'bg-sky-500/20 text-sky-300 border-sky-500/40'
                             }`}
-                            title={
-                              arch === 'ABB' && preset.sharedWeaknesses && preset.sharedWeaknesses.length > 0
-                                ? `ABB Lineup • Shared Backline Weaknesses covered by Lead: ${preset.sharedWeaknesses.join(', ').toUpperCase()}`
-                                : 'ABC Balanced Coverage Lineup'
-                            }
                           >
-                            [{arch}]
+                            #{presetIdx + 1} {arch}
                           </span>
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${machTierInfo.badgeClass}`}>
+                            Core BR {machBr}
+                          </span>
+                          <span className="text-[10px] text-emerald-400 font-semibold">
+                            Beats {topWinsCount}/{totalMetaDepth} Top Meta
+                          </span>
+                          {anyAltMoves && (
+                            <span className="px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-400/50 text-amber-300 text-[9px] font-extrabold">
+                              ⚡ Alt Moveset
+                            </span>
+                          )}
                         </div>
 
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end">
                           <button
                             type="button"
                             disabled={presetIdx === 0}
@@ -5193,11 +5290,19 @@ export default function App() {
                             </button>
                           )}
                           <button
-                            onClick={() => openEditPresetModal(preset)}
-                            className="text-xs text-amber-300 hover:text-white font-semibold px-2 py-0.5 rounded bg-slate-800 hover:bg-amber-600 border border-slate-700 transition"
-                            title="Edit Team & Moves"
+                            type="button"
+                            onClick={() => handleAutoDetectSavedPreset(preset.id)}
+                            className="text-[11px] text-amber-300 hover:text-slate-950 font-bold px-2 py-0.5 rounded bg-amber-500/15 hover:bg-amber-400 border border-amber-500/40 transition"
+                            title="Auto-Detect Style (ABB/ABC), move Safe Swap to Slot 2, and refresh Key Wins / Threats / Core Breakers summary"
                           >
-                            Edit
+                            ⚡ Auto-Detect
+                          </button>
+                          <button
+                            onClick={() => openEditPresetModal(preset)}
+                            className="text-xs text-white font-bold px-2.5 py-0.5 rounded bg-emerald-600 hover:bg-emerald-500 transition"
+                            title="Edit Team, Moves, IVs & CP"
+                          >
+                            ✎ Edit Team
                           </button>
                           <button
                             onClick={() => handleDeletePreset(preset.id)}
@@ -5209,115 +5314,121 @@ export default function App() {
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between gap-2 mb-2.5 flex-wrap">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
                         <h3 className="font-bold text-base text-white">
                           {preset.name}
                         </h3>
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span
-                            className={`text-[10px] font-mono font-extrabold px-2 py-0.5 rounded border ${leadTierInfo.colorClass}`}
-                            title={`Lead Aggregate Battle Rating (${leadTierInfo.label}): Position-weighted Lead BR against current-season blended opponent leads`}
-                          >
-                            Lead BR: {leadBr} ({leadTierInfo.tier})
-                          </span>
-                          <span
-                            className={`text-[10px] font-mono font-extrabold px-2 py-0.5 rounded border ${machTierInfo.colorClass}`}
-                            title={`Core Coverage Battle Rating (${machTierInfo.label}): 3-mon core coverage ceiling with optimal switch alignment across Top-100 current-season blended field`}
-                          >
-                            Core BR: {machBr}
-                          </span>
-                        </div>
+                        <span
+                          className={`text-[10px] font-mono font-extrabold px-2 py-0.5 rounded border ${leadTierInfo.colorClass}`}
+                        >
+                          Lead BR: {leadBr} ({leadTierInfo.tier})
+                        </span>
                       </div>
 
-                      {/* 3 Pokémon Slots with Role Tags & Swap BR */}
-                      <div className="space-y-2">
+                      {/* 3 Team Slots (Same Look & Feel as Anti-Meta Generator Cards) */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                         {preset.pokemon.map((member, index) => {
                           const roleTag =
-                            index === 0
-                              ? arch === 'ABB'
-                                ? 'LEAD (A)'
-                                : 'LEAD'
+                            arch === 'ABB'
+                              ? index === 0
+                                ? '[A] Lead'
+                                : index === 1
+                                ? '[B1] Bait Swap'
+                                : '[B2] Sweeper'
+                              : index === 0
+                              ? '[Lead]'
                               : index === 1
-                              ? arch === 'ABB'
-                                ? 'BAIT SWAP (B1)'
-                                : 'SAFE SWAP'
-                              : arch === 'ABB'
-                              ? 'SWEEPER (B2)'
-                              : 'CLOSER';
+                              ? '[Safe Swap]'
+                              : '[Closer]';
                           const slotMetricBr = index === 0 ? leadBr : index === 1 ? safeSwapBr : closerSwapBr;
-                          const slotMetricLabel = index === 0 ? 'Lead BR' : 'Swap BR';
                           const slotTierInfo =
                             index === 0 ? leadTierInfo : index === 1 ? slot2SwapTierInfo : slot3SwapTierInfo;
+                          const altInfo = preset.altMovesetSlots?.[index];
+                          const isAltMove = Boolean(altInfo?.isAltMoveset);
 
                           return (
                             <div
                               key={member.id || index}
-                              className="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800/80 text-xs space-y-1"
+                              className={`p-2.5 rounded-lg border ${
+                                isAltMove
+                                  ? 'bg-amber-950/20 border-amber-500/40'
+                                  : 'bg-slate-900/90 border-slate-800'
+                              }`}
                             >
-                              <div className="flex items-center justify-between gap-1 flex-wrap">
-                                <div className="flex items-center gap-1.5 min-w-0">
-                                  <span className="text-[10px] font-bold text-slate-500">
-                                    #{index + 1}
-                                  </span>
-                                  <span className="font-semibold text-slate-100 truncate">{member.name}</span>
-                                  <span
-                                    className={`text-[9px] font-extrabold px-1.5 py-0.2 rounded border uppercase ${
-                                      index === 0
-                                        ? 'bg-sky-500/15 text-sky-300 border-sky-400/35'
-                                        : index === 1
-                                        ? 'bg-purple-500/15 text-purple-300 border-purple-400/35'
-                                        : 'bg-amber-500/15 text-amber-300 border-amber-400/35'
-                                    }`}
-                                  >
-                                    {roleTag}
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <span
-                                    className={`text-[9.5px] font-mono font-bold px-1.5 py-0.5 rounded border ${slotTierInfo.colorClass}`}
-                                    title={
-                                      index === 0
-                                        ? `Lead BR ${slotMetricBr} (${slotTierInfo.label})`
-                                        : `Volatility-adjusted Swap BR (μ - 0.5σ) = ${slotMetricBr} (${slotTierInfo.label})`
-                                    }
-                                  >
-                                    {slotMetricLabel}: {slotMetricBr}
-                                  </span>
-                                  {member.ivs && (
-                                    <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
-                                      IV {member.ivs}
-                                    </span>
-                                  )}
-                                  <span className="text-[11px] font-mono font-bold text-sky-400">
-                                    CP {member.cp}
-                                  </span>
-                                </div>
-                              </div>
-                              <div className="text-[10.5px] text-slate-400 pl-4 flex items-center justify-between gap-2">
-                                <span className="truncate">
-                                  Fast: <strong className="text-slate-200">{member.fastMove}</strong> • Charged:{' '}
-                                  <strong className="text-amber-300">{member.chargedMove1}</strong> /{' '}
-                                  <strong className="text-sky-300">{member.chargedMove2}</strong>
+                              <div className="flex items-center justify-between gap-1">
+                                <span className="text-[10px] font-bold text-slate-400">{roleTag}</span>
+                                <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded border ${slotTierInfo.badgeClass}`}>
+                                  {slotMetricBr} BR
                                 </span>
+                              </div>
+                              <div className="font-bold text-xs text-white mt-1 truncate flex items-center gap-1 flex-wrap">
+                                <span>{member.name}</span>
+                                {isAltMove && (
+                                  <span
+                                    className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/25 border border-amber-400/50 text-amber-200 font-extrabold"
+                                    title={`Standard: ${altInfo?.standardFastMove} + ${altInfo?.standardCharged1}/${altInfo?.standardCharged2}`}
+                                  >
+                                    ⚡ Alt Moveset
+                                  </span>
+                                )}
+                              </div>
+                              <div
+                                className={`text-[10px] truncate mt-0.5 ${
+                                  isAltMove ? 'text-amber-300 font-semibold' : 'text-slate-400'
+                                }`}
+                              >
+                                {member.fastMove} • {member.chargedMove1}/{member.chargedMove2}
+                              </div>
+                              <div className="flex items-center justify-between gap-1 mt-1 pt-1 border-t border-slate-800/60 text-[9.5px] font-mono">
+                                <span className="text-sky-400 font-bold">CP {member.cp}</span>
+                                {member.ivs ? (
+                                  <span className="text-emerald-400">IV {member.ivs}</span>
+                                ) : (
+                                  <span className="text-slate-500">PvPoke IVs</span>
+                                )}
                               </div>
                             </div>
                           );
                         })}
                       </div>
-                    </div>
 
-                    <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs">
-                      <span className="text-slate-400 text-[11px]">
-                        Order: <strong className="text-slate-200">#{presetIdx + 1}</strong> • Style:{' '}
-                        <strong className="text-amber-300">{arch}</strong>
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => openEditPresetModal(preset)}
-                          className="text-sky-400 hover:text-sky-300 font-semibold text-[11px]"
-                        >
-                          ✎ Edit Team
-                        </button>
+                      {/* Key Wins, Key Threats & Core Breakers Summary Breakdown (Matches Anti-Meta Generator) */}
+                      <div className="space-y-1 text-[10px] pt-1.5 border-t border-slate-900">
+                        {preset.synergySummary && (
+                          <p className="text-slate-400 leading-relaxed">{preset.synergySummary}</p>
+                        )}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 pt-1">
+                          <div className="bg-emerald-950/25 border border-emerald-500/30 rounded-lg px-2 py-1">
+                            <span className="font-bold text-emerald-400 block">
+                              ✅ Key Wins ({topWinsCount}/{totalMetaDepth})
+                            </span>
+                            <span className="text-slate-300">
+                              {preset.keyMetaTargetsBeaten && preset.keyMetaTargetsBeaten.length > 0
+                                ? preset.keyMetaTargetsBeaten.slice(0, 4).join(', ')
+                                : 'Balanced field coverage'}
+                            </span>
+                          </div>
+                          <div className="bg-amber-950/25 border border-amber-500/30 rounded-lg px-2 py-1">
+                            <span className="font-bold text-amber-300 block">
+                              ⚠️ Key Threats (Slot 1/2/3 BR)
+                            </span>
+                            <span className="text-slate-300 font-mono text-[9.5px]">
+                              {preset.keyThreats && preset.keyThreats.length > 0
+                                ? preset.keyThreats.slice(0, 4).join(', ')
+                                : 'No severe lead+backline threats'}
+                            </span>
+                          </div>
+                          <div className="bg-rose-950/25 border border-rose-500/30 rounded-lg px-2 py-1">
+                            <span className="font-bold text-rose-300 block">
+                              🚨 Core Breakers (Slot 1/2/3 BR)
+                            </span>
+                            <span className="text-slate-300 font-mono text-[9.5px]">
+                              {preset.coreBreakers && preset.coreBreakers.length > 0
+                                ? preset.coreBreakers.slice(0, 4).join(', ')
+                                : 'None (0 in Top 25 Meta)'}
+                            </span>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -5328,7 +5439,7 @@ export default function App() {
             {/* Modal Dialog for Creating or Editing Preset & Moves (Team Builder UI with Pop-Down Autocomplete) */}
             {isNewPresetOpen && (
               <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-                <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl animate-in fade-in zoom-in-95 my-8">
+                <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-2xl w-full p-6 shadow-2xl animate-in fade-in zoom-in-95 my-8">
                   <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-3">
                     <h3 className="font-bold text-base text-white flex items-center gap-2">
                       <Plus className="w-4 h-4 text-emerald-400" />
@@ -5388,18 +5499,21 @@ export default function App() {
                       </div>
                     </div>
 
-                    {/* ABB / ABC Team Style Auto-Detection, Aggregate BR & Safe Swap Reordering Panel */}
+                    {/* ABB / ABC Team Style Auto-Detection, Aggregate BR & Key Wins / Threats / Core Breakers Summary Panel */}
                     {(() => {
                       const mLeadTier = getSingleSlotBrTierInfo(modalLiveEvaluation.leadAggBr, tierThresholds);
                       const mMachTier = getMachineBrTierInfo(modalLiveEvaluation.machineAggBr, machineBrThresholds);
                       const mSlot2SwapTier = getSingleSlotBrTierInfo(modalLiveEvaluation.safeSwapBr, tierThresholds);
                       const mSlot3SwapTier = getSingleSlotBrTierInfo(modalLiveEvaluation.closerSwapBr, tierThresholds);
+                      const modalTotalMetaDepth = modalLiveEvaluation.topMetaTargetsTotal || 25;
+                      const modalWinsCount = modalLiveEvaluation.topMetaWinsCount ?? 0;
+                      const modalAnyAltMoves = (modalLiveEvaluation.altMovesetSlots || []).some((s) => s.isAltMoveset);
                       return (
-                        <div className="p-3 rounded-xl bg-slate-950/90 border border-sky-500/40 space-y-2.5">
+                        <div className="p-3.5 rounded-xl bg-slate-950/90 border border-sky-500/40 space-y-2.5">
                           <div className="flex items-center justify-between gap-2 flex-wrap">
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <span
-                                className={`text-[10px] font-extrabold px-2 py-0.5 rounded border uppercase ${
+                                className={`text-[10px] font-black px-2 py-0.5 rounded border uppercase ${
                                   modalLiveEvaluation.archetype === 'ABB'
                                     ? 'bg-amber-500/20 text-amber-300 border-amber-400/50'
                                     : 'bg-sky-500/20 text-sky-300 border-sky-400/50'
@@ -5408,16 +5522,24 @@ export default function App() {
                                 Style: [{modalLiveEvaluation.archetype}]
                               </span>
                               <span
-                                className={`text-[10px] font-mono font-extrabold px-2 py-0.5 rounded border ${mLeadTier.colorClass}`}
-                              >
-                                Lead Agg BR: {modalLiveEvaluation.leadAggBr} ({mLeadTier.tier})
-                              </span>
-                              <span
                                 className={`text-[10px] font-mono font-extrabold px-2 py-0.5 rounded border ${mMachTier.colorClass}`}
                                 title="Core Coverage BR: 3-mon core coverage ceiling across the Top-100 blended season meta"
                               >
                                 Core BR: {modalLiveEvaluation.machineAggBr} ({mMachTier.label})
                               </span>
+                              <span
+                                className={`text-[10px] font-mono font-extrabold px-2 py-0.5 rounded border ${mLeadTier.colorClass}`}
+                              >
+                                Lead BR: {modalLiveEvaluation.leadAggBr} ({mLeadTier.tier})
+                              </span>
+                              <span className="text-[10px] text-emerald-400 font-semibold">
+                                Beats {modalWinsCount}/{modalTotalMetaDepth} Top Meta
+                              </span>
+                              {modalAnyAltMoves && (
+                                <span className="px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-400/50 text-amber-300 text-[9px] font-extrabold">
+                                  ⚡ Alt Moveset
+                                </span>
+                              )}
                             </div>
                             <div className="flex items-center gap-1 text-[10px]">
                               <span className="text-slate-400">Style Mode:</span>
@@ -5452,7 +5574,7 @@ export default function App() {
                               className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs flex items-center gap-1.5 shadow-md transition"
                             >
                               <Sparkles className="w-3.5 h-3.5" />
-                              <span>⚡ Auto-Detect Style &amp; Move Safe Swap to Slot 2</span>
+                              <span>⚡ Auto-Detect Style &amp; Update Team Summary</span>
                             </button>
                             <button
                               type="button"
@@ -5549,7 +5671,7 @@ export default function App() {
                               <strong className={mSlot2SwapTier.colorClass.split(' ')[0]}>
                                 {modalLiveEvaluation.safeSwapBr} ({mSlot2SwapTier.tier})
                               </strong>{' '}
-                              • Slot 3 Swap BR:{' '}
+                              • Slot 3 Closer BR:{' '}
                               <strong className={mSlot3SwapTier.colorClass.split(' ')[0]}>
                                 {modalLiveEvaluation.closerSwapBr} ({mSlot3SwapTier.tier})
                               </strong>
@@ -5559,6 +5681,45 @@ export default function App() {
                                 Shared B-Pair Weaknesses: {modalLiveEvaluation.sharedWeaknesses.join(', ').toUpperCase()}
                               </span>
                             )}
+                          </div>
+
+                          {/* Key Wins, Key Threats & Core Breakers Summary (Matches Anti-Meta Generator) */}
+                          <div className="space-y-1 text-[10px] pt-1.5 border-t border-slate-900">
+                            {modalLiveEvaluation.synergySummary && (
+                              <p className="text-slate-400 leading-relaxed">{modalLiveEvaluation.synergySummary}</p>
+                            )}
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 pt-1">
+                              <div className="bg-emerald-950/25 border border-emerald-500/30 rounded-lg px-2 py-1">
+                                <span className="font-bold text-emerald-400 block">
+                                  ✅ Key Wins ({modalWinsCount}/{modalTotalMetaDepth})
+                                </span>
+                                <span className="text-slate-300">
+                                  {modalLiveEvaluation.keyMetaTargetsBeaten.length > 0
+                                    ? modalLiveEvaluation.keyMetaTargetsBeaten.slice(0, 4).join(', ')
+                                    : 'Balanced field coverage'}
+                                </span>
+                              </div>
+                              <div className="bg-amber-950/25 border border-amber-500/30 rounded-lg px-2 py-1">
+                                <span className="font-bold text-amber-300 block">
+                                  ⚠️ Key Threats (Slot 1/2/3 BR)
+                                </span>
+                                <span className="text-slate-300 font-mono text-[9.5px]">
+                                  {modalLiveEvaluation.keyThreats && modalLiveEvaluation.keyThreats.length > 0
+                                    ? modalLiveEvaluation.keyThreats.slice(0, 4).join(', ')
+                                    : 'No severe lead+backline threats'}
+                                </span>
+                              </div>
+                              <div className="bg-rose-950/25 border border-rose-500/30 rounded-lg px-2 py-1">
+                                <span className="font-bold text-rose-300 block">
+                                  🚨 Core Breakers (Slot 1/2/3 BR)
+                                </span>
+                                <span className="text-slate-300 font-mono text-[9.5px]">
+                                  {modalLiveEvaluation.coreBreakers && modalLiveEvaluation.coreBreakers.length > 0
+                                    ? modalLiveEvaluation.coreBreakers.slice(0, 4).join(', ')
+                                    : 'None (0 in Top 25 Meta)'}
+                                </span>
+                              </div>
+                            </div>
                           </div>
 
                           {modalAutoDetectSummary && (

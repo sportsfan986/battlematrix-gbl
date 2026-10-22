@@ -1,5 +1,19 @@
 # SilphScope PvP Changelog
 
+## [v3.23] — 2026-10-22 — Key Threats/Core Breakers Per-Slot BRs, Anti-Meta Summary on Existing Teams & Editor, Top-50 Meta List with Meta BR, and Featured Rank Range Queries (`200-`, `-10`, `100-200`)
+- **Key Threats & Core Breakers Per-Slot Battle Ratings (`OverlayService.kt`, `gblData.ts`, `MainActivity.kt`, `App.tsx`)**:
+  - Formatted every entry in **Key Threats** and **Core Breakers** with its Battle Rating against each of your 3 team slots in parentheses — e.g. `Key Threats: Corviknight(700/500/400), ...` (`Slot 1 Lead / Slot 2 Safe Swap / Slot 3 Closer`).
+- **Anti-Meta Generator Look & Feel + Team Summary on Existing Teams (Viewer & Editor) & Auto-Detect Refresh (`MainActivity.kt`, `OverlayService.kt`, `App.tsx`, `gblData.ts`)**:
+  - Unified the **Team Presets Viewer** and **Edit Team Screen/Modal** with the Anti-Meta Generator card look and feel (`Core BR`, `Lead BR`, `Swap BR`, `Closer BR`, `Beats X/25 Top Meta`, `⚡ Alt Moveset` badges, and the 3-box `✅ Key Wins` / `⚠️ Key Threats (Slot 1/2/3 BR)` / `🚨 Core Breakers (Slot 1/2/3 BR)` breakdown + full `synergySummary`), while preserving all controls to edit Pokémon, moves, IVs, and CP.
+  - Automatically computes the full summary for existing teams and refreshes it whenever you click **`⚡ Auto-Detect Style & Order Swap`**.
+- **Expanded Bottom SilphScope Meta List from Top 25 to Top 50 with Meta Battle Ranking in Parentheses**:
+  - Expanded the SilphScope meta reference list at the bottom of the Anti-Meta Team Builder card to the **Top 50 Meta Pokémon** (`#1` to `#50`) and included each Pokémon's **Meta Battle Ranking (`BR`)** in parentheses alongside its field usage share (e.g. `#1 Clodsire (548 BR • 3.2%)`).
+- **Rank Range Option in Featured Pokémon Slots (`200-`, `-10`, `100-200`)**:
+  - Added rank-range constraint support in Featured Pokémon #1 and #2:
+    - `200-` — requires a spice Pokémon ranked **`#200` or lower**
+    - `-10` — requires a Pokémon ranked in the **Top 10 (`#1–#10`)**
+    - `100-200` — requires a Pokémon ranked **between `#100` and `#200`**
+
 ## [v3.22] — 2026-10-22 — Top-100 Role-Weighted Anti-Meta Team Builder, 3-Slot Alternate Moveset Simulation, Key Wins / Key Threats / Core Breakers & Top-25 SilphScope Meta Audit
 - **Top-100 Flattened Role-Weighted Synthetic Meta Blended with Season Logs (`gblData.ts`, `OverlayService.kt`)**:
   - Upgraded the Anti-Meta Team Builder (`ABB` / `ABC`) to build and score all candidate lineups (`Core BR`, `Lead BR`, `Swap BR`, `Closer BR`) against a **Top-100 flattened synthetic meta** ($\exp(-0.022 \cdot i)$) weighted heaviest on the most common Pokémon for each role (`Lead`, `Safe Swap`, `Closer`) and blended with your current-season battle logs (`wHist` + `wMeta`).
