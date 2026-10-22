@@ -1363,24 +1363,6 @@ export const POKEMON_DATABASE: Record<string, PokemonStats> = {
     ],
     color: "#ef4444"
   },
-  Mimikyu: {
-    speciesId: "mimikyu",
-    name: "Mimikyu",
-    baseSpecies: "mimikyu",
-    formLabel: "Disguised",
-    types: ["ghost", "fairy"],
-    baseStats: { atk: 177, def: 199, hp: 146 },
-    isRawBaseStats: true,
-    defaultIvsGl: "4/15/15",
-    defaultIvsUl: "15/15/15",
-    defaultFastMove: { name: "Shadow Claw", type: "ghost", turns: 2, power: 6, energyGain: 8 },
-    chargedMoves: [
-      { name: "Play Rough", code: "PR", type: "fairy", power: 90, energyCost: 60 },
-      { name: "Shadow Ball", code: "SB", type: "ghost", power: 90, energyCost: 50 },
-      { name: "Shadow Sneak", code: "SS", type: "ghost", power: 75, energyCost: 45 }
-    ],
-    color: "#a855f7"
-  },
   Aegislash: {
     speciesId: "aegislash",
     name: "Aegislash",
@@ -5277,11 +5259,14 @@ export const INITIAL_PRESETS: TeamPreset[] = recalculateAllPresetsMetrics([
   }
 ]);
 
+export type TeamArchetype = "ABB" | "ABC";
+
 export interface RoleUpgradeSuggestion {
   roleIndex: 0 | 1 | 2;
   roleLabel: string;
   candidate: TeamMember;
   newMachineBr: number;
+  newMachineAggBr?: number;
   deltaMachineBr: number;
   deltaMachBr: number;
   newRoleBr: number;
@@ -5657,6 +5642,7 @@ export function recommendTop3UpgradesPerRole(
           id: currentMember.id || `slot-${roleIndex + 1}`
         },
         newMachineBr,
+        newMachineAggBr: newMachineBr,
         deltaMachineBr,
         deltaMachBr: deltaMachineBr,
         newRoleBr,

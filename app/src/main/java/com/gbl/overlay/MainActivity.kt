@@ -471,9 +471,9 @@ class MainActivity : AppCompatActivity() {
 
         initViews()
         val appVer = try {
-            packageManager.getPackageInfo(packageName, 0).versionName ?: "3.12"
+            packageManager.getPackageInfo(packageName, 0).versionName ?: "3.13"
         } catch (_: Exception) {
-            "3.12"
+            "3.13"
         }
         findViewById<TextView>(R.id.tv_app_main_subtitle)?.text = "Real-Time PvP Floating Overlay • v$appVer"
         ensureDefaultPresets()
@@ -503,6 +503,9 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        OverlayService.onRunningStateChanged = {
+            syncOverlayRunningUiState()
+        }
         if (::prefs.isInitialized) {
             syncOverlayRunningUiState()
             setupBattleLogFilters()
@@ -512,6 +515,11 @@ class MainActivity : AppCompatActivity() {
             // Automatically pull & reconcile deltas from the other device on every app open / resume
             triggerTwoDeviceCloudSync(silent = true)
         }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        OverlayService.onRunningStateChanged = null
     }
 
     private fun syncOverlayRunningUiState() {
@@ -4640,22 +4648,33 @@ class MainActivity : AppCompatActivity() {
         }
 
         try {
+            OverlayService.isInstanceRunning = true
             ContextCompat.startForegroundService(this, serviceIntent)
             isOverlayRunning = true
             syncOverlayRunningUiState()
             Toast.makeText(this, "GBL Battle Overlay launched! Check your screen", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
+            OverlayService.isInstanceRunning = false
+            isOverlayRunning = false
+            syncOverlayRunningUiState()
             Toast.makeText(this, "Failed to start overlay: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
             e.printStackTrace()
         }
     }
 
     private fun stopOverlayService() {
+        OverlayService.isInstanceRunning = false
+        OverlayService.hasActiveMediaProjection = false
+        isOverlayRunning = false
         val serviceIntent = Intent(this, OverlayService::class.java).apply {
             action = OverlayService.ACTION_STOP_OVERLAY
         }
-        startService(serviceIntent)
-        isOverlayRunning = false
+        try {
+            startService(serviceIntent)
+        } catch (_: Exception) {}
+        try {
+            stopService(Intent(this, OverlayService::class.java))
+        } catch (_: Exception) {}
         syncOverlayRunningUiState()
     }
 
@@ -5872,6 +5891,9 @@ class TaskerOverlayActivity : Activity() {
                 finishQuietly()
             }
             isStop || (isToggle && OverlayService.isInstanceRunning) -> {
+                OverlayService.isInstanceRunning = false
+                OverlayService.hasActiveMediaProjection = false
+                OverlayService.notifyRunningStateChanged()
                 val stopIntent = Intent(this, OverlayService::class.java).apply {
                     action = OverlayService.ACTION_STOP_OVERLAY
                 }
@@ -6027,7 +6049,11 @@ class TaskerBroadcastReceiver : BroadcastReceiver() {
                 context.startActivity(mainIntent)
             }
             isStop || (isToggle && OverlayService.isInstanceRunning) -> {
-                if (OverlayService.isInstanceRunning) {
+                val wasRunning = OverlayService.isInstanceRunning
+                OverlayService.isInstanceRunning = false
+                OverlayService.hasActiveMediaProjection = false
+                OverlayService.notifyRunningStateChanged()
+                if (wasRunning) {
                     val stopIntent = Intent(context, OverlayService::class.java).apply {
                         action = OverlayService.ACTION_STOP_OVERLAY
                     }

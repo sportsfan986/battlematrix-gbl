@@ -1,5 +1,14 @@
 # SilphScope PvP Changelog
 
+## [v3.13] — 2026-10-22 — Best-Match-Across-Team Player Switch OCR Fix & Single-Tap Stop Overlay Button Fix
+- **Best-Match-Across-Team Player Switch OCR (`scoreTeamMemberOnLine` & `handlePlayerSwitchLines`)**:
+  - Replaced sequential slot-order matching (which checked Slot 0 / Lead first and immediately returned on any fuzzy edit-distance-2 or shared-CP match) with simultaneous scoring across all 3 team Pokémon to select the strictly best match (`score 0` exact/confusable-normalized > `score 1` 1-edit/7+ char prefix > `score 2` 2-edit) regardless of team order (`Tinkaton / Mimikyu / Swampert` or `Swampert / Mimikyu / Tinkaton`).
+  - Added High-Contrast B&W nameplate extraction (`createHighContrastWhiteTextBitmap`) for the top-left player nameplate (`srcPlayer`) alongside 5-variant OCR confusable normalization (`rn -> m`, `1 -> i/l`, `0 -> o`, `v -> y`, `vv -> w`) so `"Swarnpert"` normalizes directly to `"swampert"` (exact match, score `0`).
+  - Added horizontal team-chip-bar rejection and length guards so 6-character overlay team chips (`Tinkat`, `Mimiky`, `Swampe`) or shared default CPs (`1500` / `2500`) never pull the active Pokémon back to Slot 0 (Lead).
+  - Updated bottom Charged Move button fallback to require a strictly unique best score across all 3 team members (`bestScore >= 3 && bestScore > secondBestScore`) so shared moves (e.g., `Play Rough`) or ties never default to Lead.
+- **Single-Tap "Stop Battle Overlay" Button Restoration (`MainActivity` & `OverlayService`)**:
+  - Fixed `stopOverlayService()` where `syncOverlayRunningUiState()` read `OverlayService.isInstanceRunning` before the asynchronous stop intent was processed, requiring two taps on **Stop Battle Overlay** to restore **Start Battle Overlay**.
+
 ## [v3.12] — 2026-10-21 — Top-5 Role Upgrades (Top-200 Candidates vs. Top-100 Meta), Core Coverage BR (Core BR), Enhanced Mimikyu 2-Strategy Disguise Math & Aegislash Shield/Sword Energy + Damage Shift
 - **Top-5 Role Upgrade Recommendations (`Top-200` Candidate Pool vs. `Top-100` Blended Meta)**:
   - Expanded role upgrade recommendations in both the Android and Web Team Editors to display the **Top 5 distinct-species alternatives per role** (`#1 Lead`, `#2 Safe Swap`, `#3 Closer`) with one-tap replacement chips.

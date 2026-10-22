@@ -99,6 +99,16 @@ class OverlayService : LifecycleService() {
 
         @Volatile var isInstanceRunning: Boolean = false
         @Volatile var hasActiveMediaProjection: Boolean = false
+        @Volatile var onRunningStateChanged: (() -> Unit)? = null
+
+        fun notifyRunningStateChanged() {
+            val cb = onRunningStateChanged ?: return
+            Handler(Looper.getMainLooper()).post {
+                try {
+                    cb.invoke()
+                } catch (_: Exception) {}
+            }
+        }
 
         const val EXTRA_RESULT_CODE = "extra_result_code"
         const val EXTRA_RESULT_DATA = "extra_result_data"
@@ -1344,7 +1354,7 @@ class OverlayService : LifecycleService() {
             PokemonMeta("Pidgeot", "pidgeot", "pidgeot", "Base", listOf("normal", "flying"), 1490, "Gust", 4, "Twister", "Brave Bird", 24, 52, atk = 166.0, def = 154.0, hp = 195, glRank = 32, ulRank = 15, mlRank = 300, isRawBaseStats = true, defaultIvsGl = "4/14/12", defaultIvsUl = "15/15/15"),
             PokemonMeta("Zygarde", "zygarde_complete", "zygarde", "Complete", listOf("dragon", "ground"), 2472, "Dragon Tail", 3, "Crunch", "Earthquake", 32, 52, atk = 184.0, def = 207.0, hp = 389, glRank = 80, ulRank = 1, mlRank = 5, isRawBaseStats = true, defaultIvsGl = "0/0/0", defaultIvsUl = "13/10/15"),
             PokemonMeta("Corviknight", "corviknight", "corviknight", "Base", listOf("flying", "steel"), 2499, "Sand Attack", 1, "Air Cutter", "Iron Head", 32, 34, atk = 163.0, def = 192.0, hp = 221, glRank = 14, ulRank = 7, mlRank = 120, chargedMove3 = "Sky Attack", isRawBaseStats = true, defaultIvsGl = "4/12/14", defaultIvsUl = "4/14/13"),
-            PokemonMeta("Mimikyu", "mimikyu", "mimikyu", "Disguised", listOf("ghost", "fairy"), 2497, "Shadow Claw", 2, "Play Rough", "Shadow Sneak", 44, 28, atk = 177.0, def = 199.0, hp = 146, glRank = 40, ulRank = 25, mlRank = 210, isRawBaseStats = true, defaultIvsGl = "4/14/15", defaultIvsUl = "13/15/15"),
+            PokemonMeta("Mimikyu", "mimikyu", "mimikyu", "Disguised", listOf("ghost", "fairy"), 2497, "Shadow Claw", 2, "Play Rough", "Shadow Sneak", 44, 28, atk = 177.0, def = 199.0, hp = 146, glRank = 40, ulRank = 25, mlRank = 210, chargedMove3 = "Shadow Ball", isRawBaseStats = true, defaultIvsGl = "4/14/15", defaultIvsUl = "13/15/15"),
             PokemonMeta("Aegislash", "aegislash", "aegislash", "Shield", listOf("steel", "ghost"), 1499, "Psycho Cut", 2, "Shadow Ball", "Flash Cannon", 46, 52, atk = 97.0, def = 291.0, hp = 155, glRank = 16, ulRank = 30, mlRank = 240, chargedMove3 = "Gyro Ball", isRawBaseStats = true, defaultIvsGl = "4/15/15", defaultIvsUl = "15/15/15"),
             PokemonMeta("Cramorant", "cramorant", "cramorant", "Gulping", listOf("flying", "water"), 1499, "Wing Attack", 2, "Surf", "Fly", 34, 42, atk = 173.0, def = 163.0, hp = 172, glRank = 26, ulRank = 38, mlRank = 320, chargedMove3 = "Brave Bird", isRawBaseStats = true, defaultIvsGl = "4/15/14", defaultIvsUl = "15/15/15"),
 
@@ -1398,7 +1408,7 @@ class OverlayService : LifecycleService() {
             PokemonMeta("Primeape", "primeape", "primeape", "Base", listOf("fighting"), 2488, "Karate Chop", 2, "Rage Fist", "Close Combat", 32, 48, atk = 207.0, def = 138.0, hp = 163, glRank = 10, ulRank = 20, mlRank = 340, isRawBaseStats = true, defaultIvsGl = "5/15/15", defaultIvsUl = "12/15/14"),
             PokemonMeta("Cresselia", "cresselia", "cresselia", "Base", listOf("psychic"), 2488, "Psycho Cut", 2, "Grass Knot", "Moonblast", 36, 46, atk = 152.0, def = 258.0, hp = 260, glRank = 11, ulRank = 4, mlRank = 110, isRawBaseStats = true, defaultIvsGl = "4/11/9", defaultIvsUl = "4/11/11"),
             PokemonMeta("Jumpluff", "jumpluff", "jumpluff", "Base", listOf("grass", "flying"), 1498, "Fairy Wind", 2, "Aerial Ace", "Energy Ball", 28, 42, atk = 118.0, def = 183.0, hp = 181, glRank = 13, ulRank = 300, mlRank = 480, isRawBaseStats = true, defaultIvsGl = "4/15/12", defaultIvsUl = "15/15/15"),
-            PokemonMeta("Swampert", "swampert", "swampert", "Base", listOf("water", "ground"), 2495, "Mud Shot", 2, "Hydro Cannon", "Earthquake", 44, 52, atk = 208.0, def = 175.0, hp = 225, glRank = 15, ulRank = 14, mlRank = 60, isRawBaseStats = true, defaultIvsGl = "6/15/12", defaultIvsUl = "4/15/14"),
+            PokemonMeta("Swampert", "swampert", "swampert", "Base", listOf("water", "ground"), 2495, "Mud Shot", 2, "Hydro Cannon", "Earthquake", 44, 52, atk = 208.0, def = 175.0, hp = 225, glRank = 15, ulRank = 14, mlRank = 60, chargedMove3 = "Sludge Wave", chargedMove4 = "Surf", isRawBaseStats = true, defaultIvsGl = "6/15/12", defaultIvsUl = "4/15/14"),
             PokemonMeta("Quagsire", "quagsire", "quagsire", "Base", listOf("water", "ground"), 1499, "Mud Shot", 2, "Aqua Tail", "Stone Edge", 28, 46, atk = 152.0, def = 143.0, hp = 216, glRank = 17, ulRank = 280, mlRank = 450, isRawBaseStats = true, defaultIvsGl = "4/15/10", defaultIvsUl = "15/15/15"),
             PokemonMeta("Whiscash", "whiscash", "whiscash", "Base", listOf("water", "ground"), 1499, "Mud Shot", 2, "Scald", "Mud Bomb", 40, 32, atk = 151.0, def = 141.0, hp = 242, glRank = 19, ulRank = 290, mlRank = 450, isRawBaseStats = true, defaultIvsGl = "4/15/15", defaultIvsUl = "15/15/15"),
             PokemonMeta("Talonflame", "talonflame", "talonflame", "Base", listOf("fire", "flying"), 2493, "Incinerate", 5, "Fly", "Flame Charge", 42, 28, atk = 176.0, def = 155.0, hp = 186, glRank = 18, ulRank = 10, mlRank = 180, isRawBaseStats = true, defaultIvsGl = "4/12/15", defaultIvsUl = "15/15/15"),
@@ -1464,7 +1474,7 @@ class OverlayService : LifecycleService() {
             PokemonMeta("Toxicroak", "toxicroak", "toxicroak", "Base", listOf("poison", "fighting"), 2488, "Mud Shot", 2, "Mud Bomb", "Shadow Ball", 32, 44, atk = 211.0, def = 133.0, hp = 195, glRank = 81, ulRank = 57, mlRank = 290, isRawBaseStats = true, defaultIvsGl = "4/15/9", defaultIvsUl = "4/15/14"),
             PokemonMeta("Nidoqueen", "nidoqueen", "nidoqueen", "Base", listOf("poison", "ground"), 2488, "Poison Jab", 2, "Poison Fang", "Earth Power", 24, 46, atk = 180.0, def = 173.0, hp = 207, glRank = 83, ulRank = 59, mlRank = 260, isRawBaseStats = true, defaultIvsGl = "4/14/13", defaultIvsUl = "4/13/15"),
             PokemonMeta("Steelix", "steelix", "steelix", "Base", listOf("steel", "ground"), 2485, "Dragon Tail", 3, "Breaking Swipe", "Earthquake", 24, 52, atk = 148.0, def = 272.0, hp = 181, glRank = 80, ulRank = 30, mlRank = 250, isRawBaseStats = true, defaultIvsGl = "4/11/14", defaultIvsUl = "4/14/15"),
-            PokemonMeta("Tinkaton", "tinkaton", "tinkaton", "Base", listOf("fairy", "steel"), 2488, "Fairy Wind", 2, "Gigaton Hammer", "Bulldoze", 42, 36, atk = 155.0, def = 196.0, hp = 198, glRank = 40, ulRank = 32, mlRank = 260, chargedMove3 = "Brutal Swing", isRawBaseStats = true, defaultIvsGl = "4/15/14", defaultIvsUl = "12/15/15"),
+            PokemonMeta("Tinkaton", "tinkaton", "tinkaton", "Base", listOf("fairy", "steel"), 2488, "Fairy Wind", 2, "Gigaton Hammer", "Bulldoze", 42, 36, atk = 155.0, def = 196.0, hp = 198, glRank = 40, ulRank = 32, mlRank = 260, chargedMove3 = "Brutal Swing", chargedMove4 = "Play Rough", isRawBaseStats = true, defaultIvsGl = "4/15/14", defaultIvsUl = "12/15/15"),
             PokemonMeta("Rillaboom", "rillaboom", "rillaboom", "Base", listOf("grass"), 2485, "Scratch", 1, "Drum Beating", "Earth Power", 36, 44, atk = 239.0, def = 168.0, hp = 225, glRank = 82, ulRank = 45, mlRank = 88, chargedMove3 = "Frenzy Plant", isRawBaseStats = true, defaultIvsGl = "5/15/13", defaultIvsUl = "4/14/15"),
             PokemonMeta("Cetitan", "cetitan", "cetitan", "Base", listOf("ice"), 2495, "Powder Snow", 2, "Body Slam", "Avalanche", 26, 44, atk = 208.0, def = 123.0, hp = 347, glRank = 57, ulRank = 38, mlRank = 95, isRawBaseStats = true, defaultIvsGl = "4/13/10", defaultIvsUl = "4/15/15"),
             PokemonMeta("Bellibolt", "bellibolt", "bellibolt", "Base", listOf("electric"), 2492, "Sucker Punch", 2, "Discharge", "Zap Cannon", 34, 56, atk = 184.0, def = 165.0, hp = 240, glRank = 75, ulRank = 42, mlRank = 220, isRawBaseStats = true, defaultIvsGl = "4/15/12", defaultIvsUl = "4/15/15")
@@ -5213,6 +5223,7 @@ class OverlayService : LifecycleService() {
         when (action) {
             ACTION_START_OVERLAY, ACTION_SHORT_START -> {
                 isInstanceRunning = true
+                notifyRunningStateChanged()
                 if (isOverlayMinimized) {
                     restoreOverlayFromBubble()
                 }
@@ -5364,12 +5375,14 @@ class OverlayService : LifecycleService() {
                 } else {
                     isInstanceRunning = false
                     hasActiveMediaProjection = false
+                    notifyRunningStateChanged()
                     stopSelf()
                 }
             }
             ACTION_STOP_OVERLAY, ACTION_SHORT_STOP -> {
                 isInstanceRunning = false
                 hasActiveMediaProjection = false
+                notifyRunningStateChanged()
                 stopSelf()
             }
         }
@@ -5583,7 +5596,8 @@ class OverlayService : LifecycleService() {
         val h = screen.height
 
         // CRITICAL FIX: Mask out our own floating overlay window on the captured frame
-        // (including status bar / cutout offset via getLocationOnScreen) so ML Kit can NEVER read our own HUD!
+        // (including status bar / cutout offset via getLocationOnScreen and both Top/Bottom layout modes)
+        // so ML Kit can NEVER read our own HUD or team chips!
         try {
             val view = overlayView
             if (view != null) {
@@ -5591,25 +5605,28 @@ class OverlayService : LifecycleService() {
                 try {
                     view.getLocationOnScreen(loc)
                 } catch (_: Exception) {}
-                val ox = min(layoutParams.x, if (loc[0] > 0) loc[0] else layoutParams.x).coerceIn(0, w - 1)
-                val oyMin = min(layoutParams.y, if (loc[1] > 0) loc[1] else layoutParams.y).coerceIn(0, h - 1)
-                val oyMax = max(layoutParams.y, loc[1]).coerceIn(0, h - 1)
                 val ow = (if (view.width > 0) view.width else layoutParams.width).coerceAtLeast(1)
-                val oh = (if (view.height > 0) view.height else (220 * resources.displayMetrics.density).toInt()).coerceAtLeast(1)
+                val oh = (if (view.height > 0) view.height else (240 * resources.displayMetrics.density).toInt()).coerceAtLeast(1)
+                val isBottomGravity = (layoutParams.gravity and Gravity.BOTTOM) == Gravity.BOTTOM
+                val fallbackX = if (isBottomGravity) ((w - ow) / 2).coerceAtLeast(0) else layoutParams.x
+                val fallbackY = if (isBottomGravity) (h - oh - layoutParams.y - (32 * resources.displayMetrics.density).toInt()).coerceAtLeast(0) else layoutParams.y
+                val ox = min(fallbackX, if (loc[0] > 0) loc[0] else fallbackX).coerceIn(0, w - 1)
+                val oyMin = min(fallbackY, if (loc[1] > 0) loc[1] else fallbackY).coerceIn(0, h - 1)
+                val oyMax = max(fallbackY, if (loc[1] > 0) loc[1] else fallbackY).coerceIn(0, h - 1)
                 val screenCanvas = Canvas(screen)
                 val maskPaint = Paint().apply { color = Color.BLACK; style = Paint.Style.FILL }
                 screenCanvas.drawRect(
-                    (ox - 8).coerceAtLeast(0).toFloat(),
-                    (oyMin - 8).coerceAtLeast(0).toFloat(),
-                    (ox + ow + 16).coerceAtMost(w).toFloat(),
-                    (oyMax + oh + 28).coerceAtMost(h).toFloat(),
+                    (ox - 16).coerceAtLeast(0).toFloat(),
+                    (oyMin - 24).coerceAtLeast(0).toFloat(),
+                    (ox + ow + 24).coerceAtMost(w).toFloat(),
+                    (oyMax + oh + 48).coerceAtMost(h).toFloat(),
                     maskPaint
                 )
             }
             if (statusToastView?.visibility == View.VISIBLE) {
                 val screenCanvas = Canvas(screen)
                 val maskPaint = Paint().apply { color = Color.BLACK; style = Paint.Style.FILL }
-                screenCanvas.drawRect(0f, 0f, w.toFloat(), (h * 0.036f).coerceAtMost(h * 0.055f), maskPaint)
+                screenCanvas.drawRect(0f, 0f, w.toFloat(), (h * 0.045f).coerceAtMost(h * 0.065f), maskPaint)
             }
         } catch (_: Exception) {}
 
@@ -5634,8 +5651,10 @@ class OverlayService : LifecycleService() {
             (h * 0.95f).toInt().coerceIn(1, h)
         )
 
-        // Create high-contrast dark-on-white nameplate extraction of srcOpp so white text over icy/cloudy backgrounds (e.g. Kyurem) is unmistakable
+        // Create high-contrast dark-on-white nameplate extractions of both srcOpp and srcPlayer
+        // so white-on-sky outlined game font is unmistakable for ML Kit on both sides
         val bwOppBitmap = createHighContrastWhiteTextBitmap(screen, srcOpp)
+        val bwPlayerBitmap = createHighContrastWhiteTextBitmap(screen, srcPlayer)
 
         // Upscale top nameplates 1.8x so white-on-sky outlined game font is large & crisp for ML Kit
         val scale = 1.8f
@@ -5648,14 +5667,16 @@ class OverlayService : LifecycleService() {
         val gap = 24
 
         val compW = max(max(dstOppW, dstPlayerW), movesW).coerceAtLeast(100)
-        // Stitch: [1] Raw Upscaled Opp -> [2] High-Contrast B&W Upscaled Opp -> [3] Player Top -> [4] Player Moves
+        // Stitch: [1] Raw Upscaled Opp -> [2] B&W Upscaled Opp -> [3] Raw Upscaled Player -> [4] B&W Upscaled Player -> [5] Player Moves
         val oppZoneH = dstOppH + gap + dstOppH
-        val compH = oppZoneH + gap + dstPlayerH + gap + movesH
+        val playerZoneH = dstPlayerH + gap + dstPlayerH
+        val compH = oppZoneH + gap + playerZoneH + gap + movesH
 
         val composite = try {
             Bitmap.createBitmap(compW, compH, Bitmap.Config.ARGB_8888)
         } catch (_: Exception) {
             bwOppBitmap?.recycle()
+            bwPlayerBitmap?.recycle()
             screen.recycle()
             return
         }
@@ -5666,15 +5687,20 @@ class OverlayService : LifecycleService() {
 
         val dstOppRaw = Rect(0, 0, dstOppW, dstOppH)
         val dstOppBw = Rect(0, dstOppH + gap, dstOppW, oppZoneH)
-        val dstPlayer = Rect(0, oppZoneH + gap, dstPlayerW, oppZoneH + gap + dstPlayerH)
-        val dstMoves = Rect(0, oppZoneH + gap + dstPlayerH + gap, movesW, compH)
+        val dstPlayerRaw = Rect(0, oppZoneH + gap, dstPlayerW, oppZoneH + gap + dstPlayerH)
+        val dstPlayerBw = Rect(0, oppZoneH + gap + dstPlayerH + gap, dstPlayerW, oppZoneH + gap + playerZoneH)
+        val dstMoves = Rect(0, oppZoneH + gap + playerZoneH + gap, movesW, compH)
 
         canvas.drawBitmap(screen, srcOpp, dstOppRaw, filterPaint)
         if (bwOppBitmap != null) {
             canvas.drawBitmap(bwOppBitmap, null, dstOppBw, filterPaint)
             bwOppBitmap.recycle()
         }
-        canvas.drawBitmap(screen, srcPlayer, dstPlayer, filterPaint)
+        canvas.drawBitmap(screen, srcPlayer, dstPlayerRaw, filterPaint)
+        if (bwPlayerBitmap != null) {
+            canvas.drawBitmap(bwPlayerBitmap, null, dstPlayerBw, filterPaint)
+            bwPlayerBitmap.recycle()
+        }
         canvas.drawBitmap(screen, srcMoves, dstMoves, null)
 
         // v2.94: Calibrated Pokéball & Shield Sub-Region Segmentation (from 1080x2342 ground-truth GBL HUD)
@@ -5741,7 +5767,7 @@ class OverlayService : LifecycleService() {
         if (visionText == null || frameEpoch != battleResetEpoch || System.currentTimeMillis() - lastBattleResetTimeMs < 600L) return
 
         val yDivider1 = oppZoneH + gap / 2
-        val yDivider2 = oppZoneH + gap + dstPlayerH + gap / 2
+        val yDivider2 = oppZoneH + gap + playerZoneH + gap / 2
 
         val oppLines = mutableListOf<Text.Line>()
         val playerTopLines = mutableListOf<Text.Line>()
@@ -6783,103 +6809,281 @@ class OverlayService : LifecycleService() {
     }
 
     /**
-     * Detects player switches automatically via Top-Left Player Nameplate OR Bottom Charged Move buttons.
-     * Immediately updates internal state, re-indexes current matchups, and refreshes UI without manual party tap.
+     * Evaluates a single OCR line against a specific player TeamMember slot using the same
+     * 5-variant OCR confusable normalization (1->i/l, 0->o, rn->m, v->y, vv->w) as opponent OCR.
+     * Returns a match quality score where LOWER is better:
+     *   0 = Exact or confusable-normalized species match (e.g., "Swampert" or "Swarnpert" -> "swampert")
+     *   1 = 1-character Levenshtein edit distance OR 7+ character normalized prefix match
+     *   2 = 2-character Levenshtein edit distance (only when species length >= 6, token length >= species length - 1,
+     *       and sharing first or last character so 6-char UI chip labels like "Tinkat" or "Swampe" never false-match)
+     *   null = No match
      */
-    private fun handlePlayerSwitchLines(playerTopLines: List<Text.Line>, playerMoveLines: List<Text.Line>) {
-        val preset = currentPreset ?: return
+    private fun scoreTeamMemberOnLine(lineText: String, slot: TeamMember): Int? {
+        val cleaned = lineText
+            .replace(Regex("(?i)cp\\s*\\d+"), " ")
+            .replace(Regex("(?i)\\b(?:shadow|purified|forme|form|cp|iv|lv|level|vs|party|parties|battle|battles|league|schedule|rank|rating|rewards|reward|train|training|season|current)\\b"), " ")
+            .replace(Regex("\\d{2,}"), " ")
+            .replace(Regex("\\b\\d+\\b"), " ")
+            .replace(Regex("[^a-zA-Z0-9\\s-]"), " ")
+            .trim()
 
-        // 1. Check Top-Left Player Nameplate lines first (sorted top-to-bottom so Pokémon name line is evaluated before trainer name)
-        val sortedTopLines = playerTopLines.sortedBy { it.boundingBox?.top ?: 0 }
-        for (line in sortedTopLines) {
-            val lineText = line.text.trim()
-            if (lineText.length < 3) continue
-            val lowerLine = lineText.lowercase()
-            if (isOverlayHudSelfText(lowerLine)) continue
-            if (isIgnoredMenuToken(lineText)) continue
+        if (cleaned.length < 3) return null
+        if (isIgnoredMenuToken(cleaned)) return null
 
-            val normalizedLine = normalizeOcrToken(lineText)
-            if (normalizedLine == "battle" || normalizedLine == "party") continue
+        val tokens = cleaned.split("\\s+".toRegex()).filter { it.length >= 3 && !isIgnoredMenuToken(it) }
+        if (tokens.isEmpty()) return null
+        val filteredCleaned = tokens.joinToString(" ")
+        val lowerCleaned = filteredCleaned.lowercase()
 
-            val matchCountInLine = preset.pokemon.count { slot ->
-                val base = FormResolver.extractBaseSpecies(slot.name)
-                if (base == "mew") {
-                    normalizedLine.contains("mew") && !normalizedLine.contains("mewt")
-                } else {
-                    base.length >= 3 && normalizedLine.contains(base)
-                }
+        val normCleanedVariants = listOf(
+            normalizeOcrToken(filteredCleaned, oneAsL = false, rnAsM = false, vAsY = false),
+            normalizeOcrToken(filteredCleaned, oneAsL = true, rnAsM = false, vAsY = false),
+            normalizeOcrToken(filteredCleaned, oneAsL = false, rnAsM = true, vAsY = false),
+            normalizeOcrToken(filteredCleaned, oneAsL = false, rnAsM = true, vAsY = true),
+            normalizeOcrToken(filteredCleaned, oneAsL = false, rnAsM = false, vAsY = true)
+        ).filter { it.isNotEmpty() && !isIgnoredMenuToken(it) }.distinct()
+
+        val speciesBase = FormResolver.extractBaseSpecies(slot.name).lowercase()
+        val target = normalizeOcrToken(speciesBase)
+        if (target.length < 3) return null
+
+        val hasMewtwoIndicator = normCleanedVariants.any { it.contains("mewt") || it.contains("mewtw") } ||
+            lowerCleaned.contains("mewt")
+
+        if (target == "mew") {
+            if (hasMewtwoIndicator) return null
+            val hasExactMew = tokens.any { tok ->
+                val n1 = normalizeOcrToken(tok, oneAsL = false, rnAsM = false, vAsY = false)
+                val n2 = normalizeOcrToken(tok, oneAsL = false, rnAsM = true, vAsY = false)
+                n1 == "mew" || n2 == "mew"
             }
-            if (matchCountInLine > 1) continue
+            return if (hasExactMew) 0 else null
+        }
+        if (target == "mewtwo") {
+            return if (hasMewtwoIndicator) 0 else null
+        }
 
-            for (slot in preset.pokemon) {
-                val speciesBase = FormResolver.extractBaseSpecies(slot.name)
-                val cpStr = slot.cp.toString()
+        // Tier 0: Exact or confusable-normalized substring / token match (distance 0)
+        if (target.length >= 4 && (lowerCleaned.contains(speciesBase) || normCleanedVariants.any { it.contains(target) })) {
+            return 0
+        }
 
-                var isMatched = false
-                if (speciesBase == "mew") {
-                    if (normalizedLine.contains("mew") && !normalizedLine.contains("mewt")) {
-                        isMatched = true
+        var bestFuzzyScore: Int? = null
+
+        for (token in tokens) {
+            if (isIgnoredMenuToken(token)) continue
+            val tokenNorms = listOf(
+                normalizeOcrToken(token, oneAsL = false, rnAsM = false, vAsY = false),
+                normalizeOcrToken(token, oneAsL = true, rnAsM = false, vAsY = false),
+                normalizeOcrToken(token, oneAsL = false, rnAsM = true, vAsY = false),
+                normalizeOcrToken(token, oneAsL = false, rnAsM = true, vAsY = true),
+                normalizeOcrToken(token, oneAsL = false, rnAsM = false, vAsY = true)
+            ).filter { it.length >= 3 && !isIgnoredMenuToken(it) }.distinct()
+
+            if (speciesBase.equals(token, ignoreCase = true) || tokenNorms.any { it == target }) {
+                return 0
+            }
+
+            for (normTok in tokenNorms) {
+                if (normTok.length < 4) continue
+
+                // Tier 1: 7+ char prefix match (for long names clipped at the right edge) or edit distance 1
+                if (target.length >= 6 && normTok.length >= 7 && (target.startsWith(normTok) || normTok.startsWith(target))) {
+                    bestFuzzyScore = if (bestFuzzyScore == null) 1 else min(bestFuzzyScore, 1)
+                    continue
+                }
+
+                val lenDiff = kotlin.math.abs(target.length - normTok.length)
+                if (lenDiff <= 1) {
+                    val dist = levenshteinDistance(normTok, target)
+                    if (dist == 1) {
+                        bestFuzzyScore = if (bestFuzzyScore == null) 1 else min(bestFuzzyScore, 1)
+                        continue
                     }
-                } else if (speciesBase == "mewtwo") {
-                    if (normalizedLine.contains("mewt")) {
-                        isMatched = true
-                    }
-                } else if (speciesBase.length >= 3 && normalizedLine.contains(speciesBase)) {
-                    isMatched = true
-                } else if (cpStr.length >= 3 && lineText.contains(cpStr)) {
-                    isMatched = true
-                } else {
-                    val tokens = lineText.replace(Regex("(?i)\\bcp\\s*\\d+\\b"), " ")
-                        .replace(Regex("(?i)\\b(?:battle|battles|party|parties|schedule|rank|rating|rewards|train)\\b"), " ")
-                        .replace(Regex("\\b\\d+\\b"), " ")
-                        .replace(Regex("[^a-zA-Z0-9\\s]"), " ")
-                        .split("\\s+".toRegex())
-                        .filter { it.length >= 4 && !isIgnoredMenuToken(it) }
-                    val maxAllowedDist = if (speciesBase.length <= 5) 1 else 2
-                    for (token in tokens) {
-                        val normTok = normalizeOcrToken(token)
-                        if (isIgnoredMenuToken(normTok)) continue
-                        if ((speciesBase == "mew" && normTok.startsWith("mewt")) ||
-                            (speciesBase == "mewtwo" && !normTok.startsWith("mewt"))
-                        ) continue
-                        if (kotlin.math.abs(normTok.length - speciesBase.length) <= maxAllowedDist &&
-                            levenshteinDistance(normTok, speciesBase) <= maxAllowedDist
-                        ) {
-                            isMatched = true
-                            break
+                }
+
+                // Sliding window check if trailing type icon / CP character got glued to the token
+                if (normTok.length > target.length && target.length >= 5 && normTok.length <= target.length + 3) {
+                    val sub = normTok.substring(0, target.length)
+                    if (!isIgnoredMenuToken(sub)) {
+                        val subDist = levenshteinDistance(sub, target)
+                        if (subDist == 0) return 0
+                        if (subDist == 1) {
+                            bestFuzzyScore = if (bestFuzzyScore == null) 1 else min(bestFuzzyScore, 1)
+                            continue
                         }
                     }
                 }
 
-                if (isMatched) {
-                    executePlayerSwitch(slot.name)
-                    return
+                // Tier 2: Edit distance 2 (strictly requires target.length >= 6, normTok.length >= target.length - 1
+                // so 6-char truncated UI chip labels like "Tinkat" or "Swampe" can never match 8-char species,
+                // and requires matching first or last letter)
+                if (target.length >= 6 && normTok.length >= target.length - 1 && lenDiff <= 2) {
+                    if (normTok.first() == target.first() || normTok.last() == target.last()) {
+                        val dist = levenshteinDistance(normTok, target)
+                        if (dist == 2) {
+                            bestFuzzyScore = if (bestFuzzyScore == null) 2 else min(bestFuzzyScore, 2)
+                        }
+                    }
                 }
             }
         }
 
+        return bestFuzzyScore
+    }
+
+    /**
+     * Detects player switches automatically via Top-Left Player Nameplate OR Bottom Charged Move buttons.
+     * Evaluates ALL 3 team Pokémon simultaneously across all lines to find the strictly best match
+     * (rather than checking one Pokémon at a time starting from the Lead).
+     */
+    private fun handlePlayerSwitchLines(playerTopLines: List<Text.Line>, playerMoveLines: List<Text.Line>) {
+        val preset = currentPreset ?: return
+        if (preset.pokemon.isEmpty()) return
+
+        // Precompute 5-6 char chip prefixes for each slot so we can detect & reject any horizontal row
+        // that comes from our own overlay's team chip bar ([Tinkat] [Mimiky] [Swampe])
+        val slotChipPrefixes = preset.pokemon.map { slot ->
+            val firstWord = slot.name
+                .replace(Regex("^Shadow\\s+", RegexOption.IGNORE_CASE), "")
+                .replace(Regex("^Kanto\\s+", RegexOption.IGNORE_CASE), "")
+                .split(" ")
+                .firstOrNull()
+                .orEmpty()
+            normalizeOcrToken(firstWord.take(6), rnAsM = true)
+        }
+
+        fun countChipPrefixesInText(raw: String): Int {
+            val norm = normalizeOcrToken(raw, rnAsM = true)
+            if (norm.length < 4) return 0
+            return slotChipPrefixes.withIndex().count { (_, prefix) ->
+                prefix.length >= 4 && norm.contains(prefix)
+            }
+        }
+
+        // 1. Evaluate Top-Left Player Nameplate lines across ALL 3 team slots simultaneously
+        val candidateTopLines = playerTopLines
+            .filter { line ->
+                val t = line.text.trim()
+                if (t.length < 3) return@filter false
+                val lower = t.lowercase()
+                if (isOverlayHudSelfText(lower)) return@filter false
+                if (isIgnoredMenuToken(t)) return@filter false
+                val norm = normalizeOcrToken(t)
+                if (norm == "battle" || norm == "party") return@filter false
+                // Reject single lines that contain 2+ team member chip prefixes
+                if (countChipPrefixesInText(t) > 1) return@filter false
+                true
+            }
+            .sortedBy { it.boundingBox?.top ?: 0 }
+
+        // Also reject any horizontal Y-band (within 36px) where multiple separate Text.Line boxes
+        // together match 2+ different team member chip prefixes (e.g. ML Kit splitting [Tinkat] [Mimiky] [Swampe] into 3 boxes)
+        val filteredTopLines = candidateTopLines.filter { line ->
+            val cy = line.boundingBox?.centerY() ?: return@filter true
+            val bandCombined = candidateTopLines
+                .filter { other ->
+                    val ocy = other.boundingBox?.centerY() ?: cy
+                    kotlin.math.abs(ocy - cy) <= 36
+                }
+                .joinToString(" ") { it.text }
+            countChipPrefixesInText(bandCombined) <= 1
+        }
+
+        // Score every team slot across all valid top lines and find each slot's best (lowest) score
+        val slotBestScores = mutableMapOf<Int, Int>()
+        for (line in filteredTopLines) {
+            val lineText = line.text.trim()
+            val lineScores = mutableMapOf<Int, Int>()
+            for ((slotIdx, slot) in preset.pokemon.withIndex()) {
+                val score = scoreTeamMemberOnLine(lineText, slot)
+                if (score != null) {
+                    lineScores[slotIdx] = score
+                }
+            }
+            // If a single line matched multiple distinct slots at the same fuzzy level, ignore unless one is strictly better
+            if (lineScores.isNotEmpty()) {
+                val minLineScore = lineScores.values.minOrNull()!!
+                val bestOnLine = lineScores.filterValues { it == minLineScore }.keys
+                if (bestOnLine.size == 1) {
+                    val winIdx = bestOnLine.first()
+                    val prevBest = slotBestScores[winIdx]
+                    if (prevBest == null || minLineScore < prevBest) {
+                        slotBestScores[winIdx] = minLineScore
+                    }
+                } else if (minLineScore == 0) {
+                    // Disambiguate substring species names (e.g. Porygon2 vs Porygon) by longest base species
+                    val longestIdx = bestOnLine.maxByOrNull { idx ->
+                        FormResolver.extractBaseSpecies(preset.pokemon[idx].name).length
+                    }
+                    if (longestIdx != null) {
+                        val prevBest = slotBestScores[longestIdx]
+                        if (prevBest == null || 0 < prevBest) {
+                            slotBestScores[longestIdx] = 0
+                        }
+                    }
+                }
+            }
+        }
+
+        if (slotBestScores.isNotEmpty()) {
+            val bestScore = slotBestScores.values.minOrNull()!!
+            val winningSlots = slotBestScores.filterValues { it == bestScore }.keys.toList()
+            if (winningSlots.size == 1) {
+                val winningSlot = preset.pokemon[winningSlots[0]]
+                executePlayerSwitch(winningSlot.name)
+                return
+            }
+        }
+
+        // Unique-CP fallback ONLY if no species name matched above AND the detected CP belongs to exactly 1 slot on the team
+        for (line in filteredTopLines) {
+            val cpMatch = Regex("(?i)\\bcp\\s*(\\d{3,4})\\b").find(line.text)
+            val detectedCp = cpMatch?.groupValues?.getOrNull(1)?.toIntOrNull() ?: continue
+            val matchingSlots = preset.pokemon.filter { it.cp == detectedCp }
+            if (matchingSlots.size == 1) {
+                executePlayerSwitch(matchingSlots[0].name)
+                return
+            }
+        }
+
         // 2. Check Bottom Charged Move Buttons across all bottom move lines
-        if (playerMoveLines.isNotEmpty()) {
-            val combinedBottomNorm = playerMoveLines.joinToString(" ") { normalizeOcrToken(it.text) }
-            val combinedBottomLower = playerMoveLines.joinToString(" ") { it.text.lowercase() }
+        // Evaluates all 3 slots and requires a strictly unique best score (ties never default to Slot 0)
+        val validMoveLines = playerMoveLines.filter { line ->
+            val t = line.text.trim()
+            t.length >= 3 && !isOverlayHudSelfText(t.lowercase()) && countChipPrefixesInText(t) <= 1
+        }
+        if (validMoveLines.isNotEmpty()) {
+            val combinedBottomNorm = validMoveLines.joinToString(" ") { normalizeOcrToken(it.text, rnAsM = true) }
+            val combinedBottomLower = validMoveLines.joinToString(" ") { it.text.lowercase() }
 
             var bestSlot: TeamMember? = null
             var bestScore = 0
+            var secondBestScore = 0
 
             for (slot in preset.pokemon) {
                 val meta = getPokemonMeta(slot.name)
-                val candidateMoves = listOf(slot.chargedMove1, slot.chargedMove2, meta.chargedMove1, meta.chargedMove2)
+                val candidateMoves = listOf(
+                    slot.chargedMove1,
+                    slot.chargedMove2,
+                    meta.chargedMove1,
+                    meta.chargedMove2,
+                    meta.chargedMove3,
+                    meta.chargedMove4
+                )
                     .map { it.trim() }
                     .filter { it.isNotEmpty() }
                     .distinct()
 
                 var score = 0
                 for (move in candidateMoves) {
-                    val normMove = normalizeOcrToken(move)
-                    if (normMove.length >= 3 && combinedBottomNorm.contains(normMove)) {
+                    val normMove = normalizeOcrToken(move, rnAsM = true)
+                    if (normMove.length >= 4 && combinedBottomNorm.contains(normMove)) {
                         score += 3
                     } else {
-                        val words = move.lowercase().split(" ").filter { it.length >= 4 && it != "attack" && it != "ball" }
+                        val words = move.lowercase().split(" ").filter {
+                            it.length >= 4 && it != "attack" && it != "ball" && it != "wave" && it != "beam" && it != "punch" && it != "pulse"
+                        }
                         for (w in words) {
                             if (combinedBottomLower.contains(w)) {
                                 score += 1
@@ -6889,12 +7093,17 @@ class OverlayService : LifecycleService() {
                 }
 
                 if (score > bestScore) {
+                    secondBestScore = bestScore
                     bestScore = score
                     bestSlot = slot
+                } else if (score == bestScore && score > 0) {
+                    secondBestScore = score
+                } else if (score > secondBestScore) {
+                    secondBestScore = score
                 }
             }
 
-            if (bestSlot != null && bestScore >= 2) {
+            if (bestSlot != null && bestScore >= 3 && bestScore > secondBestScore) {
                 executePlayerSwitch(bestSlot.name)
             }
         }
@@ -8872,6 +9081,7 @@ class OverlayService : LifecycleService() {
         super.onDestroy()
         isInstanceRunning = false
         hasActiveMediaProjection = false
+        notifyRunningStateChanged()
         battleLoopJob?.cancel()
 
         try {
