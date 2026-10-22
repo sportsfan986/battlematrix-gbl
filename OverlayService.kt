@@ -5027,7 +5027,11 @@ class OverlayService : LifecycleService() {
         } else {
             val selectedId = prefs.getString("gbl_selected_preset_id", existing[0].id)
             currentPreset = existing.find { it.id == selectedId } ?: existing[0]
-            activeUserPokemonName = currentPreset?.pokemon?.getOrNull(0)?.name
+            if (activeUserPokemonName.isNullOrBlank() ||
+                currentPreset?.pokemon?.none { it.name.equals(activeUserPokemonName, ignoreCase = true) } == true
+            ) {
+                activeUserPokemonName = currentPreset?.pokemon?.getOrNull(0)?.name
+            }
         }
     }
 
@@ -5595,43 +5599,7 @@ class OverlayService : LifecycleService() {
         val w = screen.width
         val h = screen.height
 
-        // CRITICAL FIX: Mask out our own floating overlay window on the captured frame
-        // (including status bar / cutout offset via getLocationOnScreen and both Top/Bottom layout modes)
-        // so ML Kit can NEVER read our own HUD or team chips!
-        try {
-            val view = overlayView
-            if (view != null) {
-                val loc = IntArray(2)
-                try {
-                    view.getLocationOnScreen(loc)
-                } catch (_: Exception) {}
-                val ow = (if (view.width > 0) view.width else layoutParams.width).coerceAtLeast(1)
-                val oh = (if (view.height > 0) view.height else (240 * resources.displayMetrics.density).toInt()).coerceAtLeast(1)
-                val isBottomGravity = (layoutParams.gravity and Gravity.BOTTOM) == Gravity.BOTTOM
-                val fallbackX = if (isBottomGravity) ((w - ow) / 2).coerceAtLeast(0) else layoutParams.x
-                val fallbackY = if (isBottomGravity) (h - oh - layoutParams.y - (32 * resources.displayMetrics.density).toInt()).coerceAtLeast(0) else layoutParams.y
-                val ox = min(fallbackX, if (loc[0] > 0) loc[0] else fallbackX).coerceIn(0, w - 1)
-                val oyMin = min(fallbackY, if (loc[1] > 0) loc[1] else fallbackY).coerceIn(0, h - 1)
-                val oyMax = max(fallbackY, if (loc[1] > 0) loc[1] else fallbackY).coerceIn(0, h - 1)
-                val screenCanvas = Canvas(screen)
-                val maskPaint = Paint().apply { color = Color.BLACK; style = Paint.Style.FILL }
-                screenCanvas.drawRect(
-                    (ox - 16).coerceAtLeast(0).toFloat(),
-                    (oyMin - 24).coerceAtLeast(0).toFloat(),
-                    (ox + ow + 24).coerceAtMost(w).toFloat(),
-                    (oyMax + oh + 48).coerceAtMost(h).toFloat(),
-                    maskPaint
-                )
-            }
-            if (statusToastView?.visibility == View.VISIBLE) {
-                val screenCanvas = Canvas(screen)
-                val maskPaint = Paint().apply { color = Color.BLACK; style = Paint.Style.FILL }
-                screenCanvas.drawRect(0f, 0f, w.toFloat(), (h * 0.045f).coerceAtMost(h * 0.065f), maskPaint)
-            }
-        } catch (_: Exception) {}
-
         // Generous top nameplate bounds (Y: 0.025..0.148) where Player & Opponent Pokémon names & CPs sit
-        // (overlayView is already masked out above so it can never be self-read)
         val srcOpp = Rect(
             (w * 0.42f).toInt().coerceIn(0, w - 1),
             (h * 0.025f).toInt().coerceIn(0, h - 1),
@@ -6813,9 +6781,8 @@ class OverlayService : LifecycleService() {
      * 5-variant OCR confusable normalization (1->i/l, 0->o, rn->m, v->y, vv->w) as opponent OCR.
      * Returns a match quality score where LOWER is better:
      *   0 = Exact or confusable-normalized species match (e.g., "Swampert" or "Swarnpert" -> "swampert")
-     *   1 = 1-character Levenshtein edit distance OR 7+ character normalized prefix match
-     *   2 = 2-character Levenshtein edit distance (only when species length >= 6, token length >= species length - 1,
-     *       and sharing first or last character so 6-char UI chip labels like "Tinkat" or "Swampe" never false-match)
+     *   1 = 1-character Levenshtein edit distance OR 5+ character normalized prefix match
+     *   2 = 2-character Levenshtein edit distance (for species length >= 6 and token length >= 5)
      *   null = No match
      */
     private fun scoreTeamMemberOnLine(lineText: String, slot: TeamMember): Int? {
@@ -6887,8 +6854,8 @@ class OverlayService : LifecycleService() {
             for (normTok in tokenNorms) {
                 if (normTok.length < 4) continue
 
-                // Tier 1: 7+ char prefix match (for long names clipped at the right edge) or edit distance 1
-                if (target.length >= 6 && normTok.length >= 7 && (target.startsWith(normTok) || normTok.startsWith(target))) {
+                // Tier 1: 5+ char prefix match (for partially clipped names) or edit distance 1
+                if (target.length >= 5 && normTok.length >= 5 && (target.startsWith(normTok) || normTok.startsWith(target))) {
                     bestFuzzyScore = if (bestFuzzyScore == null) 1 else min(bestFuzzyScore, 1)
                     continue
                 }
@@ -6903,7 +6870,7 @@ class OverlayService : LifecycleService() {
                 }
 
                 // Sliding window check if trailing type icon / CP character got glued to the token
-                if (normTok.length > target.length && target.length >= 5 && normTok.length <= target.length + 3) {
+                if (normTok.length > target.length && target.length >= 5 && normTok.length <= target.length + 4) {
                     val sub = normTok.substring(0, target.length)
                     if (!isIgnoredMenuToken(sub)) {
                         val subDist = levenshteinDistance(sub, target)
@@ -6915,15 +6882,11 @@ class OverlayService : LifecycleService() {
                     }
                 }
 
-                // Tier 2: Edit distance 2 (strictly requires target.length >= 6, normTok.length >= target.length - 1
-                // so 6-char truncated UI chip labels like "Tinkat" or "Swampe" can never match 8-char species,
-                // and requires matching first or last letter)
-                if (target.length >= 6 && normTok.length >= target.length - 1 && lenDiff <= 2) {
-                    if (normTok.first() == target.first() || normTok.last() == target.last()) {
-                        val dist = levenshteinDistance(normTok, target)
-                        if (dist == 2) {
-                            bestFuzzyScore = if (bestFuzzyScore == null) 2 else min(bestFuzzyScore, 2)
-                        }
+                // Tier 2: Edit distance 2 (when species length >= 6 and token length >= 5)
+                if (target.length >= 6 && normTok.length >= 5 && lenDiff <= 2) {
+                    val dist = levenshteinDistance(normTok, target)
+                    if (dist == 2) {
+                        bestFuzzyScore = if (bestFuzzyScore == null) 2 else min(bestFuzzyScore, 2)
                     }
                 }
             }
@@ -6935,64 +6898,27 @@ class OverlayService : LifecycleService() {
     /**
      * Detects player switches automatically via Top-Left Player Nameplate OR Bottom Charged Move buttons.
      * Evaluates ALL 3 team Pokémon simultaneously across all lines to find the strictly best match
-     * (rather than checking one Pokémon at a time starting from the Lead).
+     * (rather than checking one Pokémon at a time starting from the Lead, or matching shared CPs like 2499).
      */
     private fun handlePlayerSwitchLines(playerTopLines: List<Text.Line>, playerMoveLines: List<Text.Line>) {
         val preset = currentPreset ?: return
         if (preset.pokemon.isEmpty()) return
-
-        // Precompute 5-6 char chip prefixes for each slot so we can detect & reject any horizontal row
-        // that comes from our own overlay's team chip bar ([Tinkat] [Mimiky] [Swampe])
-        val slotChipPrefixes = preset.pokemon.map { slot ->
-            val firstWord = slot.name
-                .replace(Regex("^Shadow\\s+", RegexOption.IGNORE_CASE), "")
-                .replace(Regex("^Kanto\\s+", RegexOption.IGNORE_CASE), "")
-                .split(" ")
-                .firstOrNull()
-                .orEmpty()
-            normalizeOcrToken(firstWord.take(6), rnAsM = true)
-        }
-
-        fun countChipPrefixesInText(raw: String): Int {
-            val norm = normalizeOcrToken(raw, rnAsM = true)
-            if (norm.length < 4) return 0
-            return slotChipPrefixes.withIndex().count { (_, prefix) ->
-                prefix.length >= 4 && norm.contains(prefix)
-            }
-        }
 
         // 1. Evaluate Top-Left Player Nameplate lines across ALL 3 team slots simultaneously
         val candidateTopLines = playerTopLines
             .filter { line ->
                 val t = line.text.trim()
                 if (t.length < 3) return@filter false
-                val lower = t.lowercase()
-                if (isOverlayHudSelfText(lower)) return@filter false
                 if (isIgnoredMenuToken(t)) return@filter false
                 val norm = normalizeOcrToken(t)
                 if (norm == "battle" || norm == "party") return@filter false
-                // Reject single lines that contain 2+ team member chip prefixes
-                if (countChipPrefixesInText(t) > 1) return@filter false
                 true
             }
             .sortedBy { it.boundingBox?.top ?: 0 }
 
-        // Also reject any horizontal Y-band (within 36px) where multiple separate Text.Line boxes
-        // together match 2+ different team member chip prefixes (e.g. ML Kit splitting [Tinkat] [Mimiky] [Swampe] into 3 boxes)
-        val filteredTopLines = candidateTopLines.filter { line ->
-            val cy = line.boundingBox?.centerY() ?: return@filter true
-            val bandCombined = candidateTopLines
-                .filter { other ->
-                    val ocy = other.boundingBox?.centerY() ?: cy
-                    kotlin.math.abs(ocy - cy) <= 36
-                }
-                .joinToString(" ") { it.text }
-            countChipPrefixesInText(bandCombined) <= 1
-        }
-
         // Score every team slot across all valid top lines and find each slot's best (lowest) score
         val slotBestScores = mutableMapOf<Int, Int>()
-        for (line in filteredTopLines) {
+        for (line in candidateTopLines) {
             val lineText = line.text.trim()
             val lineScores = mutableMapOf<Int, Int>()
             for ((slotIdx, slot) in preset.pokemon.withIndex()) {
@@ -7037,7 +6963,8 @@ class OverlayService : LifecycleService() {
         }
 
         // Unique-CP fallback ONLY if no species name matched above AND the detected CP belongs to exactly 1 slot on the team
-        for (line in filteredTopLines) {
+        // (prevents shared CPs like Tinkaton 2499 & Swampert 2499 from ever defaulting to Slot 0 Lead)
+        for (line in candidateTopLines) {
             val cpMatch = Regex("(?i)\\bcp\\s*(\\d{3,4})\\b").find(line.text)
             val detectedCp = cpMatch?.groupValues?.getOrNull(1)?.toIntOrNull() ?: continue
             val matchingSlots = preset.pokemon.filter { it.cp == detectedCp }
@@ -7049,10 +6976,7 @@ class OverlayService : LifecycleService() {
 
         // 2. Check Bottom Charged Move Buttons across all bottom move lines
         // Evaluates all 3 slots and requires a strictly unique best score (ties never default to Slot 0)
-        val validMoveLines = playerMoveLines.filter { line ->
-            val t = line.text.trim()
-            t.length >= 3 && !isOverlayHudSelfText(t.lowercase()) && countChipPrefixesInText(t) <= 1
-        }
+        val validMoveLines = playerMoveLines.filter { it.text.trim().length >= 3 }
         if (validMoveLines.isNotEmpty()) {
             val combinedBottomNorm = validMoveLines.joinToString(" ") { normalizeOcrToken(it.text, rnAsM = true) }
             val combinedBottomLower = validMoveLines.joinToString(" ") { it.text.lowercase() }

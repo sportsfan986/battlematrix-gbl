@@ -1,5 +1,15 @@
 # SilphScope PvP Changelog
 
+## [v3.14] — 2026-10-22 — Single-Screen Scanner Mode Unmasked Capture, Best-Match-Across-Team Player Switch OCR & Single-Tap Stop Overlay Button Fix
+- **Single-Screen Scanner Mode Unmasked Capture (`captureAndProcessBattleRegions`)**:
+  - Removed all black-rectangle screen masking (`overlayView` and `statusToastView`) and overlay chip-bar filtering so single-screen (single-app) scanner mode never masks out Pokémon GO HUD or move button pixels underneath the floating overlay or status toasts.
+- **Best-Match-Across-Team Player Switch OCR (`scoreTeamMemberOnLine` & `handlePlayerSwitchLines`)**:
+  - Replaced sequential slot-order matching (which checked Slot 0 / Lead first and immediately returned on any fuzzy edit-distance-2 or shared-CP match such as `Tinkaton` 2499 & `Swampert` 2499) with simultaneous scoring across all 3 team Pokémon to select the strictly best match (`score 0` exact/confusable-normalized > `score 1` 1-edit/5+ char prefix > `score 2` 2-edit) regardless of team order (`Tinkaton / Mimikyu / Swampert` or `Swampert / Mimikyu / Tinkaton`).
+  - Added High-Contrast B&W nameplate extraction (`createHighContrastWhiteTextBitmap`) for the top-left player nameplate (`srcPlayer`) alongside 5-variant OCR confusable normalization (`rn -> m`, `1 -> i/l`, `0 -> o`, `v -> y`, `vv -> w`) so `"Swarnpert"` normalizes directly to `"swampert"` (exact match, score `0`).
+  - Updated CP and bottom Charged Move button fallbacks to require a strictly unique match across all 3 team members so shared CPs (`2499`) or shared moves never default to Slot 0 (Lead).
+- **Single-Tap "Stop Battle Overlay" Button Restoration (`MainActivity` & `OverlayService`)**:
+  - Fixed `stopOverlayService()` where `syncOverlayRunningUiState()` read `OverlayService.isInstanceRunning` before the asynchronous stop intent was processed, requiring two taps on **Stop Battle Overlay** to restore **Start Battle Overlay**.
+
 ## [v3.13] — 2026-10-22 — Best-Match-Across-Team Player Switch OCR Fix & Single-Tap Stop Overlay Button Fix
 - **Best-Match-Across-Team Player Switch OCR (`scoreTeamMemberOnLine` & `handlePlayerSwitchLines`)**:
   - Replaced sequential slot-order matching (which checked Slot 0 / Lead first and immediately returned on any fuzzy edit-distance-2 or shared-CP match) with simultaneous scoring across all 3 team Pokémon to select the strictly best match (`score 0` exact/confusable-normalized > `score 1` 1-edit/7+ char prefix > `score 2` 2-edit) regardless of team order (`Tinkaton / Mimikyu / Swampert` or `Swampert / Mimikyu / Tinkaton`).

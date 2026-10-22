@@ -123,13 +123,14 @@ jobs:
           tag_name: ${{ steps.version.outputs.tag }}
           name: "SilphScope PvP ${{ steps.version.outputs.tag }}"
           body: |
-            ## SilphScope PvP ${{ steps.version.outputs.tag }} — Official v3.13 Release (Best-Match-Across-Team Player Switch OCR Fix & Single-Tap Stop Overlay Button Fix)
+            ## SilphScope PvP ${{ steps.version.outputs.tag }} — Official v3.14 Release (Single-Screen Scanner Mode Unmasked Capture, Best-Match-Across-Team Player Switch OCR & Single-Tap Stop Overlay Button Fix)
             
-            ### What's New in v3.13
+            ### What's New in v3.14
+            - **Single-Screen Scanner Mode Unmasked Capture (`captureAndProcessBattleRegions`)**:
+              - Removed all black-rectangle screen masking (`overlayView` and `statusToastView`) and overlay chip-bar filtering so single-app screen capture mode never masks out Pokémon GO HUD or move button pixels underneath the floating overlay or status toasts.
             - **Best-Match-Across-Team Player Switch OCR (`handlePlayerSwitchLines` & `scoreTeamMemberOnLine`)**:
-              - Replaced sequential slot-order matching (which evaluated Slot 0 / Lead first and returned on the first fuzzy or shared-CP match) with simultaneous scoring across all 3 team Pokémon to select the strictly best match across the entire team regardless of slot order (e.g., `Tinkaton / Mimikyu / Swampert` or `Swampert / Mimikyu / Tinkaton`).
+              - Replaced sequential slot-order matching (which evaluated Slot 0 / Lead first and returned on the first fuzzy or shared-CP match, such as `Tinkaton` 2499 and `Swampert` 2499) with simultaneous scoring across all 3 team Pokémon to select the strictly best match across the entire team regardless of slot order.
               - Added High-Contrast B&W nameplate extraction (`createHighContrastWhiteTextBitmap`) for the top-left player nameplate and full 5-variant OCR confusable normalization (`rn -> m`, `1 -> i/l`, `0 -> o`, `v -> y`, `vv -> w`) so `"Swarnpert"` normalizes to `"swampert"` (exact match, score `0`).
-              - Added horizontal chip-bar rejection and strict fuzzy length guards so 6-character overlay team chips (`Tinkat`, `Mimiky`, `Swampe`) or shared default CPs can never false-switch back to the Lead.
             - **Single-Tap "Stop Battle Overlay" Button Fix (`MainActivity`)**:
               - Synchronously clears `OverlayService.isInstanceRunning` and updates `MainActivity` button state on the first tap of **Stop Battle Overlay** (plus live `onRunningStateChanged` callback), eliminating the need to tap Stop twice to restore **Start Battle Overlay**.
             - **Top-5 Role Upgrade Recommendations (`Top-200` Candidate Pool vs. `Top-100` Blended Meta)**:
