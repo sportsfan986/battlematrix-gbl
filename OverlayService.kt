@@ -4843,7 +4843,7 @@ class OverlayService : LifecycleService() {
         fun recommendTop3MovesetsForTeamStatic(
             slots: List<TeamMember>,
             league: String,
-            seasonLogs: List<SyncBattleLogRecord>,
+            seasonLogs: List<Pair<Long, List<String>>>,
             manualArchetypeOverride: String? = null
         ): TeamMovesetRecommendationsResult {
             val baselineEval = evaluateOrAutoOrderTeamStatic(
@@ -4854,29 +4854,28 @@ class OverlayService : LifecycleService() {
                 manualArchetypeOverride = manualArchetypeOverride
             )
             val curSlots = baselineEval.orderedSlots
-            val dist = computeHybridOpponentDistributionStatic(league, seasonLogs)
+            val dist = computeBlendedSeasonMetaStatic(league, seasonLogs)
+            val allOpps = (dist.leadWeights.keys + dist.fieldWeights.keys).distinct()
             val isAbb = baselineEval.archetype.equals("ABB", ignoreCase = true)
 
-            val curLeadMap = Array(3) { HashMap<String, Double>() }
-            val curSwapMap = Array(3) { HashMap<String, Double>() }
-            val curCloserMap = Array(3) { HashMap<String, Double>() }
+            val curLeadMap = Array(3) { HashMap<String, Double>(allOpps.size) }
+            val curSwapMap = Array(3) { HashMap<String, Double>(allOpps.size) }
+            val curCloserMap = Array(3) { HashMap<String, Double>(allOpps.size) }
 
             for (i in 0..2) {
                 val m = curSlots.getOrNull(i) ?: continue
-                for ((opp, _) in dist.fieldWeights) {
-                    val perms = calculateAllShieldPermutationsStatic(
-                        m.name, opp, league, m.fastMove, m.chargedMove1, m.chargedMove2, m.cp, m.ivs
-                    )
-                    val r1v1 = (perms["1v1"] ?: 500).toDouble()
-                    val r2v2 = (perms["2v2"] ?: 500).toDouble()
-                    val r0v0 = (perms["0v0"] ?: 500).toDouble()
-                    val r1v0 = (perms["1v0"] ?: 500).toDouble()
-                    val r1v2 = (perms["1v2"] ?: 500).toDouble()
-                    val r0v1 = (perms["0v1"] ?: 500).toDouble()
+                for (opp in allOpps) {
+                    val b00 = calculateMatchupRatingStatic(m.name, opp, 0, 0, league, m.fastMove, m.chargedMove1, m.chargedMove2, m.cp, m.ivs).toDouble()
+                    val b01 = calculateMatchupRatingStatic(m.name, opp, 0, 1, league, m.fastMove, m.chargedMove1, m.chargedMove2, m.cp, m.ivs).toDouble()
+                    val b10 = calculateMatchupRatingStatic(m.name, opp, 1, 0, league, m.fastMove, m.chargedMove1, m.chargedMove2, m.cp, m.ivs).toDouble()
+                    val b11 = calculateMatchupRatingStatic(m.name, opp, 1, 1, league, m.fastMove, m.chargedMove1, m.chargedMove2, m.cp, m.ivs).toDouble()
+                    val b12 = calculateMatchupRatingStatic(m.name, opp, 1, 2, league, m.fastMove, m.chargedMove1, m.chargedMove2, m.cp, m.ivs).toDouble()
+                    val b21 = calculateMatchupRatingStatic(m.name, opp, 2, 1, league, m.fastMove, m.chargedMove1, m.chargedMove2, m.cp, m.ivs).toDouble()
+                    val b22 = calculateMatchupRatingStatic(m.name, opp, 2, 2, league, m.fastMove, m.chargedMove1, m.chargedMove2, m.cp, m.ivs).toDouble()
 
-                    curLeadMap[i][opp] = 0.65 * r1v1 + 0.35 * r2v2
-                    curSwapMap[i][opp] = 0.45 * r1v1 + 0.25 * r1v2 + 0.30 * r0v1
-                    curCloserMap[i][opp] = 0.55 * r0v0 + 0.45 * r1v0
+                    curLeadMap[i][opp] = 0.45 * b11 + 0.35 * b22 + 0.10 * b00 + 0.05 * b12 + 0.05 * b21
+                    curSwapMap[i][opp] = 0.40 * b11 + 0.20 * b10 + 0.20 * b01 + 0.10 * b21 + 0.10 * b00
+                    curCloserMap[i][opp] = 0.50 * b00 + 0.20 * b10 + 0.15 * b01 + 0.15 * b11
                 }
             }
 
@@ -4924,45 +4923,46 @@ class OverlayService : LifecycleService() {
                         }
                         totalCombosEvaluated++
 
-                        val candLeadMap = HashMap<String, Double>()
-                        val candSwapMap = HashMap<String, Double>()
-                        val candCloserMap = HashMap<String, Double>()
+                        val candLeadMap = HashMap<String, Double>(allOpps.size)
+                        val candSwapMap = HashMap<String, Double>(allOpps.size)
+                        val candCloserMap = HashMap<String, Double>(allOpps.size)
+
+                        for (opp in allOpps) {
+                            val b00 = calculateMatchupRatingStatic(m.name, opp, 0, 0, league, fMove, c1Move, c2Move, m.cp, m.ivs).toDouble()
+                            val b01 = calculateMatchupRatingStatic(m.name, opp, 0, 1, league, fMove, c1Move, c2Move, m.cp, m.ivs).toDouble()
+                            val b10 = calculateMatchupRatingStatic(m.name, opp, 1, 0, league, fMove, c1Move, c2Move, m.cp, m.ivs).toDouble()
+                            val b11 = calculateMatchupRatingStatic(m.name, opp, 1, 1, league, fMove, c1Move, c2Move, m.cp, m.ivs).toDouble()
+                            val b12 = calculateMatchupRatingStatic(m.name, opp, 1, 2, league, fMove, c1Move, c2Move, m.cp, m.ivs).toDouble()
+                            val b21 = calculateMatchupRatingStatic(m.name, opp, 2, 1, league, fMove, c1Move, c2Move, m.cp, m.ivs).toDouble()
+                            val b22 = calculateMatchupRatingStatic(m.name, opp, 2, 2, league, fMove, c1Move, c2Move, m.cp, m.ivs).toDouble()
+
+                            candLeadMap[opp] = 0.45 * b11 + 0.35 * b22 + 0.10 * b00 + 0.05 * b12 + 0.05 * b21
+                            candSwapMap[opp] = 0.40 * b11 + 0.20 * b10 + 0.20 * b01 + 0.10 * b21 + 0.10 * b00
+                            candCloserMap[opp] = 0.50 * b00 + 0.20 * b10 + 0.15 * b01 + 0.15 * b11
+                        }
+
                         var leadSum = 0.0
+                        for ((opp, prob) in dist.leadWeights) {
+                            if (prob > 0.0) leadSum += prob * (candLeadMap[opp] ?: 500.0)
+                        }
+
                         var swapSum = 0.0
                         var closerSum = 0.0
+                        for ((opp, prob) in dist.fieldWeights) {
+                            if (prob > 0.0) {
+                                swapSum += prob * (candSwapMap[opp] ?: 500.0)
+                                closerSum += prob * (candCloserMap[opp] ?: 500.0)
+                            }
+                        }
                         var swapVarianceSum = 0.0
-
-                        for ((opp, fProb) in dist.fieldWeights) {
-                            val lProb = dist.leadWeights[opp] ?: fProb
-                            val perms = calculateAllShieldPermutationsStatic(
-                                m.name, opp, league, fMove, c1Move, c2Move, m.cp, m.ivs
-                            )
-                            val r1v1 = (perms["1v1"] ?: 500).toDouble()
-                            val r2v2 = (perms["2v2"] ?: 500).toDouble()
-                            val r0v0 = (perms["0v0"] ?: 500).toDouble()
-                            val r1v0 = (perms["1v0"] ?: 500).toDouble()
-                            val r1v2 = (perms["1v2"] ?: 500).toDouble()
-                            val r0v1 = (perms["0v1"] ?: 500).toDouble()
-
-                            val lScore = 0.65 * r1v1 + 0.35 * r2v2
-                            val sScore = 0.45 * r1v1 + 0.25 * r1v2 + 0.30 * r0v1
-                            val cScore = 0.55 * r0v0 + 0.45 * r1v0
-
-                            candLeadMap[opp] = lScore
-                            candSwapMap[opp] = sScore
-                            candCloserMap[opp] = cScore
-
-                            leadSum += lProb * lScore
-                            swapSum += fProb * sScore
-                            closerSum += fProb * cScore
+                        for ((opp, prob) in dist.fieldWeights) {
+                            if (prob > 0.0) {
+                                val diff = (candSwapMap[opp] ?: swapSum) - swapSum
+                                swapVarianceSum += prob * diff * diff
+                            }
                         }
-
-                        for ((opp, fProb) in dist.fieldWeights) {
-                            val diff = (candSwapMap[opp] ?: 500.0) - swapSum
-                            swapVarianceSum += fProb * diff * diff
-                        }
-                        val swapStdDev = kotlin.math.sqrt(swapVarianceSum)
-                        val candSafeSwapBr = (swapSum - 0.15 * swapStdDev).roundToInt().coerceIn(150, 850)
+                        val swapStdDev = kotlin.math.sqrt(max(0.0, swapVarianceSum))
+                        val candSafeSwapBr = (swapSum - 0.5 * swapStdDev).roundToInt().coerceIn(150, 850)
                         val candLeadAggBr = leadSum.roundToInt().coerceIn(150, 850)
                         val candCloserBr = closerSum.roundToInt().coerceIn(150, 850)
                         val candCloserSwapBr = ((candSafeSwapBr * 0.55) + (candCloserBr * 0.45)).roundToInt().coerceIn(150, 850)
