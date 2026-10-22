@@ -1398,7 +1398,7 @@ class OverlayService : LifecycleService() {
             PokemonMeta("Primeape", "primeape", "primeape", "Base", listOf("fighting"), 2488, "Karate Chop", 2, "Rage Fist", "Close Combat", 32, 48, atk = 207.0, def = 138.0, hp = 163, glRank = 10, ulRank = 20, mlRank = 340, isRawBaseStats = true, defaultIvsGl = "5/15/15", defaultIvsUl = "12/15/14"),
             PokemonMeta("Cresselia", "cresselia", "cresselia", "Base", listOf("psychic"), 2488, "Psycho Cut", 2, "Grass Knot", "Moonblast", 36, 46, atk = 152.0, def = 258.0, hp = 260, glRank = 11, ulRank = 4, mlRank = 110, isRawBaseStats = true, defaultIvsGl = "4/11/9", defaultIvsUl = "4/11/11"),
             PokemonMeta("Jumpluff", "jumpluff", "jumpluff", "Base", listOf("grass", "flying"), 1498, "Fairy Wind", 2, "Aerial Ace", "Energy Ball", 28, 42, atk = 118.0, def = 183.0, hp = 181, glRank = 13, ulRank = 300, mlRank = 480, isRawBaseStats = true, defaultIvsGl = "4/15/12", defaultIvsUl = "15/15/15"),
-            PokemonMeta("Swampert", "swampert", "swampert", "Base", listOf("water", "ground"), 2495, "Mud Shot", 2, "Hydro Cannon", "Earthquake", 44, 52, atk = 208.0, def = 175.0, hp = 225, glRank = 15, ulRank = 14, mlRank = 60, isRawBaseStats = true, defaultIvsGl = "6/15/12", defaultIvsUl = "4/15/14"),
+            PokemonMeta("Swampert", "swampert", "swampert", "Base", listOf("water", "ground"), 2495, "Mud Shot", 2, "Hydro Cannon", "Earthquake", 44, 52, atk = 208.0, def = 175.0, hp = 225, glRank = 15, ulRank = 14, mlRank = 60, chargedMove3 = "Sludge Wave", isRawBaseStats = true, defaultIvsGl = "6/15/12", defaultIvsUl = "4/15/14"),
             PokemonMeta("Quagsire", "quagsire", "quagsire", "Base", listOf("water", "ground"), 1499, "Mud Shot", 2, "Aqua Tail", "Stone Edge", 28, 46, atk = 152.0, def = 143.0, hp = 216, glRank = 17, ulRank = 280, mlRank = 450, isRawBaseStats = true, defaultIvsGl = "4/15/10", defaultIvsUl = "15/15/15"),
             PokemonMeta("Whiscash", "whiscash", "whiscash", "Base", listOf("water", "ground"), 1499, "Mud Shot", 2, "Scald", "Mud Bomb", 40, 32, atk = 151.0, def = 141.0, hp = 242, glRank = 19, ulRank = 290, mlRank = 450, isRawBaseStats = true, defaultIvsGl = "4/15/15", defaultIvsUl = "15/15/15"),
             PokemonMeta("Talonflame", "talonflame", "talonflame", "Base", listOf("fire", "flying"), 2493, "Incinerate", 5, "Fly", "Flame Charge", 42, 28, atk = 176.0, def = 155.0, hp = 186, glRank = 18, ulRank = 10, mlRank = 180, isRawBaseStats = true, defaultIvsGl = "4/12/15", defaultIvsUl = "15/15/15"),
@@ -6834,22 +6834,34 @@ class OverlayService : LifecycleService() {
     }
 
     /**
-     * Detects player switches automatically via Bottom Charged Move buttons OR Top-Left Player Nameplate.
-     * Hardened against false switches:
-     * 1. Bottom move buttons take priority (only exist when Pokémon is active & controllable on field).
-     * 2. Fainted Guard: Pokémon marked fainted in playerFaintedSlots can NEVER be matched or swapped to.
-     * 3. Multi-variant normalization (rnAsM = true, vAsY = true) guarantees Swampert (swarnpert) and Mimikyu (rnirnikvu) match.
-     * 4. 2-Frame Debouncing Hysteresis: Top nameplate switches away from the active Pokémon require 2 consecutive frames,
-     *    preventing single-frame visual glitches during charged attack minigames/shield animations from flipping species.
+     * Identifies active player Pokémon & handles tactical / faint swaps:
+     * 1. Ground-Truth Move Buttons: In Pokémon GO Battle League, the active player's Pokémon is NEVER displayed
+     *    with a nameplate at the top-left (top-left is exclusively the player's Pokéballs, Shields & Trainer Nickname).
+     *    The player's active Pokémon is identified SOLELY by its bottom charged move buttons (srcMoves).
+     * 2. Active Locking: When no bottom move buttons are visible (e.g. during fast attack tapping, charged move
+     *    bubble-swiping minigames, shield prompts, particle effects, or finger occlusions), the active Pokémon
+     *    remains LOCKED and is NEVER changed. Swampert (or any active Pokémon) stays active continuously.
+     * 3. Move Button Matching: Multi-variant normalization (rnAsM = true, vAsY = true) and token distance checks
+     *    guarantee Swampert (Hydro Cannon, Earthquake, Sludge Wave), Tinkaton (Gigaton Hammer, Bulldoze, Brutal Swing),
+     *    and Mimikyu (Play Rough, Shadow Sneak) match immediately when controllable.
+     * 4. Fainted Guard: Dead Pokémon can never be matched or swapped to.
+     * 5. Pre-Battle Lead Selection (isWaitingForOpponent == true): Only allows setting the initial active lead if
+     *    playerTopLines contains an exact species match (speciesBase >= 4 chars) from the pre-battle team card,
+     *    preventing any random OCR noise from ever flipping the lead.
      */
     private fun handlePlayerSwitchLines(playerTopLines: List<Text.Line>, playerMoveLines: List<Text.Line>) {
         val preset = currentPreset ?: return
 
-        // 1. Check Bottom Charged Move Buttons across all bottom move lines FIRST
+        // 1. Check Bottom Charged Move Buttons across all bottom move lines
         // Bottom move buttons are unique to the currently active Pokémon and ONLY exist when controllable on the field.
         if (playerMoveLines.isNotEmpty()) {
             val combinedBottomNorm = playerMoveLines.joinToString(" ") { normalizeOcrToken(it.text, rnAsM = true, vAsY = true) }
             val combinedBottomLower = playerMoveLines.joinToString(" ") { it.text.lowercase() }
+            val bottomTokens = playerMoveLines.flatMap { line ->
+                line.text.trim().split(Regex("[^a-zA-Z0-9]+"))
+                    .filter { it.length >= 4 }
+                    .map { normalizeOcrToken(it, rnAsM = true, vAsY = true) }
+            }.distinct()
 
             var bestSlot: TeamMember? = null
             var bestScore = 0
@@ -6859,10 +6871,18 @@ class OverlayService : LifecycleService() {
                 if (slotIdx in 0..2 && playerFaintedSlots[slotIdx]) continue // Fainted Pokémon cannot have move buttons!
 
                 val meta = getPokemonMeta(slot.name)
-                val candidateMoves = listOf(slot.chargedMove1, slot.chargedMove2, meta.chargedMove1, meta.chargedMove2)
-                    .map { it.trim() }
-                    .filter { it.isNotEmpty() }
-                    .distinct()
+                val base = FormResolver.extractBaseSpecies(slot.name).lowercase()
+                val rec = RECOMMENDED_CHARGED_MOVES[slot.name] ?: RECOMMENDED_CHARGED_MOVES[base]
+                val candidateMoves = listOfNotNull(
+                    slot.chargedMove1.takeIf { it.isNotBlank() },
+                    slot.chargedMove2.takeIf { it.isNotBlank() },
+                    meta.chargedMove1.takeIf { it.isNotBlank() },
+                    meta.chargedMove2.takeIf { it.isNotBlank() },
+                    meta.chargedMove3?.takeIf { it.isNotBlank() },
+                    rec?.first?.takeIf { it.isNotBlank() },
+                    rec?.second?.takeIf { it.isNotBlank() },
+                    rec?.third?.takeIf { it.isNotBlank() }
+                ).distinct()
 
                 var score = 0
                 for (move in candidateMoves) {
@@ -6872,7 +6892,12 @@ class OverlayService : LifecycleService() {
                     } else {
                         val words = move.lowercase().split(" ").filter { it.length >= 4 && it != "attack" && it != "ball" }
                         for (w in words) {
-                            if (combinedBottomLower.contains(w)) {
+                            val normW = normalizeOcrToken(w, rnAsM = true, vAsY = true)
+                            if (combinedBottomLower.contains(w) || combinedBottomNorm.contains(normW)) {
+                                score += 1
+                            } else if (normW.length >= 5 && bottomTokens.any { tok ->
+                                kotlin.math.abs(tok.length - normW.length) <= 1 && levenshteinDistance(tok, normW) <= 1
+                            }) {
                                 score += 1
                             }
                         }
@@ -6901,125 +6926,44 @@ class OverlayService : LifecycleService() {
             }
         }
 
-        // 2. Check Top-Left Player Nameplate lines (sorted top-to-bottom)
-        val sortedTopLines = playerTopLines.sortedBy { it.boundingBox?.top ?: 0 }
-        var matchedSlot: TeamMember? = null
+        // 2. Pre-Battle Lead Selection ONLY (when isWaitingForOpponent == true)
+        // During active combat, top-left lines contain ONLY trainer name, Pokéballs, Shields & banners,
+        // and must NEVER be allowed to flip active Pokémon during battle!
+        if (isWaitingForOpponent) {
+            val sortedTopLines = playerTopLines.sortedBy { it.boundingBox?.top ?: 0 }
+            for (line in sortedTopLines) {
+                val lineText = line.text.trim()
+                if (lineText.length < 4) continue
+                val lowerLine = lineText.lowercase()
+                if (isOverlayHudSelfText(lowerLine)) continue
+                if (isIgnoredMenuToken(lineText)) continue
 
-        for (line in sortedTopLines) {
-            val lineText = line.text.trim()
-            if (lineText.length < 3) continue
-            val lowerLine = lineText.lowercase()
-            if (isOverlayHudSelfText(lowerLine)) continue
-            if (isIgnoredMenuToken(lineText)) continue
+                val normVariants = listOf(
+                    normalizeOcrToken(lineText, oneAsL = false, rnAsM = false, vAsY = false),
+                    normalizeOcrToken(lineText, oneAsL = false, rnAsM = true, vAsY = false),
+                    normalizeOcrToken(lineText, oneAsL = false, rnAsM = true, vAsY = true)
+                ).filter { !isIgnoredMenuToken(it) }.distinct()
 
-            val normVariants = listOf(
-                normalizeOcrToken(lineText, oneAsL = false, rnAsM = false, vAsY = false),
-                normalizeOcrToken(lineText, oneAsL = true, rnAsM = false, vAsY = false),
-                normalizeOcrToken(lineText, oneAsL = false, rnAsM = true, vAsY = false),
-                normalizeOcrToken(lineText, oneAsL = false, rnAsM = true, vAsY = true),
-                normalizeOcrToken(lineText, oneAsL = false, rnAsM = false, vAsY = true)
-            ).filter { !isIgnoredMenuToken(it) }.distinct()
+                if (normVariants.any { it == "battle" || it == "party" }) continue
 
-            if (normVariants.any { it == "battle" || it == "party" }) continue
-
-            for (slot in preset.pokemon) {
-                val slotIdx = preset.pokemon.indexOf(slot)
-                if (slotIdx in 0..2 && playerFaintedSlots[slotIdx]) {
-                    // FAINTED GUARD: dead Pokémon can NEVER be swapped in or matched!
-                    continue
-                }
-
-                val speciesBase = FormResolver.extractBaseSpecies(slot.name)
-                var isMatched = false
-
-                if (speciesBase == "mew") {
-                    if (normVariants.any { it.contains("mew") && !it.contains("mewt") }) {
-                        isMatched = true
-                    }
-                } else if (speciesBase == "mewtwo") {
-                    if (normVariants.any { it.contains("mewt") }) {
-                        isMatched = true
-                    }
-                } else if (speciesBase.length >= 3 && normVariants.any { it.contains(speciesBase) }) {
-                    isMatched = true
-                } else if (Regex("(?i)\\bcp\\s*${slot.cp}\\b").containsMatchIn(lineText)) {
-                    isMatched = true
-                } else {
-                    val tokens = lineText.replace(Regex("(?i)\\bcp\\s*\\d+\\b"), " ")
-                        .replace(Regex("(?i)\\b(?:battle|battles|party|parties|schedule|rank|rating|rewards|train)\\b"), " ")
-                        .replace(Regex("\\b\\d+\\b"), " ")
-                        .replace(Regex("[^a-zA-Z0-9\\s]"), " ")
-                        .split("\\s+".toRegex())
-                        .filter { it.length >= 4 && !isIgnoredMenuToken(it) }
-                    val maxAllowedDist = if (speciesBase.length <= 5) 1 else 2
-                    for (token in tokens) {
-                        val tokVariants = listOf(
-                            normalizeOcrToken(token, oneAsL = false, rnAsM = false, vAsY = false),
-                            normalizeOcrToken(token, oneAsL = false, rnAsM = true, vAsY = false),
-                            normalizeOcrToken(token, oneAsL = false, rnAsM = true, vAsY = true)
-                        ).filter { !isIgnoredMenuToken(it) }.distinct()
-
-                        for (normTok in tokVariants) {
-                            if ((speciesBase == "mew" && normTok.startsWith("mewt")) ||
-                                (speciesBase == "mewtwo" && !normTok.startsWith("mewt"))
-                            ) continue
-                            if (kotlin.math.abs(normTok.length - speciesBase.length) <= maxAllowedDist &&
-                                levenshteinDistance(normTok, speciesBase) <= maxAllowedDist
-                            ) {
-                                isMatched = true
-                                break
-                            }
+                for (slot in preset.pokemon) {
+                    val speciesBase = FormResolver.extractBaseSpecies(slot.name)
+                    if (speciesBase.length >= 4 && normVariants.any { it.contains(speciesBase) }) {
+                        if (!slot.name.equals(activeUserPokemonName, ignoreCase = true)) {
+                            executePlayerSwitch(slot.name)
                         }
-                        if (isMatched) break
+                        return
                     }
-                }
-
-                if (isMatched) {
-                    matchedSlot = slot
-                    break
                 }
             }
-            if (matchedSlot != null) break
         }
 
-        if (matchedSlot != null) {
-            val matchedName = matchedSlot.name
-            if (matchedName.equals(activeUserPokemonName, ignoreCase = true)) {
-                // Currently active Pokémon confirmed on field
+        // Active combat frame with no detectable move buttons (fast attack tapping, charged move minigame,
+        // shield prompt, particle animations): Keep currently active Pokémon locked in place!
+        if (pendingPlayerSwitchFrames > 0) {
+            pendingPlayerSwitchFrames--
+            if (pendingPlayerSwitchFrames == 0) {
                 pendingPlayerSwitchCandidate = null
-                pendingPlayerSwitchFrames = 0
-                return
-            }
-
-            if (isWaitingForOpponent) {
-                // Battle not yet in progress; allow immediate active lead update
-                pendingPlayerSwitchCandidate = null
-                pendingPlayerSwitchFrames = 0
-                executePlayerSwitch(matchedName)
-                return
-            }
-
-            // Teammate switch candidate detected from top nameplate:
-            // Require 2 consecutive frames of confirmation before executing switch so momentary
-            // OCR noise during charged move animations or particle flashes cannot flip the active Pokémon!
-            if (pendingPlayerSwitchCandidate.equals(matchedName, ignoreCase = true)) {
-                pendingPlayerSwitchFrames++
-                if (pendingPlayerSwitchFrames >= 2) {
-                    pendingPlayerSwitchCandidate = null
-                    pendingPlayerSwitchFrames = 0
-                    executePlayerSwitch(matchedName)
-                }
-            } else {
-                pendingPlayerSwitchCandidate = matchedName
-                pendingPlayerSwitchFrames = 1
-            }
-        } else {
-            // No match on this frame; decay pending candidate counter
-            if (pendingPlayerSwitchFrames > 0) {
-                pendingPlayerSwitchFrames--
-                if (pendingPlayerSwitchFrames == 0) {
-                    pendingPlayerSwitchCandidate = null
-                }
             }
         }
     }
