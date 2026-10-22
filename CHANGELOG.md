@@ -1,5 +1,22 @@
 # SilphScope PvP Changelog
 
+## [v3.13] — 2026-10-21 — Scanner Charged Move Stability, Swampert & Mimikyu OCR Hardening, Fainted Slot Resurrection Guard & Clean Build
+- **Scanner Charged Move Stability & Elimination of Player Flip-Flop**:
+  - Fixed an issue where throwing or receiving a Charged Move while using a swapped Pokémon (e.g. Swampert) caused the overlay scanner to falsely revert to a previously active/fainted team member (e.g. Tinkaton) for several seconds.
+  - Prioritized **Bottom Move Button matching**: active Pokémon moves (e.g. Hydro Cannon / Earthquake) are detected with 0 delay and keep the active slot locked.
+  - Added **2-Frame Debouncing Hysteresis** to top nameplate OCR: switches detected via top nameplate alone require 2 consecutive confirmed frames, preventing single-frame visual noise, particle effects, or minigame prompts ("CHARGED ATTACK", "USE SHIELD", "PROTECT") from flipping active Pokémon.
+- **Fainted Slot Guard (Dead Pokémon Cannot Switch In)**:
+  - Ensured `handlePlayerSwitchLines` skips any slot marked fainted (`playerFaintedSlots[slotIdx] == true`), preventing OCR noise or toast text from resurrecting fallen teammates.
+- **Full Vertical Toast Blackout Masking & Extended Self-Text Filtering**:
+  - Expanded screen capture toast masking to dynamically cover the full vertical extent of the status toast (`h * 0.095f`), preventing ML Kit from reading truncated self-toasts (e.g. `"Player Faint Swap: Tinkaton → Swampert"`).
+  - Enhanced `isOverlayHudSelfText` to filter all faint swap, player switch, shield used, and charged attack minigame phrases.
+- **Dual Raw + High-Contrast B&W Player Nameplate Stitching**:
+  - Added high-contrast white text extraction for `srcPlayer` (identical to `srcOpp`), ensuring pure white nameplate text over bright/swirling stadium backgrounds is recognized crisply.
+- **Multi-Variant OCR Normalization (`rnAsM` / `vAsY` / `oneAsL`)**:
+  - Extended OCR token normalization so condensed font confusions (`swarnpert` → `swampert`, `rnirnikvu` → `mimikyu`) match reliably on the player's team.
+- **Resolved TypeScript Build & Linter Issues**:
+  - Exported `TeamArchetype` in `src/data/gblData.ts`, added `newMachineAggBr` property to `RoleUpgradeSuggestion`, and removed duplicate `Mimikyu` object literal entry.
+
 ## [v3.12] — 2026-10-21 — Top-5 Role Upgrades (Top-200 Candidates vs. Top-100 Meta), Core Coverage BR (Core BR), Enhanced Mimikyu 2-Strategy Disguise Math & Aegislash Shield/Sword Energy + Damage Shift
 - **Top-5 Role Upgrade Recommendations (`Top-200` Candidate Pool vs. `Top-100` Blended Meta)**:
   - Expanded role upgrade recommendations in both the Android and Web Team Editors to display the **Top 5 distinct-species alternatives per role** (`#1 Lead`, `#2 Safe Swap`, `#3 Closer`) with one-tap replacement chips.

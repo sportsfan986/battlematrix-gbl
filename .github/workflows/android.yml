@@ -123,20 +123,24 @@ jobs:
           tag_name: ${{ steps.version.outputs.tag }}
           name: "SilphScope PvP ${{ steps.version.outputs.tag }}"
           body: |
-            ## SilphScope PvP ${{ steps.version.outputs.tag }} — Official v3.12 Release (Top-5 Role Upgrades via Top-200 Meta Sim, Core Coverage BR, Enhanced Mimikyu & Aegislash Battle Math)
+            ## SilphScope PvP ${{ steps.version.outputs.tag }} — Official v3.13 Release (Scanner Charged Move Stability, Swampert & Mimikyu OCR Hardening, Fainted Slot Resurrection Guard)
             
-            ### What's New in v3.12
-            - **Top-5 Role Upgrade Recommendations (`Top-200` Candidate Pool vs. `Top-100` Blended Meta)**:
-              - Displays the **Top 5 distinct-species upgrade alternatives per role** (`#1 Lead`, `#2 Safe Swap`, `#3 Closer`) with one-tap replacement chips inside the Create Team and Edit Team dialogs.
-              - Simulates the **Top 200 Meta Pokémon** for the active league (including eligible Shadows and enforcing the GBL species clause) against the **Top 100** blended current-season meta distribution.
-            - **Renamed `Mach BR` (`Machine Aggregate BR`) → `Core BR` (`Core Coverage BR`)**:
-              - Replaced unclear `Mach BR` / `Machine Aggregate BR` terminology with **`Core BR`** / **`Core Coverage BR (Core BR — 3-Mon Team Ceiling)`** across team preset cards, Team Editor badges, role upgrade chips, and Settings threshold scales.
-            - **Enhanced Mimikyu (`Disguise`) & Aegislash (`Stance Change`) Battle Ranking Math**:
-              - **Mimikyu (`Disguise`)**: Computes the exact average of **(a) using all Protect Shields before busting Disguise** and **(b) busting Disguise first before using Protect Shields**, while modeling that opponents always throw their **fastest (lowest-energy) Charged Attack** until Disguise is busted.
-              - **Aegislash (`Shield ⇄ Sword Forme`)**: Models the shift in **both damage AND energy generation** between Shield Forme (`97 Atk / 291 Def`, `1 HP` fast damage, boosted `1.28x` high energy generation) and Sword/Blade Forme (`291 Atk / 97 Def`, full `291 Atk` fast & charged damage, lower energy generation rate until reverting via Protect Shield).
-              - **Morpeko (`Aura Wheel`) & Cramorant (`Gulp Missile`)**: Full support for alternating Electric/Dark STAB + `+1 Atk` buff cycles and Gulping/Gorging retaliation damage + `-1 Def / -1 Atk` debuffs.
-            - **Auto Team Style Detection (`ABB` vs. `ABC`), Non-Blocking Background Sim & Position-Weighted Shield Ratings**:
-              - Instantaneous background thread evaluation, `[ABB]` / `[ABC]` style classification, safe swap slot reordering, and current-season blended meta distribution with exponential recency decay.
+            ### What's New in v3.13
+            - **Scanner Charged Move Stability & Elimination of Player Flip-Flop**:
+              - Fixed an issue where throwing or receiving a Charged Move while using a swapped Pokémon (e.g. Swampert) caused the overlay scanner to falsely revert to a previously active/fainted team member (e.g. Tinkaton) for several seconds.
+              - Prioritized **Bottom Move Button matching**: active Pokémon moves (e.g. Hydro Cannon / Earthquake) are detected with 0 delay and keep the active slot locked.
+              - Added **2-Frame Debouncing Hysteresis** to top nameplate OCR: switches detected via top nameplate alone require 2 consecutive confirmed frames, preventing single-frame visual noise, particle effects, or minigame prompts ("CHARGED ATTACK", "USE SHIELD", "PROTECT") from flipping active Pokémon.
+            - **Fainted Slot Guard (Dead Pokémon Cannot Switch In)**:
+              - Ensured `handlePlayerSwitchLines` skips any slot marked fainted (`playerFaintedSlots[slotIdx] == true`), preventing OCR noise or toast text from resurrecting fallen teammates.
+            - **Full Vertical Toast Blackout Masking & Extended Self-Text Filtering**:
+              - Expanded screen capture toast masking to dynamically cover the full vertical extent of the status toast (`h * 0.095f`), preventing ML Kit from reading truncated self-toasts (e.g. `"Player Faint Swap: Tinkaton → Swampert"`).
+              - Enhanced `isOverlayHudSelfText` to filter all faint swap, player switch, shield used, and charged attack minigame phrases.
+            - **Dual Raw + High-Contrast B&W Player Nameplate Stitching**:
+              - Added high-contrast white text extraction for `srcPlayer` (identical to `srcOpp`), ensuring pure white nameplate text over bright/swirling stadium backgrounds is recognized crisply.
+            - **Multi-Variant OCR Normalization (`rnAsM` / `vAsY` / `oneAsL`)**:
+              - Extended OCR token normalization so condensed font confusions (`swarnpert` → `swampert`, `rnirnikvu` → `mimikyu`) match reliably on the player's team.
+            - **Resolved TypeScript Build & Linter Issues**:
+              - Exported `TeamArchetype` in `src/data/gblData.ts`, added `newMachineAggBr` property to `RoleUpgradeSuggestion`, and removed duplicate `Mimikyu` object literal entry.
             
             ### Download & Install
             Download **`silphscope-pvp-${{ steps.version.outputs.tag }}.apk`** from the **Assets** section below and install on your Android device.

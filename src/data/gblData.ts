@@ -67,13 +67,15 @@ export const PVPOKE_ENDPOINTS = {
   RANKINGS_MEGA_ML: "https://raw.githubusercontent.com/pvpoke/pvpoke/master/src/data/rankings/mega/overall/rankings-10000.json"
 } as const;
 
+export type TeamArchetype = "ABB" | "ABC";
+
 export interface TeamPreset {
   id: string;
   name: string;
   league: LeagueType;
   pokemon: TeamMember[];
   isSelected?: boolean;
-  archetype?: "ABB" | "ABC";
+  archetype?: TeamArchetype;
   isArchetypeManual?: boolean;
   leadAggBr?: number;
   machineAggBr?: number;
@@ -1362,24 +1364,6 @@ export const POKEMON_DATABASE: Record<string, PokemonStats> = {
       { name: "Disarming Voice", code: "DV", type: "fairy", power: 70, energyCost: 45 }
     ],
     color: "#ef4444"
-  },
-  Mimikyu: {
-    speciesId: "mimikyu",
-    name: "Mimikyu",
-    baseSpecies: "mimikyu",
-    formLabel: "Disguised",
-    types: ["ghost", "fairy"],
-    baseStats: { atk: 177, def: 199, hp: 146 },
-    isRawBaseStats: true,
-    defaultIvsGl: "4/15/15",
-    defaultIvsUl: "15/15/15",
-    defaultFastMove: { name: "Shadow Claw", type: "ghost", turns: 2, power: 6, energyGain: 8 },
-    chargedMoves: [
-      { name: "Play Rough", code: "PR", type: "fairy", power: 90, energyCost: 60 },
-      { name: "Shadow Ball", code: "SB", type: "ghost", power: 90, energyCost: 50 },
-      { name: "Shadow Sneak", code: "SS", type: "ghost", power: 75, energyCost: 45 }
-    ],
-    color: "#a855f7"
   },
   Aegislash: {
     speciesId: "aegislash",
@@ -5282,6 +5266,7 @@ export interface RoleUpgradeSuggestion {
   roleLabel: string;
   candidate: TeamMember;
   newMachineBr: number;
+  newMachineAggBr: number;
   deltaMachineBr: number;
   deltaMachBr: number;
   newRoleBr: number;
@@ -5657,6 +5642,7 @@ export function recommendTop3UpgradesPerRole(
           id: currentMember.id || `slot-${roleIndex + 1}`
         },
         newMachineBr,
+        newMachineAggBr: newMachineBr,
         deltaMachineBr,
         deltaMachBr: deltaMachineBr,
         newRoleBr,

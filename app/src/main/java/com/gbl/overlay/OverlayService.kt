@@ -4606,6 +4606,9 @@ class OverlayService : LifecycleService() {
     private var oppSwitchAliveFrames: Int = 0
     private var playerShieldDropFrames: Int = 0
     private var oppShieldDropFrames: Int = 0
+    @Volatile private var lastToastShownTimeMs: Long = 0L
+    private var pendingPlayerSwitchCandidate: String? = null
+    private var pendingPlayerSwitchFrames: Int = 0
 
     // Phase 2: Battle Clock Synchronization (t0) & Live Timeline Event Logger
     private var battleClockAnchorMs: Long = 0L
@@ -4802,6 +4805,7 @@ class OverlayService : LifecycleService() {
     }
 
     private fun showStatusBarToast(message: String, duration: Int = Toast.LENGTH_SHORT) {
+        lastToastShownTimeMs = System.currentTimeMillis()
         mainToastHandler.post {
             try {
                 val density = resources.displayMetrics.density
@@ -5606,10 +5610,22 @@ class OverlayService : LifecycleService() {
                     maskPaint
                 )
             }
-            if (statusToastView?.visibility == View.VISIBLE) {
+            val isToastActive = (statusToastView?.visibility == View.VISIBLE) ||
+                (System.currentTimeMillis() - lastToastShownTimeMs < 3200L)
+            if (isToastActive) {
                 val screenCanvas = Canvas(screen)
                 val maskPaint = Paint().apply { color = Color.BLACK; style = Paint.Style.FILL }
-                screenCanvas.drawRect(0f, 0f, w.toFloat(), (h * 0.036f).coerceAtMost(h * 0.055f), maskPaint)
+                val toastLoc = IntArray(2)
+                try {
+                    statusToastView?.getLocationOnScreen(toastLoc)
+                } catch (_: Exception) {}
+                val toastBottom = if (toastLoc[1] > 0 && statusToastView != null && statusToastView!!.height > 0) {
+                    toastLoc[1] + statusToastView!!.height + (16 * resources.displayMetrics.density).toInt()
+                } else {
+                    (h * 0.095f).toInt()
+                }
+                val maskH = max(toastBottom.toFloat(), h * 0.095f).coerceAtMost(h * 0.16f)
+                screenCanvas.drawRect(0f, 0f, w.toFloat(), maskH, maskPaint)
             }
         } catch (_: Exception) {}
 
@@ -5634,8 +5650,9 @@ class OverlayService : LifecycleService() {
             (h * 0.95f).toInt().coerceIn(1, h)
         )
 
-        // Create high-contrast dark-on-white nameplate extraction of srcOpp so white text over icy/cloudy backgrounds (e.g. Kyurem) is unmistakable
+        // Create high-contrast dark-on-white nameplate extraction of srcOpp & srcPlayer so white text over icy/cloudy/bright arena backgrounds (e.g. Swampert, Kyurem) is unmistakable
         val bwOppBitmap = createHighContrastWhiteTextBitmap(screen, srcOpp)
+        val bwPlayerBitmap = createHighContrastWhiteTextBitmap(screen, srcPlayer)
 
         // Upscale top nameplates 1.8x so white-on-sky outlined game font is large & crisp for ML Kit
         val scale = 1.8f
@@ -5648,14 +5665,16 @@ class OverlayService : LifecycleService() {
         val gap = 24
 
         val compW = max(max(dstOppW, dstPlayerW), movesW).coerceAtLeast(100)
-        // Stitch: [1] Raw Upscaled Opp -> [2] High-Contrast B&W Upscaled Opp -> [3] Player Top -> [4] Player Moves
+        // Stitch: [1] Raw Upscaled Opp -> [2] High-Contrast B&W Upscaled Opp -> [3] Raw Upscaled Player -> [4] High-Contrast B&W Upscaled Player -> [5] Player Moves
         val oppZoneH = dstOppH + gap + dstOppH
-        val compH = oppZoneH + gap + dstPlayerH + gap + movesH
+        val playerZoneH = dstPlayerH + gap + dstPlayerH
+        val compH = oppZoneH + gap + playerZoneH + gap + movesH
 
         val composite = try {
             Bitmap.createBitmap(compW, compH, Bitmap.Config.ARGB_8888)
         } catch (_: Exception) {
             bwOppBitmap?.recycle()
+            bwPlayerBitmap?.recycle()
             screen.recycle()
             return
         }
@@ -5666,15 +5685,20 @@ class OverlayService : LifecycleService() {
 
         val dstOppRaw = Rect(0, 0, dstOppW, dstOppH)
         val dstOppBw = Rect(0, dstOppH + gap, dstOppW, oppZoneH)
-        val dstPlayer = Rect(0, oppZoneH + gap, dstPlayerW, oppZoneH + gap + dstPlayerH)
-        val dstMoves = Rect(0, oppZoneH + gap + dstPlayerH + gap, movesW, compH)
+        val dstPlayerRaw = Rect(0, oppZoneH + gap, dstPlayerW, oppZoneH + gap + dstPlayerH)
+        val dstPlayerBw = Rect(0, oppZoneH + gap + dstPlayerH + gap, dstPlayerW, oppZoneH + gap + playerZoneH)
+        val dstMoves = Rect(0, oppZoneH + gap + playerZoneH + gap, movesW, compH)
 
         canvas.drawBitmap(screen, srcOpp, dstOppRaw, filterPaint)
         if (bwOppBitmap != null) {
             canvas.drawBitmap(bwOppBitmap, null, dstOppBw, filterPaint)
             bwOppBitmap.recycle()
         }
-        canvas.drawBitmap(screen, srcPlayer, dstPlayer, filterPaint)
+        canvas.drawBitmap(screen, srcPlayer, dstPlayerRaw, filterPaint)
+        if (bwPlayerBitmap != null) {
+            canvas.drawBitmap(bwPlayerBitmap, null, dstPlayerBw, filterPaint)
+            bwPlayerBitmap.recycle()
+        }
         canvas.drawBitmap(screen, srcMoves, dstMoves, null)
 
         // v2.94: Calibrated Pokéball & Shield Sub-Region Segmentation (from 1080x2342 ground-truth GBL HUD)
@@ -5741,7 +5765,7 @@ class OverlayService : LifecycleService() {
         if (visionText == null || frameEpoch != battleResetEpoch || System.currentTimeMillis() - lastBattleResetTimeMs < 600L) return
 
         val yDivider1 = oppZoneH + gap / 2
-        val yDivider2 = oppZoneH + gap + dstPlayerH + gap / 2
+        val yDivider2 = oppZoneH + gap + playerZoneH + gap / 2
 
         val oppLines = mutableListOf<Text.Line>()
         val playerTopLines = mutableListOf<Text.Line>()
@@ -6182,6 +6206,33 @@ class OverlayService : LifecycleService() {
                 lower.contains("opt 2") ||
                 lower.contains("⚔") ||
                 lower.contains("→") ||
+                lower.contains("->") ||
+                lower.contains("faint swap") ||
+                lower.contains("faint") ||
+                lower.contains("swap") ||
+                lower.contains("switch") ||
+                lower.contains("player faint") ||
+                lower.contains("player switch") ||
+                lower.contains("opp faint") ||
+                lower.contains("active opp") ||
+                lower.contains("active lead") ||
+                lower.contains("loaded team") ||
+                lower.contains("shield used") ||
+                lower.contains("shield") ||
+                lower.contains("shields") ||
+                lower.contains("charged attack") ||
+                lower.contains("charged") ||
+                lower.contains("use shield") ||
+                lower.contains("protect") ||
+                lower.contains("excellent") ||
+                lower.contains("great") ||
+                lower.contains("nice") ||
+                lower.contains("pow") ||
+                lower.contains("super effective") ||
+                lower.contains("not very effective") ||
+                lower.contains("battle started") ||
+                lower.contains("battle stopped") ||
+                lower.contains("silphscope") ||
                 Regex("^vs\\s+").containsMatchIn(lower.trim()) ||
                 Regex("\\b(?:1st|2nd|3rd)\\b").containsMatchIn(lower) ||
                 Regex("\\d+t/\\d+e/").containsMatchIn(lower) ||
@@ -6783,90 +6834,30 @@ class OverlayService : LifecycleService() {
     }
 
     /**
-     * Detects player switches automatically via Top-Left Player Nameplate OR Bottom Charged Move buttons.
-     * Immediately updates internal state, re-indexes current matchups, and refreshes UI without manual party tap.
+     * Detects player switches automatically via Bottom Charged Move buttons OR Top-Left Player Nameplate.
+     * Hardened against false switches:
+     * 1. Bottom move buttons take priority (only exist when Pokémon is active & controllable on field).
+     * 2. Fainted Guard: Pokémon marked fainted in playerFaintedSlots can NEVER be matched or swapped to.
+     * 3. Multi-variant normalization (rnAsM = true, vAsY = true) guarantees Swampert (swarnpert) and Mimikyu (rnirnikvu) match.
+     * 4. 2-Frame Debouncing Hysteresis: Top nameplate switches away from the active Pokémon require 2 consecutive frames,
+     *    preventing single-frame visual glitches during charged attack minigames/shield animations from flipping species.
      */
     private fun handlePlayerSwitchLines(playerTopLines: List<Text.Line>, playerMoveLines: List<Text.Line>) {
         val preset = currentPreset ?: return
 
-        // 1. Check Top-Left Player Nameplate lines first (sorted top-to-bottom so Pokémon name line is evaluated before trainer name)
-        val sortedTopLines = playerTopLines.sortedBy { it.boundingBox?.top ?: 0 }
-        for (line in sortedTopLines) {
-            val lineText = line.text.trim()
-            if (lineText.length < 3) continue
-            val lowerLine = lineText.lowercase()
-            if (isOverlayHudSelfText(lowerLine)) continue
-            if (isIgnoredMenuToken(lineText)) continue
-
-            val normalizedLine = normalizeOcrToken(lineText)
-            if (normalizedLine == "battle" || normalizedLine == "party") continue
-
-            val matchCountInLine = preset.pokemon.count { slot ->
-                val base = FormResolver.extractBaseSpecies(slot.name)
-                if (base == "mew") {
-                    normalizedLine.contains("mew") && !normalizedLine.contains("mewt")
-                } else {
-                    base.length >= 3 && normalizedLine.contains(base)
-                }
-            }
-            if (matchCountInLine > 1) continue
-
-            for (slot in preset.pokemon) {
-                val speciesBase = FormResolver.extractBaseSpecies(slot.name)
-                val cpStr = slot.cp.toString()
-
-                var isMatched = false
-                if (speciesBase == "mew") {
-                    if (normalizedLine.contains("mew") && !normalizedLine.contains("mewt")) {
-                        isMatched = true
-                    }
-                } else if (speciesBase == "mewtwo") {
-                    if (normalizedLine.contains("mewt")) {
-                        isMatched = true
-                    }
-                } else if (speciesBase.length >= 3 && normalizedLine.contains(speciesBase)) {
-                    isMatched = true
-                } else if (cpStr.length >= 3 && lineText.contains(cpStr)) {
-                    isMatched = true
-                } else {
-                    val tokens = lineText.replace(Regex("(?i)\\bcp\\s*\\d+\\b"), " ")
-                        .replace(Regex("(?i)\\b(?:battle|battles|party|parties|schedule|rank|rating|rewards|train)\\b"), " ")
-                        .replace(Regex("\\b\\d+\\b"), " ")
-                        .replace(Regex("[^a-zA-Z0-9\\s]"), " ")
-                        .split("\\s+".toRegex())
-                        .filter { it.length >= 4 && !isIgnoredMenuToken(it) }
-                    val maxAllowedDist = if (speciesBase.length <= 5) 1 else 2
-                    for (token in tokens) {
-                        val normTok = normalizeOcrToken(token)
-                        if (isIgnoredMenuToken(normTok)) continue
-                        if ((speciesBase == "mew" && normTok.startsWith("mewt")) ||
-                            (speciesBase == "mewtwo" && !normTok.startsWith("mewt"))
-                        ) continue
-                        if (kotlin.math.abs(normTok.length - speciesBase.length) <= maxAllowedDist &&
-                            levenshteinDistance(normTok, speciesBase) <= maxAllowedDist
-                        ) {
-                            isMatched = true
-                            break
-                        }
-                    }
-                }
-
-                if (isMatched) {
-                    executePlayerSwitch(slot.name)
-                    return
-                }
-            }
-        }
-
-        // 2. Check Bottom Charged Move Buttons across all bottom move lines
+        // 1. Check Bottom Charged Move Buttons across all bottom move lines FIRST
+        // Bottom move buttons are unique to the currently active Pokémon and ONLY exist when controllable on the field.
         if (playerMoveLines.isNotEmpty()) {
-            val combinedBottomNorm = playerMoveLines.joinToString(" ") { normalizeOcrToken(it.text) }
+            val combinedBottomNorm = playerMoveLines.joinToString(" ") { normalizeOcrToken(it.text, rnAsM = true, vAsY = true) }
             val combinedBottomLower = playerMoveLines.joinToString(" ") { it.text.lowercase() }
 
             var bestSlot: TeamMember? = null
             var bestScore = 0
 
             for (slot in preset.pokemon) {
+                val slotIdx = preset.pokemon.indexOf(slot)
+                if (slotIdx in 0..2 && playerFaintedSlots[slotIdx]) continue // Fainted Pokémon cannot have move buttons!
+
                 val meta = getPokemonMeta(slot.name)
                 val candidateMoves = listOf(slot.chargedMove1, slot.chargedMove2, meta.chargedMove1, meta.chargedMove2)
                     .map { it.trim() }
@@ -6875,7 +6866,7 @@ class OverlayService : LifecycleService() {
 
                 var score = 0
                 for (move in candidateMoves) {
-                    val normMove = normalizeOcrToken(move)
+                    val normMove = normalizeOcrToken(move, rnAsM = true, vAsY = true)
                     if (normMove.length >= 3 && combinedBottomNorm.contains(normMove)) {
                         score += 3
                     } else {
@@ -6895,7 +6886,140 @@ class OverlayService : LifecycleService() {
             }
 
             if (bestSlot != null && bestScore >= 2) {
-                executePlayerSwitch(bestSlot.name)
+                if (bestSlot.name.equals(activeUserPokemonName, ignoreCase = true)) {
+                    // Confirmed currently active Pokémon is on the field
+                    pendingPlayerSwitchCandidate = null
+                    pendingPlayerSwitchFrames = 0
+                    return
+                } else {
+                    // Confirmed switch to a different alive Pokémon via bottom buttons
+                    pendingPlayerSwitchCandidate = null
+                    pendingPlayerSwitchFrames = 0
+                    executePlayerSwitch(bestSlot.name)
+                    return
+                }
+            }
+        }
+
+        // 2. Check Top-Left Player Nameplate lines (sorted top-to-bottom)
+        val sortedTopLines = playerTopLines.sortedBy { it.boundingBox?.top ?: 0 }
+        var matchedSlot: TeamMember? = null
+
+        for (line in sortedTopLines) {
+            val lineText = line.text.trim()
+            if (lineText.length < 3) continue
+            val lowerLine = lineText.lowercase()
+            if (isOverlayHudSelfText(lowerLine)) continue
+            if (isIgnoredMenuToken(lineText)) continue
+
+            val normVariants = listOf(
+                normalizeOcrToken(lineText, oneAsL = false, rnAsM = false, vAsY = false),
+                normalizeOcrToken(lineText, oneAsL = true, rnAsM = false, vAsY = false),
+                normalizeOcrToken(lineText, oneAsL = false, rnAsM = true, vAsY = false),
+                normalizeOcrToken(lineText, oneAsL = false, rnAsM = true, vAsY = true),
+                normalizeOcrToken(lineText, oneAsL = false, rnAsM = false, vAsY = true)
+            ).filter { !isIgnoredMenuToken(it) }.distinct()
+
+            if (normVariants.any { it == "battle" || it == "party" }) continue
+
+            for (slot in preset.pokemon) {
+                val slotIdx = preset.pokemon.indexOf(slot)
+                if (slotIdx in 0..2 && playerFaintedSlots[slotIdx]) {
+                    // FAINTED GUARD: dead Pokémon can NEVER be swapped in or matched!
+                    continue
+                }
+
+                val speciesBase = FormResolver.extractBaseSpecies(slot.name)
+                var isMatched = false
+
+                if (speciesBase == "mew") {
+                    if (normVariants.any { it.contains("mew") && !it.contains("mewt") }) {
+                        isMatched = true
+                    }
+                } else if (speciesBase == "mewtwo") {
+                    if (normVariants.any { it.contains("mewt") }) {
+                        isMatched = true
+                    }
+                } else if (speciesBase.length >= 3 && normVariants.any { it.contains(speciesBase) }) {
+                    isMatched = true
+                } else if (Regex("(?i)\\bcp\\s*${slot.cp}\\b").containsMatchIn(lineText)) {
+                    isMatched = true
+                } else {
+                    val tokens = lineText.replace(Regex("(?i)\\bcp\\s*\\d+\\b"), " ")
+                        .replace(Regex("(?i)\\b(?:battle|battles|party|parties|schedule|rank|rating|rewards|train)\\b"), " ")
+                        .replace(Regex("\\b\\d+\\b"), " ")
+                        .replace(Regex("[^a-zA-Z0-9\\s]"), " ")
+                        .split("\\s+".toRegex())
+                        .filter { it.length >= 4 && !isIgnoredMenuToken(it) }
+                    val maxAllowedDist = if (speciesBase.length <= 5) 1 else 2
+                    for (token in tokens) {
+                        val tokVariants = listOf(
+                            normalizeOcrToken(token, oneAsL = false, rnAsM = false, vAsY = false),
+                            normalizeOcrToken(token, oneAsL = false, rnAsM = true, vAsY = false),
+                            normalizeOcrToken(token, oneAsL = false, rnAsM = true, vAsY = true)
+                        ).filter { !isIgnoredMenuToken(it) }.distinct()
+
+                        for (normTok in tokVariants) {
+                            if ((speciesBase == "mew" && normTok.startsWith("mewt")) ||
+                                (speciesBase == "mewtwo" && !normTok.startsWith("mewt"))
+                            ) continue
+                            if (kotlin.math.abs(normTok.length - speciesBase.length) <= maxAllowedDist &&
+                                levenshteinDistance(normTok, speciesBase) <= maxAllowedDist
+                            ) {
+                                isMatched = true
+                                break
+                            }
+                        }
+                        if (isMatched) break
+                    }
+                }
+
+                if (isMatched) {
+                    matchedSlot = slot
+                    break
+                }
+            }
+            if (matchedSlot != null) break
+        }
+
+        if (matchedSlot != null) {
+            val matchedName = matchedSlot.name
+            if (matchedName.equals(activeUserPokemonName, ignoreCase = true)) {
+                // Currently active Pokémon confirmed on field
+                pendingPlayerSwitchCandidate = null
+                pendingPlayerSwitchFrames = 0
+                return
+            }
+
+            if (isWaitingForOpponent) {
+                // Battle not yet in progress; allow immediate active lead update
+                pendingPlayerSwitchCandidate = null
+                pendingPlayerSwitchFrames = 0
+                executePlayerSwitch(matchedName)
+                return
+            }
+
+            // Teammate switch candidate detected from top nameplate:
+            // Require 2 consecutive frames of confirmation before executing switch so momentary
+            // OCR noise during charged move animations or particle flashes cannot flip the active Pokémon!
+            if (pendingPlayerSwitchCandidate.equals(matchedName, ignoreCase = true)) {
+                pendingPlayerSwitchFrames++
+                if (pendingPlayerSwitchFrames >= 2) {
+                    pendingPlayerSwitchCandidate = null
+                    pendingPlayerSwitchFrames = 0
+                    executePlayerSwitch(matchedName)
+                }
+            } else {
+                pendingPlayerSwitchCandidate = matchedName
+                pendingPlayerSwitchFrames = 1
+            }
+        } else {
+            // No match on this frame; decay pending candidate counter
+            if (pendingPlayerSwitchFrames > 0) {
+                pendingPlayerSwitchFrames--
+                if (pendingPlayerSwitchFrames == 0) {
+                    pendingPlayerSwitchCandidate = null
+                }
             }
         }
     }
@@ -6948,6 +7072,8 @@ class OverlayService : LifecycleService() {
         availableOpponentForms = emptyList()
         currentFormIndex = 0
         activeUserPokemonName = currentPreset?.pokemon?.firstOrNull()?.name ?: activeUserPokemonName
+        pendingPlayerSwitchCandidate = null
+        pendingPlayerSwitchFrames = 0
 
         // Phase 2: Reset Clock Anchor (t_0) & Timeline Event Logger
         battleClockAnchorMs = 0L
@@ -7385,6 +7511,8 @@ class OverlayService : LifecycleService() {
         }
 
         activeUserPokemonName = pokemonName
+        pendingPlayerSwitchCandidate = null
+        pendingPlayerSwitchFrames = 0
         recalculateAndPushBattleData()
         if (::prefs.isInitialized) {
             showBattleToast("Active Lead: $pokemonName")
@@ -8924,6 +9052,8 @@ class OverlayService : LifecycleService() {
             if (chosen != null) {
                 currentPreset = chosen
                 activeUserPokemonName = chosen.pokemon.firstOrNull()?.name
+                pendingPlayerSwitchCandidate = null
+                pendingPlayerSwitchFrames = 0
                 prefs.edit().putString("gbl_selected_preset_id", presetId).apply()
                 recalculateAndPushBattleData()
                 showBattleToast("Loaded Team: ${chosen.name}")
