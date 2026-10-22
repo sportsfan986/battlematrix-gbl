@@ -4835,6 +4835,8 @@ export default function App() {
                       const leadBadge = getSingleSlotBrTierInfo(opt.leadAggBr, tierThresholds);
                       const swapBadge = getSingleSlotBrTierInfo(opt.safeSwapBr, tierThresholds);
                       const closerBadge = getSingleSlotBrTierInfo(opt.closerBr, tierThresholds);
+                      const totalMetaDepth = opt.topMetaTargetsTotal || 25;
+                      const anyAltMoves = (opt.altMovesetSlots || []).some((s) => s.isAltMoveset);
 
                       return (
                         <div
@@ -4856,8 +4858,13 @@ export default function App() {
                                 Core BR {opt.machineAggBr}
                               </span>
                               <span className="text-[10px] text-emerald-400 font-semibold">
-                                Beats {opt.topMetaWinsCount}/15 Top Meta
+                                Beats {opt.topMetaWinsCount}/{totalMetaDepth} Top Meta
                               </span>
+                              {anyAltMoves && (
+                                <span className="px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-400/50 text-amber-300 text-[9px] font-extrabold">
+                                  ⚡ Alt Moveset Simmed
+                                </span>
+                              )}
                             </div>
 
                             <button
@@ -4893,6 +4900,8 @@ export default function App() {
                               const isFeat = opt.featuredNamesIncluded.some(
                                 (fn) => fn.toLowerCase() === mon.name.toLowerCase()
                               );
+                              const altInfo = opt.altMovesetSlots?.[sIdx];
+                              const isAltMove = Boolean(altInfo?.isAltMoveset);
 
                               return (
                                 <div
@@ -4900,6 +4909,8 @@ export default function App() {
                                   className={`p-2.5 rounded-lg border ${
                                     isFeat
                                       ? 'bg-purple-950/30 border-purple-500/50'
+                                      : isAltMove
+                                      ? 'bg-amber-950/20 border-amber-500/40'
                                       : 'bg-slate-900/90 border-slate-800'
                                   }`}
                                 >
@@ -4909,15 +4920,27 @@ export default function App() {
                                       {roleBr} BR
                                     </span>
                                   </div>
-                                  <div className="font-bold text-xs text-white mt-1 truncate flex items-center gap-1">
+                                  <div className="font-bold text-xs text-white mt-1 truncate flex items-center gap-1 flex-wrap">
                                     <span>{mon.name}</span>
                                     {isFeat && (
                                       <span className="text-[9px] px-1 rounded bg-purple-500/30 text-purple-200 font-extrabold">
                                         ★ Pick
                                       </span>
                                     )}
+                                    {isAltMove && (
+                                      <span
+                                        className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/25 border border-amber-400/50 text-amber-200 font-extrabold"
+                                        title={`Standard: ${altInfo?.standardFastMove} + ${altInfo?.standardCharged1}/${altInfo?.standardCharged2}`}
+                                      >
+                                        ⚡ Alt Moveset{altInfo && altInfo.roleBrDelta > 0 ? ` (+${altInfo.roleBrDelta} BR)` : ''}
+                                      </span>
+                                    )}
                                   </div>
-                                  <div className="text-[10px] text-slate-400 truncate mt-0.5">
+                                  <div
+                                    className={`text-[10px] truncate mt-0.5 ${
+                                      isAltMove ? 'text-amber-300 font-semibold' : 'text-slate-400'
+                                    }`}
+                                  >
                                     {mon.fastMove} • {mon.chargedMove1}/{mon.chargedMove2}
                                   </div>
                                 </div>
@@ -4925,20 +4948,44 @@ export default function App() {
                             })}
                           </div>
 
-                          <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] text-slate-400 pt-1 border-t border-slate-900">
-                            <span>{opt.synergySummary}</span>
-                            {opt.keyMetaTargetsBeaten.length > 0 && (
-                              <span className="text-emerald-300 font-medium">
-                                Key Wins: {opt.keyMetaTargetsBeaten.slice(0, 4).join(', ')}
-                              </span>
-                            )}
+                          {/* Key Wins, Key Threats & Core Breakers Breakdown */}
+                          <div className="space-y-1 text-[10px] pt-1.5 border-t border-slate-900">
+                            <p className="text-slate-400 leading-relaxed">{opt.synergySummary}</p>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 pt-1">
+                              <div className="bg-emerald-950/25 border border-emerald-500/30 rounded-lg px-2 py-1">
+                                <span className="font-bold text-emerald-400 block">
+                                  ✅ Key Wins ({opt.topMetaWinsCount}/{totalMetaDepth})
+                                </span>
+                                <span className="text-slate-300">
+                                  {opt.keyMetaTargetsBeaten.length > 0
+                                    ? opt.keyMetaTargetsBeaten.slice(0, 4).join(', ')
+                                    : 'Balanced field coverage'}
+                                </span>
+                              </div>
+                              <div className="bg-amber-950/25 border border-amber-500/30 rounded-lg px-2 py-1">
+                                <span className="font-bold text-amber-300 block">⚠️ Key Threats</span>
+                                <span className="text-slate-300">
+                                  {opt.keyThreats && opt.keyThreats.length > 0
+                                    ? opt.keyThreats.slice(0, 4).join(', ')
+                                    : 'No severe lead+backline threats'}
+                                </span>
+                              </div>
+                              <div className="bg-rose-950/25 border border-rose-500/30 rounded-lg px-2 py-1">
+                                <span className="font-bold text-rose-300 block">🚨 Core Breakers</span>
+                                <span className="text-slate-300">
+                                  {opt.coreBreakers && opt.coreBreakers.length > 0
+                                    ? opt.coreBreakers.slice(0, 4).join(', ')
+                                    : 'None (0 in Top 25 Meta)'}
+                                </span>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       );
                     };
 
                     return (
-                      <div className="space-y-3">
+                      <div className="space-y-4">
                         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-300 bg-slate-950/70 px-3.5 py-2 rounded-xl border border-slate-800">
                           <span>
                             Showing <strong className="text-amber-300">Top {currentResult.top5AbbTeams.length} ABB</strong> &amp;{' '}
@@ -4946,7 +4993,11 @@ export default function App() {
                             <strong className="text-white">{currentResult.league}</strong>
                             {currentResult.featuredPokemon.length > 0
                               ? ` featuring ${currentResult.featuredPokemon.join(' + ')}`
-                              : ' (0 featured picks — full meta optimization)'}
+                              : ' (0 featured picks — full Top-100 role-weighted meta optimization)'}
+                            {' • '}
+                            <span className="text-purple-300">
+                              {currentResult.candidatesEvaluated} trios + {currentResult.movesetCombosSimulated || 0} alt movesets simmed
+                            </span>
                           </span>
                           <span className="text-[11px] text-emerald-400 font-mono">
                             Default Team Name on Select: &quot;{defaultPreviewName}&quot;
@@ -4978,6 +5029,29 @@ export default function App() {
                               </span>
                             </div>
                             {currentResult.top5AbcTeams.map((opt) => renderOptionCard(opt))}
+                          </div>
+                        </div>
+
+                        {/* Bottom Card: Top 25 Meta Determined by SilphScope */}
+                        <div className="bg-slate-950/85 border border-slate-800 rounded-xl p-4 space-y-2.5">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <h5 className="text-xs font-extrabold text-purple-300 uppercase tracking-wider">
+                              🎯 Top 25 {currentResult.league} Meta Determined by SilphScope (Target Audit Pool for /25 Wins)
+                            </h5>
+                            <span className="text-[10px] text-slate-400">
+                              {currentResult.metaSummaryLabel || 'Built against Top-100 Synthetic Role-Weighted Meta blended with Season Logs'}
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {(currentResult.top25MetaList || []).map((entry) => (
+                              <span
+                                key={`top25-meta-${entry.rank}-${entry.name}`}
+                                className="px-2 py-1 rounded-lg bg-slate-900 border border-slate-800 text-[10px] text-slate-200 font-medium"
+                              >
+                                <strong className="text-purple-400 font-mono">#{entry.rank}</strong> {entry.name}{' '}
+                                <span className="text-slate-500 font-mono">({entry.weightPct}%)</span>
+                              </span>
+                            ))}
                           </div>
                         </div>
                       </div>

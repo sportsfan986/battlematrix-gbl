@@ -1,5 +1,18 @@
 # SilphScope PvP Changelog
 
+## [v3.22] — 2026-10-22 — Top-100 Role-Weighted Anti-Meta Team Builder, 3-Slot Alternate Moveset Simulation, Key Wins / Key Threats / Core Breakers & Top-25 SilphScope Meta Audit
+- **Top-100 Flattened Role-Weighted Synthetic Meta Blended with Season Logs (`gblData.ts`, `OverlayService.kt`)**:
+  - Upgraded the Anti-Meta Team Builder (`ABB` / `ABC`) to build and score all candidate lineups (`Core BR`, `Lead BR`, `Swap BR`, `Closer BR`) against a **Top-100 flattened synthetic meta** ($\exp(-0.022 \cdot i)$) weighted heaviest on the most common Pokémon for each role (`Lead`, `Safe Swap`, `Closer`) and blended with your current-season battle logs (`wHist` + `wMeta`).
+  - Expanded the candidate team generation pool to the **Top 60+ Meta Pokémon** per league while enforcing GBL species-clause and Mega Master League constraints.
+- **`Beats X/25 Top Meta` Target Depth & Bottom Top 25 SilphScope Meta Reference Card (`App.tsx`, `MainActivity.kt`, `gblData.ts`, `OverlayService.kt`)**:
+  - Increased the Top Meta target audit depth displayed on each generated ABB and ABC team card from `/15` to **`/25` (`Beats X/25 Top Meta`)**.
+  - Added a **"🎯 Top 25 <League> Meta Determined by SilphScope (Target Audit Pool for /25 Wins)"** reference section at the bottom of the Anti-Meta Team Builder card listing `#1` through `#25` with species name and field weight percentage (`%`).
+- **3-Slot Alternate Moveset Simulation & `⚡ Alt Moveset` Highlighting**:
+  - Simulates legal Fast + Charged move combinations across all 3 team members on top ABB and ABC candidate lineups against the Top-100 role-weighted meta.
+  - Highlights any non-standard moveset on generated team cards with an **`⚡ Alt Moveset (+X BR)`** badge, violet move name styling, and a comparison to the standard PvPoke moveset, and carries those optimized moves directly into the Edit Team modal on selection.
+- **Key Wins, Key Threats & Core Breakers Breakdown**:
+  - Every generated ABB and ABC team card now displays **`✅ Key Wins`**, **`⚠️ Key Threats`** (Top-25 Pokémon that beat your Lead and pressure your backline), and **`🚨 Core Breakers`** (Top-25 Pokémon that beat all 3 team members `BR < 490`) in both the visual breakdown badges and the team synergy description.
+
 ## [v3.21] — 2026-10-22 — Native Android & Web Anti-Meta Team Builder (`ABB` / `ABC`) on Team Presets Page
 - **Anti-Meta Team Builder on Team Presets Page (`MainActivity.kt`, `OverlayService.kt`, `activity_main.xml`, `App.tsx`, `gblData.ts`)**:
   - **2a — League & Featured Pokémon Selection**: Added an **Anti-Meta Team Builder (`ABB` / `ABC`)** panel and header button (`🧪 Anti-Meta`) directly on the **Team Presets** page where you can select any **League** (`GREAT LEAGUE`, `ULTRA LEAGUE`, `MASTER LEAGUE`, `MEGA MASTER LEAGUE`) and enter **0, 1, or 2 Featured Pokémon** with live autocomplete and GBL species-clause checks.

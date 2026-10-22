@@ -7881,7 +7881,25 @@ export function getOverlayRealtime9x9Matchup(
 
 // =========================================================================
 // ANTI-META TEAM BUILDER ENGINE (5 BEST ABB + 5 BEST ABC TEAM OPTIONS)
+// - Top-100 Flattened Role-Weighted Synthetic Meta blended with Season Logs
+// - Targets Top 50+ Meta Pokémon with Key Wins, Key Threats & Core Breakers
+// - Simulates & optimizes alternate movesets from standard across all 3 slots
 // =========================================================================
+
+export interface AntiMetaAltMovesetInfo {
+  slotIndex: number; // 0 = Lead, 1 = Swap/B1, 2 = Closer/B2
+  roleLabel: string;
+  pokemonName: string;
+  isAltMoveset: boolean;
+  standardFastMove: string;
+  standardCharged1: string;
+  standardCharged2: string;
+  fastMove: string;
+  chargedMove1: string;
+  chargedMove2: string;
+  roleBrDelta: number;
+  coreBrDelta: number;
+}
 
 export interface AntiMetaTeamOption {
   id: string;
@@ -7897,9 +7915,19 @@ export interface AntiMetaTeamOption {
   closerBr: number;
   sharedWeaknesses: string[];
   compositeAntiMetaScore: number;
+  topMetaTargetsTotal: number;
   topMetaWinsCount: number;
   keyMetaTargetsBeaten: string[];
+  keyThreats: string[];
+  coreBreakers: string[];
+  altMovesetSlots: AntiMetaAltMovesetInfo[];
   synergySummary: string;
+}
+
+export interface SilphScopeTopMetaEntry {
+  rank: number;
+  name: string;
+  weightPct: number;
 }
 
 export interface AntiMetaTeamBuilderResult {
@@ -7909,6 +7937,11 @@ export interface AntiMetaTeamBuilderResult {
   top5AbbTeams: AntiMetaTeamOption[];
   top5AbcTeams: AntiMetaTeamOption[];
   candidatesEvaluated: number;
+  movesetCombosSimulated: number;
+  metaTargetCount: number;
+  top25MetaNames: string[];
+  top25MetaList: SilphScopeTopMetaEntry[];
+  metaSummaryLabel: string;
   elapsedMs: number;
 }
 
@@ -7928,9 +7961,243 @@ export function formatAntiMetaDefaultTeamName(league: string, date: Date = new D
   return `${abbr} Anti-Meta ${yyyy}-${mm}-${dd}`;
 }
 
+interface RoleWeightedMetaDistribution {
+  leadWeights: Map<string, number>;
+  swapWeights: Map<string, number>;
+  closerWeights: Map<string, number>;
+  fieldWeights: Map<string, number>;
+  top25Threats: string[];
+  top25MetaList: SilphScopeTopMetaEntry[];
+  top50Threats: string[];
+  top100Species: string[];
+  wHistPct: number;
+  wMetaPct: number;
+  seasonMatchCount: number;
+}
+
+/**
+ * Builds a Top-100 flattened synthetic meta distribution blended with current-season battle logs,
+ * applying role-specific weight multipliers so the most common Pokémon for Lead, Safe Swap, and
+ * Closer roles receive the heaviest weighting while Ranks 1-50+ maintain strong representation.
+ */
+function computeRoleWeightedTop100Meta(
+  normLeague: string,
+  seasonBattleLogs?: Array<{ timestampMs: number; league: string; opponents: string[] }>,
+  currentSeason?: { startMs: number; endMs: number }
+): RoleWeightedMetaDistribution {
+  const rawTop100 = getLeagueTopMetaSpeciesNames(normLeague, 100);
+  const top100Species: string[] = [];
+  const seenCanon = new Set<string>();
+  for (const sp of rawTop100) {
+    const canon = canonicalizeMetaPokemonName(sp) || sp;
+    const key = canon.toLowerCase();
+    if (!seenCanon.has(key)) {
+      seenCanon.add(key);
+      top100Species.push(canon);
+    }
+  }
+
+  // Flattened exponential rank decay across Top 100: exp(-0.022 * idx)
+  // Plus role-affinity multipliers based on fast move energy pacing, bulk, and closing power
+  const synLead = new Map<string, number>();
+  const synSwap = new Map<string, number>();
+  const synCloser = new Map<string, number>();
+  const synField = new Map<string, number>();
+  let sumSynLead = 0;
+  let sumSynSwap = 0;
+  let sumSynCloser = 0;
+  let sumSynField = 0;
+
+  const fastGeneralistMoves = new Set([
+    "shadow claw",
+    "lick",
+    "rollout",
+    "psywave",
+    "snarl",
+    "dragon breath",
+    "counter",
+    "karate chop",
+    "poison sting",
+    "mud shot",
+    "water shuriken",
+    "sand attack",
+    "lock-on",
+    "thunder shock",
+    "fairy wind"
+  ]);
+
+  top100Species.forEach((monName, idx) => {
+    // Flattened curve with extra emphasis on top role staples (Ranks 1-25 & 26-50)
+    const rankTierBoost = idx < 15 ? 1.35 : idx < 35 ? 1.20 : idx < 55 ? 1.08 : 0.85;
+    const baseW = Math.exp(-0.022 * idx) * rankTierBoost;
+
+    const rec = getRecommendedMovesForPokemon(monName, normLeague);
+    const dbEntry = POKEMON_DATABASE[monName] || (rec ? POKEMON_DATABASE[rec.name] : undefined);
+    const fastLower = (rec?.fastMove || dbEntry?.defaultFastMove?.name || "").toLowerCase();
+    const cMoves = dbEntry?.chargedMoves || [];
+    const minEnergy = cMoves.length > 0 ? Math.min(...cMoves.map((c) => c.energyCost || 50)) : 45;
+    const maxPower = cMoves.length > 0 ? Math.max(...cMoves.map((c) => c.power || 75)) : 80;
+    const isShadow = /^shadow\s+/i.test(monName);
+
+    // Role affinity multipliers
+    const leadMult =
+      (minEnergy <= 45 ? 1.22 : 1.0) *
+      (idx < 25 ? 1.18 : 1.0) *
+      (!isShadow ? 1.06 : 0.96);
+    const swapMult =
+      (fastGeneralistMoves.has(fastLower) ? 1.28 : 1.0) *
+      (minEnergy <= 45 ? 1.12 : 0.95) *
+      (idx < 40 ? 1.12 : 1.0);
+    const closerMult =
+      (maxPower >= 95 ? 1.26 : 1.0) *
+      (isShadow ? 1.16 : 1.0) *
+      (idx < 35 ? 1.12 : 1.0);
+
+    const wL = baseW * leadMult;
+    const wS = baseW * swapMult;
+    const wC = baseW * closerMult;
+    const wF = baseW * ((leadMult + swapMult + closerMult) / 3.0);
+
+    synLead.set(monName, (synLead.get(monName) || 0) + wL);
+    synSwap.set(monName, (synSwap.get(monName) || 0) + wS);
+    synCloser.set(monName, (synCloser.get(monName) || 0) + wC);
+    synField.set(monName, (synField.get(monName) || 0) + wF);
+
+    sumSynLead += wL;
+    sumSynSwap += wS;
+    sumSynCloser += wC;
+    sumSynField += wF;
+  });
+
+  if (sumSynLead > 0) for (const [k, v] of synLead.entries()) synLead.set(k, v / sumSynLead);
+  if (sumSynSwap > 0) for (const [k, v] of synSwap.entries()) synSwap.set(k, v / sumSynSwap);
+  if (sumSynCloser > 0) for (const [k, v] of synCloser.entries()) synCloser.set(k, v / sumSynCloser);
+  if (sumSynField > 0) for (const [k, v] of synField.entries()) synField.set(k, v / sumSynField);
+
+  // Filter current-season battle logs for role-specific empirical blending
+  const matchingLogs = (seasonBattleLogs || [])
+    .filter((entry) => {
+      if (!entry || !Array.isArray(entry.opponents) || entry.opponents.length === 0) return false;
+      const entryLeague = (entry.league || "").toUpperCase();
+      if (entryLeague !== normLeague) return false;
+      if (currentSeason && currentSeason.startMs > 0 && currentSeason.endMs > currentSeason.startMs) {
+        if (entry.timestampMs < currentSeason.startMs || entry.timestampMs > currentSeason.endMs) {
+          return false;
+        }
+      }
+      return Boolean(canonicalizeMetaPokemonName(entry.opponents[0]));
+    })
+    .sort((a, b) => b.timestampMs - a.timestampMs);
+
+  const N = matchingLogs.length;
+  const wHist = 0.70 * Math.min(1.0, N / 50.0);
+  const wMeta = 1.0 - wHist;
+
+  const histLead = new Map<string, number>();
+  const histSwap = new Map<string, number>();
+  const histCloser = new Map<string, number>();
+  const histField = new Map<string, number>();
+  let sumHL = 0;
+  let sumHS = 0;
+  let sumHC = 0;
+  let sumHF = 0;
+
+  matchingLogs.forEach((entry, idx) => {
+    const wMatch = Math.exp(-0.04 * idx);
+    const opps = entry.opponents.slice(0, 3).map((o) => canonicalizeMetaPokemonName(o || "")).filter(Boolean);
+    if (opps[0]) {
+      histLead.set(opps[0], (histLead.get(opps[0]) || 0) + wMatch);
+      sumHL += wMatch;
+    }
+    if (opps[1]) {
+      histSwap.set(opps[1], (histSwap.get(opps[1]) || 0) + wMatch);
+      sumHS += wMatch;
+    }
+    if (opps[2]) {
+      histCloser.set(opps[2], (histCloser.get(opps[2]) || 0) + wMatch);
+      sumHC += wMatch;
+    }
+    opps.forEach((oppName) => {
+      histField.set(oppName, (histField.get(oppName) || 0) + wMatch);
+      sumHF += wMatch;
+    });
+  });
+
+  if (sumHL > 0) for (const [k, v] of histLead.entries()) histLead.set(k, v / sumHL);
+  if (sumHS > 0) for (const [k, v] of histSwap.entries()) histSwap.set(k, v / sumHS);
+  if (sumHC > 0) for (const [k, v] of histCloser.entries()) histCloser.set(k, v / sumHC);
+  if (sumHF > 0) for (const [k, v] of histField.entries()) histField.set(k, v / sumHF);
+
+  const allSpecies = new Set<string>([
+    ...top100Species,
+    ...histField.keys(),
+    ...histLead.keys()
+  ]);
+
+  const blendMap = (
+    synMap: Map<string, number>,
+    hMap: Map<string, number>,
+    hSum: number,
+    fallbackHistMap: Map<string, number>,
+    fallbackHistSum: number
+  ): Map<string, number> => {
+    const out = new Map<string, number>();
+    let total = 0;
+    for (const sp of allSpecies) {
+      const mP = synMap.get(sp) || 0;
+      const hP =
+        hSum > 0
+          ? hMap.get(sp) || 0
+          : fallbackHistSum > 0
+          ? fallbackHistMap.get(sp) || 0
+          : mP;
+      const val = wHist * hP + wMeta * mP;
+      if (val > 0) {
+        out.set(sp, val);
+        total += val;
+      }
+    }
+    if (total > 0) {
+      for (const [k, v] of out.entries()) out.set(k, v / total);
+    }
+    return out;
+  };
+
+  const leadWeights = blendMap(synLead, histLead, sumHL, histField, sumHF);
+  const swapWeights = blendMap(synSwap, histSwap, sumHS, histField, sumHF);
+  const closerWeights = blendMap(synCloser, histCloser, sumHC, histField, sumHF);
+  const fieldWeights = blendMap(synField, histField, sumHF, histField, sumHF);
+
+  const sortedFieldEntries = Array.from(fieldWeights.entries()).sort((a, b) => b[1] - a[1]);
+  const top50Threats = sortedFieldEntries.map((e) => e[0]).slice(0, 50);
+  const top25Threats = (top50Threats.length >= 25 ? top50Threats : top100Species).slice(0, 25);
+  const top25MetaList: SilphScopeTopMetaEntry[] = top25Threats.map((name, idx) => ({
+    rank: idx + 1,
+    name,
+    weightPct: Number(((fieldWeights.get(name) || 0) * 100).toFixed(1))
+  }));
+
+  return {
+    leadWeights,
+    swapWeights,
+    closerWeights,
+    fieldWeights,
+    top25Threats,
+    top25MetaList,
+    top50Threats: top50Threats.length >= 50 ? top50Threats : top100Species.slice(0, 50),
+    top100Species,
+    wHistPct: Math.round(wHist * 100),
+    wMetaPct: Math.round(wMeta * 100),
+    seasonMatchCount: N
+  };
+}
+
 /**
  * Generates the Best 5 ABB and Best 5 ABC Anti-Meta team options for the selected league
- * that MUST include the 0, 1, or 2 user-selected featured Pokémon.
+ * that MUST include the 0, 1, or 2 user-selected featured Pokémon, building around performance
+ * against the Top-100 role-weighted synthetic meta blended with season logs, auditing
+ * Beats X/25 Top Meta (plus Key Wins, Key Threats & Core Breakers), and simulating alternate
+ * Fast + Charged movesets for all 3 team members on top candidate lineups.
  */
 export function generateAntiMetaTeamOptions(
   league: string = "GREAT LEAGUE",
@@ -7948,9 +8215,11 @@ export function generateAntiMetaTeamOptions(
     ? "ULTRA LEAGUE"
     : "MASTER LEAGUE";
 
-  const blendedMeta = computeBlendedSeasonMeta(normLeague, seasonBattleLogs, currentSeason);
-  const topMetaPool = getTop100MetaCandidatesForLeague(normLeague, 45);
-  const top15MetaThreats = getLeagueTopMetaSpeciesNames(normLeague, 15);
+  const roleMeta = computeRoleWeightedTop100Meta(normLeague, seasonBattleLogs, currentSeason);
+  const topMetaPool = getTop100MetaCandidatesForLeague(normLeague, 65);
+  const top25MetaThreats = roleMeta.top25Threats;
+  const top50MetaThreats = roleMeta.top50Threats;
+  const targetAuditTotal = top25MetaThreats.length || 25;
 
   const buildMember = (rawName: string, idSuffix: string): TeamMember | null => {
     const trimmed = (rawName || "").trim();
@@ -7981,7 +8250,7 @@ export function generateAntiMetaTeamOptions(
     resolvedFeatured.push(member);
   }
 
-  // Ensure featured Pokémon are also in candidate pool or handled cleanly
+  // Ensure candidate pool includes at least the Top 55-65 meta species + featured picks
   const candidatePool: TeamMember[] = [];
   const seenNames = new Set<string>();
   for (const c of [...resolvedFeatured, ...topMetaPool]) {
@@ -7992,21 +8261,75 @@ export function generateAntiMetaTeamOptions(
     }
   }
 
-  // Precompute slot evaluations (weaknesses, resistances, position-weighted BR maps) for candidatePool
-  const slotEvalCache = new Map<
-    string,
-    {
-      member: TeamMember;
-      baseSpecies: string;
-      weaknesses: string[];
-      doubleWeaknesses: string[];
-      resistances: string[];
-      leadBr: number;
-      swapBr: number;
-      closerBr: number;
-      pwByOpp: Map<string, PositionWeightedMatchupRatings>;
+  const allMetaOpps = Array.from(
+    new Set<string>([
+      ...roleMeta.fieldWeights.keys(),
+      ...roleMeta.leadWeights.keys(),
+      ...top50MetaThreats
+    ])
+  );
+
+  interface SlotCandidateEval {
+    member: TeamMember;
+    baseSpecies: string;
+    weaknesses: string[];
+    doubleWeaknesses: string[];
+    resistances: string[];
+    leadBr: number;
+    swapBr: number;
+    closerBr: number;
+    pwByOpp: Map<string, PositionWeightedMatchupRatings>;
+  }
+
+  const evaluateMemberAgainstRoleMeta = (
+    member: TeamMember,
+    baseSpecies: string,
+    weaknesses: string[],
+    doubleWeaknesses: string[],
+    resistances: string[]
+  ): SlotCandidateEval => {
+    const pwByOpp = new Map<string, PositionWeightedMatchupRatings>();
+    for (const oppName of allMetaOpps) {
+      pwByOpp.set(oppName, evaluatePositionWeightedBr(member, oppName, normLeague));
     }
-  >();
+
+    let leadSum = 0;
+    for (const [oppName, prob] of roleMeta.leadWeights.entries()) {
+      leadSum += prob * (pwByOpp.get(oppName)?.leadBr ?? 500);
+    }
+
+    let swapMean = 0;
+    for (const [oppName, prob] of roleMeta.swapWeights.entries()) {
+      swapMean += prob * (pwByOpp.get(oppName)?.swapBr ?? 500);
+    }
+    let swapVar = 0;
+    for (const [oppName, prob] of roleMeta.swapWeights.entries()) {
+      const d = (pwByOpp.get(oppName)?.swapBr ?? swapMean) - swapMean;
+      swapVar += prob * d * d;
+    }
+    const swapSigma = Math.sqrt(Math.max(0, swapVar));
+    const safeSwapBr = Math.round(swapMean - 0.35 * swapSigma);
+
+    let closerSum = 0;
+    for (const [oppName, prob] of roleMeta.closerWeights.entries()) {
+      closerSum += prob * (pwByOpp.get(oppName)?.closerBr ?? 500);
+    }
+
+    return {
+      member,
+      baseSpecies,
+      weaknesses,
+      doubleWeaknesses,
+      resistances,
+      leadBr: Math.round(leadSum),
+      swapBr: safeSwapBr,
+      closerBr: Math.round(closerSum),
+      pwByOpp
+    };
+  };
+
+  // Precompute slot evaluations for standard movesets across candidatePool
+  const slotEvalCache = new Map<string, SlotCandidateEval>();
 
   for (const cand of candidatePool) {
     const key = cand.name.toLowerCase();
@@ -8030,54 +8353,151 @@ export function generateAntiMetaTeamOptions(
       }
     }
 
-    const pwByOpp = new Map<string, PositionWeightedMatchupRatings>();
-    for (const oppName of blendedMeta.fieldProbabilities.keys()) {
-      pwByOpp.set(oppName, evaluatePositionWeightedBr(cand, oppName, normLeague));
-    }
-    for (const oppName of blendedMeta.leadProbabilities.keys()) {
-      if (!pwByOpp.has(oppName)) {
-        pwByOpp.set(oppName, evaluatePositionWeightedBr(cand, oppName, normLeague));
-      }
-    }
-    for (const oppName of top15MetaThreats) {
-      if (!pwByOpp.has(oppName)) {
-        pwByOpp.set(oppName, evaluatePositionWeightedBr(cand, oppName, normLeague));
-      }
-    }
-
-    let leadSum = 0;
-    for (const [oppName, prob] of blendedMeta.leadProbabilities.entries()) {
-      leadSum += prob * (pwByOpp.get(oppName)?.leadBr ?? 500);
-    }
-    let swapSum = 0;
-    let closerSum = 0;
-    for (const [oppName, prob] of blendedMeta.fieldProbabilities.entries()) {
-      const pw = pwByOpp.get(oppName);
-      swapSum += prob * (pw?.swapBr ?? 500);
-      closerSum += prob * (pw?.closerBr ?? 500);
-    }
-
-    slotEvalCache.set(key, {
-      member: cand,
-      baseSpecies,
-      weaknesses,
-      doubleWeaknesses,
-      resistances,
-      leadBr: Math.round(leadSum),
-      swapBr: Math.round(swapSum),
-      closerBr: Math.round(closerSum),
-      pwByOpp
-    });
+    slotEvalCache.set(
+      key,
+      evaluateMemberAgainstRoleMeta(cand, baseSpecies, weaknesses, doubleWeaknesses, resistances)
+    );
   }
+
+  // Helper to audit Key Wins, Key Threats, Core Breakers, and Composite Anti-Meta Score for any 3 SlotCandidateEvals
+  const buildTeamOptionFromEvals = (
+    m0: SlotCandidateEval,
+    m1: SlotCandidateEval,
+    m2: SlotCandidateEval,
+    archetype: "ABB" | "ABC",
+    sharedWeaks: string[],
+    idPrefix: string,
+    sig: string,
+    altMovesetSlots: AntiMetaAltMovesetInfo[] = []
+  ): AntiMetaTeamOption => {
+    let coreSum = 0;
+    for (const [oppName, prob] of roleMeta.fieldWeights.entries()) {
+      const r0 = m0.pwByOpp.get(oppName)?.leadBr ?? 500;
+      const r1 = m1.pwByOpp.get(oppName)?.swapBr ?? 500;
+      const r2 = m2.pwByOpp.get(oppName)?.closerBr ?? 500;
+      coreSum += prob * Math.max(r0, r1, r2);
+    }
+    const machineAggBr = Math.round(coreSum);
+
+    const beatenTargets: string[] = [];
+    const coreBreakers: string[] = [];
+    const keyThreats: string[] = [];
+
+    for (const threat of top25MetaThreats) {
+      const r0 = m0.pwByOpp.get(threat)?.leadBr ?? 500;
+      const r1 = m1.pwByOpp.get(threat)?.swapBr ?? 500;
+      const r2 = m2.pwByOpp.get(threat)?.closerBr ?? 500;
+      const maxBr = Math.max(r0, r1, r2);
+      const minBackBr = Math.min(r1, r2);
+
+      if (maxBr >= 525) {
+        beatenTargets.push(threat);
+      }
+
+      // Core Breaker: beats all 3 team members in their respective roles
+      if (r0 < 495 && r1 < 495 && r2 < 495) {
+        coreBreakers.push(threat);
+      } else if ((r0 < 475 && minBackBr < 485) || maxBr < 512) {
+        // Key Threat: beats Lead + a backliner or has favorable pressure against the team
+        keyThreats.push(threat);
+      }
+    }
+
+    // Backfill at least 2 Key Threats with the lowest maxBr opponents in Top 25 if none crossed the strict threshold
+    if (keyThreats.length === 0) {
+      const sortedTough = [...top25MetaThreats]
+        .filter((t) => !coreBreakers.includes(t))
+        .map((t) => {
+          const r0 = m0.pwByOpp.get(t)?.leadBr ?? 500;
+          const r1 = m1.pwByOpp.get(t)?.swapBr ?? 500;
+          const r2 = m2.pwByOpp.get(t)?.closerBr ?? 500;
+          return { t, score: Math.min(r0, (r1 + r2) / 2) + Math.max(r0, r1, r2) * 0.35 };
+        })
+        .sort((a, b) => a.score - b.score);
+      for (const item of sortedTough.slice(0, 3)) {
+        keyThreats.push(item.t);
+      }
+    }
+
+    let unresistedTripleWeakPenalty = 0;
+    for (const atkType of ALL_18_TYPES) {
+      const weakCount = [m0, m1, m2].filter((m) => m.weaknesses.includes(atkType)).length;
+      const resistCount = [m0, m1, m2].filter((m) => m.resistances.includes(atkType)).length;
+      if (weakCount >= 2 && resistCount === 0) {
+        unresistedTripleWeakPenalty += weakCount === 3 ? 35 : 14;
+      }
+    }
+
+    const compositeAntiMetaScore = Number(
+      (
+        0.48 * machineAggBr +
+        0.20 * m0.leadBr +
+        0.16 * m1.swapBr +
+        0.16 * m2.closerBr +
+        beatenTargets.length * 1.65 -
+        coreBreakers.length * 7.5 -
+        keyThreats.length * 1.8 -
+        (archetype === "ABC" ? unresistedTripleWeakPenalty : 0)
+      ).toFixed(1)
+    );
+
+    const pTuple: [TeamMember, TeamMember, TeamMember] = [
+      { ...m0.member, id: "am-slot-1" },
+      { ...m1.member, id: "am-slot-2" },
+      { ...m2.member, id: "am-slot-3" }
+    ];
+
+    const winsPreview = beatenTargets.slice(0, 5).join(", ") || "Broad neutral coverage";
+    const threatsPreview = keyThreats.slice(0, 4).join(", ") || "None prominent";
+    const breakersPreview =
+      coreBreakers.length > 0
+        ? coreBreakers.slice(0, 4).join(", ")
+        : "None (0 hard core breakers in Top 25)";
+    const altNotes = altMovesetSlots
+      .filter((a) => a.isAltMoveset)
+      .map((a) => `${a.pokemonName} (${a.fastMove} + ${a.chargedMove1}/${a.chargedMove2})`);
+    const altSuffix = altNotes.length > 0 ? ` • Alt Moveset Tech: ${altNotes.join("; ")}.` : "";
+
+    const synergySummary =
+      archetype === "ABB"
+        ? `ABB Lineup: ${m0.member.name} (Lead A) covers backline ${sharedWeaks.map((w) => w.toUpperCase()).join("/")} weakness for ${m1.member.name} (Bait B1) & ${m2.member.name} (Sweeper B2). Beats ${beatenTargets.length}/${targetAuditTotal} Top Meta. Key Wins: ${winsPreview}. Key Threats: ${threatsPreview}. Core Breakers: ${breakersPreview}.${altSuffix}`
+        : `ABC Balanced Core: ${m0.member.name} Lead (${m0.leadBr} BR) + ${m1.member.name} Safe Swap (${m1.swapBr} BR) + ${m2.member.name} Closer (${m2.closerBr} BR). Beats ${beatenTargets.length}/${targetAuditTotal} Top Meta. Key Wins: ${winsPreview}. Key Threats: ${threatsPreview}. Core Breakers: ${breakersPreview}.${altSuffix}`;
+
+    return {
+      id: `${idPrefix}-${sig}`,
+      archetype,
+      rank: 0,
+      league: normLeague,
+      pokemon: pTuple,
+      featuredNamesIncluded: resolvedFeatured.map((f) => f.name),
+      leadAggBr: m0.leadBr,
+      machineAggBr,
+      safeSwapBr: m1.swapBr,
+      closerSwapBr: m2.swapBr,
+      closerBr: m2.closerBr,
+      sharedWeaknesses: sharedWeaks,
+      compositeAntiMetaScore,
+      topMetaTargetsTotal: targetAuditTotal,
+      topMetaWinsCount: beatenTargets.length,
+      keyMetaTargetsBeaten: beatenTargets.slice(0, 6),
+      keyThreats: keyThreats.slice(0, 5),
+      coreBreakers: coreBreakers.slice(0, 5),
+      altMovesetSlots,
+      synergySummary
+    };
+  };
 
   const abbCandidates: AntiMetaTeamOption[] = [];
   const abcCandidates: AntiMetaTeamOption[] = [];
   const seenTrios = new Set<string>();
   let candidatesEvaluated = 0;
 
-  // Build list of trios that include all resolvedFeatured (0, 1, or 2 Pokémon)
+  // Build list of trios that include all resolvedFeatured (0, 1, or 2 Pokémon) across Top 50+ candidates
   const triosToEvaluate: Array<[TeamMember, TeamMember, TeamMember]> = [];
-  const poolLimit = resolvedFeatured.length === 0 ? Math.min(26, candidatePool.length) : Math.min(36, candidatePool.length);
+  const poolLimit =
+    resolvedFeatured.length === 0
+      ? Math.min(34, candidatePool.length)
+      : Math.min(55, candidatePool.length);
 
   if (resolvedFeatured.length === 2) {
     const f1 = resolvedFeatured[0];
@@ -8105,6 +8525,7 @@ export function generateAntiMetaTeamOptions(
       }
     }
   } else {
+    // Include combinations across Top 34 + top anti-meta pairings from ranks 35-55
     for (let i = 0; i < poolLimit; i++) {
       const c1 = candidatePool[i];
       const b1 = slotEvalCache.get(c1.name.toLowerCase())?.baseSpecies || c1.name.toLowerCase();
@@ -8112,7 +8533,8 @@ export function generateAntiMetaTeamOptions(
         const c2 = candidatePool[j];
         const b2 = slotEvalCache.get(c2.name.toLowerCase())?.baseSpecies || c2.name.toLowerCase();
         if (b2 === b1) continue;
-        for (let k = j + 1; k < poolLimit; k++) {
+        const maxK = i < 12 ? Math.min(52, candidatePool.length) : poolLimit;
+        for (let k = j + 1; k < maxK; k++) {
           const c3 = candidatePool[k];
           const b3 = slotEvalCache.get(c3.name.toLowerCase())?.baseSpecies || c3.name.toLowerCase();
           if (b3 === b1 || b3 === b2) continue;
@@ -8126,6 +8548,14 @@ export function generateAntiMetaTeamOptions(
     [0, 1, 2],
     [1, 0, 2],
     [2, 0, 1]
+  ];
+  const all6Perms: Array<[number, number, number]> = [
+    [0, 1, 2],
+    [0, 2, 1],
+    [1, 0, 2],
+    [1, 2, 0],
+    [2, 0, 1],
+    [2, 1, 0]
   ];
 
   for (const trio of triosToEvaluate) {
@@ -8143,7 +8573,6 @@ export function generateAntiMetaTeamOptions(
     if (!e0 || !e1 || !e2) continue;
     const evals = [e0, e1, e2];
 
-    // Check ABB qualification across the 3 possible Lead A choices
     let bestAbbOrder: [number, number, number] | null = null;
     let bestAbbShared: string[] = [];
     let bestAbbStructureScore = -Infinity;
@@ -8183,17 +8612,8 @@ export function generateAntiMetaTeamOptions(
       }
     }
 
-    // Also compute best ABC ordering (no unresisted triple/double weakness pileup)
     let bestAbcOrder: [number, number, number] = [0, 1, 2];
     let bestAbcRoleSum = -Infinity;
-    const all6Perms: Array<[number, number, number]> = [
-      [0, 1, 2],
-      [0, 2, 1],
-      [1, 0, 2],
-      [1, 2, 0],
-      [2, 0, 1],
-      [2, 1, 0]
-    ];
     for (const [lIdx, sIdx, cIdx] of all6Perms) {
       const roleSum =
         0.40 * evals[lIdx].leadBr +
@@ -8205,96 +8625,36 @@ export function generateAntiMetaTeamOptions(
       }
     }
 
-    const evaluateOrderedLineup = (
-      order: [number, number, number],
-      archetype: "ABB" | "ABC",
-      sharedWeaks: string[]
-    ): AntiMetaTeamOption => {
-      const m0 = evals[order[0]];
-      const m1 = evals[order[1]];
-      const m2 = evals[order[2]];
-
-      let coreSum = 0;
-      for (const [oppName, prob] of blendedMeta.fieldProbabilities.entries()) {
-        const r0 = m0.pwByOpp.get(oppName)?.leadBr ?? 500;
-        const r1 = m1.pwByOpp.get(oppName)?.swapBr ?? 500;
-        const r2 = m2.pwByOpp.get(oppName)?.closerBr ?? 500;
-        coreSum += prob * Math.max(r0, r1, r2);
-      }
-      const machineAggBr = Math.round(coreSum);
-
-      const beatenTargets: string[] = [];
-      for (const threat of top15MetaThreats) {
-        const r0 = m0.pwByOpp.get(threat)?.leadBr ?? 500;
-        const r1 = m1.pwByOpp.get(threat)?.swapBr ?? 500;
-        const r2 = m2.pwByOpp.get(threat)?.closerBr ?? 500;
-        if (Math.max(r0, r1, r2) >= 535) {
-          beatenTargets.push(threat);
-        }
-      }
-
-      // Check defensive vulnerability penalty for ABC (penalize shared unresisted weaknesses across all 3)
-      let unresistedTripleWeakPenalty = 0;
-      for (const atkType of ALL_18_TYPES) {
-        const weakCount = [m0, m1, m2].filter((m) => m.weaknesses.includes(atkType)).length;
-        const resistCount = [m0, m1, m2].filter((m) => m.resistances.includes(atkType)).length;
-        if (weakCount >= 2 && resistCount === 0) {
-          unresistedTripleWeakPenalty += weakCount === 3 ? 35 : 14;
-        }
-      }
-
-      const compositeAntiMetaScore = Number(
-        (
-          0.50 * machineAggBr +
-          0.20 * m0.leadBr +
-          0.16 * m1.swapBr +
-          0.14 * m2.closerBr +
-          beatenTargets.length * 2.2 -
-          (archetype === "ABC" ? unresistedTripleWeakPenalty : 0)
-        ).toFixed(1)
-      );
-
-      const pTuple: [TeamMember, TeamMember, TeamMember] = [
-        { ...m0.member, id: `am-slot-1` },
-        { ...m1.member, id: `am-slot-2` },
-        { ...m2.member, id: `am-slot-3` }
-      ];
-
-      const synergySummary =
-        archetype === "ABB"
-          ? `ABB Lineup: ${m0.member.name} (Lead A) covers backline ${sharedWeaks.map((w) => w.toUpperCase()).join("/")} weakness for ${m1.member.name} (Bait B1) & ${m2.member.name} (Sweeper B2). Beats ${beatenTargets.length}/15 top meta threats.`
-          : `ABC Balanced Core: ${m0.member.name} Lead (${m0.leadBr} BR) + ${m1.member.name} Safe Swap (${m1.swapBr} BR) + ${m2.member.name} Closer (${m2.closerBr} BR). Beats ${beatenTargets.length}/15 top meta threats.`;
-
-      return {
-        id: `anti-meta-${archetype.toLowerCase()}-${sig}`,
-        archetype,
-        rank: 0,
-        league: normLeague,
-        pokemon: pTuple,
-        featuredNamesIncluded: resolvedFeatured.map((f) => f.name),
-        leadAggBr: m0.leadBr,
-        machineAggBr,
-        safeSwapBr: m1.swapBr,
-        closerSwapBr: m2.swapBr,
-        closerBr: m2.closerBr,
-        sharedWeaknesses: sharedWeaks,
-        compositeAntiMetaScore,
-        topMetaWinsCount: beatenTargets.length,
-        keyMetaTargetsBeaten: beatenTargets.slice(0, 6),
-        synergySummary
-      };
-    };
-
     if (bestAbbOrder) {
-      abbCandidates.push(evaluateOrderedLineup(bestAbbOrder, "ABB", bestAbbShared));
+      abbCandidates.push(
+        buildTeamOptionFromEvals(
+          evals[bestAbbOrder[0]],
+          evals[bestAbbOrder[1]],
+          evals[bestAbbOrder[2]],
+          "ABB",
+          bestAbbShared,
+          "anti-meta-abb",
+          sig
+        )
+      );
     } else {
-      abcCandidates.push(evaluateOrderedLineup(bestAbcOrder, "ABC", []));
+      abcCandidates.push(
+        buildTeamOptionFromEvals(
+          evals[bestAbcOrder[0]],
+          evals[bestAbcOrder[1]],
+          evals[bestAbcOrder[2]],
+          "ABC",
+          [],
+          "anti-meta-abc",
+          sig
+        )
+      );
     }
   }
 
-  // If user picked 2 Pokémon that naturally form an ABB or ABC and one bucket has < 5, allow cross-evaluating top trios so both 5 ABB and 5 ABC are always populated
-  if (abbCandidates.length < 5 || abcCandidates.length < 5) {
-    for (const trio of triosToEvaluate.slice(0, 60)) {
+  // Ensure both ABB and ABC buckets have plenty of candidates before moveset optimization
+  if (abbCandidates.length < 8 || abcCandidates.length < 8) {
+    for (const trio of triosToEvaluate.slice(0, 80)) {
       const e0 = slotEvalCache.get(trio[0].name.toLowerCase());
       const e1 = slotEvalCache.get(trio[1].name.toLowerCase());
       const e2 = slotEvalCache.get(trio[2].name.toLowerCase());
@@ -8302,112 +8662,36 @@ export function generateAntiMetaTeamOptions(
       const evals = [e0, e1, e2];
       const sig = trio.map((m) => m.name.toLowerCase()).sort().join("||");
 
-      if (abbCandidates.length < 5 && !abbCandidates.some((c) => c.id.endsWith(sig))) {
-        // Find any pair with at least 1 shared weakness
+      if (abbCandidates.length < 8 && !abbCandidates.some((c) => c.id.endsWith(sig))) {
         for (const [leadIdx, bI, bJ] of indexPermutations) {
           const wI = new Set(evals[bI].weaknesses);
           const shared = evals[bJ].weaknesses.filter((w) => wI.has(w));
           if (shared.length >= 1) {
             const ordered: [number, number, number] =
               evals[bI].swapBr >= evals[bJ].swapBr ? [leadIdx, bI, bJ] : [leadIdx, bJ, bI];
-            const m0 = evals[ordered[0]];
-            const m1 = evals[ordered[1]];
-            const m2 = evals[ordered[2]];
-            let coreSum = 0;
-            for (const [oppName, prob] of blendedMeta.fieldProbabilities.entries()) {
-              coreSum +=
-                prob *
-                Math.max(
-                  m0.pwByOpp.get(oppName)?.leadBr ?? 500,
-                  m1.pwByOpp.get(oppName)?.swapBr ?? 500,
-                  m2.pwByOpp.get(oppName)?.closerBr ?? 500
-                );
-            }
-            const machineAggBr = Math.round(coreSum);
-            const beaten = top15MetaThreats.filter(
-              (t) =>
-                Math.max(
-                  m0.pwByOpp.get(t)?.leadBr ?? 500,
-                  m1.pwByOpp.get(t)?.swapBr ?? 500,
-                  m2.pwByOpp.get(t)?.closerBr ?? 500
-                ) >= 535
+            abbCandidates.push(
+              buildTeamOptionFromEvals(
+                evals[ordered[0]],
+                evals[ordered[1]],
+                evals[ordered[2]],
+                "ABB",
+                shared,
+                "anti-meta-abb-fallback",
+                sig
+              )
             );
-            abbCandidates.push({
-              id: `anti-meta-abb-fallback-${sig}`,
-              archetype: "ABB",
-              rank: 0,
-              league: normLeague,
-              pokemon: [
-                { ...m0.member, id: "am-slot-1" },
-                { ...m1.member, id: "am-slot-2" },
-                { ...m2.member, id: "am-slot-3" }
-              ],
-              featuredNamesIncluded: resolvedFeatured.map((f) => f.name),
-              leadAggBr: m0.leadBr,
-              machineAggBr,
-              safeSwapBr: m1.swapBr,
-              closerSwapBr: m2.swapBr,
-              closerBr: m2.closerBr,
-              sharedWeaknesses: shared,
-              compositeAntiMetaScore: Number(
-                (0.5 * machineAggBr + 0.2 * m0.leadBr + 0.16 * m1.swapBr + 0.14 * m2.closerBr).toFixed(1)
-              ),
-              topMetaWinsCount: beaten.length,
-              keyMetaTargetsBeaten: beaten.slice(0, 6),
-              synergySummary: `ABB Lineup: ${m0.member.name} (Lead A) + ${m1.member.name} (Bait B1) & ${m2.member.name} (Sweeper B2) sharing ${shared.map((w) => w.toUpperCase()).join("/")} weakness.`
-            });
             break;
           }
         }
       }
 
-      if (abcCandidates.length < 5 && !abcCandidates.some((c) => c.id.endsWith(sig))) {
+      if (abcCandidates.length < 8 && !abcCandidates.some((c) => c.id.endsWith(sig))) {
         const m0 = e0;
         const m1 = e1.swapBr >= e2.swapBr ? e1 : e2;
         const m2 = e1.swapBr >= e2.swapBr ? e2 : e1;
-        let coreSum = 0;
-        for (const [oppName, prob] of blendedMeta.fieldProbabilities.entries()) {
-          coreSum +=
-            prob *
-            Math.max(
-              m0.pwByOpp.get(oppName)?.leadBr ?? 500,
-              m1.pwByOpp.get(oppName)?.swapBr ?? 500,
-              m2.pwByOpp.get(oppName)?.closerBr ?? 500
-            );
-        }
-        const machineAggBr = Math.round(coreSum);
-        const beaten = top15MetaThreats.filter(
-          (t) =>
-            Math.max(
-              m0.pwByOpp.get(t)?.leadBr ?? 500,
-              m1.pwByOpp.get(t)?.swapBr ?? 500,
-              m2.pwByOpp.get(t)?.closerBr ?? 500
-            ) >= 535
+        abcCandidates.push(
+          buildTeamOptionFromEvals(m0, m1, m2, "ABC", [], "anti-meta-abc-fallback", sig)
         );
-        abcCandidates.push({
-          id: `anti-meta-abc-fallback-${sig}`,
-          archetype: "ABC",
-          rank: 0,
-          league: normLeague,
-          pokemon: [
-            { ...m0.member, id: "am-slot-1" },
-            { ...m1.member, id: "am-slot-2" },
-            { ...m2.member, id: "am-slot-3" }
-          ],
-          featuredNamesIncluded: resolvedFeatured.map((f) => f.name),
-          leadAggBr: m0.leadBr,
-          machineAggBr,
-          safeSwapBr: m1.swapBr,
-          closerSwapBr: m2.swapBr,
-          closerBr: m2.closerBr,
-          sharedWeaknesses: [],
-          compositeAntiMetaScore: Number(
-            (0.5 * machineAggBr + 0.2 * m0.leadBr + 0.16 * m1.swapBr + 0.14 * m2.closerBr).toFixed(1)
-          ),
-          topMetaWinsCount: beaten.length,
-          keyMetaTargetsBeaten: beaten.slice(0, 6),
-          synergySummary: `ABC Balanced Core: ${m0.member.name} Lead + ${m1.member.name} Safe Swap + ${m2.member.name} Closer.`
-        });
       }
     }
   }
@@ -8415,38 +8699,241 @@ export function generateAntiMetaTeamOptions(
   abbCandidates.sort((a, b) => b.compositeAntiMetaScore - a.compositeAntiMetaScore);
   abcCandidates.sort((a, b) => b.compositeAntiMetaScore - a.compositeAntiMetaScore);
 
-  // Select Top 5 distinct ABB and Top 5 distinct ABC with diversity so the user gets 5 varied, high-scoring options
-  const pickTop5Diverse = (list: AntiMetaTeamOption[]): AntiMetaTeamOption[] => {
+  const pickTopDiverseFinalists = (list: AntiMetaTeamOption[], maxCount: number): AntiMetaTeamOption[] => {
     const picked: AntiMetaTeamOption[] = [];
     const memberUsage = new Map<string, number>();
-    const nonFeaturedLimit = resolvedFeatured.length === 2 ? 5 : 2;
+    const nonFeaturedLimit = resolvedFeatured.length === 2 ? maxCount : 2;
 
     for (const item of list) {
-      if (picked.length >= 5) break;
+      if (picked.length >= maxCount) break;
       const nonFeaturedNames = item.pokemon
         .map((p) => p.name.toLowerCase())
         .filter((n) => !resolvedFeatured.some((f) => f.name.toLowerCase() === n));
       const overused = nonFeaturedNames.some((n) => (memberUsage.get(n) || 0) >= nonFeaturedLimit);
-      if (overused && list.length - picked.length > 5) continue;
+      if (overused && list.length - picked.length > maxCount) continue;
       for (const n of nonFeaturedNames) {
         memberUsage.set(n, (memberUsage.get(n) || 0) + 1);
       }
-      picked.push({ ...item, rank: picked.length + 1 });
+      picked.push(item);
     }
 
-    // Backfill if diversity filter skipped too many
-    if (picked.length < 5) {
+    if (picked.length < maxCount) {
       for (const item of list) {
-        if (picked.length >= 5) break;
+        if (picked.length >= maxCount) break;
         if (picked.some((p) => p.id === item.id)) continue;
-        picked.push({ ...item, rank: picked.length + 1 });
+        picked.push(item);
       }
     }
     return picked;
   };
 
-  const top5AbbTeams = pickTop5Diverse(abbCandidates);
-  const top5AbcTeams = pickTop5Diverse(abcCandidates);
+  // =========================================================================
+  // STAGE 2: 3-SLOT ALTERNATE MOVESET SIMULATION & OPTIMIZER
+  // Simulates legal Fast + Charged move combinations for all 3 slots on the
+  // top candidate lineups against the Top-100 role-weighted meta.
+  // =========================================================================
+  let movesetCombosSimulated = 0;
+  const movesetVariantEvalCache = new Map<string, SlotCandidateEval>();
+
+  const getOrComputeMovesetVariantEval = (
+    baseEval: SlotCandidateEval,
+    fMove: string,
+    c1Move: string,
+    c2Move: string
+  ): SlotCandidateEval => {
+    const cPairKey = [c1Move.toLowerCase(), c2Move.toLowerCase()].sort().join("+");
+    const cacheKey = `${baseEval.member.name.toLowerCase()}|${fMove.toLowerCase()}|${cPairKey}`;
+    const stdPairKey = [
+      baseEval.member.chargedMove1.toLowerCase(),
+      baseEval.member.chargedMove2.toLowerCase()
+    ]
+      .sort()
+      .join("+");
+    if (fMove.toLowerCase() === baseEval.member.fastMove.toLowerCase() && cPairKey === stdPairKey) {
+      return baseEval;
+    }
+    const cached = movesetVariantEvalCache.get(cacheKey);
+    if (cached) return cached;
+
+    movesetCombosSimulated++;
+    const variantMember: TeamMember = {
+      ...baseEval.member,
+      fastMove: fMove,
+      chargedMove1: c1Move,
+      chargedMove2: c2Move
+    };
+    const computed = evaluateMemberAgainstRoleMeta(
+      variantMember,
+      baseEval.baseSpecies,
+      baseEval.weaknesses,
+      baseEval.doubleWeaknesses,
+      baseEval.resistances
+    );
+    movesetVariantEvalCache.set(cacheKey, computed);
+    return computed;
+  };
+
+  const optimizeTeamOptionMovesets = (option: AntiMetaTeamOption): AntiMetaTeamOption => {
+    const baseEvals: [SlotCandidateEval, SlotCandidateEval, SlotCandidateEval] = [
+      slotEvalCache.get(option.pokemon[0].name.toLowerCase())!,
+      slotEvalCache.get(option.pokemon[1].name.toLowerCase())!,
+      slotEvalCache.get(option.pokemon[2].name.toLowerCase())!
+    ];
+    if (!baseEvals[0] || !baseEvals[1] || !baseEvals[2]) return option;
+
+    const currentEvals: [SlotCandidateEval, SlotCandidateEval, SlotCandidateEval] = [
+      baseEvals[0],
+      baseEvals[1],
+      baseEvals[2]
+    ];
+
+    const roleLabels =
+      option.archetype === "ABB"
+        ? ["Lead (A)", "Bait Swap (B1)", "Sweeper (B2)"]
+        : ["Lead", "Safe Swap", "Closer"];
+
+    for (let slotIdx = 0; slotIdx < 3; slotIdx++) {
+      const stdEval = baseEvals[slotIdx];
+      const pool = getAvailableMovePoolForPokemon(stdEval.member.name, normLeague);
+      const fastPool = pool.fastMoves
+        .map((f) => f.name.trim())
+        .filter((f) => f && f.toLowerCase() !== "struggle")
+        .slice(0, 3);
+      if (fastPool.length === 0) fastPool.push(stdEval.member.fastMove);
+
+      const chargedPool = pool.chargedMoves
+        .map((c) => c.name.trim())
+        .filter((c) => c && c.toLowerCase() !== "struggle" && c.toLowerCase() !== "frustration")
+        .slice(0, 5);
+      if (chargedPool.length === 0) {
+        chargedPool.push(stdEval.member.chargedMove1, stdEval.member.chargedMove2);
+      }
+
+      const chargedPairs: Array<[string, string]> = [];
+      if (chargedPool.length <= 1) {
+        const single = chargedPool[0] || stdEval.member.chargedMove1;
+        chargedPairs.push([single, single]);
+      } else {
+        for (let i = 0; i < chargedPool.length; i++) {
+          for (let j = i + 1; j < chargedPool.length; j++) {
+            chargedPairs.push([chargedPool[i], chargedPool[j]]);
+          }
+        }
+      }
+
+      let bestSlotEval = currentEvals[slotIdx];
+      const baselineTeam = buildTeamOptionFromEvals(
+        currentEvals[0],
+        currentEvals[1],
+        currentEvals[2],
+        option.archetype,
+        option.sharedWeaknesses,
+        option.id,
+        "opt"
+      );
+      let bestScore = baselineTeam.compositeAntiMetaScore;
+
+      for (const fMove of fastPool) {
+        for (const [c1, c2] of chargedPairs) {
+          const candEval = getOrComputeMovesetVariantEval(stdEval, fMove, c1, c2);
+          if (candEval === stdEval) continue;
+
+          const trialEvals: [SlotCandidateEval, SlotCandidateEval, SlotCandidateEval] = [
+            slotIdx === 0 ? candEval : currentEvals[0],
+            slotIdx === 1 ? candEval : currentEvals[1],
+            slotIdx === 2 ? candEval : currentEvals[2]
+          ];
+          const trialTeam = buildTeamOptionFromEvals(
+            trialEvals[0],
+            trialEvals[1],
+            trialEvals[2],
+            option.archetype,
+            option.sharedWeaknesses,
+            option.id,
+            "opt"
+          );
+
+          // Prefer alternate moveset if it improves composite anti-meta score by >= 0.4
+          if (trialTeam.compositeAntiMetaScore > bestScore + 0.4) {
+            bestScore = trialTeam.compositeAntiMetaScore;
+            bestSlotEval = candEval;
+          }
+        }
+      }
+
+      currentEvals[slotIdx] = bestSlotEval;
+    }
+
+    const baseTeam = buildTeamOptionFromEvals(
+      baseEvals[0],
+      baseEvals[1],
+      baseEvals[2],
+      option.archetype,
+      option.sharedWeaknesses,
+      option.id,
+      "base"
+    );
+
+    const altSlots: AntiMetaAltMovesetInfo[] = [0, 1, 2].map((sIdx) => {
+      const stdM = baseEvals[sIdx].member;
+      const optM = currentEvals[sIdx].member;
+      const stdChargedKey = [stdM.chargedMove1.toLowerCase(), stdM.chargedMove2.toLowerCase()].sort().join("+");
+      const optChargedKey = [optM.chargedMove1.toLowerCase(), optM.chargedMove2.toLowerCase()].sort().join("+");
+      const isAlt =
+        stdM.fastMove.toLowerCase() !== optM.fastMove.toLowerCase() || stdChargedKey !== optChargedKey;
+      const stdRoleBr =
+        sIdx === 0 ? baseEvals[0].leadBr : sIdx === 1 ? baseEvals[1].swapBr : baseEvals[2].closerBr;
+      const optRoleBr =
+        sIdx === 0 ? currentEvals[0].leadBr : sIdx === 1 ? currentEvals[1].swapBr : currentEvals[2].closerBr;
+
+      return {
+        slotIndex: sIdx,
+        roleLabel: roleLabels[sIdx],
+        pokemonName: optM.name,
+        isAltMoveset: isAlt,
+        standardFastMove: stdM.fastMove,
+        standardCharged1: stdM.chargedMove1,
+        standardCharged2: stdM.chargedMove2,
+        fastMove: optM.fastMove,
+        chargedMove1: optM.chargedMove1,
+        chargedMove2: optM.chargedMove2,
+        roleBrDelta: optRoleBr - stdRoleBr,
+        coreBrDelta: 0
+      };
+    });
+
+    const finalTeam = buildTeamOptionFromEvals(
+      currentEvals[0],
+      currentEvals[1],
+      currentEvals[2],
+      option.archetype,
+      option.sharedWeaknesses,
+      option.id,
+      "final",
+      altSlots
+    );
+
+    const totalCoreDelta = finalTeam.machineAggBr - baseTeam.machineAggBr;
+    finalTeam.altMovesetSlots = altSlots.map((a) => ({
+      ...a,
+      coreBrDelta: a.isAltMoveset ? totalCoreDelta : 0
+    }));
+    finalTeam.id = option.id;
+    return finalTeam;
+  };
+
+  const abbFinalists = pickTopDiverseFinalists(abbCandidates, 7).map((opt) =>
+    optimizeTeamOptionMovesets(opt)
+  );
+  const abcFinalists = pickTopDiverseFinalists(abcCandidates, 7).map((opt) =>
+    optimizeTeamOptionMovesets(opt)
+  );
+
+  abbFinalists.sort((a, b) => b.compositeAntiMetaScore - a.compositeAntiMetaScore);
+  abcFinalists.sort((a, b) => b.compositeAntiMetaScore - a.compositeAntiMetaScore);
+
+  const top5AbbTeams = abbFinalists.slice(0, 5).map((item, idx) => ({ ...item, rank: idx + 1 }));
+  const top5AbcTeams = abcFinalists.slice(0, 5).map((item, idx) => ({ ...item, rank: idx + 1 }));
   const t1 = typeof performance !== "undefined" ? performance.now() : Date.now();
 
   return {
@@ -8456,9 +8943,15 @@ export function generateAntiMetaTeamOptions(
     top5AbbTeams,
     top5AbcTeams,
     candidatesEvaluated,
+    movesetCombosSimulated,
+    metaTargetCount: targetAuditTotal,
+    top25MetaNames: roleMeta.top25Threats,
+    top25MetaList: roleMeta.top25MetaList,
+    metaSummaryLabel: `Top-100 Flattened Role-Weighted Synthetic Meta (${roleMeta.wMetaPct}% PvPoke Role Meta / ${roleMeta.wHistPct}% Season Logs • Auditing Top ${targetAuditTotal} Threats)`,
     elapsedMs: Math.max(1, Math.round(t1 - t0))
   };
 }
+
 
 
 

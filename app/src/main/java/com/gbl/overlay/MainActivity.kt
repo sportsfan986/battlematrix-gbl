@@ -5244,7 +5244,7 @@ class MainActivity : AppCompatActivity() {
                     "Featuring ${result.featuredPokemon.joinToString(" + ")}"
                 }
                 textAntiMetaStatus.text =
-                    "✅ Generated Top ${result.top5AbbTeams.size} ABB & Top ${result.top5AbcTeams.size} ABC Teams ($featLabel • ${result.candidatesEvaluated} trios in ${result.elapsedMs}ms) • Default Name: \"$defaultNamePreview\""
+                    "✅ Generated Top ${result.top5AbbTeams.size} ABB & Top ${result.top5AbcTeams.size} ABC Teams ($featLabel • ${result.candidatesEvaluated} trios + ${result.movesetCombosSimulated} alt moveset sims in ${result.elapsedMs}ms)\n• ${result.metaSummaryLabel} • Default Name: \"$defaultNamePreview\""
                 renderAntiMetaBuilderResults(result)
             }
         }
@@ -5308,11 +5308,17 @@ class MainActivity : AppCompatActivity() {
             val (swapTier, swapHex) = getMatchupTierCodeAndHex(opt.safeSwapBr)
             val (closeTier, closeHex) = getMatchupTierCodeAndHex(opt.closerBr)
             val archHex = if (isAbb) "#fbbf24" else "#38bdf8"
+            val altCount = opt.altMovesetSlots.count { it.isAltMoveset }
+            val altHeaderBadge = if (altCount > 0) {
+                "  •  <font color='#c4b5fd'><b>[⚡ $altCount Alt Moveset${if (altCount > 1) "s" else ""}]</b></font>"
+            } else {
+                ""
+            }
 
             val badgeTv = TextView(this).apply {
                 val html = "<b><font color='$archHex'>[#${opt.rank} ${opt.archetype}]</font></b>  " +
                     "Core: <font color='$machHex'><b>${opt.machineAggBr} ($machTier)</b></font>  •  " +
-                    "Beats <b>${opt.topMetaWinsCount}/15</b> Top Meta"
+                    "Beats <b>${opt.topMetaWinsCount}/${opt.topMetaTargetsTotal}</b> Top Meta$altHeaderBadge"
                 text = android.text.Html.fromHtml(html, android.text.Html.FROM_HTML_MODE_LEGACY)
                 textSize = 11.5f
                 setTextColor(activeTheme.primaryTextColor)
@@ -5357,7 +5363,21 @@ class MainActivity : AppCompatActivity() {
                 val brStr = roleBrHtml.getOrElse(idx) { "" }
                 val isFeat = opt.featuredNamesIncluded.any { it.equals(m.name, ignoreCase = true) }
                 val featBadge = if (isFeat) " <font color='#fbbf24'><b>[★ Featured]</b></font>" else ""
-                "• <b>[$rLabel · $brStr]</b> ${m.name}$featBadge (CP ${m.cp}) — ${m.fastMove} | ${m.chargedMove1}, ${m.chargedMove2}"
+                val altInfo = opt.altMovesetSlots.getOrNull(idx)
+                val isAlt = altInfo?.isAltMoveset == true
+                val altBadge = if (isAlt) {
+                    val gainPart = if ((altInfo?.brGain ?: 0) > 0) " +${altInfo?.brGain} BR" else ""
+                    " <font color='#c4b5fd'><b>[⚡ Alt Moveset$gainPart]</b></font>"
+                } else {
+                    ""
+                }
+                val movesColor = if (isAlt) "#ddd6fe" else "#cbd5e1"
+                val stdNote = if (isAlt && altInfo != null) {
+                    " <font color='#94a3b8'><i>(Std: ${altInfo.standardFastMove} + ${altInfo.standardChargedMove1}/${altInfo.standardChargedMove2})</i></font>"
+                } else {
+                    ""
+                }
+                "• <b>[$rLabel · $brStr]</b> ${m.name}$featBadge$altBadge (CP ${m.cp}) — <font color='$movesColor'><b>${m.fastMove} + ${m.chargedMove1} / ${m.chargedMove2}</b></font>$stdNote"
             }.joinToString("<br>")
 
             val slotsTv = TextView(this).apply {
@@ -5368,13 +5388,26 @@ class MainActivity : AppCompatActivity() {
             }
             card.addView(slotsTv)
 
-            val keyWinsStr = if (opt.keyMetaTargetsBeaten.isNotEmpty()) {
-                " • Key Wins: ${opt.keyMetaTargetsBeaten.take(4).joinToString(", ")}"
-            } else {
-                ""
+            val winsList = if (opt.keyMetaTargetsBeaten.isNotEmpty()) opt.keyMetaTargetsBeaten.take(5).joinToString(", ") else "Balanced neutral coverage"
+            val threatsList = if (opt.keyThreats.isNotEmpty()) opt.keyThreats.take(4).joinToString(", ") else "No severe role threats"
+            val breakersList = if (opt.coreBreakers.isNotEmpty()) opt.coreBreakers.take(4).joinToString(", ") else "None in Top 25 Meta!"
+            val breakersColor = if (opt.coreBreakers.isNotEmpty()) "#fda4af" else "#6ee7b7"
+
+            val breakdownHtml =
+                "<font color='#6ee7b7'><b>✅ Key Wins:</b></font> $winsList<br>" +
+                "<font color='#fcd34d'><b>⚠️ Key Threats:</b></font> $threatsList<br>" +
+                "<font color='$breakersColor'><b>🚨 Core Breakers:</b></font> $breakersList"
+
+            val breakdownTv = TextView(this).apply {
+                text = android.text.Html.fromHtml(breakdownHtml, android.text.Html.FROM_HTML_MODE_LEGACY)
+                textSize = 10.5f
+                setTextColor(activeTheme.primaryTextColor)
+                setPadding(0, (2 * density).toInt(), 0, (4 * density).toInt())
             }
+            card.addView(breakdownTv)
+
             val summaryTv = TextView(this).apply {
-                text = "${opt.synergySummary}$keyWinsStr\nTap '✅ Use & Edit' to create \"$defaultTeamName\" & open Edit Team screen."
+                text = "${opt.synergySummary}\nTap '✅ Use & Edit' to create \"$defaultTeamName\" & open Edit Team screen."
                 textSize = 10f
                 setTextColor(activeTheme.secondaryTextColor)
             }
@@ -5400,6 +5433,36 @@ class MainActivity : AppCompatActivity() {
             titleColor = 0xFF38BDF8.toInt()
         )
         result.top5AbcTeams.forEach { addOptionCard(it) }
+
+        if (result.top25MetaList.isNotEmpty()) {
+            addSectionHeader(
+                title = "🎯 Top 25 ${result.league} Meta Determined by SilphScope (Target Audit Pool for /25 Wins)",
+                subtitle = "Teams are built & scored against the full Top-100 role-weighted synthetic meta + season logs",
+                titleColor = 0xFFC4B5FD.toInt()
+            )
+            val metaCard = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setBackgroundColor(activeTheme.innerCardColor)
+                val pad = (10 * density).toInt()
+                setPadding(pad, pad, pad, pad)
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    bottomMargin = (8 * density).toInt()
+                }
+            }
+            val top25Html = result.top25MetaList.joinToString("  •  ") { entry ->
+                "<b><font color='#38bdf8'>#${entry.rank}</font> ${entry.name}</b> <font color='#94a3b8'>(${String.format(java.util.Locale.US, "%.1f", entry.fieldSharePct)}%)</font>"
+            }
+            val metaTv = TextView(this).apply {
+                text = android.text.Html.fromHtml(top25Html, android.text.Html.FROM_HTML_MODE_LEGACY)
+                textSize = 10.5f
+                setTextColor(activeTheme.primaryTextColor)
+            }
+            metaCard.addView(metaTv)
+            layoutAntiMetaResults.addView(metaCard)
+        }
     }
 
     private fun selectAntiMetaTeamOptionAndOpenEditor(option: OverlayService.Companion.AntiMetaTeamOption) {
