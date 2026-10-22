@@ -1,5 +1,28 @@
 # SilphScope PvP Changelog
 
+## [v3.20] — 2026-10-22 — Top-200 Precomputed 9x9 Overlay Shield Matrix, Anti-Meta Team Builder (ABB/ABC) & Special Mechanics Validator Audit
+- **Precomputed 9x9 Shield Matrix for Active Team vs. Top-200 League Meta (`gblData.ts`, `App.tsx`, `OverlayService.kt`)**:
+  - Precomputes the full 9x9 weighted move-combo shield matrix (`0v0` through `2v2`) for the 3 members of the active team against the **Top 200 League Meta** before launching the overlay (and automatically on team/league switch).
+  - Real-time overlay battling now serves Top-200 meta matchups in **O(1) time** from the precomputed 9x9 matrix cache, while falling back to fast single-moveset real-time rough math (`evaluateFastRoughShieldBattleRating` / `calculateFastRoughMatchupRatingStatic`) for non-Top-200 spice matchups.
+- **Anti-Meta Team Builder on Team Presets Page (`generateAntiMetaTeamOptions` & `App.tsx`)**:
+  - **2a**: Select any **League** and enter **0, 1, or 2 Featured Pokémon** (with live autocomplete and GBL species-clause validation).
+  - **2b**: Generates and ranks the **Best 5 ABB** and **Best 5 ABC** anti-meta team options that must include your selected Featured Pokémon, displaying `Core BR`, `Lead BR`, `Swap BR`, `Closer BR`, and key Top-Meta targets countered.
+  - **2c**: Selecting any generated ABB or ABC team option creates the preset with default name **`<LeagueAbbreviation> Anti-Meta <YYYY-MM-DD>`** (e.g., `GL Anti-Meta 2026-10-22`) and immediately opens the **Edit Team** modal so you can customize moves, IVs, or role upgrades like any other team.
+- **Special Mechanics Math Validator & Double-Bonus Elimination (`FORM_CHANGE_SPECIAL_POKEMON`, `gblData.ts`, `OverlayService.kt`)**:
+  - Scoped the Special Mechanics Math Validator exclusively to Pokémon with **in-battle special mechanics**: **Morpeko** (`Hunger Switch` + `Aura Wheel`), **Cramorant** (`Gulp Missile` Gulping/Gorging forms), **Aegislash** (`Stance Change` Shield ⇄ Blade Forme), and **Mimikyu** (`Disguise` + Busted Form). Removed static pre-battle form Pokémon (`Zygarde`, `Giratina`, `Palkia`, `Dialga`, `Zacian`, `Zamazenta`, `Necrozma`, `Kyurem`, `Mewtwo`, `Deoxys`).
+  - Eliminated double-bonus multipliers (`Aegislash` `2.85x -> 1.22x` Stance Change factor and duplicate flat BR deltas) so Aegislash Shield Forme is no longer artificially inflated in Team Builder or Overlay matrices.
+  - Strictly sourced all Top-Meta pools and Top-5 DB Scores from live PvPoke rankings (`1500` / `2500` / `10000`) rather than static Gamemaster order.
+
+## [v3.16] — 2026-10-22 — Strict Legal Move Pool Enforcement & Dynamic Alternate Move-Combo Matrix Normalization
+- **Strict Legal Move Pool Enforcement & Audit (`OverlayService.kt` & `gblData.ts`)**:
+  - Eliminated illegal moves from species pools (e.g. Mimikyu only learns `Play Rough`, `Shadow Sneak`, `Thunder` in Pokémon GO — fixed invalid `Shadow Ball` recommendations; Cramorant fast moves are `Peck` / `Water Gun` and charged moves `Surf` / `Fly` / `Dive` / `Hydro Pump`; Tinkaton charged moves are `Gigaton Hammer` / `Play Rough` / `Bulldoze` / `Heavy Slam` / `Flash Cannon`; Kyogre fast move is only `Waterfall`; Melmetal fast move is only `Thunder Shock`).
+  - Purged illegal type fallbacks (`Tackle`, `Struggle`, `Frustration`, generic type placeholders) and enforced strict validation against authoritative Gamemaster and curated fallback pools across rankings ingestion, battle rating calculations, and autocomplete suggestions.
+- **Dynamic 9x9 Shield Matrix Move-Combo Normalization (`calculateMatchupRatingStatic` & `evaluateDiscreteShieldBattleRating`)**:
+  - Replaced hardcoded 5-combo weighting with dynamic alternate combo filtering for Pokémon lacking a 4th charged move, 3rd charged move, or 2nd fast move.
+  - The 25% alternate weight is now distributed equally across all valid, distinct alternate combinations that actually exist for the species (`fast1/charge1/charge3`, `fast1/charge1/charge4`, `fast1/charge2/charge3`, `fast1/charge2/charge4`, `fast2/charge1/charge2`). If no alternate combos exist (e.g. single fast move and <= 2 charged moves), 100% of the rating is assigned to the base combo, eliminating skewed weights and duplicate simulation overhead.
+- **Team Moveset Optimizer Robustness (`recommendTop3MovesetsForTeamStatic` & `recommendTop3AlternateMovesetsForTeam`)**:
+  - Moveset simulation now strictly pairs legal charged moves ($\binom{N}{2}$ combinations or single pair if $N \le 1$) and evaluates only legal fast moves, preventing phantom recommendations for constrained-move Pokémon.
+
 ## [v3.15] — 2026-10-22 — Weighted Move-Combo 9x9 Shield Matrix Math (75% Default + 25% Alternate Combos) & Team Moveset Optimizer (Best 3 Alternate Movesets)
 - **Weighted Move-Combo 9x9 Shield Matrix Math (`calculateMatchupRatingStatic` & `evaluateDiscreteShieldBattleRating`)**:
   - Updated all 9 shield conditions (`0v0`, `0v1`, `0v2`, `1v0`, `1v1`, `1v2`, `2v0`, `2v1`, `2v2`) to simulate and compute a weighted average across opponent PvPoke move combinations:

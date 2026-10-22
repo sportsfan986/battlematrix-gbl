@@ -11,15 +11,37 @@ android {
         applicationId = "com.gbl.overlay"
         minSdk = 26
         targetSdk = 35
-        versionCode = 310
-        versionName = "3.10"
+        versionCode = 320
+        versionName = "3.20"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        create("release") {
+            val ksFile = file("release.keystore")
+            if (ksFile.exists()) {
+                storeFile = ksFile
+                storePassword = System.getenv("RELEASE_STORE_PASSWORD") ?: "gblrelease123"
+                keyAlias = System.getenv("RELEASE_KEY_ALIAS") ?: "gblkey"
+                keyPassword = System.getenv("RELEASE_KEY_PASSWORD") ?: "gblrelease123"
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+            val relSigning = signingConfigs.findByName("release")
+            if (relSigning?.storeFile?.exists() == true) {
+                try {
+                    signingConfig = relSigning
+                } catch (_: Exception) {
+                    signingConfig = signingConfigs.getByName("debug")
+                }
+            } else {
+                signingConfig = signingConfigs.getByName("debug")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
