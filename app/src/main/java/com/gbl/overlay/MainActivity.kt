@@ -5206,8 +5206,8 @@ class MainActivity : AppCompatActivity() {
         val f1 = editAntiMetaFeat1.text.toString().trim()
         val f2 = editAntiMetaFeat2.text.toString().trim()
         if (f1.isNotEmpty() && f2.isNotEmpty() &&
-            FormResolver.extractBaseSpecies(f1).equals(
-                FormResolver.extractBaseSpecies(f2),
+            OverlayService.Companion.FormResolver.extractBaseSpecies(f1).equals(
+                OverlayService.Companion.FormResolver.extractBaseSpecies(f2),
                 ignoreCase = true
             )
         ) {
