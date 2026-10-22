@@ -691,17 +691,18 @@ class MainActivity : AppCompatActivity() {
 
     private fun wrapViewWithThemeWatermark(contentView: android.view.View, watermarkSizeDp: Int = 250): FrameLayout {
         val theme = if (::prefs.isInitialized) getActiveAppTheme() else APP_THEME_COLLECTION.first()
-        val showWatermark = ::prefs.isInitialized &&
-            prefs.getBoolean(OverlayService.PREFS_KEY_SHOW_THEME_WATERMARK, true) &&
-            theme.emblemDrawableRes != null
+        val watermarkPrefEnabled = ::prefs.isInitialized &&
+            prefs.getBoolean(OverlayService.PREFS_KEY_SHOW_THEME_WATERMARK, true)
+        val emblemRes = theme.emblemDrawableRes
+        val showWatermark = watermarkPrefEnabled && emblemRes != null
         val density = resources.displayMetrics.density
         val frame = FrameLayout(this).apply {
             setBackgroundColor(theme.bgColor)
         }
-        if (showWatermark && theme.emblemDrawableRes != null) {
+        if (watermarkPrefEnabled && emblemRes != null) {
             val iv = ImageView(this).apply {
                 id = R.id.iv_preset_dialog_watermark
-                setImageResource(theme.emblemDrawableRes)
+                setImageResource(emblemRes)
                 alpha = if (theme.isLight) 0.24f else 0.20f
                 scaleType = ImageView.ScaleType.FIT_CENTER
                 layoutParams = FrameLayout.LayoutParams(
@@ -927,17 +928,20 @@ class MainActivity : AppCompatActivity() {
         if (!::prefs.isInitialized) return
         val theme = getActiveAppTheme()
         val showWatermark = prefs.getBoolean(OverlayService.PREFS_KEY_SHOW_THEME_WATERMARK, true)
-        val hasWatermark = showWatermark && theme.emblemDrawableRes != null
+        val emblemRes = theme.emblemDrawableRes
+        val hasWatermark = showWatermark && emblemRes != null
 
         findViewById<android.view.View>(R.id.root_theme_frame)?.setBackgroundColor(theme.bgColor)
         try {
+            @Suppress("DEPRECATION")
             window.statusBarColor = theme.navBarColor
+            @Suppress("DEPRECATION")
             window.navigationBarColor = theme.bgColor
         } catch (_: Exception) {}
 
         findViewById<ImageView>(R.id.iv_theme_watermark_bg)?.let { iv ->
-            if (hasWatermark && theme.emblemDrawableRes != null) {
-                iv.setImageResource(theme.emblemDrawableRes)
+            if (showWatermark && emblemRes != null) {
+                iv.setImageResource(emblemRes)
                 iv.alpha = if (theme.isLight) 0.25f else 0.22f
                 iv.visibility = android.view.View.VISIBLE
             } else {
@@ -5077,11 +5081,13 @@ class MainActivity : AppCompatActivity() {
 
         // Apply active theme & optional background watermark logo to the Team Edit dialog FIRST
         val activeTheme = getActiveAppTheme()
-        val showWatermark = prefs.getBoolean(OverlayService.PREFS_KEY_SHOW_THEME_WATERMARK, true) && activeTheme.emblemDrawableRes != null
+        val watermarkPrefEnabled = prefs.getBoolean(OverlayService.PREFS_KEY_SHOW_THEME_WATERMARK, true)
+        val activeEmblemRes = activeTheme.emblemDrawableRes
+        val showWatermark = watermarkPrefEnabled && activeEmblemRes != null
         dialogView.findViewById<android.view.View>(R.id.root_preset_dialog_frame)?.setBackgroundColor(activeTheme.bgColor)
         dialogView.findViewById<ImageView>(R.id.iv_preset_dialog_watermark)?.let { iv ->
-            if (showWatermark && activeTheme.emblemDrawableRes != null) {
-                iv.setImageResource(activeTheme.emblemDrawableRes)
+            if (watermarkPrefEnabled && activeEmblemRes != null) {
+                iv.setImageResource(activeEmblemRes)
                 iv.alpha = if (activeTheme.isLight) 0.24f else 0.20f
                 iv.visibility = android.view.View.VISIBLE
             } else {

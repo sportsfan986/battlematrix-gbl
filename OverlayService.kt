@@ -2878,8 +2878,8 @@ class OverlayService : LifecycleService() {
             val bestUserCharged = max(userC1Pct, userC2Pct)
             val minUserCharged = min(userC1Pct, userC2Pct)
             val fastestUserChargedPct = when {
-                userC1Stats.energy < userC2Stats.energy -> userC1Pct
-                userC2Stats.energy < userC1Stats.energy -> userC2Pct
+                userC1Stats.energyCost < userC2Stats.energyCost -> userC1Pct
+                userC2Stats.energyCost < userC1Stats.energyCost -> userC2Pct
                 else -> minUserCharged
             }
 
@@ -2890,8 +2890,8 @@ class OverlayService : LifecycleService() {
             val bestOppCharged = max(oppC1Pct, oppC2Pct)
             val minOppCharged = min(oppC1Pct, oppC2Pct)
             val fastestOppChargedPct = when {
-                oppC1Stats.energy < oppC2Stats.energy -> oppC1Pct
-                oppC2Stats.energy < oppC1Stats.energy -> oppC2Pct
+                oppC1Stats.energyCost < oppC2Stats.energyCost -> oppC1Pct
+                oppC2Stats.energyCost < oppC1Stats.energyCost -> oppC2Pct
                 else -> minOppCharged
             }
 
@@ -3357,7 +3357,7 @@ class OverlayService : LifecycleService() {
             var runningUserShields = 2
             var runningOppShields = 2
 
-            if (hasTimeline && timelineEvents != null) {
+            if (!timelineEvents.isNullOrEmpty()) {
                 val sortedEvents = timelineEvents.sortedBy { max(0.0, it.t) }
 
                 var userActive = myLead
