@@ -7074,13 +7074,14 @@ class OverlayService : LifecycleService() {
                             }
                         }
                     }
+                    val stdTypes = resolveRecommendedMovesForSpecies(stdEval.member.name, normLeague)?.types ?: emptyList()
                     val nonDomPairs = rawChargedPairs.filterNot { (c1, c2) ->
-                        isDominatedSameTypeChargedPairStatic(c1, c2, stdEval.types)
+                        isDominatedSameTypeChargedPairStatic(c1, c2, stdTypes)
                     }
                     val chargedPairs = if (nonDomPairs.isNotEmpty()) nonDomPairs else rawChargedPairs
                     val hasDualTypeOption = chargedPairs.any { (c1, c2) ->
-                        val t1 = resolveChargedMoveStatsStatic(c1, stdEval.types.firstOrNull() ?: "normal").type
-                        val t2 = resolveChargedMoveStatsStatic(c2, stdEval.types.firstOrNull() ?: "normal").type
+                        val t1 = resolveChargedMoveStatsStatic(c1, stdTypes.firstOrNull() ?: "normal").type
+                        val t2 = resolveChargedMoveStatsStatic(c2, stdTypes.firstOrNull() ?: "normal").type
                         !t1.equals(t2, ignoreCase = true)
                     }
 
@@ -7113,8 +7114,8 @@ class OverlayService : LifecycleService() {
                                 option.id,
                                 "opt"
                             )
-                            val c1S = resolveChargedMoveStatsStatic(c1, stdEval.types.firstOrNull() ?: "normal")
-                            val c2S = resolveChargedMoveStatsStatic(c2, stdEval.types.firstOrNull() ?: "normal")
+                            val c1S = resolveChargedMoveStatsStatic(c1, stdTypes.firstOrNull() ?: "normal")
+                            val c2S = resolveChargedMoveStatsStatic(c2, stdTypes.firstOrNull() ?: "normal")
                             val isSameTypePair = !c1.equals(c2, ignoreCase = true) && c1S.type.equals(c2S.type, ignoreCase = true)
                             val roleAdj = if (isSameTypePair && slotIdx == 1 && hasDualTypeOption) -1.2 else 0.0
                             val effectiveTrialScore = trialTeam.compositeAntiMetaScore + roleAdj
