@@ -4785,13 +4785,13 @@ class OverlayService : LifecycleService() {
             val closerSwapBrVal = swapScores[i3].roundToInt().coerceIn(150, 850)
             val closerBrVal = closerMeans[i3].roundToInt().coerceIn(150, 850)
 
-            // Audit Top 25 Meta Targets for Key Wins, Key Threats (with BR1/BR2/BR3), and Core Breakers (with BR1/BR2/BR3)
-            val top25MetaThreats = dist.fieldWeights.entries
+            // Audit Top 50 Meta Targets for Key Wins, Key Threats (with BR1/BR2/BR3), and Core Breakers (with BR1/BR2/BR3)
+            val top50MetaThreats = dist.fieldWeights.entries
                 .sortedByDescending { it.value }
                 .map { it.key }
-                .take(25)
-                .ifEmpty { getTopMetaPoolForLeagueStatic(league).take(25) }
-            val targetAuditTotal = top25MetaThreats.size.takeIf { it > 0 } ?: 25
+                .take(50)
+                .ifEmpty { getTopMetaPoolForLeagueStatic(league).take(50) }
+            val targetAuditTotal = top50MetaThreats.size.takeIf { it > 0 } ?: 50
 
             fun formatThreatWithMemberBrs(threatName: String): String {
                 val r0 = slotLeadBrMap[i1][threatName] ?: 500.0
@@ -4807,7 +4807,7 @@ class OverlayService : LifecycleService() {
             val coreBreakersRaw = ArrayList<String>()
             val keyThreatsRaw = ArrayList<String>()
 
-            for (threat in top25MetaThreats) {
+            for (threat in top50MetaThreats) {
                 val r0 = slotLeadBrMap[i1][threat] ?: 500.0
                 val r1 = slotSwapBrMap[i2][threat] ?: 500.0
                 val r2 = slotCloserBrMap[i3][threat] ?: 500.0
@@ -4826,7 +4826,7 @@ class OverlayService : LifecycleService() {
             }
 
             if (keyThreatsRaw.isEmpty()) {
-                val sortedTough = top25MetaThreats
+                val sortedTough = top50MetaThreats
                     .filter { it !in coreBreakersRaw }
                     .map { t ->
                         val r0 = slotLeadBrMap[i1][t] ?: 500.0
@@ -4840,8 +4840,8 @@ class OverlayService : LifecycleService() {
                 }
             }
 
-            val keyThreatsFormatted = keyThreatsRaw.take(5).map { formatThreatWithMemberBrs(it) }
-            val coreBreakersFormatted = coreBreakersRaw.take(5).map { formatThreatWithMemberBrs(it) }
+            val keyThreatsFormatted = keyThreatsRaw.take(6).map { formatThreatWithMemberBrs(it) }
+            val coreBreakersFormatted = coreBreakersRaw.take(6).map { formatThreatWithMemberBrs(it) }
 
             val roleLabels = when (archetype) {
                 "ABB" -> listOf("Lead (A)", "Bait Swap (B1)", "Sweeper (B2)")
@@ -4878,7 +4878,7 @@ class OverlayService : LifecycleService() {
             val breakersPreview = if (coreBreakersFormatted.isNotEmpty()) {
                 coreBreakersFormatted.take(4).joinToString(", ")
             } else {
-                "None (0 hard core breakers in Top 25)"
+                "None (0 hard core breakers in Top 50)"
             }
             val altNotes = altMovesetSlots
                 .filter { it.isAltMoveset }
@@ -5962,7 +5962,7 @@ class OverlayService : LifecycleService() {
             val topMetaPool = extendedRankedPool.take(60)
             val top25MetaThreats = roleMeta.top25Threats
             val top50MetaThreats = roleMeta.top50Threats
-            val targetAuditTotal = top25MetaThreats.size.takeIf { it > 0 } ?: 25
+            val targetAuditTotal = top50MetaThreats.size.takeIf { it > 0 } ?: 50
 
             fun isMegaOrPrimal(name: String, speciesId: String = ""): Boolean {
                 val n = name.lowercase()
@@ -6211,7 +6211,7 @@ class OverlayService : LifecycleService() {
                     return "$threatName($oppBr0/$oppBr1/$oppBr2)"
                 }
 
-                for (threat in top25MetaThreats) {
+                for (threat in top50MetaThreats) {
                     val r0 = m0.leadByOpp[threat] ?: 500.0
                     val r1 = m1.swapByOpp[threat] ?: 500.0
                     val r2 = m2.closerByOpp[threat] ?: 500.0
@@ -6232,7 +6232,7 @@ class OverlayService : LifecycleService() {
                 }
 
                 if (keyThreats.isEmpty()) {
-                    val sortedTough = top25MetaThreats
+                    val sortedTough = top50MetaThreats
                         .filter { it !in coreBreakerSpecies }
                         .map { t ->
                             val r0 = m0.leadByOpp[t] ?: 500.0
@@ -6272,7 +6272,7 @@ class OverlayService : LifecycleService() {
                 val breakersPreview = if (coreBreakers.isNotEmpty()) {
                     coreBreakers.take(4).joinToString(", ")
                 } else {
-                    "None (0 hard core breakers in Top 25)"
+                    "None (0 hard core breakers in Top 50)"
                 }
                 val altNotes = altMovesetSlots
                     .filter { it.isAltMoveset }
@@ -10696,14 +10696,31 @@ class OverlayService : LifecycleService() {
                 "playerFaintedSlots" to playerFaintedSlots.toList(),
                 "oppFaintedSlots" to oppFaintedSlots.toList(),
                 "teamArchetype" to (currentPreset?.archetype ?: "ABC"),
+                "showTacticalRec" to showTacticalRecommendations,
                 "showTacticalRecommendations" to showTacticalRecommendations,
+                "tacticalRec" to mapOf(
+                    "phase" to "WAITING",
+                    "archetype" to (currentPreset?.archetype ?: "ABC"),
+                    "action" to "AWAITING LEAD",
+                    "actionLabel" to "[${(currentPreset?.archetype ?: "ABC").uppercase()}] AWAITING LEAD",
+                    "shieldPlan" to "2S",
+                    "goal" to "Scan opponent lead to compute plan",
+                    "goalText" to "Scan opponent lead to compute plan",
+                    "tone" to "neutral",
+                    "urgencyColor" to "sky",
+                    "recommendedSwapSlotIndex" to -1
+                ),
                 "tacticalRecommendation" to mapOf(
                     "phase" to "WAITING",
                     "archetype" to (currentPreset?.archetype ?: "ABC"),
                     "action" to "AWAITING LEAD",
+                    "actionLabel" to "[${(currentPreset?.archetype ?: "ABC").uppercase()}] AWAITING LEAD",
                     "shieldPlan" to "2S",
                     "goal" to "Scan opponent lead to compute plan",
-                    "tone" to "neutral"
+                    "goalText" to "Scan opponent lead to compute plan",
+                    "tone" to "neutral",
+                    "urgencyColor" to "sky",
+                    "recommendedSwapSlotIndex" to -1
                 ),
                 "team" to teamData,
                 "scannedOpponents" to emptyList<Map<String, Any>>(),
@@ -11284,6 +11301,7 @@ class OverlayService : LifecycleService() {
         var recAction = "STAY IN"
         var recGoal = "Hold Switch Adv"
         var recTone = "stay"
+        var recSwapIdx = -1
 
         if (isLeadPhase) {
             val pivotIdx = if (1 in aliveBenchIndices) 1 else aliveBenchIndices.firstOrNull()
@@ -11308,6 +11326,7 @@ class OverlayService : LifecycleService() {
                     recAction = "CHIP -> SWAP $pivotCode"
                     recGoal = "Soft Chip & Lure Backline Counter"
                     recTone = "bait"
+                    recSwapIdx = pivotIdx
                 } else {
                     recAction = "STAY / SOFT LOSE"
                     recGoal = if (br0s >= 450) "Soft Lose 0S -> Farm Down" else "Play +1 Shield Adv"
@@ -11323,6 +11342,7 @@ class OverlayService : LifecycleService() {
                         else -> "Fight for Switch or +1 Shield Adv"
                     }
                     recTone = "swap"
+                    recSwapIdx = pivotIdx
                 } else {
                     recAction = "SOFT LOSE 0S"
                     recGoal = "No Shields -> Farm w/ Backline"
@@ -11338,6 +11358,7 @@ class OverlayService : LifecycleService() {
                 recAction = "COUNTER -> $bestCounterCode"
                 recGoal = if (bestCounterBr >= activeTierWMin) "Punish Swap & Farm Energy" else "Neutralize Swap & Take Shields"
                 recTone = "counter"
+                recSwapIdx = bestCounterIdx
             } else {
                 recAction = "STAY / CHIP"
                 recGoal = "Chip & Soft Lose 0S -> Farm Down"
@@ -11366,13 +11387,26 @@ class OverlayService : LifecycleService() {
             recTone = if (curBr >= activeTierWMin) "stay" else "bait"
         }
 
+        val recUrgencyColor = when (recTone) {
+            "stay" -> "emerald"
+            "counter" -> "sky"
+            "swap" -> "rose"
+            "bait" -> "amber"
+            else -> "sky"
+        }
+        val recActionLabel = "[$teamArchetype] $recAction"
+
         val tacticalRecommendation = mapOf(
             "phase" to if (isLeadPhase) "LEAD" else "MIDGAME",
             "archetype" to teamArchetype,
             "action" to recAction,
+            "actionLabel" to recActionLabel,
             "shieldPlan" to shieldPlanStr,
             "goal" to recGoal,
+            "goalText" to recGoal,
             "tone" to recTone,
+            "urgencyColor" to recUrgencyColor,
+            "recommendedSwapSlotIndex" to recSwapIdx,
             "activeBr" to curBr
         )
 
@@ -11417,7 +11451,9 @@ class OverlayService : LifecycleService() {
             "playerFaintedSlots" to playerFaintedSlots.toList(),
             "oppFaintedSlots" to oppFaintedSlots.toList(),
             "teamArchetype" to teamArchetype,
+            "showTacticalRec" to showTacticalRecommendations,
             "showTacticalRecommendations" to showTacticalRecommendations,
+            "tacticalRec" to tacticalRecommendation,
             "tacticalRecommendation" to tacticalRecommendation,
             "team" to teamData,
             "scannedOpponents" to scannedOpponentsData,

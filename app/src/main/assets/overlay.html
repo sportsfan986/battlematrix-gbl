@@ -1610,6 +1610,12 @@
             disableBattleToasts = !!disabled;
         };
 
+        window.setShowTacticalRecs = function(enabled) {
+            battleData.showTacticalRec = !!enabled;
+            battleData.showTacticalRecommendations = !!enabled;
+            render();
+        };
+
         // v2.33: Dynamic Color-Coded Swap Countdown Timers
         function updateSwapClockBadge(element, prefix, seconds, isOpponent) {
             if (!element) return;
@@ -1913,6 +1919,8 @@
             const pokemonName = battleData.team[idx].name;
             battleData.userActivePokemon = pokemonName;
             battleData.activeUserSlotIndex = idx;
+            battleData.tacticalRec = null;
+            battleData.tacticalRecommendation = null;
             if (Array.isArray(battleData.playerFaintedSlots)) {
                 battleData.playerFaintedSlots[idx] = false;
             }
@@ -2081,7 +2089,23 @@
                 if (timingRowsEl) timingRowsEl.innerHTML = "";
                 if (myTimingRowsEl) myTimingRowsEl.innerHTML = "";
                 const recRowWait = document.getElementById("sky-tactical-rec-row");
-                if (recRowWait) recRowWait.classList.add("hidden");
+                const showRecWait = battleData.showTacticalRec !== false && battleData.showTacticalRecommendations !== false;
+                if (recRowWait) {
+                    if (showRecWait) {
+                        const archWait = String(battleData.teamArchetype || "ABC").toUpperCase();
+                        recRowWait.className = "tactical-rec-row rec-sky";
+                        const actEl = document.getElementById("sky-rec-action");
+                        const shEl = document.getElementById("sky-rec-shield");
+                        const goalEl = document.getElementById("sky-rec-goal");
+                        const swBtn = document.getElementById("sky-rec-swap-btn");
+                        if (actEl) actEl.textContent = `[${archWait}] AWAITING LEAD`;
+                        if (shEl) shEl.textContent = "[2S]";
+                        if (goalEl) goalEl.textContent = "Goal: Scan opponent lead for live plan";
+                        if (swBtn) swBtn.classList.add("hidden");
+                    } else {
+                        recRowWait.classList.add("hidden");
+                    }
+                }
 
                 if (matrixBody) {
                     matrixBody.innerHTML = `
@@ -2105,24 +2129,82 @@
                     cmpBadgeEl.className = "cmp-pill " + (winsCmp ? "win" : "loss");
                 }
 
-                // Render v3.30 Lead & Swap Tactical Recommendation Row (between header-row and action-toolbar)
+                // Render Lead & Swap Tactical Recommendation Row (between header-row and action-toolbar)
                 try {
                     const recRowEl = document.getElementById("sky-tactical-rec-row");
-                    const showRec = battleData.showTacticalRec !== false;
-                    const recObj = battleData.tacticalRec;
+                    const showRec = battleData.showTacticalRec !== false && battleData.showTacticalRecommendations !== false;
+                    const rawRec = battleData.tacticalRec || battleData.tacticalRecommendation;
+                    const arch = String((rawRec && rawRec.archetype) || battleData.teamArchetype || "ABC").toUpperCase();
+
+                    let actionLabel = "";
+                    let shieldPlan = "1S";
+                    let goalText = "Hold Alignment";
+                    let urg = "sky";
+                    let recSlot = -1;
+
+                    if (rawRec && (rawRec.actionLabel || rawRec.action)) {
+                        const rawAction = String(rawRec.actionLabel || rawRec.action);
+                        actionLabel = rawAction.startsWith("[") ? rawAction : `[${arch}] ${rawAction}`;
+                        shieldPlan = String(rawRec.shieldPlan || "1S");
+                        goalText = String(rawRec.goalText || rawRec.goal || "Hold Alignment");
+                        if (rawRec.urgencyColor) {
+                            urg = rawRec.urgencyColor;
+                        } else if (rawRec.tone === "stay") {
+                            urg = "emerald";
+                        } else if (rawRec.tone === "swap") {
+                            urg = "rose";
+                        } else if (rawRec.tone === "bait" || rawRec.tone === "soft_loss") {
+                            urg = "amber";
+                        } else {
+                            urg = "sky";
+                        }
+                        if (typeof rawRec.recommendedSwapSlotIndex === "number") {
+                            recSlot = rawRec.recommendedSwapSlotIndex;
+                        }
+                    } else {
+                        // Client-side fallback from 3v3 matrix if payload only provided scannedOpponents
+                        const activeOppIdx = typeof battleData.activeOpponentSlotIndex === "number" ? battleData.activeOpponentSlotIndex : 0;
+                        const oppEntry = (battleData.scannedOpponents && battleData.scannedOpponents[activeOppIdx])
+                            || (battleData.scannedOpponents && battleData.scannedOpponents[0]);
+                        const slotKey = activeSlotIdx === 1 ? "p2" : (activeSlotIdx === 2 ? "p3" : "p1");
+                        const codeStr = (oppEntry && oppEntry.matrix && oppEntry.matrix[slotKey]) ? String(oppEntry.matrix[slotKey]) : "W,N,L";
+                        const tiers = codeStr.split(",").map(s => s.trim());
+                        const pShields = typeof battleData.player_shields_remaining === "number" ? battleData.player_shields_remaining : 2;
+                        const oShields = typeof battleData.opponent_shields_remaining === "number" ? battleData.opponent_shields_remaining : 2;
+                        const eqIdx = Math.max(0, Math.min(2, Math.min(pShields, oShields)));
+                        const curTier = tiers[eqIdx] || "N";
+                        const isWin = curTier === "SW" || curTier === "W";
+                        const isNeutral = curTier === "N";
+                        shieldPlan = tiers[0] === "SW" || tiers[0] === "W" ? "0S" : (tiers[1] === "SW" || tiers[1] === "W" ? "1S" : (pShields >= 2 && (tiers[2] === "SW" || tiers[2] === "W") ? "2S" : "0S"));
+                        if (isWin) {
+                            actionLabel = `[${arch}] STAY IN`;
+                            goalText = curTier === "SW" ? "Dominate & Hold Switch" : "Win & Maintain Alignment";
+                            urg = "emerald";
+                        } else if (isNeutral) {
+                            actionLabel = `[${arch}] STAY / SOFT LOSE`;
+                            goalText = "Play +1 Shield or Farm Down";
+                            urg = "amber";
+                        } else {
+                            const pivotSlot = activeSlotIdx === 0 ? 1 : 0;
+                            const pivotMon = (teamList[pivotSlot] && (teamList[pivotSlot].code || abbrPoke(teamList[pivotSlot].name, false))) || "SWAP";
+                            actionLabel = `[${arch}] SWAP -> ${pivotMon}`;
+                            goalText = arch === "ABB" ? "Bait Backline Threat" : "Fight for Switch or +1S";
+                            urg = "rose";
+                            recSlot = pivotSlot;
+                        }
+                    }
+
                     if (recRowEl) {
-                        if (showRec && recObj && recObj.actionLabel) {
-                            const urg = recObj.urgencyColor || "sky";
+                        if (showRec && actionLabel) {
                             recRowEl.className = `tactical-rec-row rec-${urg}`;
                             const actEl = document.getElementById("sky-rec-action");
                             const shEl = document.getElementById("sky-rec-shield");
                             const goalEl = document.getElementById("sky-rec-goal");
                             const swBtn = document.getElementById("sky-rec-swap-btn");
-                            if (actEl) actEl.textContent = recObj.actionLabel;
-                            if (shEl) shEl.textContent = `[${recObj.shieldPlan || "1S"}]`;
-                            if (goalEl) goalEl.textContent = `Goal: ${recObj.goalText || "Hold Alignment"}`;
+                            if (actEl) actEl.textContent = actionLabel;
+                            if (shEl) shEl.textContent = `[${shieldPlan}]`;
+                            if (goalEl) goalEl.textContent = `Goal: ${goalText}`;
                             if (swBtn) {
-                                const recSlot = typeof recObj.recommendedSwapSlotIndex === "number" ? recObj.recommendedSwapSlotIndex : -1;
                                 if (recSlot >= 0 && recSlot <= 2 && recSlot !== activeSlotIdx) {
                                     swBtn.classList.remove("hidden");
                                     swBtn.setAttribute("data-swap-slot", String(recSlot));

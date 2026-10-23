@@ -123,19 +123,18 @@ jobs:
           tag_name: ${{ steps.version.outputs.tag }}
           name: "SilphScope PvP ${{ steps.version.outputs.tag }}"
           body: |
-            ## SilphScope PvP ${{ steps.version.outputs.tag }} — Official v3.30 Release (Duo-Core Team Builder & Auto-Detection, Lead & Swap Tactical Recommendations Module, and 2-Frame Shield Restoration Fix)
+            ## SilphScope PvP ${{ steps.version.outputs.tag }} — Official v3.31 Release (Top-50 Core Breaker & Threat Analysis Depth + Streamlined Team Summary Cards)
             
-            ### What's New in v3.30
-            - **Duo-Core (`DUO`) Team Creation, Auto-Detection & Competitive Playbooks (`OverlayService.kt`, `gblData.ts`, `MainActivity.kt`, `App.tsx`)**:
-              - **Duo-Core Archetype**: Recreates the symmetric Yin & Yang synergy of classic duo-cores (like Swampert/Skarmory or Clodsire/Feraligatr) where the **1st (`[Core 1] Lead`)** and **3rd (`[Core 2] Co-Core`)** Pokémon cover each other's weaknesses reciprocally (allowing you to swap 1st and 3rd with 1 tap to adapt to micro-meta shifts), while the **2nd (`[Pivot] Safe Swap`)** absorbs pressure, burns opponent shields, or fights for switch/shield advantage so Slot 1 or 3 can farm down for energy.
-              - **Anti-Meta Team Builder**: Now generates and displays **Best 5 ABB**, **Best 5 ABC**, and **Best 5 Duo-Core** sections, plus competitive strategy playbooks for **Duo-Core**, **ABC**, and **ABB** teams.
-              - **Team Viewer & Editor**: Added `DUO` style mode (`AUTO | ABB | ABC | DUO`) and 1-tap `☯️ 1 ⇄ 3` Core Swap button.
-            - **Lead & Swap Tactical Recommendations Module (`OverlayService.kt`, `overlay.html`, `gblData.ts`, `MainActivity.kt`, `App.tsx`)**:
-              - Added an **ultra-compact 1-line tactical recommendation badge** in the overlay between the **Header Row** and **Start/Stop Battle Row** showing **Action**, **Shield Plan (`0S` / `1S` / `2S`)**, and **Matchup Goal** based on your active Pokémon, opponent Pokémon, predetermined 9x9 shield matrix data, and team style (`ABB`, `ABC`, `DUO`).
-              - Recommends whether to **Stay In**, **Swap / Pivot** (and who to swap to), **Counter-Swap** when the opponent swaps, and the specific **Goal of the Matchup** (*Hold Switch Adv*, *Win +1 Shield & Let Go*, *Soft Lose -> Farm w/ [Mon]*, *Eliminate Backline Threat*).
-              - Enabled by default with a toggle in the **Settings** tab (`Recs On` / `Recs Off`).
-            - **Continual Shield Monitoring & 2-Frame Shield Restoration Fix (`OverlayService.kt`)**:
-              - Continually monitors player and opponent shield counts during battle; if for **2 consecutive steady HUD frames** a shield was not used (`sampledShields > shieldsRemaining`), automatically restores the shield to the shield counter and removes the false `SHIELD` timeline event.
+            ### What's New in v3.31
+            - **Expanded Core Breakers & Threat Analysis Depth to Top 50 Meta (`OverlayService.kt`, `gblData.ts`, `MainActivity.kt`, `App.tsx`)**:
+              - Expanded **Key Wins**, **Key Threats (with Slot 1/2/3 BRs)**, and **Core Breakers (with Slot 1/2/3 BRs)** evaluation from the Top 25 meta threats to the **Top 50 meta threats** across both the Anti-Meta Team Builder and Team Evaluator/Editor.
+            - **Decluttered Team Summary / Presets Page (`MainActivity.kt`, `App.tsx`)**:
+              - Removed movesets, alt-moveset comparison notes, and long paragraph descriptions from the main Team Summary cards so you can scan your saved teams at a glance.
+              - Team Summary cards now cleanly display **Pokémon names, IVs (and CP), roles (`[Lead]`, `[Safe Swap]`, `[Closer]`, `[A] Lead`, `[Core 1] Lead`, etc.), Key Wins, Key Threats, and Core Breakers**, while preserving full movesets and strategy descriptions inside the **Anti-Meta Team Builder** and **Team Editor** views.
+            - **Fixed Overlay Battle Recommendation Row (`OverlayService.kt`, `overlay.html`)**:
+              - Fixed the payload key mapping between `OverlayService.kt` and `overlay.html` (`tacticalRec` / `tacticalRecommendation` and `showTacticalRec` / `showTacticalRecommendations`) and added a client-side 3v3 matrix fallback so the ultra-compact **Lead & Swap Tactical Recommendation Row** (`[Archetype] Action · [Shield Plan] · Goal` + 1-tap `Swap ➔` button) reliably displays between the `VS [OPPONENT]` header row and the `Start/Stop Battle` toolbar row.
+            - **Includes All v3.30 Upgrades**:
+              - **Duo-Core (`DUO`)** team creation & auto-detection (`Best 5 ABB`, `Best 5 ABC`, `Best 5 Duo-Core`) and **2-Frame Continual Shield Monitoring & Restoration**.
             
             ### Live Web Simulator & Download
             - **Live Web Simulator**: [https://sportsfan986.github.io/silphscope-pvp/](https://sportsfan986.github.io/silphscope-pvp/)

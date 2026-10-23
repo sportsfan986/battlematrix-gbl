@@ -2961,7 +2961,7 @@ export default function App() {
                     backgroundColor: `${activeTheme.accentHex}1A`
                   }}
                 >
-                  v3.30 • Android Native Overlay
+                  v3.31 • Android Native Overlay
                 </span>
               </div>
               <p className="text-xs hidden sm:block" style={{ color: activeTheme.textSecondaryHex }}>
@@ -5061,7 +5061,7 @@ export default function App() {
                       const leadBadge = getSingleSlotBrTierInfo(opt.leadAggBr, tierThresholds);
                       const swapBadge = getSingleSlotBrTierInfo(opt.safeSwapBr, tierThresholds);
                       const closerBadge = getSingleSlotBrTierInfo(opt.closerBr, tierThresholds);
-                      const totalMetaDepth = opt.topMetaTargetsTotal || 25;
+                      const totalMetaDepth = opt.topMetaTargetsTotal || 50;
                       const anyAltMoves = (opt.altMovesetSlots || []).some((s) => s.isAltMoveset);
 
                       return (
@@ -5214,7 +5214,7 @@ export default function App() {
                                 <span className="text-slate-300 font-mono text-[9.5px]">
                                   {opt.coreBreakers && opt.coreBreakers.length > 0
                                     ? opt.coreBreakers.slice(0, 4).join(', ')
-                                    : 'None (0 in Top 25 Meta)'}
+                                    : 'None (0 in Top 50 Meta)'}
                                 </span>
                               </div>
                             </div>
@@ -5296,7 +5296,7 @@ export default function App() {
                         <div className="bg-slate-950/85 border border-slate-800 rounded-xl p-4 space-y-2.5">
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <h5 className="text-xs font-extrabold text-purple-300 uppercase tracking-wider">
-                              🎯 Top 50 {currentResult.league} Meta Determined by SilphScope (Meta Battle Ranking in Parentheses • Top 25 Used for /25 Wins Audit)
+                              🎯 Top 50 {currentResult.league} Meta Determined by SilphScope (Meta Battle Ranking in Parentheses • All 50 Used for Key Wins, Threats &amp; Core Breakers Audit)
                             </h5>
                             <span className="text-[10px] text-slate-400">
                               {currentResult.metaSummaryLabel || 'Built against Top-100 Synthetic Role-Weighted Meta blended with Season Logs'}
@@ -5338,9 +5338,8 @@ export default function App() {
                 const machTierInfo = getMachineBrTierInfo(machBr, machineBrThresholds);
                 const slot2SwapTierInfo = getSingleSlotBrTierInfo(safeSwapBr, tierThresholds);
                 const slot3SwapTierInfo = getSingleSlotBrTierInfo(closerSwapBr, tierThresholds);
-                const totalMetaDepth = preset.topMetaTargetsTotal || 25;
+                const totalMetaDepth = preset.topMetaTargetsTotal || 50;
                 const topWinsCount = preset.topMetaWinsCount ?? 0;
-                const anyAltMoves = (preset.altMovesetSlots || []).some((s) => s.isAltMoveset);
 
                 return (
                   <div
@@ -5426,11 +5425,6 @@ export default function App() {
                           <span className="text-[10px] text-emerald-400 font-semibold">
                             Beats {topWinsCount}/{totalMetaDepth} Top Meta
                           </span>
-                          {anyAltMoves && (
-                            <span className="px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-400/50 text-amber-300 text-[9px] font-extrabold">
-                              ⚡ Alt Moveset
-                            </span>
-                          )}
                         </div>
 
                         <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end">
@@ -5511,7 +5505,7 @@ export default function App() {
                         </span>
                       </div>
 
-                      {/* 3 Team Slots (Same Look & Feel as Anti-Meta Generator Cards) */}
+                      {/* 3 Team Slots (Clean Summary: Role, Pokemon Name & IVs/CP only) */}
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                         {preset.pokemon.map((member, index) => {
                           const roleTag =
@@ -5535,17 +5529,11 @@ export default function App() {
                           const slotMetricBr = index === 0 ? leadBr : index === 1 ? safeSwapBr : closerSwapBr;
                           const slotTierInfo =
                             index === 0 ? leadTierInfo : index === 1 ? slot2SwapTierInfo : slot3SwapTierInfo;
-                          const altInfo = preset.altMovesetSlots?.[index];
-                          const isAltMove = Boolean(altInfo?.isAltMoveset);
 
                           return (
                             <div
                               key={member.id || index}
-                              className={`p-2.5 rounded-lg border ${
-                                isAltMove
-                                  ? 'bg-amber-950/20 border-amber-500/40'
-                                  : 'bg-slate-900/90 border-slate-800'
-                              }`}
+                              className="p-2.5 rounded-lg border bg-slate-900/90 border-slate-800"
                             >
                               <div className="flex items-center justify-between gap-1">
                                 <span className="text-[10px] font-bold text-slate-400">{roleTag}</span>
@@ -5553,43 +5541,25 @@ export default function App() {
                                   {slotMetricBr} BR
                                 </span>
                               </div>
-                              <div className="font-bold text-xs text-white mt-1 truncate flex items-center gap-1 flex-wrap">
-                                <span>{member.name}</span>
-                                {isAltMove && (
-                                  <span
-                                    className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/25 border border-amber-400/50 text-amber-200 font-extrabold"
-                                    title={`Standard: ${altInfo?.standardFastMove} + ${altInfo?.standardCharged1}/${altInfo?.standardCharged2}`}
-                                  >
-                                    ⚡ Alt Moveset
-                                  </span>
-                                )}
-                              </div>
-                              <div
-                                className={`text-[10px] truncate mt-0.5 ${
-                                  isAltMove ? 'text-amber-300 font-semibold' : 'text-slate-400'
-                                }`}
-                              >
-                                {member.fastMove} • {member.chargedMove1}/{member.chargedMove2}
+                              <div className="font-bold text-xs text-white mt-1 truncate">
+                                {member.name}
                               </div>
                               <div className="flex items-center justify-between gap-1 mt-1 pt-1 border-t border-slate-800/60 text-[9.5px] font-mono">
-                                <span className="text-sky-400 font-bold">CP {member.cp}</span>
                                 {member.ivs ? (
-                                  <span className="text-emerald-400">IV {member.ivs}</span>
+                                  <span className="text-emerald-400 font-semibold">IV {member.ivs}</span>
                                 ) : (
-                                  <span className="text-slate-500">PvPoke IVs</span>
+                                  <span className="text-slate-400">PvPoke IVs</span>
                                 )}
+                                <span className="text-sky-400 font-bold">CP {member.cp}</span>
                               </div>
                             </div>
                           );
                         })}
                       </div>
 
-                      {/* Key Wins, Key Threats & Core Breakers Summary Breakdown (Matches Anti-Meta Generator) */}
-                      <div className="space-y-1 text-[10px] pt-1.5 border-t border-slate-900">
-                        {preset.synergySummary && (
-                          <p className="text-slate-400 leading-relaxed">{preset.synergySummary}</p>
-                        )}
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 pt-1">
+                      {/* Key Wins, Key Threats & Core Breakers Summary Breakdown (No moveset/description clutter) */}
+                      <div className="text-[10px] pt-1.5 border-t border-slate-900">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
                           <div className="bg-emerald-950/25 border border-emerald-500/30 rounded-lg px-2 py-1">
                             <span className="font-bold text-emerald-400 block">
                               ✅ Key Wins ({topWinsCount}/{totalMetaDepth})
@@ -5617,7 +5587,7 @@ export default function App() {
                             <span className="text-slate-300 font-mono text-[9.5px]">
                               {preset.coreBreakers && preset.coreBreakers.length > 0
                                 ? preset.coreBreakers.slice(0, 4).join(', ')
-                                : 'None (0 in Top 25 Meta)'}
+                                : 'None (0 in Top 50 Meta)'}
                             </span>
                           </div>
                         </div>
@@ -5697,7 +5667,7 @@ export default function App() {
                       const mMachTier = getMachineBrTierInfo(modalLiveEvaluation.machineAggBr, machineBrThresholds);
                       const mSlot2SwapTier = getSingleSlotBrTierInfo(modalLiveEvaluation.safeSwapBr, tierThresholds);
                       const mSlot3SwapTier = getSingleSlotBrTierInfo(modalLiveEvaluation.closerSwapBr, tierThresholds);
-                      const modalTotalMetaDepth = modalLiveEvaluation.topMetaTargetsTotal || 25;
+                      const modalTotalMetaDepth = modalLiveEvaluation.topMetaTargetsTotal || 50;
                       const modalWinsCount = modalLiveEvaluation.topMetaWinsCount ?? 0;
                       const modalAnyAltMoves = (modalLiveEvaluation.altMovesetSlots || []).some((s) => s.isAltMoveset);
                       return (
@@ -5919,7 +5889,7 @@ export default function App() {
                                 <span className="text-slate-300 font-mono text-[9.5px]">
                                   {modalLiveEvaluation.coreBreakers && modalLiveEvaluation.coreBreakers.length > 0
                                     ? modalLiveEvaluation.coreBreakers.slice(0, 4).join(', ')
-                                    : 'None (0 in Top 25 Meta)'}
+                                    : 'None (0 in Top 50 Meta)'}
                                 </span>
                               </div>
                             </div>
@@ -10484,7 +10454,7 @@ export default function App() {
                 <div>
                   <h3 className="font-bold text-base text-white flex items-center gap-2">
                     <Info className="w-4 h-4 text-sky-400" />
-                    <span>Help &amp; Metric Guide (v3.30 Analytics Reference)</span>
+                    <span>Help &amp; Metric Guide (v3.31 Analytics Reference)</span>
                   </h3>
                   <p className="text-xs text-slate-400 mt-0.5">
                     How SilphScope PvP separates micro-execution skill from matchmaking alignment RNG
@@ -10739,7 +10709,7 @@ export default function App() {
               <div className="flex items-center justify-between border-b border-slate-800 pb-3 shrink-0">
                 <div>
                   <h3 className="font-bold text-base text-white flex items-center gap-2">
-                    <span>🎯 Overlay HUD &amp; Battle Flow Guide (v3.30)</span>
+                    <span>🎯 Overlay HUD &amp; Battle Flow Guide (v3.31)</span>
                   </h3>
                   <p className="text-xs text-slate-400 mt-0.5">
                     How to interact with the floating overlay, read 3x3 damage % &amp; shield dots, track 50s swap clocks, and log battles
@@ -10882,7 +10852,7 @@ export default function App() {
           color: activeTheme.textSecondaryHex
         }}
       >
-        SilphScope PvP v3.30 Overlay • Built with Kotlin, WindowManager TYPE_APPLICATION_OVERLAY, MediaProjection in-memory frame capture, and ML Kit Text Recognition.
+        SilphScope PvP v3.31 Overlay • Built with Kotlin, WindowManager TYPE_APPLICATION_OVERLAY, MediaProjection in-memory frame capture, and ML Kit Text Recognition.
       </footer>
     </div>
   );

@@ -6685,22 +6685,22 @@ export function evaluateOrAutoOrderTeam(
   }
   const machineAggBr = Math.round(machineAggSum);
 
-  // Top 25 Meta Threats Audit (Key Wins, Key Threats with BRs, Core Breakers with BRs)
+  // Top 50 Meta Threats Audit (Key Wins, Key Threats with BRs, Core Breakers with BRs)
   const sortedFieldOpps = Array.from(blendedMeta.fieldProbabilities.entries())
     .sort((a, b) => b[1] - a[1])
     .map((e) => e[0]);
-  const top25MetaThreats =
-    sortedFieldOpps.length >= 25
-      ? sortedFieldOpps.slice(0, 25)
-      : getLeagueTopMetaSpeciesNames(league, 25);
-  const targetAuditTotal = top25MetaThreats.length || 25;
+  const top50MetaThreats =
+    sortedFieldOpps.length >= 50
+      ? sortedFieldOpps.slice(0, 50)
+      : getLeagueTopMetaSpeciesNames(league, 50);
+  const targetAuditTotal = top50MetaThreats.length || 50;
 
   const beatenTargets: string[] = [];
   const coreBreakers: string[] = [];
   const keyThreats: string[] = [];
   const rawBreakerNames = new Set<string>();
 
-  for (const threat of top25MetaThreats) {
+  for (const threat of top50MetaThreats) {
     const r0 = pwByOpp0.get(threat) ?? evaluatePositionWeightedBr(orderedPokemon[0], threat, league).leadBr;
     const r1 = pwByOpp1.get(threat) ?? evaluatePositionWeightedBr(orderedPokemon[1], threat, league).swapBr;
     const r2 = pwByOpp2.get(threat) ?? evaluatePositionWeightedBr(orderedPokemon[2], threat, league).closerBr;
@@ -6726,7 +6726,7 @@ export function evaluateOrAutoOrderTeam(
   }
 
   if (keyThreats.length === 0) {
-    const sortedTough = [...top25MetaThreats]
+    const sortedTough = [...top50MetaThreats]
       .filter((t) => !rawBreakerNames.has(t))
       .map((t) => {
         const r0 = pwByOpp0.get(t) ?? evaluatePositionWeightedBr(orderedPokemon[0], t, league).leadBr;
@@ -6850,7 +6850,7 @@ export function evaluateOrAutoOrderTeam(
   const breakersPreview =
     coreBreakers.length > 0
       ? coreBreakers.slice(0, 4).join(", ")
-      : "None (0 hard core breakers in Top 25)";
+      : "None (0 hard core breakers in Top 50)";
   const altNotes = altMovesetSlots
     .filter((a) => a.isAltMoveset)
     .map((a) => `${a.pokemonName} (${a.fastMove} + ${a.chargedMove1}/${a.chargedMove2})`);
@@ -6885,8 +6885,8 @@ export function evaluateOrAutoOrderTeam(
     topMetaTargetsTotal: targetAuditTotal,
     topMetaWinsCount: beatenTargets.length,
     keyMetaTargetsBeaten: beatenTargets.slice(0, 6),
-    keyThreats: keyThreats.slice(0, 5),
-    coreBreakers: coreBreakers.slice(0, 5),
+    keyThreats: keyThreats.slice(0, 6),
+    coreBreakers: coreBreakers.slice(0, 6),
     altMovesetSlots,
     synergySummary,
     reasonSummary
@@ -8562,7 +8562,7 @@ export function generateAntiMetaTeamOptions(
   const topMetaPool = fullRankedPool.slice(0, 65);
   const top25MetaThreats = roleMeta.top25Threats;
   const top50MetaThreats = roleMeta.top50Threats;
-  const targetAuditTotal = top25MetaThreats.length || 25;
+  const targetAuditTotal = top50MetaThreats.length || 50;
 
   const buildMember = (rawName: string, idSuffix: string): TeamMember | null => {
     const trimmed = (rawName || "").trim();
@@ -8806,7 +8806,7 @@ export function generateAntiMetaTeamOptions(
     const keyThreats: string[] = [];
     const rawBreakerNames = new Set<string>();
 
-    for (const threat of top25MetaThreats) {
+    for (const threat of top50MetaThreats) {
       const r0 = m0.pwByOpp.get(threat)?.leadBr ?? 500;
       const r1 = m1.pwByOpp.get(threat)?.swapBr ?? 500;
       const r2 = m2.pwByOpp.get(threat)?.closerBr ?? 500;
@@ -8833,9 +8833,9 @@ export function generateAntiMetaTeamOptions(
       }
     }
 
-    // Backfill at least 2 Key Threats with the lowest maxBr opponents in Top 25 if none crossed the strict threshold
+    // Backfill at least 2 Key Threats with the lowest maxBr opponents in Top 50 if none crossed the strict threshold
     if (keyThreats.length === 0) {
-      const sortedTough = [...top25MetaThreats]
+      const sortedTough = [...top50MetaThreats]
         .filter((t) => !rawBreakerNames.has(t))
         .map((t) => {
           const r0 = m0.pwByOpp.get(t)?.leadBr ?? 500;
@@ -8912,7 +8912,7 @@ export function generateAntiMetaTeamOptions(
     const breakersPreview =
       coreBreakers.length > 0
         ? coreBreakers.slice(0, 4).join(", ")
-        : "None (0 hard core breakers in Top 25)";
+        : "None (0 hard core breakers in Top 50)";
     const altNotes = altMovesetSlots
       .filter((a) => a.isAltMoveset)
       .map((a) => `${a.pokemonName} (${a.fastMove} + ${a.chargedMove1}/${a.chargedMove2})`);
@@ -8943,8 +8943,8 @@ export function generateAntiMetaTeamOptions(
       topMetaTargetsTotal: targetAuditTotal,
       topMetaWinsCount: beatenTargets.length,
       keyMetaTargetsBeaten: beatenTargets.slice(0, 6),
-      keyThreats: keyThreats.slice(0, 5),
-      coreBreakers: coreBreakers.slice(0, 5),
+      keyThreats: keyThreats.slice(0, 6),
+      coreBreakers: coreBreakers.slice(0, 6),
       altMovesetSlots,
       synergySummary
     };
