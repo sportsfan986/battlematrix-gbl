@@ -3277,7 +3277,7 @@ const CHARGED_MOVE_FALLBACK_STATS: Record<string, { type: string; power: number;
   "high horsepower": { type: "ground", power: 100, energyCost: 55, code: "HH" },
   "mud bomb": { type: "ground", power: 65, energyCost: 45, code: "MB" },
   "bone club": { type: "ground", power: 55, energyCost: 35, code: "BC" },
-  "bulldoze": { type: "ground", power: 80, energyCost: 55, code: "BD" },
+  "bulldoze": { type: "ground", power: 45, energyCost: 45, code: "BD" },
   "sky attack": { type: "flying", power: 75, energyCost: 50, code: "SA" },
   "brave bird": { type: "flying", power: 130, energyCost: 55, code: "BB" },
   "fly": { type: "flying", power: 80, energyCost: 45, code: "Fly" },
@@ -3340,6 +3340,287 @@ const CHARGED_MOVE_FALLBACK_STATS: Record<string, { type: string; power: number;
 };
 
 const DYNAMIC_CHARGED_MOVE_MAP: Record<string, ChargedMove> = {};
+
+export interface MoveBuffEffect {
+  selfAtkDelta: number;
+  selfDefDelta: number;
+  oppAtkDelta: number;
+  oppDefDelta: number;
+  chance: number;
+}
+
+export interface ChargedCycleSimResult {
+  effectivePressure: number;
+  effectiveFreqMult: number;
+  bestMovePct: number;
+  fastestMovePct: number;
+  fastestMoveEnergy: number;
+}
+
+export const BASELINE_MOVE_BUFF_EFFECTS: Record<string, MoveBuffEffect> = {
+  "bulldoze": { selfAtkDelta: 0, selfDefDelta: 0, oppAtkDelta: 0, oppDefDelta: -1, chance: 1.0 },
+  "icy wind": { selfAtkDelta: 0, selfDefDelta: 0, oppAtkDelta: -1, oppDefDelta: 0, chance: 1.0 },
+  "chilling water": { selfAtkDelta: 0, selfDefDelta: 0, oppAtkDelta: -1, oppDefDelta: 0, chance: 1.0 },
+  "lunge": { selfAtkDelta: 0, selfDefDelta: 0, oppAtkDelta: -1, oppDefDelta: 0, chance: 1.0 },
+  "breaking swipe": { selfAtkDelta: 0, selfDefDelta: 0, oppAtkDelta: -1, oppDefDelta: 0, chance: 0.5 },
+  "feather dance": { selfAtkDelta: 0, selfDefDelta: 0, oppAtkDelta: -2, oppDefDelta: 0, chance: 1.0 },
+  "rock tomb": { selfAtkDelta: 0, selfDefDelta: 0, oppAtkDelta: -1, oppDefDelta: 0, chance: 1.0 },
+  "sand tomb": { selfAtkDelta: 0, selfDefDelta: 0, oppAtkDelta: 0, oppDefDelta: -1, chance: 1.0 },
+  "poison fang": { selfAtkDelta: 0, selfDefDelta: 0, oppAtkDelta: 0, oppDefDelta: -1, chance: 1.0 },
+  "psychic fangs": { selfAtkDelta: 0, selfDefDelta: 0, oppAtkDelta: 0, oppDefDelta: -1, chance: 1.0 },
+  "acid spray": { selfAtkDelta: 0, selfDefDelta: 0, oppAtkDelta: 0, oppDefDelta: -2, chance: 1.0 },
+  "crunch": { selfAtkDelta: 0, selfDefDelta: 0, oppAtkDelta: 0, oppDefDelta: -1, chance: 0.3 },
+  "liquidation": { selfAtkDelta: 0, selfDefDelta: 0, oppAtkDelta: 0, oppDefDelta: -1, chance: 0.3 },
+  "shadow ball": { selfAtkDelta: 0, selfDefDelta: 0, oppAtkDelta: 0, oppDefDelta: -1, chance: 0.1 },
+  "shadow bone": { selfAtkDelta: 0, selfDefDelta: 0, oppAtkDelta: 0, oppDefDelta: -1, chance: 0.2 },
+  "earth power": { selfAtkDelta: 0, selfDefDelta: 0, oppAtkDelta: 0, oppDefDelta: -1, chance: 0.1 },
+  "bug buzz": { selfAtkDelta: 0, selfDefDelta: 0, oppAtkDelta: 0, oppDefDelta: -1, chance: 0.3 },
+  "psychic": { selfAtkDelta: 0, selfDefDelta: 0, oppAtkDelta: 0, oppDefDelta: -1, chance: 0.1 },
+  "scald": { selfAtkDelta: 0, selfDefDelta: 0, oppAtkDelta: -1, oppDefDelta: 0, chance: 0.5 },
+  "scorching sands": { selfAtkDelta: 0, selfDefDelta: 0, oppAtkDelta: -1, oppDefDelta: 0, chance: 0.3 },
+  "moonblast": { selfAtkDelta: 0, selfDefDelta: 0, oppAtkDelta: -1, oppDefDelta: 0, chance: 0.1 },
+  "mirror shot": { selfAtkDelta: 0, selfDefDelta: 0, oppAtkDelta: -1, oppDefDelta: 0, chance: 0.3 },
+  "zap cannon": { selfAtkDelta: 0, selfDefDelta: 0, oppAtkDelta: -1, oppDefDelta: 0, chance: 0.66 },
+  "rage fist": { selfAtkDelta: 1, selfDefDelta: 0, oppAtkDelta: 0, oppDefDelta: 0, chance: 1.0 },
+  "power-up punch": { selfAtkDelta: 1, selfDefDelta: 0, oppAtkDelta: 0, oppDefDelta: 0, chance: 1.0 },
+  "flame charge": { selfAtkDelta: 1, selfDefDelta: 0, oppAtkDelta: 0, oppDefDelta: 0, chance: 1.0 },
+  "trailblaze": { selfAtkDelta: 1, selfDefDelta: 0, oppAtkDelta: 0, oppDefDelta: 0, chance: 1.0 },
+  "triple axel": { selfAtkDelta: 1, selfDefDelta: 0, oppAtkDelta: 0, oppDefDelta: 0, chance: 1.0 },
+  "torch song": { selfAtkDelta: 1, selfDefDelta: 0, oppAtkDelta: 0, oppDefDelta: 0, chance: 1.0 },
+  "aura wheel": { selfAtkDelta: 1, selfDefDelta: 0, oppAtkDelta: 0, oppDefDelta: 0, chance: 1.0 },
+  "night slash": { selfAtkDelta: 2, selfDefDelta: 0, oppAtkDelta: 0, oppDefDelta: 0, chance: 0.125 },
+  "air cutter": { selfAtkDelta: 1, selfDefDelta: 0, oppAtkDelta: 0, oppDefDelta: 0, chance: 0.3 },
+  "ancient power": { selfAtkDelta: 1, selfDefDelta: 1, oppAtkDelta: 0, oppDefDelta: 0, chance: 0.1 },
+  "ominous wind": { selfAtkDelta: 1, selfDefDelta: 1, oppAtkDelta: 0, oppDefDelta: 0, chance: 0.1 },
+  "close combat": { selfAtkDelta: 0, selfDefDelta: -2, oppAtkDelta: 0, oppDefDelta: 0, chance: 1.0 },
+  "wild charge": { selfAtkDelta: 0, selfDefDelta: -2, oppAtkDelta: 0, oppDefDelta: 0, chance: 1.0 },
+  "brave bird": { selfAtkDelta: 0, selfDefDelta: -3, oppAtkDelta: 0, oppDefDelta: 0, chance: 1.0 },
+  "superpower": { selfAtkDelta: -1, selfDefDelta: -1, oppAtkDelta: 0, oppDefDelta: 0, chance: 1.0 },
+  "overheat": { selfAtkDelta: -2, selfDefDelta: 0, oppAtkDelta: 0, oppDefDelta: 0, chance: 1.0 },
+  "draco meteor": { selfAtkDelta: -2, selfDefDelta: 0, oppAtkDelta: 0, oppDefDelta: 0, chance: 1.0 },
+  "psycho boost": { selfAtkDelta: -2, selfDefDelta: 0, oppAtkDelta: 0, oppDefDelta: 0, chance: 1.0 },
+  "leaf storm": { selfAtkDelta: -2, selfDefDelta: 0, oppAtkDelta: 0, oppDefDelta: 0, chance: 1.0 },
+  "v-create": { selfAtkDelta: 0, selfDefDelta: -3, oppAtkDelta: 0, oppDefDelta: 0, chance: 1.0 }
+};
+
+export const DYNAMIC_MOVE_BUFF_TABLE: Record<string, MoveBuffEffect> = (() => {
+  try {
+    if (typeof window !== "undefined" && window.localStorage) {
+      const raw = window.localStorage.getItem("gbl_pvpoke_gamemaster_buffs_v1");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") {
+          return parsed as Record<string, MoveBuffEffect>;
+        }
+      }
+    }
+  } catch {
+    // Ignore storage read errors
+  }
+  return {};
+})();
+
+const ZERO_MOVE_BUFF: MoveBuffEffect = {
+  selfAtkDelta: 0,
+  selfDefDelta: 0,
+  oppAtkDelta: 0,
+  oppDefDelta: 0,
+  chance: 0
+};
+
+export function resolveMoveBuffEffect(moveName: string): MoveBuffEffect {
+  const clean = (moveName || "").replace(/\*/g, "").trim().toLowerCase();
+  if (!clean) return ZERO_MOVE_BUFF;
+  const idKey = clean.replace(/[\s-]+/g, "_");
+  return (
+    DYNAMIC_MOVE_BUFF_TABLE[clean] ||
+    DYNAMIC_MOVE_BUFF_TABLE[idKey] ||
+    BASELINE_MOVE_BUFF_EFFECTS[clean] ||
+    ZERO_MOVE_BUFF
+  );
+}
+
+export function isDominatedSameTypeChargedPair(
+  c1Name: string,
+  c2Name: string,
+  myTypes: string[] = []
+): boolean {
+  const clean1 = (c1Name || "").replace(/\*/g, "").trim();
+  const clean2 = (c2Name || "").replace(/\*/g, "").trim();
+  if (!clean1 || !clean2 || clean1.toLowerCase() === clean2.toLowerCase()) {
+    return false;
+  }
+  const defaultType = myTypes[0] || "normal";
+  const s1 = buildChargedMoveFromName(clean1, defaultType, []);
+  const s2 = buildChargedMoveFromName(clean2, defaultType, []);
+  if ((s1.type || "").toLowerCase() !== (s2.type || "").toLowerCase()) {
+    return false;
+  }
+  const b1 = resolveMoveBuffEffect(clean1);
+  const b2 = resolveMoveBuffEffect(clean2);
+
+  const hasPositiveBuff = (b: MoveBuffEffect): boolean =>
+    b.chance >= 0.25 &&
+    (b.selfAtkDelta > 0 || b.selfDefDelta > 0 || b.oppAtkDelta < 0 || b.oppDefDelta < 0);
+
+  const hasSelfDebuff = (b: MoveBuffEffect): boolean =>
+    b.chance >= 0.5 && (b.selfAtkDelta < 0 || b.selfDefDelta < 0);
+
+  const e1 = Math.max(35, Math.min(80, s1.energyCost || 50));
+  const e2 = Math.max(35, Math.min(80, s2.energyCost || 50));
+  const p1 = s1.power || 50;
+  const p2 = s2.power || 50;
+  const dpe1 = p1 / e1;
+  const dpe2 = p2 / e2;
+
+  const s2DominatedByS1 =
+    !hasPositiveBuff(b2) &&
+    !hasSelfDebuff(b1) &&
+    ((e2 >= e1 && p2 <= p1) || (e1 - e2 < 15 && dpe1 >= dpe2 * 1.15 && p1 >= p2));
+
+  const s1DominatedByS2 =
+    !hasPositiveBuff(b1) &&
+    !hasSelfDebuff(b2) &&
+    ((e1 >= e2 && p1 <= p2) || (e2 - e1 < 15 && dpe2 >= dpe1 * 1.15 && p2 >= p1));
+
+  return s2DominatedByS1 || s1DominatedByS2;
+}
+
+export function simulateTurnByTurnChargedCycle(
+  c1: ChargedMove,
+  c1RawPct: number,
+  c2: ChargedMove,
+  c2RawPct: number,
+  fastEpt: number,
+  defShields: number,
+  attackerTypes: string[]
+): ChargedCycleSimResult {
+  const e1 = Math.max(35, Math.min(80, c1.energyCost || 50));
+  const e2 = Math.max(35, Math.min(80, c2.energyCost || 50));
+  const b1 = resolveMoveBuffEffect(c1.name);
+  const b2 = resolveMoveBuffEffect(c2.name);
+
+  const atkStage1 = (b1.selfAtkDelta - b1.oppDefDelta) * b1.chance;
+  const defStage1 = (b1.selfDefDelta - b1.oppAtkDelta) * b1.chance;
+  const atkStage2 = (b2.selfAtkDelta - b2.oppDefDelta) * b2.chance;
+  const defStage2 = (b2.selfDefDelta - b2.oppAtkDelta) * b2.chance;
+
+  const effPace1 = Math.max(0.84, Math.min(1.22, Math.pow(50.0 / e1, 0.28)));
+  const effPace2 = Math.max(0.84, Math.min(1.22, Math.pow(50.0 / e2, 0.28)));
+
+  const unshieldedCycleVal1 =
+    c1RawPct * effPace1 +
+    Math.max(0, atkStage1) * 5.5 +
+    Math.max(0, defStage1) * 5.0 -
+    Math.max(0, -defStage1) * 3.5 -
+    Math.max(0, -atkStage1) * 3.5;
+
+  const unshieldedCycleVal2 =
+    c2RawPct * effPace2 +
+    Math.max(0, atkStage2) * 5.5 +
+    Math.max(0, defStage2) * 5.0 -
+    Math.max(0, -defStage2) * 3.5 -
+    Math.max(0, -atkStage2) * 3.5;
+
+  const use1AsPrimary = unshieldedCycleVal1 >= unshieldedCycleVal2;
+  const bestPct = use1AsPrimary ? c1RawPct : c2RawPct;
+  const bestEnergy = use1AsPrimary ? e1 : e2;
+  const bestPace = use1AsPrimary ? effPace1 : effPace2;
+  const bestAtkStage = use1AsPrimary ? atkStage1 : atkStage2;
+  const bestDefStage = use1AsPrimary ? defStage1 : defStage2;
+
+  const altPct = use1AsPrimary ? c2RawPct : c1RawPct;
+  const altEnergy = use1AsPrimary ? e2 : e1;
+  const altAtkStage = use1AsPrimary ? atkStage2 : atkStage1;
+  const altDefStage = use1AsPrimary ? defStage2 : defStage1;
+
+  const shieldSetupScore = (pct: number, energy: number, atkStg: number, defStg: number): number => {
+    const energySavedBonus = (60.0 - energy) * 0.58;
+    const buffBonus =
+      Math.max(0, atkStg) * 11.5 +
+      Math.max(0, defStg) * 10.5 -
+      Math.max(0, -defStg) * 12.0 -
+      Math.max(0, -atkStg) * 10.0;
+    const credibilityMult = pct < 18 && atkStg <= 0 && defStg <= 0 ? 0.55 : 1.0;
+    return energySavedBonus * credibilityMult + buffBonus + pct * 0.30;
+  };
+
+  const primaryShieldScore = shieldSetupScore(bestPct, bestEnergy, bestAtkStage, bestDefStage);
+  const altIsValidShieldSetup =
+    (altEnergy <= bestEnergy - 10 && altDefStage >= 0 && altAtkStage >= 0) ||
+    (altEnergy <= bestEnergy + 5 && (altAtkStage > 0.2 || altDefStage > 0.2)) ||
+    (bestDefStage < -0.5 && altDefStage >= 0 && altEnergy <= bestEnergy);
+
+  const altShieldScore = altIsValidShieldSetup
+    ? shieldSetupScore(altPct, altEnergy, altAtkStage, altDefStage)
+    : -999;
+
+  const useAltForShieldBurn = altShieldScore > primaryShieldScore;
+  const burnPct = useAltForShieldBurn ? altPct : bestPct;
+  const burnEnergy = useAltForShieldBurn ? altEnergy : bestEnergy;
+  const burnAtkStage = useAltForShieldBurn ? altAtkStage : bestAtkStage;
+  const burnDefStage = useAltForShieldBurn ? altDefStage : bestDefStage;
+
+  const unshieldedBase = bestPct * bestPace;
+  const energySavingsFromBait = useAltForShieldBurn ? Math.max(0, bestEnergy - burnEnergy) : 0;
+
+  let cyclePressure: number;
+  let activeCycleEnergy: number;
+
+  if (defShields <= 0) {
+    const setupFirstIn0S =
+      useAltForShieldBurn &&
+      (burnAtkStage >= 0.5 || burnDefStage >= 0.5) &&
+      burnEnergy <= bestEnergy - 10 &&
+      burnPct >= Math.floor(bestPct * 0.52);
+    const buffFollowup = setupFirstIn0S
+      ? burnAtkStage * 8.5 + burnDefStage * 7.5
+      : Math.max(0, bestAtkStage) * 8.0 +
+        Math.max(0, bestDefStage) * 7.5 -
+        Math.max(0, -bestDefStage) * 4.5 -
+        Math.max(0, -bestAtkStage) * 4.0;
+    const finisherFlexBonus =
+      altEnergy <= bestEnergy - 10 && altPct >= 26 ? (bestEnergy - altEnergy) * 0.20 : 0;
+    cyclePressure = unshieldedBase * 1.70 + buffFollowup + finisherFlexBonus;
+    activeCycleEnergy = setupFirstIn0S ? (burnEnergy + bestEnergy) * 0.5 : bestEnergy;
+  } else if (defShields === 1) {
+    const postShieldAtkMult = Math.max(0.76, Math.min(1.42, 1.0 + 0.16 * burnAtkStage));
+    const shieldTempoBonus = energySavingsFromBait * 0.45 + (55.0 - burnEnergy) * 0.22;
+    const postShieldStatValue =
+      burnDefStage * 9.5 +
+      Math.max(0, burnAtkStage) * 6.5 +
+      Math.max(0, bestAtkStage) * 4.0 +
+      Math.max(0, bestDefStage) * 3.5 -
+      Math.max(0, -bestDefStage) * 3.5;
+    cyclePressure = unshieldedBase * postShieldAtkMult * 1.24 + shieldTempoBonus + postShieldStatValue;
+    activeCycleEnergy = burnEnergy * 0.55 + bestEnergy * 0.45;
+  } else {
+    const twoShieldAtkMult = Math.max(0.70, Math.min(1.58, 1.0 + 0.26 * burnAtkStage));
+    const cycle3Reach = Math.max(0.68, Math.min(1.34, (fastEpt / 3.5) * (50.0 / burnEnergy)));
+    const twoShieldTempoBonus = energySavingsFromBait * 0.60 + (55.0 - burnEnergy) * 0.34;
+    const compoundedStatValue = burnDefStage * 13.5 + burnAtkStage * 9.5;
+    cyclePressure =
+      unshieldedBase * twoShieldAtkMult * 0.82 * cycle3Reach +
+      twoShieldTempoBonus +
+      compoundedStatValue;
+    activeCycleEnergy = burnEnergy * 0.72 + bestEnergy * 0.28;
+  }
+
+  const dominatedPenalty = isDominatedSameTypeChargedPair(c1.name, c2.name, attackerTypes) ? 6.5 : 0;
+  const clampedActiveEnergy = Math.max(35, Math.min(80, activeCycleEnergy));
+  const pacingFactor = Math.max(0.78, Math.min(1.26, (fastEpt / 3.5) * (50.0 / clampedActiveEnergy)));
+  const freqMult = 0.82 + 0.18 * pacingFactor;
+  const fastestPct = e1 < e2 ? c1RawPct : e2 < e1 ? c2RawPct : Math.min(c1RawPct, c2RawPct);
+  const fastestEnergy = Math.min(e1, e2);
+
+  return {
+    effectivePressure: Math.max(10, cyclePressure - dominatedPenalty),
+    effectiveFreqMult: freqMult,
+    bestMovePct: Math.max(c1RawPct, c2RawPct),
+    fastestMovePct: fastestPct,
+    fastestMoveEnergy: fastestEnergy
+  };
+}
 
 const SPECIES_FAST_MOVES_POOL: Record<string, string[]> = {
   tinkaton: ["Fairy Wind", "Rock Smash"],
@@ -3736,6 +4017,70 @@ export async function syncPvPokeDataAndRankings(): Promise<{
             power: typeof m.power === "number" ? m.power : 50,
             energyCost: m.energy
           };
+          const rawChance =
+            typeof m.buffApplyChance === "number"
+              ? m.buffApplyChance
+              : typeof m.buffApplyChance === "string"
+              ? parseFloat(m.buffApplyChance)
+              : 0;
+          let selfAtk = 0;
+          let selfDef = 0;
+          let oppAtk = 0;
+          let oppDef = 0;
+          if (Array.isArray(m.buffsSelf) && m.buffsSelf.length >= 2) {
+            selfAtk = Number(m.buffsSelf[0]) || 0;
+            selfDef = Number(m.buffsSelf[1]) || 0;
+          }
+          if (Array.isArray(m.buffsOpponent) && m.buffsOpponent.length >= 2) {
+            oppAtk = Number(m.buffsOpponent[0]) || 0;
+            oppDef = Number(m.buffsOpponent[1]) || 0;
+          }
+          if (
+            Array.isArray(m.buffs) &&
+            m.buffs.length >= 2 &&
+            selfAtk === 0 &&
+            selfDef === 0 &&
+            oppAtk === 0 &&
+            oppDef === 0
+          ) {
+            const b0 = Number(m.buffs[0]) || 0;
+            const b1 = Number(m.buffs[1]) || 0;
+            const target = typeof m.buffTarget === "string" ? m.buffTarget.toLowerCase().trim() : "";
+            if (target === "opponent") {
+              oppAtk = b0;
+              oppDef = b1;
+            } else if (target === "self") {
+              selfAtk = b0;
+              selfDef = b1;
+            } else if (target === "both") {
+              selfAtk = b0;
+              selfDef = b1;
+              oppAtk = b0;
+              oppDef = b1;
+            }
+          }
+          const normChance =
+            Number.isFinite(rawChance) && rawChance > 0
+              ? rawChance > 1
+                ? Math.min(1, rawChance / 100)
+                : Math.min(1, rawChance)
+              : 0;
+          const lowerName = m.name.toLowerCase().trim();
+          const lowerId = String(m.moveId).toLowerCase().trim();
+          if (normChance > 0 && (selfAtk !== 0 || selfDef !== 0 || oppAtk !== 0 || oppDef !== 0)) {
+            const effect: MoveBuffEffect = {
+              selfAtkDelta: selfAtk,
+              selfDefDelta: selfDef,
+              oppAtkDelta: oppAtk,
+              oppDefDelta: oppDef,
+              chance: normChance
+            };
+            DYNAMIC_MOVE_BUFF_TABLE[lowerName] = effect;
+            DYNAMIC_MOVE_BUFF_TABLE[lowerId] = effect;
+          } else {
+            delete DYNAMIC_MOVE_BUFF_TABLE[lowerName];
+            delete DYNAMIC_MOVE_BUFF_TABLE[lowerId];
+          }
         } else if (typeof m.energyGain === "number" && m.energyGain > 0) {
           FAST_MOVE_STATS[m.name.toLowerCase()] = {
             name: m.name,
@@ -3746,6 +4091,16 @@ export async function syncPvPokeDataAndRankings(): Promise<{
           };
         }
       }
+    }
+    try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        window.localStorage.setItem(
+          "gbl_pvpoke_gamemaster_buffs_v1",
+          JSON.stringify(DYNAMIC_MOVE_BUFF_TABLE)
+        );
+      }
+    } catch {
+      // Ignore localStorage quota errors
     }
   }
 
@@ -5734,6 +6089,42 @@ export function evaluateDiscreteShieldBattleRating(
     };
   };
 
+  const userC1Move = userResolved.chargedMoves[0] || {
+    name: "Body Slam",
+    code: "BS",
+    type: myStats.types[0] || "normal",
+    power: 55,
+    energyCost: 35
+  };
+  const userC2Move = userResolved.chargedMoves[1] || userC1Move;
+  const userC1RawPct = calculateChargedDamage(
+    myStats,
+    oppStats,
+    userC1Move,
+    userResolved.isShadow,
+    oppResolved.isShadow
+  ).percentage;
+  const userC2RawPct = calculateChargedDamage(
+    myStats,
+    oppStats,
+    userC2Move,
+    userResolved.isShadow,
+    oppResolved.isShadow
+  ).percentage;
+  const userFastTurns = Math.max(1, userResolved.fastMove.turns || 2);
+  const userFastEnergy = userResolved.fastMove.energyGain || userFastTurns * 3.5;
+  const userFastEpt = userFastEnergy / userFastTurns;
+
+  const userCycleSim = simulateTurnByTurnChargedCycle(
+    userC1Move,
+    userC1RawPct,
+    userC2Move,
+    userC2RawPct,
+    userFastEpt,
+    sOpp,
+    myStats.types
+  );
+
   const userChargedEval = userResolved.chargedMoves.slice(0, 2).map((cm) =>
     evalChargedMoveAgainst(myStats, oppStats, cm, userResolved.isShadow, oppResolved.isShadow)
   );
@@ -5749,13 +6140,6 @@ export function evaluateDiscreteShieldBattleRating(
   const shadowMultiplier = avgShields <= 1 ? 1 : avgShields;
   const effectiveShadowDelta = shadowBulkDelta * shadowMultiplier;
   const shieldDiff = sUser - sOpp;
-
-  const standardChargedPressure = (bestPct: number, minPct: number, defShields: number): number => {
-    if (defShields <= 0) return bestPct * 1.7;
-    if (defShields === 1) return ((bestPct + minPct) * 0.5) * 1.4;
-    if (defShields === 2) return minPct * 1.0;
-    return minPct * 0.65;
-  };
 
   const computeMimikyuIncomingEvaluation = (
     attackerBestPct: number,
@@ -5810,7 +6194,7 @@ export function evaluateDiscreteShieldBattleRating(
     userChargedImpact = evalOppMimi.avgIncomingChargedPressure * userFastFactors.energyMult;
     oppMimikyuBonus = evalOppMimi.avgMimikyuNetBonus;
   } else {
-    userChargedImpact = standardChargedPressure(bestUserCharged, minUserCharged, sOpp) * userFastFactors.energyMult;
+    userChargedImpact = userCycleSim.effectivePressure * userCycleSim.effectiveFreqMult;
   }
 
   // Evaluate single opponent move combination (oppFast, oppC1, oppC2)
@@ -5820,6 +6204,35 @@ export function evaluateDiscreteShieldBattleRating(
       oppStats.types,
       myStats.types
     );
+    const oppFastTurns = Math.max(1, oppFast.turns || 2);
+    const oppFastEnergy = oppFast.energyGain || oppFastTurns * 3.5;
+    const oppFastEpt = oppFastEnergy / oppFastTurns;
+
+    const oppC1RawPct = calculateChargedDamage(
+      oppStats,
+      myStats,
+      oppC1,
+      oppResolved.isShadow,
+      userResolved.isShadow
+    ).percentage;
+    const oppC2RawPct = calculateChargedDamage(
+      oppStats,
+      myStats,
+      oppC2,
+      oppResolved.isShadow,
+      userResolved.isShadow
+    ).percentage;
+
+    const oppCycleSim = simulateTurnByTurnChargedCycle(
+      oppC1,
+      oppC1RawPct,
+      oppC2,
+      oppC2RawPct,
+      oppFastEpt,
+      sUser,
+      oppStats.types
+    );
+
     const c1Eval = evalChargedMoveAgainst(oppStats, myStats, oppC1, oppResolved.isShadow, userResolved.isShadow);
     const c2Eval = evalChargedMoveAgainst(oppStats, myStats, oppC2, oppResolved.isShadow, userResolved.isShadow);
     const bestOppCharged = Math.max(c1Eval.pct, c2Eval.pct);
@@ -5840,7 +6253,7 @@ export function evaluateDiscreteShieldBattleRating(
       oppChargedImpact = evalUserMimi.avgIncomingChargedPressure * oppFastFactors.energyMult;
       userMimikyuBonus = evalUserMimi.avgMimikyuNetBonus;
     } else {
-      oppChargedImpact = standardChargedPressure(bestOppCharged, minOppCharged, sUser) * oppFastFactors.energyMult;
+      oppChargedImpact = oppCycleSim.effectivePressure * oppCycleSim.effectiveFreqMult;
     }
 
     const chargedDelta = 2.0 * (userChargedImpact - oppChargedImpact);
@@ -7601,17 +8014,28 @@ export function recommendTop3AlternateMovesetsForTeam(
       addCharged(currentMember.chargedMove2);
     }
 
-    const chargedPairs: Array<[string, string]> = [];
+    const slotPokemonStats = findPokemonByName(currentMember.name);
+    const slotTypes = slotPokemonStats?.types || [];
+    const rawChargedPairs: Array<[string, string]> = [];
     if (chargedNames.length <= 1) {
       const singleMove = chargedNames[0] || currentMember.chargedMove1 || "Body Slam";
-      chargedPairs.push([singleMove, singleMove]);
+      rawChargedPairs.push([singleMove, singleMove]);
     } else {
       for (let i = 0; i < chargedNames.length; i++) {
         for (let j = i + 1; j < chargedNames.length; j++) {
-          chargedPairs.push([chargedNames[i], chargedNames[j]]);
+          rawChargedPairs.push([chargedNames[i], chargedNames[j]]);
         }
       }
     }
+    const nonDominatedPairs = rawChargedPairs.filter(
+      ([c1, c2]) => !isDominatedSameTypeChargedPair(c1, c2, slotTypes)
+    );
+    const chargedPairs = nonDominatedPairs.length > 0 ? nonDominatedPairs : rawChargedPairs;
+    const hasDualTypeOption = chargedPairs.some(([c1, c2]) => {
+      const t1 = buildChargedMoveFromName(c1, slotTypes[0] || "normal", []).type;
+      const t2 = buildChargedMoveFromName(c2, slotTypes[0] || "normal", []).type;
+      return (t1 || "").toLowerCase() !== (t2 || "").toLowerCase();
+    });
 
     const curFastLower = (currentMember.fastMove || "").trim().toLowerCase();
     const curC1Lower = (currentMember.chargedMove1 || "").trim().toLowerCase();
@@ -7691,8 +8115,14 @@ export function recommendTop3AlternateMovesetsForTeam(
               : slotEval.closerBr;
           const deltaRoleBr = newRoleBr - baselineRoleBr;
 
+          const c1S = buildChargedMoveFromName(c1Name, slotTypes[0] || "normal", []);
+          const c2S = buildChargedMoveFromName(c2Name, slotTypes[0] || "normal", []);
+          const isSameTypePair =
+            c1Low !== c2Low && (c1S.type || "").toLowerCase() === (c2S.type || "").toLowerCase();
+          const roleCoverageAdj = isSameTypePair && slotIndex === 1 && hasDualTypeOption ? -2.2 : 0;
+
           const compositeMovesetScore = Number(
-            (0.55 * deltaMachineBr + 0.45 * deltaRoleBr).toFixed(2)
+            (0.55 * deltaMachineBr + 0.45 * deltaRoleBr + roleCoverageAdj).toFixed(2)
           );
 
           const changes: string[] = [];
@@ -7919,49 +8349,84 @@ export function evaluateFastRoughShieldBattleRating(
   const uFast = computeFastEff(userResolved.fastMove, myStats.types, oppStats.types);
   const oFast = computeFastEff(oppResolved.fastMove, oppStats.types, myStats.types);
 
+  const uC1Move = userResolved.chargedMoves[0] || {
+    name: "Body Slam",
+    code: "BS",
+    type: myStats.types[0] || "normal",
+    power: 55,
+    energyCost: 35
+  };
+  const uC2Move = userResolved.chargedMoves[1] || uC1Move;
+  const oC1Move = oppResolved.chargedMoves[0] || {
+    name: "Body Slam",
+    code: "BS",
+    type: oppStats.types[0] || "normal",
+    power: 55,
+    energyCost: 35
+  };
+  const oC2Move = oppResolved.chargedMoves[1] || oC1Move;
+
   const uC1 = calculateChargedDamage(
     myStats,
     oppStats,
-    userResolved.chargedMoves[0],
+    uC1Move,
     userResolved.isShadow,
     oppResolved.isShadow
   ).percentage;
-  const uC2 = userResolved.chargedMoves[1]
-    ? calculateChargedDamage(
-        myStats,
-        oppStats,
-        userResolved.chargedMoves[1],
-        userResolved.isShadow,
-        oppResolved.isShadow
-      ).percentage
-    : uC1;
+  const uC2 = calculateChargedDamage(
+    myStats,
+    oppStats,
+    uC2Move,
+    userResolved.isShadow,
+    oppResolved.isShadow
+  ).percentage;
   const oC1 = calculateChargedDamage(
     oppStats,
     myStats,
-    oppResolved.chargedMoves[0],
+    oC1Move,
     oppResolved.isShadow,
     userResolved.isShadow
   ).percentage;
-  const oC2 = oppResolved.chargedMoves[1]
-    ? calculateChargedDamage(
-        oppStats,
-        myStats,
-        oppResolved.chargedMoves[1],
-        oppResolved.isShadow,
-        userResolved.isShadow
-      ).percentage
-    : oC1;
+  const oC2 = calculateChargedDamage(
+    oppStats,
+    myStats,
+    oC2Move,
+    oppResolved.isShadow,
+    userResolved.isShadow
+  ).percentage;
 
   const uBest = Math.max(uC1, uC2);
-  const uMin = Math.min(uC1, uC2);
   const oBest = Math.max(oC1, oC2);
-  const oMin = Math.min(oC1, oC2);
 
-  const pressure = (best: number, min: number, defShields: number) =>
-    defShields <= 0 ? best * 1.7 : defShields === 1 ? ((best + min) * 0.5) * 1.4 : min * 1.0;
+  const uFastTurns = Math.max(1, userResolved.fastMove.turns || 2);
+  const uFastEnergy = userResolved.fastMove.energyGain || uFastTurns * 3.5;
+  const uFastEpt = uFastEnergy / uFastTurns;
 
-  const uImpact = pressure(uBest, uMin, sOpp) * uFast.energyMult;
-  const oImpact = pressure(oBest, oMin, sUser) * oFast.energyMult;
+  const oFastTurns = Math.max(1, oppResolved.fastMove.turns || 2);
+  const oFastEnergy = oppResolved.fastMove.energyGain || oFastTurns * 3.5;
+  const oFastEpt = oFastEnergy / oFastTurns;
+
+  const uSim = simulateTurnByTurnChargedCycle(
+    uC1Move,
+    uC1,
+    uC2Move,
+    uC2,
+    uFastEpt,
+    sOpp,
+    myStats.types
+  );
+  const oSim = simulateTurnByTurnChargedCycle(
+    oC1Move,
+    oC1,
+    oC2Move,
+    oC2,
+    oFastEpt,
+    sUser,
+    oppStats.types
+  );
+
+  const uImpact = uSim.effectivePressure * uSim.effectiveFreqMult;
+  const oImpact = oSim.effectivePressure * oSim.effectiveFreqMult;
 
   const avgShields = (sUser + sOpp) * 0.5;
   const fastWeight = avgShields <= 1 ? 95 + avgShields * 25 : 120 + (avgShields - 1) * 35;
@@ -9361,17 +9826,26 @@ export function generateAntiMetaTeamOptions(
         chargedPool.push(stdEval.member.chargedMove1, stdEval.member.chargedMove2);
       }
 
-      const chargedPairs: Array<[string, string]> = [];
+      const rawChargedPairs: Array<[string, string]> = [];
       if (chargedPool.length <= 1) {
         const single = chargedPool[0] || stdEval.member.chargedMove1;
-        chargedPairs.push([single, single]);
+        rawChargedPairs.push([single, single]);
       } else {
         for (let i = 0; i < chargedPool.length; i++) {
           for (let j = i + 1; j < chargedPool.length; j++) {
-            chargedPairs.push([chargedPool[i], chargedPool[j]]);
+            rawChargedPairs.push([chargedPool[i], chargedPool[j]]);
           }
         }
       }
+      const nonDomPairs = rawChargedPairs.filter(
+        ([c1, c2]) => !isDominatedSameTypeChargedPair(c1, c2, stdEval.types)
+      );
+      const chargedPairs = nonDomPairs.length > 0 ? nonDomPairs : rawChargedPairs;
+      const hasDualTypeOption = chargedPairs.some(([c1, c2]) => {
+        const t1 = buildChargedMoveFromName(c1, stdEval.types[0] || "normal", []).type;
+        const t2 = buildChargedMoveFromName(c2, stdEval.types[0] || "normal", []).type;
+        return (t1 || "").toLowerCase() !== (t2 || "").toLowerCase();
+      });
 
       let bestSlotEval = currentEvals[slotIdx];
       const baselineTeam = buildTeamOptionFromEvals(
@@ -9405,9 +9879,17 @@ export function generateAntiMetaTeamOptions(
             "opt"
           );
 
+          const c1S = buildChargedMoveFromName(c1, stdEval.types[0] || "normal", []);
+          const c2S = buildChargedMoveFromName(c2, stdEval.types[0] || "normal", []);
+          const isSameTypePair =
+            c1.toLowerCase() !== c2.toLowerCase() &&
+            (c1S.type || "").toLowerCase() === (c2S.type || "").toLowerCase();
+          const roleAdj = isSameTypePair && slotIdx === 1 && hasDualTypeOption ? -1.2 : 0;
+          const effectiveTrialScore = trialTeam.compositeAntiMetaScore + roleAdj;
+
           // Prefer alternate moveset if it improves composite anti-meta score by >= 0.4
-          if (trialTeam.compositeAntiMetaScore > bestScore + 0.4) {
-            bestScore = trialTeam.compositeAntiMetaScore;
+          if (effectiveTrialScore > bestScore + 0.4) {
+            bestScore = effectiveTrialScore;
             bestSlotEval = candEval;
           }
         }

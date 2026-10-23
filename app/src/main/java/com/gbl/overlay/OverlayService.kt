@@ -714,6 +714,255 @@ class OverlayService : LifecycleService() {
             val energyCost: Int = 50
         )
 
+        data class MoveBuffEffect(
+            val selfAtkDelta: Int = 0,
+            val selfDefDelta: Int = 0,
+            val oppAtkDelta: Int = 0,
+            val oppDefDelta: Int = 0,
+            val chance: Double = 0.0
+        )
+
+        data class ChargedCycleSimResult(
+            val effectivePressure: Double,
+            val effectiveFreqMult: Double,
+            val bestMovePct: Int,
+            val fastestMovePct: Int
+        )
+
+        val BASELINE_MOVE_BUFF_EFFECTS: Map<String, MoveBuffEffect> = mapOf(
+            "bulldoze" to MoveBuffEffect(0, 0, 0, -1, 1.0),
+            "icy wind" to MoveBuffEffect(0, 0, -1, 0, 1.0),
+            "chilling water" to MoveBuffEffect(0, 0, -1, 0, 1.0),
+            "lunge" to MoveBuffEffect(0, 0, -1, 0, 1.0),
+            "breaking swipe" to MoveBuffEffect(0, 0, -1, 0, 0.5),
+            "feather dance" to MoveBuffEffect(0, 0, -2, 0, 1.0),
+            "rock tomb" to MoveBuffEffect(0, 0, -1, 0, 1.0),
+            "sand tomb" to MoveBuffEffect(0, 0, 0, -1, 1.0),
+            "poison fang" to MoveBuffEffect(0, 0, 0, -1, 1.0),
+            "psychic fangs" to MoveBuffEffect(0, 0, 0, -1, 1.0),
+            "acid spray" to MoveBuffEffect(0, 0, 0, -2, 1.0),
+            "crunch" to MoveBuffEffect(0, 0, 0, -1, 0.3),
+            "liquidation" to MoveBuffEffect(0, 0, 0, -1, 0.3),
+            "shadow ball" to MoveBuffEffect(0, 0, 0, -1, 0.1),
+            "shadow bone" to MoveBuffEffect(0, 0, 0, -1, 0.2),
+            "earth power" to MoveBuffEffect(0, 0, 0, -1, 0.1),
+            "bug buzz" to MoveBuffEffect(0, 0, 0, -1, 0.3),
+            "psychic" to MoveBuffEffect(0, 0, 0, -1, 0.1),
+            "scald" to MoveBuffEffect(0, 0, -1, 0, 0.5),
+            "scorching sands" to MoveBuffEffect(0, 0, -1, 0, 0.3),
+            "moonblast" to MoveBuffEffect(0, 0, -1, 0, 0.1),
+            "mirror shot" to MoveBuffEffect(0, 0, -1, 0, 0.3),
+            "zap cannon" to MoveBuffEffect(0, 0, -1, 0, 0.66),
+            "rage fist" to MoveBuffEffect(1, 0, 0, 0, 1.0),
+            "power-up punch" to MoveBuffEffect(1, 0, 0, 0, 1.0),
+            "flame charge" to MoveBuffEffect(1, 0, 0, 0, 1.0),
+            "trailblaze" to MoveBuffEffect(1, 0, 0, 0, 1.0),
+            "triple axel" to MoveBuffEffect(1, 0, 0, 0, 1.0),
+            "torch song" to MoveBuffEffect(1, 0, 0, 0, 1.0),
+            "aura wheel" to MoveBuffEffect(1, 0, 0, 0, 1.0),
+            "night slash" to MoveBuffEffect(2, 0, 0, 0, 0.125),
+            "air cutter" to MoveBuffEffect(1, 0, 0, 0, 0.3),
+            "ancient power" to MoveBuffEffect(1, 1, 0, 0, 0.1),
+            "ominous wind" to MoveBuffEffect(1, 1, 0, 0, 0.1),
+            "close combat" to MoveBuffEffect(0, -2, 0, 0, 1.0),
+            "wild charge" to MoveBuffEffect(0, -2, 0, 0, 1.0),
+            "brave bird" to MoveBuffEffect(0, -3, 0, 0, 1.0),
+            "superpower" to MoveBuffEffect(-1, -1, 0, 0, 1.0),
+            "overheat" to MoveBuffEffect(-2, 0, 0, 0, 1.0),
+            "draco meteor" to MoveBuffEffect(-2, 0, 0, 0, 1.0),
+            "psycho boost" to MoveBuffEffect(-2, 0, 0, 0, 1.0),
+            "leaf storm" to MoveBuffEffect(-2, 0, 0, 0, 1.0),
+            "v-create" to MoveBuffEffect(0, -3, 0, 0, 1.0)
+        )
+
+        val DYNAMIC_MOVE_BUFF_TABLE = java.util.concurrent.ConcurrentHashMap<String, MoveBuffEffect>()
+
+        fun resolveMoveBuffEffectStatic(moveName: String): MoveBuffEffect {
+            val clean = moveName.replace("*", "").trim().lowercase()
+            if (clean.isEmpty()) return MoveBuffEffect()
+            val idKey = clean.replace(" ", "_").replace("-", "_")
+            return DYNAMIC_MOVE_BUFF_TABLE[clean]
+                ?: DYNAMIC_MOVE_BUFF_TABLE[idKey]
+                ?: BASELINE_MOVE_BUFF_EFFECTS[clean]
+                ?: MoveBuffEffect()
+        }
+
+        fun isDominatedSameTypeChargedPairStatic(
+            c1Name: String,
+            c2Name: String,
+            myTypes: List<String> = emptyList()
+        ): Boolean {
+            val clean1 = c1Name.replace("*", "").trim()
+            val clean2 = c2Name.replace("*", "").trim()
+            if (clean1.isEmpty() || clean2.isEmpty() || clean1.equals(clean2, ignoreCase = true)) {
+                return false
+            }
+            val defaultType = myTypes.firstOrNull() ?: "normal"
+            val s1 = resolveChargedMoveStatsStatic(clean1, defaultType)
+            val s2 = resolveChargedMoveStatsStatic(clean2, defaultType)
+            if (!s1.type.equals(s2.type, ignoreCase = true)) {
+                return false
+            }
+            val b1 = resolveMoveBuffEffectStatic(clean1)
+            val b2 = resolveMoveBuffEffectStatic(clean2)
+
+            fun hasPositiveBuff(b: MoveBuffEffect): Boolean =
+                b.chance >= 0.25 && (b.selfAtkDelta > 0 || b.selfDefDelta > 0 || b.oppAtkDelta < 0 || b.oppDefDelta < 0)
+
+            fun hasSelfDebuff(b: MoveBuffEffect): Boolean =
+                b.chance >= 0.50 && (b.selfAtkDelta < 0 || b.selfDefDelta < 0)
+
+            val e1 = s1.energyCost.coerceIn(35, 80)
+            val e2 = s2.energyCost.coerceIn(35, 80)
+            val dpe1 = s1.power.toDouble() / e1.toDouble()
+            val dpe2 = s2.power.toDouble() / e2.toDouble()
+
+            // Check if s2 is dominated by s1
+            val s2DominatedByS1 = !hasPositiveBuff(b2) && !hasSelfDebuff(b1) && (
+                (e2 >= e1 && s2.power <= s1.power) ||
+                    (e1 - e2 < 15 && dpe1 >= dpe2 * 1.15 && s1.power >= s2.power)
+                )
+            // Check if s1 is dominated by s2
+            val s1DominatedByS2 = !hasPositiveBuff(b1) && !hasSelfDebuff(b2) && (
+                (e1 >= e2 && s1.power <= s2.power) ||
+                    (e2 - e1 < 15 && dpe2 >= dpe1 * 1.15 && s2.power >= s1.power)
+                )
+            return s2DominatedByS1 || s1DominatedByS2
+        }
+
+        fun simulateTurnByTurnChargedCycleStatic(
+            c1Name: String,
+            c1Pct: Int,
+            c1Stats: MoveStats,
+            c2Name: String,
+            c2Pct: Int,
+            c2Stats: MoveStats,
+            fastEpt: Double,
+            defShields: Int,
+            attackerTypes: List<String>
+        ): ChargedCycleSimResult {
+            val e1 = c1Stats.energyCost.coerceIn(35, 80)
+            val e2 = c2Stats.energyCost.coerceIn(35, 80)
+            val b1 = resolveMoveBuffEffectStatic(c1Name)
+            val b2 = resolveMoveBuffEffectStatic(c2Name)
+
+            val atkStage1 = (b1.selfAtkDelta - b1.oppDefDelta).toDouble() * b1.chance
+            val defStage1 = (b1.selfDefDelta - b1.oppAtkDelta).toDouble() * b1.chance
+            val atkStage2 = (b2.selfAtkDelta - b2.oppDefDelta).toDouble() * b2.chance
+            val defStage2 = (b2.selfDefDelta - b2.oppAtkDelta).toDouble() * b2.chance
+
+            val effPace1 = Math.pow(50.0 / e1.toDouble(), 0.28).coerceIn(0.84, 1.22)
+            val effPace2 = Math.pow(50.0 / e2.toDouble(), 0.28).coerceIn(0.84, 1.22)
+
+            val unshieldedCycleVal1 = c1Pct.toDouble() * effPace1 +
+                max(0.0, atkStage1) * 5.5 + max(0.0, defStage1) * 5.0 -
+                max(0.0, -defStage1) * 3.5 - max(0.0, -atkStage1) * 3.5
+            val unshieldedCycleVal2 = c2Pct.toDouble() * effPace2 +
+                max(0.0, atkStage2) * 5.5 + max(0.0, defStage2) * 5.0 -
+                max(0.0, -defStage2) * 3.5 - max(0.0, -atkStage2) * 3.5
+
+            val use1AsPrimary = unshieldedCycleVal1 >= unshieldedCycleVal2
+            val bestPct = if (use1AsPrimary) c1Pct else c2Pct
+            val bestEnergy = if (use1AsPrimary) e1 else e2
+            val bestPace = if (use1AsPrimary) effPace1 else effPace2
+            val bestAtkStage = if (use1AsPrimary) atkStage1 else atkStage2
+            val bestDefStage = if (use1AsPrimary) defStage1 else defStage2
+
+            val altPct = if (use1AsPrimary) c2Pct else c1Pct
+            val altEnergy = if (use1AsPrimary) e2 else e1
+            val altAtkStage = if (use1AsPrimary) atkStage2 else atkStage1
+            val altDefStage = if (use1AsPrimary) defStage2 else defStage1
+
+            // Determine optimal shield-burn / setup move without forcing a worse/expensive move
+            fun shieldSetupScore(pct: Int, energy: Int, atkStg: Double, defStg: Double): Double {
+                val energySavedBonus = (60.0 - energy.toDouble()) * 0.58
+                val buffBonus = max(0.0, atkStg) * 11.5 + max(0.0, defStg) * 10.5 -
+                    max(0.0, -defStg) * 12.0 - max(0.0, -atkStg) * 10.0
+                val credibilityMult = if (pct < 18 && atkStg <= 0.0 && defStg <= 0.0) 0.55 else 1.0
+                return energySavedBonus * credibilityMult + buffBonus + pct.toDouble() * 0.30
+            }
+
+            val primaryShieldScore = shieldSetupScore(bestPct, bestEnergy, bestAtkStage, bestDefStage)
+            val altIsValidShieldSetup = (altEnergy <= bestEnergy - 10 && altDefStage >= 0.0 && altAtkStage >= 0.0) ||
+                (altEnergy <= bestEnergy + 5 && (altAtkStage > 0.20 || altDefStage > 0.20)) ||
+                (bestDefStage < -0.5 && altDefStage >= 0.0 && altEnergy <= bestEnergy)
+            val altShieldScore = if (altIsValidShieldSetup) {
+                shieldSetupScore(altPct, altEnergy, altAtkStage, altDefStage)
+            } else {
+                -999.0
+            }
+
+            val useAltForShieldBurn = altShieldScore > primaryShieldScore
+            val burnPct = if (useAltForShieldBurn) altPct else bestPct
+            val burnEnergy = if (useAltForShieldBurn) altEnergy else bestEnergy
+            val burnAtkStage = if (useAltForShieldBurn) altAtkStage else bestAtkStage
+            val burnDefStage = if (useAltForShieldBurn) altDefStage else bestDefStage
+
+            val unshieldedBase = bestPct.toDouble() * bestPace
+            val energySavingsFromBait = if (useAltForShieldBurn) max(0, bestEnergy - burnEnergy).toDouble() else 0.0
+
+            val cyclePressure: Double
+            val activeCycleEnergy: Double
+            when {
+                defShields <= 0 -> {
+                    val setupFirstIn0S = useAltForShieldBurn &&
+                        (burnAtkStage >= 0.5 || burnDefStage >= 0.5) &&
+                        burnEnergy <= bestEnergy - 10 &&
+                        burnPct >= (bestPct * 0.52).toInt()
+                    val buffFollowup = if (setupFirstIn0S) {
+                        (burnAtkStage * 8.5 + burnDefStage * 7.5)
+                    } else {
+                        max(0.0, bestAtkStage) * 8.0 + max(0.0, bestDefStage) * 7.5 -
+                            max(0.0, -bestDefStage) * 4.5 - max(0.0, -bestAtkStage) * 4.0
+                    }
+                    val finisherFlexBonus = if (altEnergy <= bestEnergy - 10 && altPct >= 26) {
+                        (bestEnergy - altEnergy).toDouble() * 0.20
+                    } else {
+                        0.0
+                    }
+                    cyclePressure = unshieldedBase * 1.70 + buffFollowup + finisherFlexBonus
+                    activeCycleEnergy = if (setupFirstIn0S) (burnEnergy + bestEnergy) * 0.5 else bestEnergy.toDouble()
+                }
+                defShields == 1 -> {
+                    // Cycle 1: Shielded throw (applies burnAtkStage / burnDefStage through shield)
+                    // Cycle 2: Unshielded closer amplified by Cycle 1 stat changes + residual energy advantage
+                    val postShieldAtkMult = (1.0 + 0.16 * burnAtkStage).coerceIn(0.76, 1.42)
+                    val shieldTempoBonus = energySavingsFromBait * 0.45 + (55.0 - burnEnergy.toDouble()) * 0.22
+                    val postShieldStatValue = burnDefStage * 9.5 + max(0.0, burnAtkStage) * 6.5 +
+                        max(0.0, bestAtkStage) * 4.0 + max(0.0, bestDefStage) * 3.5 -
+                        max(0.0, -bestDefStage) * 3.5
+                    cyclePressure = (unshieldedBase * postShieldAtkMult * 1.24) + shieldTempoBonus + postShieldStatValue
+                    activeCycleEnergy = (burnEnergy.toDouble() * 0.55) + (bestEnergy.toDouble() * 0.45)
+                }
+                else -> {
+                    // Cycle 1 & Cycle 2: Shielded throws (2x compounded stat stages through shields)
+                    // Cycle 3: Unshielded closer scaled by fast move EPT / burnEnergy reachability
+                    val twoShieldAtkMult = (1.0 + 0.26 * burnAtkStage).coerceIn(0.70, 1.58)
+                    val cycle3Reach = ((fastEpt / 3.5) * (50.0 / burnEnergy.toDouble())).coerceIn(0.68, 1.34)
+                    val twoShieldTempoBonus = energySavingsFromBait * 0.60 + (55.0 - burnEnergy.toDouble()) * 0.34
+                    val compoundedStatValue = burnDefStage * 13.5 + burnAtkStage * 9.5
+                    cyclePressure = (unshieldedBase * twoShieldAtkMult * 0.82 * cycle3Reach) + twoShieldTempoBonus + compoundedStatValue
+                    activeCycleEnergy = (burnEnergy.toDouble() * 0.72) + (bestEnergy.toDouble() * 0.28)
+                }
+            }
+
+            val dominatedPenalty = if (isDominatedSameTypeChargedPairStatic(c1Name, c2Name, attackerTypes)) 6.5 else 0.0
+            val pacingFactor = ((fastEpt / 3.5) * (50.0 / activeCycleEnergy.coerceIn(35.0, 80.0))).coerceIn(0.78, 1.26)
+            val freqMult = 0.82 + 0.18 * pacingFactor
+            val fastestPct = when {
+                e1 < e2 -> c1Pct
+                e2 < e1 -> c2Pct
+                else -> min(c1Pct, c2Pct)
+            }
+
+            return ChargedCycleSimResult(
+                effectivePressure = (cyclePressure - dominatedPenalty).coerceAtLeast(10.0),
+                effectiveFreqMult = freqMult,
+                bestMovePct = max(c1Pct, c2Pct),
+                fastestMovePct = fastestPct
+            )
+        }
+
         data class PokemonMeta(
             val name: String,
             val speciesId: String,
@@ -743,8 +992,8 @@ class OverlayService : LifecycleService() {
         val RECOMMENDED_CHARGED_MOVES: Map<String, Triple<String, String, String>> = mapOf(
             "Rillaboom" to Triple("Drum Beating", "Earth Power", "Frenzy Plant"),
             "rillaboom" to Triple("Drum Beating", "Earth Power", "Frenzy Plant"),
-            "Tinkaton" to Triple("Gigaton Hammer", "Bulldoze", "Brutal Swing"),
-            "tinkaton" to Triple("Gigaton Hammer", "Bulldoze", "Brutal Swing"),
+            "Tinkaton" to Triple("Gigaton Hammer", "Bulldoze", "Play Rough"),
+            "tinkaton" to Triple("Gigaton Hammer", "Bulldoze", "Play Rough"),
             "Kanto Ninetales" to Triple("Weather Ball (Fire)", "Energy Ball", "Psyshock"),
             "ninetales" to Triple("Weather Ball (Fire)", "Energy Ball", "Psyshock"),
             "Ninetales (Alolan)" to Triple("Weather Ball (Ice)", "Chilling Water", "Psyshock"),
@@ -1246,7 +1495,7 @@ class OverlayService : LifecycleService() {
             "Super Power" to MoveStats("Superpower", "fighting", 85, 40),
             "Drum Beating" to MoveStats("Drum Beating", "grass", 60, 35),
             "Gigaton Hammer" to MoveStats("Gigaton Hammer", "steel", 130, 60),
-            "Bulldoze" to MoveStats("Bulldoze", "ground", 80, 55),
+            "Bulldoze" to MoveStats("Bulldoze", "ground", 45, 45),
             "Air Cutter" to MoveStats("Air Cutter", "flying", 60, 40),
             "Rock Tomb" to MoveStats("Rock Tomb", "rock", 75, 50),
             "Sand Tomb" to MoveStats("Sand Tomb", "ground", 55, 45),
@@ -1767,7 +2016,7 @@ class OverlayService : LifecycleService() {
         val MOVE_ENERGY_COST: Map<String, Int> = mapOf(
             "Drum Beating" to 35,
             "Gigaton Hammer" to 60,
-            "Bulldoze" to 55,
+            "Bulldoze" to 45,
             "Air Cutter" to 40,
             "Behemoth Blade" to 55,
             "Behemoth Bash" to 45,
@@ -2832,6 +3081,54 @@ class OverlayService : LifecycleService() {
                                 DYNAMIC_FAST_TYPE[moveId.lowercase()] = type
                             } else {
                                 DYNAMIC_MOVE_DATABASE[name] = MoveStats(name, type, power, energyCost)
+                                val rawChance = obj.optDouble("buffApplyChance")
+                                    ?: obj.optString("buffApplyChance")?.toDoubleOrNull()
+                                    ?: 0.0
+                                var selfAtk = 0
+                                var selfDef = 0
+                                var oppAtk = 0
+                                var oppDef = 0
+                                val buffsSelfArr = obj.optJsonArray("buffsSelf")
+                                val buffsOppArr = obj.optJsonArray("buffsOpponent")
+                                val buffsArr = obj.optJsonArray("buffs")
+                                val buffTarget = obj.optString("buffTarget")?.lowercase()?.trim() ?: ""
+                                if (buffsSelfArr != null && buffsSelfArr.size() >= 2) {
+                                    selfAtk = runCatching { buffsSelfArr.get(0).asInt }.getOrDefault(0)
+                                    selfDef = runCatching { buffsSelfArr.get(1).asInt }.getOrDefault(0)
+                                }
+                                if (buffsOppArr != null && buffsOppArr.size() >= 2) {
+                                    oppAtk = runCatching { buffsOppArr.get(0).asInt }.getOrDefault(0)
+                                    oppDef = runCatching { buffsOppArr.get(1).asInt }.getOrDefault(0)
+                                }
+                                if (buffsArr != null && buffsArr.size() >= 2 && selfAtk == 0 && selfDef == 0 && oppAtk == 0 && oppDef == 0) {
+                                    val b0 = runCatching { buffsArr.get(0).asInt }.getOrDefault(0)
+                                    val b1 = runCatching { buffsArr.get(1).asInt }.getOrDefault(0)
+                                    when (buffTarget) {
+                                        "opponent" -> {
+                                            oppAtk = b0
+                                            oppDef = b1
+                                        }
+                                        "self" -> {
+                                            selfAtk = b0
+                                            selfDef = b1
+                                        }
+                                        "both" -> {
+                                            selfAtk = b0
+                                            selfDef = b1
+                                            oppAtk = b0
+                                            oppDef = b1
+                                        }
+                                    }
+                                }
+                                val normChance = if (rawChance > 1.0) (rawChance / 100.0).coerceIn(0.0, 1.0) else rawChance.coerceIn(0.0, 1.0)
+                                if (normChance > 0.0 && (selfAtk != 0 || selfDef != 0 || oppAtk != 0 || oppDef != 0)) {
+                                    val parsedBuff = MoveBuffEffect(selfAtk, selfDef, oppAtk, oppDef, normChance)
+                                    DYNAMIC_MOVE_BUFF_TABLE[name.lowercase().trim()] = parsedBuff
+                                    DYNAMIC_MOVE_BUFF_TABLE[moveId.lowercase().trim()] = parsedBuff
+                                } else {
+                                    DYNAMIC_MOVE_BUFF_TABLE.remove(name.lowercase().trim())
+                                    DYNAMIC_MOVE_BUFF_TABLE.remove(moveId.lowercase().trim())
+                                }
                             }
                         } catch (_: Exception) {}
                     }
@@ -3335,9 +3632,18 @@ class OverlayService : LifecycleService() {
                 return ((pressureAllShieldsFirst + pressureDisguiseFirst) * 0.5) to ((bonusAllShieldsFirst + bonusDisguiseFirst) * 0.5)
             }
 
-            val avgUserCost = ((userC1Stats.energyCost + userC2Stats.energyCost) * 0.5).coerceIn(35.0, 80.0)
-            val userPacingFactor = ((userFastEpt / 3.5) * (50.0 / avgUserCost)).coerceIn(0.78, 1.26)
-            val userChargedFreqMult = 0.82 + 0.18 * userPacingFactor
+            val userSim = simulateTurnByTurnChargedCycleStatic(
+                c1Name = uC1,
+                c1Pct = userC1Pct,
+                c1Stats = userC1Stats,
+                c2Name = uC2,
+                c2Pct = userC2Pct,
+                c2Stats = userC2Stats,
+                fastEpt = userFastEpt,
+                defShields = sOpp,
+                attackerTypes = myMeta.types
+            )
+            val userChargedFreqMult = userSim.effectiveFreqMult
 
             val userRawPressure: Double
             val oppMimikyuDelta: Double
@@ -3346,7 +3652,7 @@ class OverlayService : LifecycleService() {
                 userRawPressure = incPressure
                 oppMimikyuDelta = mimiBonus
             } else {
-                userRawPressure = chargedPressureAgainstShields(bestUserCharged, minUserCharged, sOpp)
+                userRawPressure = userSim.effectivePressure
                 oppMimikyuDelta = 0.0
             }
 
@@ -3381,9 +3687,18 @@ class OverlayService : LifecycleService() {
                 val rawOppFastEff = getTypeEffectivenessStatic(oppFastType, myMeta.types)
                 val oppFastEff = if (oppIsAegislash) rawOppFastEff * getAegislashFastDmgMult(sOpp) else rawOppFastEff
 
-                val avgOppCost = ((oppC1Stats.energyCost + oppC2Stats.energyCost) * 0.5).coerceIn(35.0, 80.0)
-                val oppPacingFactor = ((oppFastEpt / 3.5) * (50.0 / avgOppCost)).coerceIn(0.78, 1.26)
-                val oppChargedFreqMult = 0.82 + 0.18 * oppPacingFactor
+                val oppSim = simulateTurnByTurnChargedCycleStatic(
+                    c1Name = oC1Name,
+                    c1Pct = oppC1Pct,
+                    c1Stats = oppC1Stats,
+                    c2Name = oC2Name,
+                    c2Pct = oppC2Pct,
+                    c2Stats = oppC2Stats,
+                    fastEpt = oppFastEpt,
+                    defShields = sUser,
+                    attackerTypes = oppMeta.types
+                )
+                val oppChargedFreqMult = oppSim.effectiveFreqMult
 
                 val oppRawPressure: Double
                 val myMimikyuDelta: Double
@@ -3392,7 +3707,7 @@ class OverlayService : LifecycleService() {
                     oppRawPressure = incPressure
                     myMimikyuDelta = mimiBonus
                 } else {
-                    oppRawPressure = chargedPressureAgainstShields(bestOppCharged, minOppCharged, sUser)
+                    oppRawPressure = oppSim.effectivePressure
                     myMimikyuDelta = 0.0
                 }
 
@@ -3661,34 +3976,57 @@ class OverlayService : LifecycleService() {
             val uC1 = myCharged1?.takeIf { it.isNotBlank() } ?: myMeta.chargedMove1
             val uC2 = myCharged2?.takeIf { it.isNotBlank() } ?: myMeta.chargedMove2
 
+            val userC1Stats = resolveChargedMoveStatsStatic(uC1, myMeta.types.firstOrNull() ?: "normal")
+            val userC2Stats = resolveChargedMoveStatsStatic(uC2, myMeta.types.firstOrNull() ?: "normal")
             val userC1Pct = calculateChargedMoveDamagePctStatic(myMeta, oppMeta, uC1, myShadow, oppShadow)
             val userC2Pct = calculateChargedMoveDamagePctStatic(myMeta, oppMeta, uC2, myShadow, oppShadow)
             val bestUserCharged = max(userC1Pct, userC2Pct)
-            val minUserCharged = min(userC1Pct, userC2Pct)
 
+            val oppC1Stats = resolveChargedMoveStatsStatic(oppMeta.chargedMove1, oppMeta.types.firstOrNull() ?: "normal")
+            val oppC2Stats = resolveChargedMoveStatsStatic(oppMeta.chargedMove2, oppMeta.types.firstOrNull() ?: "normal")
             val oppC1Pct = calculateChargedMoveDamagePctStatic(oppMeta, myMeta, oppMeta.chargedMove1, oppShadow, myShadow)
             val oppC2Pct = calculateChargedMoveDamagePctStatic(oppMeta, myMeta, oppMeta.chargedMove2, oppShadow, myShadow)
             val bestOppCharged = max(oppC1Pct, oppC2Pct)
-            val minOppCharged = min(oppC1Pct, oppC2Pct)
 
             val uFastKey = uFast.lowercase().trim()
             val userFastType = DYNAMIC_FAST_TYPE[uFastKey] ?: fastMoveTypeMapStatic[uFastKey] ?: myMeta.types.firstOrNull() ?: "normal"
+            val userFastTurns = (DYNAMIC_FAST_TURNS[uFastKey] ?: FAST_MOVE_TURNS[uFastKey] ?: myMeta.fastTurns).coerceAtLeast(1)
+            val userFastEnergy = (DYNAMIC_FAST_ENERGY[uFastKey] ?: FAST_MOVE_ENERGY[uFastKey] ?: (userFastTurns * 3)).coerceAtLeast(1)
+            val userFastEpt = userFastEnergy.toDouble() / userFastTurns.toDouble()
+
             val oFastKey = oppMeta.defaultFastMove.lowercase().trim()
             val oppFastType = DYNAMIC_FAST_TYPE[oFastKey] ?: fastMoveTypeMapStatic[oFastKey] ?: oppMeta.types.firstOrNull() ?: "normal"
+            val oppFastTurns = (DYNAMIC_FAST_TURNS[oFastKey] ?: FAST_MOVE_TURNS[oFastKey] ?: oppMeta.fastTurns).coerceAtLeast(1)
+            val oppFastEnergy = (DYNAMIC_FAST_ENERGY[oFastKey] ?: FAST_MOVE_ENERGY[oFastKey] ?: (oppFastTurns * 3)).coerceAtLeast(1)
+            val oppFastEpt = oppFastEnergy.toDouble() / oppFastTurns.toDouble()
 
             val userFastEff = getTypeEffectivenessStatic(userFastType, oppMeta.types)
             val oppFastEff = getTypeEffectivenessStatic(oppFastType, myMeta.types)
 
-            val userRawPressure = when (sOpp) {
-                0 -> bestUserCharged * 1.7
-                1 -> ((bestUserCharged + minUserCharged) * 0.5) * 1.4
-                else -> minUserCharged * 1.0
-            }
-            val oppRawPressure = when (sUser) {
-                0 -> bestOppCharged * 1.7
-                1 -> ((bestOppCharged + minOppCharged) * 0.5) * 1.4
-                else -> minOppCharged * 1.0
-            }
+            val userSim = simulateTurnByTurnChargedCycleStatic(
+                c1Name = uC1,
+                c1Pct = userC1Pct,
+                c1Stats = userC1Stats,
+                c2Name = uC2,
+                c2Pct = userC2Pct,
+                c2Stats = userC2Stats,
+                fastEpt = userFastEpt,
+                defShields = sOpp,
+                attackerTypes = myMeta.types
+            )
+            val oppSim = simulateTurnByTurnChargedCycleStatic(
+                c1Name = oppMeta.chargedMove1,
+                c1Pct = oppC1Pct,
+                c1Stats = oppC1Stats,
+                c2Name = oppMeta.chargedMove2,
+                c2Pct = oppC2Pct,
+                c2Stats = oppC2Stats,
+                fastEpt = oppFastEpt,
+                defShields = sUser,
+                attackerTypes = oppMeta.types
+            )
+            val userRawPressure = userSim.effectivePressure * userSim.effectiveFreqMult
+            val oppRawPressure = oppSim.effectivePressure * oppSim.effectiveFreqMult
 
             val avgShields = (sUser + sOpp) * 0.5
             val fastWeight = if (avgShields <= 1.0) 95.0 + avgShields * 25.0 else 120.0 + (avgShields - 1.0) * 35.0
@@ -5448,16 +5786,27 @@ class OverlayService : LifecycleService() {
                         ).distinctBy { it.lowercase() }
                     }
 
-                val cPairs = mutableListOf<Pair<String, String>>()
+                val slotMeta = resolveRecommendedMovesForSpecies(m.name, league, m.cp, m.ivs)
+                val slotTypes = slotMeta?.types ?: emptyList()
+                val rawPairs = mutableListOf<Pair<String, String>>()
                 if (chargedPool.size <= 1) {
                     val only = chargedPool.firstOrNull() ?: m.chargedMove1
-                    cPairs.add(only to only)
+                    rawPairs.add(only to only)
                 } else {
                     for (i in 0 until chargedPool.size) {
                         for (j in (i + 1) until chargedPool.size) {
-                            cPairs.add(chargedPool[i] to chargedPool[j])
+                            rawPairs.add(chargedPool[i] to chargedPool[j])
                         }
                     }
+                }
+                val nonDominatedPairs = rawPairs.filterNot { (c1, c2) ->
+                    isDominatedSameTypeChargedPairStatic(c1, c2, slotTypes)
+                }
+                val cPairs = if (nonDominatedPairs.isNotEmpty()) nonDominatedPairs else rawPairs
+                val hasDualTypeOption = cPairs.any { (c1, c2) ->
+                    val t1 = resolveChargedMoveStatsStatic(c1, slotTypes.firstOrNull() ?: "normal").type
+                    val t2 = resolveChargedMoveStatsStatic(c2, slotTypes.firstOrNull() ?: "normal").type
+                    !t1.equals(t2, ignoreCase = true)
                 }
 
                 val curFastNorm = m.fastMove.trim().lowercase()
@@ -5537,7 +5886,16 @@ class OverlayService : LifecycleService() {
                         val newLeadBr = if (slotIdx == 0) candLeadAggBr else baselineEval.leadAggBr
                         val leadDelta = newLeadBr - baselineEval.leadAggBr
 
-                        val composite = 0.55 * machDelta.toDouble() + 0.45 * roleDelta.toDouble()
+                        val c1S = resolveChargedMoveStatsStatic(c1Move, slotTypes.firstOrNull() ?: "normal")
+                        val c2S = resolveChargedMoveStatsStatic(c2Move, slotTypes.firstOrNull() ?: "normal")
+                        val isSameTypePair = !c1Move.equals(c2Move, ignoreCase = true) && c1S.type.equals(c2S.type, ignoreCase = true)
+                        val roleCoverageAdj = when {
+                            !isSameTypePair -> 0.0
+                            slotIdx == 1 && hasDualTypeOption -> -2.2 // Safe Swap prefers dual-type coverage when available
+                            else -> 0.0
+                        }
+
+                        val composite = 0.55 * machDelta.toDouble() + 0.45 * roleDelta.toDouble() + roleCoverageAdj
                         scored.add(
                             MovesetUpgradeSuggestion(
                                 slotIndex = slotIdx,
@@ -6705,16 +7063,25 @@ class OverlayService : LifecycleService() {
                         .take(5)
                         .ifEmpty { listOf(stdEval.member.chargedMove1, stdEval.member.chargedMove2).distinctBy { it.lowercase() } }
 
-                    val chargedPairs = ArrayList<Pair<String, String>>()
+                    val rawChargedPairs = ArrayList<Pair<String, String>>()
                     if (chargedPool.size <= 1) {
                         val only = chargedPool.firstOrNull() ?: stdEval.member.chargedMove1
-                        chargedPairs.add(only to only)
+                        rawChargedPairs.add(only to only)
                     } else {
                         for (i in 0 until chargedPool.size) {
                             for (j in (i + 1) until chargedPool.size) {
-                                chargedPairs.add(chargedPool[i] to chargedPool[j])
+                                rawChargedPairs.add(chargedPool[i] to chargedPool[j])
                             }
                         }
+                    }
+                    val nonDomPairs = rawChargedPairs.filterNot { (c1, c2) ->
+                        isDominatedSameTypeChargedPairStatic(c1, c2, stdEval.types)
+                    }
+                    val chargedPairs = if (nonDomPairs.isNotEmpty()) nonDomPairs else rawChargedPairs
+                    val hasDualTypeOption = chargedPairs.any { (c1, c2) ->
+                        val t1 = resolveChargedMoveStatsStatic(c1, stdEval.types.firstOrNull() ?: "normal").type
+                        val t2 = resolveChargedMoveStatsStatic(c2, stdEval.types.firstOrNull() ?: "normal").type
+                        !t1.equals(t2, ignoreCase = true)
                     }
 
                     var bestSlotEval = curEvals[slotIdx]
@@ -6746,8 +7113,13 @@ class OverlayService : LifecycleService() {
                                 option.id,
                                 "opt"
                             )
-                            if (trialTeam.compositeAntiMetaScore > bestScore + 0.4) {
-                                bestScore = trialTeam.compositeAntiMetaScore
+                            val c1S = resolveChargedMoveStatsStatic(c1, stdEval.types.firstOrNull() ?: "normal")
+                            val c2S = resolveChargedMoveStatsStatic(c2, stdEval.types.firstOrNull() ?: "normal")
+                            val isSameTypePair = !c1.equals(c2, ignoreCase = true) && c1S.type.equals(c2S.type, ignoreCase = true)
+                            val roleAdj = if (isSameTypePair && slotIdx == 1 && hasDualTypeOption) -1.2 else 0.0
+                            val effectiveTrialScore = trialTeam.compositeAntiMetaScore + roleAdj
+                            if (effectiveTrialScore > bestScore + 0.4) {
+                                bestScore = effectiveTrialScore
                                 bestSlotEval = candEval
                             }
                         }
