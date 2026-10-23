@@ -123,17 +123,16 @@ jobs:
           tag_name: ${{ steps.version.outputs.tag }}
           name: "SilphScope PvP ${{ steps.version.outputs.tag }}"
           body: |
-            ## SilphScope PvP ${{ steps.version.outputs.tag }} — Official v3.31 Release (Top-50 Core Breaker & Threat Analysis Depth + Streamlined Team Summary Cards)
+            ## SilphScope PvP ${{ steps.version.outputs.tag }} — Official v3.32 Release (Dynamic Resizing & Intelligent 2-Line Wrapping for Battle Recommendations)
             
-            ### What's New in v3.31
-            - **Expanded Core Breakers & Threat Analysis Depth to Top 50 Meta (`OverlayService.kt`, `gblData.ts`, `MainActivity.kt`, `App.tsx`)**:
-              - Expanded **Key Wins**, **Key Threats (with Slot 1/2/3 BRs)**, and **Core Breakers (with Slot 1/2/3 BRs)** evaluation from the Top 25 meta threats to the **Top 50 meta threats** across both the Anti-Meta Team Builder and Team Evaluator/Editor.
-            - **Decluttered Team Summary / Presets Page (`MainActivity.kt`, `App.tsx`)**:
-              - Removed movesets, alt-moveset comparison notes, and long paragraph descriptions from the main Team Summary cards so you can scan your saved teams at a glance.
-              - Team Summary cards now cleanly display **Pokémon names, IVs (and CP), roles (`[Lead]`, `[Safe Swap]`, `[Closer]`, `[A] Lead`, `[Core 1] Lead`, etc.), Key Wins, Key Threats, and Core Breakers**, while preserving full movesets and strategy descriptions inside the **Anti-Meta Team Builder** and **Team Editor** views.
-            - **Fixed Overlay Battle Recommendation Row (`OverlayService.kt`, `overlay.html`)**:
-              - Fixed the payload key mapping between `OverlayService.kt` and `overlay.html` (`tacticalRec` / `tacticalRecommendation` and `showTacticalRec` / `showTacticalRecommendations`) and added a client-side 3v3 matrix fallback so the ultra-compact **Lead & Swap Tactical Recommendation Row** (`[Archetype] Action · [Shield Plan] · Goal` + 1-tap `Swap ➔` button) reliably displays between the `VS [OPPONENT]` header row and the `Start/Stop Battle` toolbar row.
-            - **Includes All v3.30 Upgrades**:
+            ### What's New in v3.32
+            - **Dynamic Resizing & Intelligent 2-Line Text Wrapping for Battle Recommendations (`overlay.html`, `OverlayService.kt`, `App.tsx`)**:
+              - Upgraded the **Lead & Swap Tactical Recommendation Row** (`[Archetype] Action · [Shield Plan] · Goal`) to support **intelligent 2-line text wrapping** and **dynamic font/height resizing** instead of single-line ellipsis truncation.
+              - Keeps `[Archetype] Action` and `[Shield Plan]` badges grouped together on Line 1 while allowing `Goal: ...` to either stay on Line 1 when short or wrap cleanly onto Line 2 in full without cropping (`Goal: Soft Lose 0S -> Farm Down`, etc.).
+              - Automatically scales font size (`7.5px` down to `6.8px` for extra-long recommendations) and triggers immediate `WindowManager` height recalculation (`notifyHeight()` / `updateContentHeight`) so the floating overlay dynamically adjusts its height whenever the recommendation row wraps to two lines.
+            - **Includes All v3.31 & v3.30 Upgrades**:
+              - **Top-50 Meta Depth** for **Key Wins**, **Key Threats**, and **Core Breakers** in Team Builder & Team Editor.
+              - **Streamlined Team Summary Cards** showing Pokémon names, IVs/CP, roles, Key Wins, Key Threats, and Core Breakers.
               - **Duo-Core (`DUO`)** team creation & auto-detection (`Best 5 ABB`, `Best 5 ABC`, `Best 5 Duo-Core`) and **2-Frame Continual Shield Monitoring & Restoration**.
             
             ### Live Web Simulator & Download

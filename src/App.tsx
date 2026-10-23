@@ -2713,7 +2713,7 @@ export default function App() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'SilphScope_PvP_v3.30_Android_Project.zip';
+      a.download = 'SilphScope_PvP_v3.32_Android_Project.zip';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -2961,7 +2961,7 @@ export default function App() {
                     backgroundColor: `${activeTheme.accentHex}1A`
                   }}
                 >
-                  v3.31 • Android Native Overlay
+                  v3.32 • Android Native Overlay
                 </span>
               </div>
               <p className="text-xs hidden sm:block" style={{ color: activeTheme.textSecondaryHex }}>
@@ -3513,10 +3513,22 @@ export default function App() {
                         </div>
                       </div>
 
-                      {/* v3.30: Ultra-Compact 1-Line Lead & Swap Tactical Recommendation Row (between Header Row and Start/Stop Battle Row) */}
+                      {/* v3.32: Dynamic Resizing & Intelligent 2-Line Wrapping Lead & Swap Tactical Recommendation Row */}
                       {showTacticalRec && activeTacticalRec && (
                         <div
-                          className={`flex items-center justify-between gap-1 px-1.5 py-0.5 rounded border my-0.5 text-[7.5px] font-mono leading-tight truncate ${
+                          className={`flex items-center justify-between gap-1.5 px-1.5 py-1 rounded border my-0.5 font-mono leading-snug transition-all ${
+                            (activeTacticalRec.actionLabel.length +
+                              activeTacticalRec.shieldPlan.length +
+                              activeTacticalRec.goalText.length) >
+                            54
+                              ? 'text-[6.8px]'
+                              : (activeTacticalRec.actionLabel.length +
+                                  activeTacticalRec.shieldPlan.length +
+                                  activeTacticalRec.goalText.length) >
+                                42
+                              ? 'text-[7.1px]'
+                              : 'text-[7.5px]'
+                          } ${
                             activeTacticalRec.urgencyColor === 'emerald'
                               ? 'bg-emerald-950/75 border-emerald-400/60 text-emerald-200'
                               : activeTacticalRec.urgencyColor === 'sky'
@@ -3527,14 +3539,16 @@ export default function App() {
                           }`}
                           title={`${activeTacticalRec.oneLineBadgeText} (Team Style: ${activePreset.archetype || 'ABC'})`}
                         >
-                          <div className="flex items-center gap-1 min-w-0 truncate">
-                            <span className="font-black uppercase px-1 py-0.2 rounded bg-black/40 border border-white/15 text-white shrink-0">
-                              {activeTacticalRec.actionLabel}
+                          <div className="flex flex-wrap items-center gap-x-1 gap-y-0.5 min-w-0 flex-1">
+                            <span className="inline-flex items-center gap-1 shrink-0 max-w-full">
+                              <span className="font-black uppercase px-1 py-0.2 rounded bg-black/40 border border-white/15 text-white shrink-0 whitespace-nowrap">
+                                {activeTacticalRec.actionLabel}
+                              </span>
+                              <span className="font-bold text-amber-300 shrink-0 whitespace-nowrap">
+                                [{activeTacticalRec.shieldPlan}]
+                              </span>
                             </span>
-                            <span className="font-bold text-amber-300 shrink-0">
-                              [{activeTacticalRec.shieldPlan}]
-                            </span>
-                            <span className="truncate text-white/95 font-semibold">
+                            <span className="text-white/95 font-semibold whitespace-normal break-words leading-tight line-clamp-2">
                               Goal: {activeTacticalRec.goalText}
                             </span>
                           </div>
@@ -3543,7 +3557,7 @@ export default function App() {
                               <button
                                 type="button"
                                 onClick={() => handleSelectUserSlot(activeTacticalRec.recommendedSwapSlotIndex!)}
-                                className="px-1 py-0.2 rounded bg-white/15 hover:bg-white/25 text-white font-extrabold text-[7px] shrink-0 border border-white/25"
+                                className="px-1.5 py-0.5 rounded bg-white/15 hover:bg-white/25 text-white font-extrabold text-[7px] shrink-0 border border-white/25 self-center whitespace-nowrap"
                                 title={`Apply recommended swap to ${activeTacticalRec.recommendedSwapPokemon || 'Bench'}`}
                               >
                                 Swap ➔

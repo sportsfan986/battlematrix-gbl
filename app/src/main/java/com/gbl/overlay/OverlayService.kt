@@ -11817,7 +11817,7 @@ class OverlayService : LifecycleService() {
             if (isOverlayMinimized || currentLayoutMode != "option1") return
             val density = resources.displayMetrics.density
             val targetHeight = (heightDp * density).toInt()
-            if (layoutParams.height < 0 || Math.abs(layoutParams.height - targetHeight) > 4) {
+            if (layoutParams.height < 0 || Math.abs(layoutParams.height - targetHeight) > 1) {
                 layoutParams.height = targetHeight
                 Handler(Looper.getMainLooper()).post {
                     try {
