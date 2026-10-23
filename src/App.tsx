@@ -94,7 +94,10 @@ import {
   formatAntiMetaDefaultTeamName,
   parseFeaturedRankRangeQuery,
   AntiMetaTeamOption,
-  AntiMetaTeamBuilderResult
+  AntiMetaTeamBuilderResult,
+  COMPETITIVE_ARCHETYPE_PLAYBOOKS,
+  computeTacticalLeadAndSwapRecommendation,
+  TacticalRecommendationResult
 } from './data/gblData';
 import {
   BattleQualityMetadata,
@@ -562,6 +565,25 @@ export default function App() {
       localStorage.setItem('gbl_disable_battle_toasts', String(disabled));
     } catch {}
   };
+
+  // App Setting: Show Lead & Swap Tactical Recommendations GUI Row in Overlay (Default: true -> Enabled)
+  const [showTacticalRec, setShowTacticalRec] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('gbl_show_tactical_rec');
+      return saved === null ? true : saved !== 'false';
+    } catch {
+      return true;
+    }
+  });
+
+  const handleSetShowTacticalRec = (show: boolean) => {
+    setShowTacticalRec(show);
+    try {
+      localStorage.setItem('gbl_show_tactical_rec', String(show));
+    } catch {}
+  };
+
+  const [showArchetypePlaybook, setShowArchetypePlaybook] = useState<boolean>(false);
 
   // App-Level Setting: Overlay Screen Width Scale (50% - 100%, Default 78%, step 2%)
   const [overlayScalePct, setOverlayScalePct] = useState<number>(() => {
@@ -1776,6 +1798,49 @@ export default function App() {
     );
   }, [activeOpponentName, activePreset, isOpponentShadow, precomputed9x9State]);
 
+  // Lead & Swap Tactical Recommendation computed from active matchup, 9x9 matrix, and team archetype (ABB / ABC / DUO)
+  const activeTacticalRec: TacticalRecommendationResult | null = useMemo(() => {
+    if (isWaitingOpponent || scannedOpponents.length === 0 || !activePreset?.pokemon?.length) {
+      return null;
+    }
+    const isLeadPhase =
+      scannedOpponents.length === 1 &&
+      activeUserSlotIndex === 0 &&
+      safeActiveOppSlot === 0 &&
+      !playerFaintedSlots.some(Boolean) &&
+      !oppFaintedSlots.some(Boolean);
+    const lastEv = battleTimelineEvents.length > 0 ? battleTimelineEvents[battleTimelineEvents.length - 1] : null;
+    const isOpponentSwapPhase = !isLeadPhase && (lastEv?.type === 'SWAP' && lastEv?.actor === 'opp' || safeActiveOppSlot > 0 && activeUserSlotIndex === 0);
+    return computeTacticalLeadAndSwapRecommendation(
+      activePreset.pokemon,
+      activeUserSlotIndex,
+      activeOpponentName,
+      isOpponentShadow,
+      activePreset.league,
+      activePreset.archetype || 'ABC',
+      userShields,
+      oppShields,
+      playerFaintedSlots,
+      isLeadPhase,
+      isOpponentSwapPhase,
+      playerSwapRemainingSec
+    );
+  }, [
+    isWaitingOpponent,
+    scannedOpponents,
+    activePreset,
+    activeUserSlotIndex,
+    safeActiveOppSlot,
+    playerFaintedSlots,
+    oppFaintedSlots,
+    battleTimelineEvents,
+    activeOpponentName,
+    isOpponentShadow,
+    userShields,
+    oppShields,
+    playerSwapRemainingSec
+  ]);
+
   // Auto-calculated Lead Matchup (Slot 0 1st-seen opponent vs Your Lead p1)
   const currentLeadMatchup: 'FAVORABLE' | 'NEUTRAL' | 'NEGATIVE' = useMemo(() => {
     if (manualLeadMatchupOverride) return manualLeadMatchupOverride;
@@ -2361,6 +2426,10 @@ export default function App() {
       setModalAutoDetectSummary(
         `⚡ Auto-Detected ABB Lineup (Shared ${sharedStr} weakness covered by ${s1.name}) • Summary & Key Wins/Threats/Core Breakers Updated → #1 Lead (A): ${s1.name} (Lead BR ${res.leadAggBr}) • #2 Bait Swap (B1): ${s2.name} (Swap BR ${res.safeSwapBr}) • #3 Sweeper (B2): ${s3.name} (Closer BR ${res.closerSwapBr})`
       );
+    } else if (res.archetype === 'DUO') {
+      setModalAutoDetectSummary(
+        `⚡ Auto-Detected Duo-Core (Yin & Yang Reciprocal Core: ${s1.name} + ${s3.name} cover each other's weaknesses; Slot 1 & 3 can swap to adapt to meta) → #1 Core 1 Lead: ${s1.name} (Lead BR ${res.leadAggBr}) • #2 Pivot Safe Swap: ${s2.name} (Swap BR ${res.safeSwapBr}) • #3 Core 2 Co-Core: ${s3.name} (Closer BR ${res.closerSwapBr})`
+      );
     } else {
       setModalAutoDetectSummary(
         `⚡ Auto-Detected ABC Balanced Core • Summary & Key Wins/Threats/Core Breakers Updated → #1 Lead: ${s1.name} (Lead BR ${res.leadAggBr}) • #2 Safe Swap: ${s2.name} (Swap BR ${res.safeSwapBr}) • #3 Closer: ${s3.name} (Closer BR ${res.closerSwapBr})`
@@ -2644,7 +2713,7 @@ export default function App() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'SilphScope_PvP_v3.20_Android_Project.zip';
+      a.download = 'SilphScope_PvP_v3.30_Android_Project.zip';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -2892,7 +2961,7 @@ export default function App() {
                     backgroundColor: `${activeTheme.accentHex}1A`
                   }}
                 >
-                  v3.20 • Android Native Overlay
+                  v3.30 • Android Native Overlay
                 </span>
               </div>
               <p className="text-xs hidden sm:block" style={{ color: activeTheme.textSecondaryHex }}>
@@ -3443,6 +3512,45 @@ export default function App() {
                           )}
                         </div>
                       </div>
+
+                      {/* v3.30: Ultra-Compact 1-Line Lead & Swap Tactical Recommendation Row (between Header Row and Start/Stop Battle Row) */}
+                      {showTacticalRec && activeTacticalRec && (
+                        <div
+                          className={`flex items-center justify-between gap-1 px-1.5 py-0.5 rounded border my-0.5 text-[7.5px] font-mono leading-tight truncate ${
+                            activeTacticalRec.urgencyColor === 'emerald'
+                              ? 'bg-emerald-950/75 border-emerald-400/60 text-emerald-200'
+                              : activeTacticalRec.urgencyColor === 'sky'
+                              ? 'bg-sky-950/75 border-sky-400/60 text-sky-200'
+                              : activeTacticalRec.urgencyColor === 'rose'
+                              ? 'bg-rose-950/75 border-rose-400/60 text-rose-200'
+                              : 'bg-amber-950/75 border-amber-400/60 text-amber-200'
+                          }`}
+                          title={`${activeTacticalRec.oneLineBadgeText} (Team Style: ${activePreset.archetype || 'ABC'})`}
+                        >
+                          <div className="flex items-center gap-1 min-w-0 truncate">
+                            <span className="font-black uppercase px-1 py-0.2 rounded bg-black/40 border border-white/15 text-white shrink-0">
+                              {activeTacticalRec.actionLabel}
+                            </span>
+                            <span className="font-bold text-amber-300 shrink-0">
+                              [{activeTacticalRec.shieldPlan}]
+                            </span>
+                            <span className="truncate text-white/95 font-semibold">
+                              Goal: {activeTacticalRec.goalText}
+                            </span>
+                          </div>
+                          {activeTacticalRec.recommendedSwapSlotIndex !== null &&
+                            activeTacticalRec.recommendedSwapSlotIndex !== activeUserSlotIndex && (
+                              <button
+                                type="button"
+                                onClick={() => handleSelectUserSlot(activeTacticalRec.recommendedSwapSlotIndex!)}
+                                className="px-1 py-0.2 rounded bg-white/15 hover:bg-white/25 text-white font-extrabold text-[7px] shrink-0 border border-white/25"
+                                title={`Apply recommended swap to ${activeTacticalRec.recommendedSwapPokemon || 'Bench'}`}
+                              >
+                                Swap ➔
+                              </button>
+                            )}
+                        </div>
+                      )}
 
                       {/* Action Toolbar: Start Battle, Swap Opponent, Shadow Toggle, Form Cycler, and Active Lead Switch */}
                       <div
@@ -4672,28 +4780,67 @@ export default function App() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <Sparkles className="w-5 h-5 text-purple-400" />
                         <h3 className="text-lg font-extrabold text-white">
-                          Anti-Meta Team Builder (Best 5 ABB &amp; Best 5 ABC Generator)
+                          Anti-Meta Team Builder (Best 5 ABB, 5 ABC &amp; 5 Duo-Core Generator)
                         </h3>
                         <span className="px-2.5 py-0.5 rounded-full bg-purple-500/20 border border-purple-500/40 text-purple-300 text-[10px] font-bold">
                           Live PvPoke Rankings Sourced
                         </span>
                       </div>
                       <p className="text-xs text-slate-400 mt-1">
-                        Select a League and optionally enter <strong className="text-slate-200">0, 1, or 2 Pokémon or Rank Ranges</strong> (e.g. <code className="text-purple-300 font-mono">200-</code> for Rank #200+, <code className="text-purple-300 font-mono">-10</code> for Top 10, <code className="text-purple-300 font-mono">100-200</code> for #100–#200). Generates the <strong className="text-amber-300">Best 5 ABB</strong> and <strong className="text-sky-300">Best 5 ABC</strong> Anti-Meta teams. Selecting any team creates <code className="text-emerald-300 font-mono">{defaultPreviewName}</code> and opens the Edit Team screen immediately.
+                        Select a League and optionally enter <strong className="text-slate-200">0, 1, or 2 Pokémon or Rank Ranges</strong> (e.g. <code className="text-purple-300 font-mono">200-</code> for Rank #200+, <code className="text-purple-300 font-mono">-10</code> for Top 10, <code className="text-purple-300 font-mono">100-200</code> for #100–#200). Generates the <strong className="text-amber-300">Best 5 ABB</strong>, <strong className="text-sky-300">Best 5 ABC</strong>, and <strong className="text-emerald-300">Best 5 Duo-Core</strong> Anti-Meta teams. Selecting any team creates <code className="text-emerald-300 font-mono">{defaultPreviewName}</code> and opens the Edit Team screen immediately.
                       </p>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => setShowArchetypePlaybook((prev) => !prev)}
+                        className="py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-emerald-300 font-bold text-xs flex items-center gap-1.5 transition"
+                      >
+                        <Info className="w-3.5 h-3.5" />
+                        <span>{showArchetypePlaybook ? 'Hide Archetype Playbooks' : '📚 Duo-Core / ABC / ABB Playbooks'}</span>
+                      </button>
                       <button
                         type="button"
                         onClick={() => handleGenerateAntiMetaTeams()}
                         className="py-2.5 px-4 rounded-xl bg-purple-600 hover:bg-purple-500 active:scale-95 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-purple-600/25 transition"
                       >
                         <Sparkles className="w-4 h-4" />
-                        <span>Generate 5 ABB + 5 ABC Teams</span>
+                        <span>Generate 5 ABB + 5 ABC + 5 Duo-Core</span>
                       </button>
                     </div>
                   </div>
+
+                  {/* Competitive Archetype Playbooks (Duo-Core, ABC, ABB Strategy Guide) */}
+                  {showArchetypePlaybook && (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-slate-950/90 border border-slate-800 rounded-xl p-4 text-xs">
+                      {(['DUO', 'ABC', 'ABB'] as const).map((archKey) => {
+                        const pb = COMPETITIVE_ARCHETYPE_PLAYBOOKS[archKey];
+                        const badgeCls =
+                          archKey === 'ABB'
+                            ? 'text-amber-300 border-amber-500/40 bg-amber-500/10'
+                            : archKey === 'DUO'
+                            ? 'text-emerald-300 border-emerald-500/40 bg-emerald-500/10'
+                            : 'text-sky-300 border-sky-500/40 bg-sky-500/10';
+                        return (
+                          <div key={archKey} className="p-3 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className={`px-2 py-0.5 rounded font-black text-[10.5px] border ${badgeCls}`}>
+                                {pb.title}
+                              </span>
+                            </div>
+                            <p className="text-[11px] font-semibold text-slate-200">{pb.subtitle}</p>
+                            <p className="text-[10.5px] text-slate-400 leading-relaxed">{pb.howToPlay}</p>
+                            <ul className="space-y-1 text-[10px] text-slate-300 list-disc pl-4">
+                              {pb.tacticalPillars.map((pillar, pIdx) => (
+                                <li key={pIdx}>{pillar}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
 
                   {/* Step 2a: League + 0, 1, or 2 Featured Pokémon or Rank Range Inputs */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -4928,10 +5075,12 @@ export default function App() {
                                 className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
                                   opt.archetype === 'ABB'
                                     ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                                    : opt.archetype === 'DUO'
+                                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
                                     : 'bg-sky-500/20 text-sky-300 border border-sky-500/40'
                                 }`}
                               >
-                                #{opt.rank} {opt.archetype}
+                                #{opt.rank} {opt.archetype === 'DUO' ? 'DUO-CORE' : opt.archetype}
                               </span>
                               <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${machBadge.badgeClass}`}>
                                 Core BR {opt.machineAggBr}
@@ -4967,6 +5116,12 @@ export default function App() {
                                     : sIdx === 1
                                     ? '[B1] Bait Swap'
                                     : '[B2] Sweeper'
+                                  : opt.archetype === 'DUO'
+                                  ? sIdx === 0
+                                    ? '[Core 1] Lead'
+                                    : sIdx === 1
+                                    ? '[Pivot] Safe Swap'
+                                    : '[Core 2] Co-Core'
                                   : sIdx === 0
                                   ? '[Lead]'
                                   : sIdx === 1
@@ -5069,13 +5224,15 @@ export default function App() {
                     };
 
                     const displayedMetaList = currentResult.top50MetaList || currentResult.top25MetaList || [];
+                    const duoTeamsList = currentResult.top5DuoTeams || [];
 
                     return (
                       <div className="space-y-4">
                         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-300 bg-slate-950/70 px-3.5 py-2 rounded-xl border border-slate-800">
                           <span>
-                            Showing <strong className="text-amber-300">Top {currentResult.top5AbbTeams.length} ABB</strong> &amp;{' '}
-                            <strong className="text-sky-300">Top {currentResult.top5AbcTeams.length} ABC</strong> Anti-Meta Teams for{' '}
+                            Showing <strong className="text-amber-300">Top {currentResult.top5AbbTeams.length} ABB</strong>,{' '}
+                            <strong className="text-sky-300">Top {currentResult.top5AbcTeams.length} ABC</strong> &amp;{' '}
+                            <strong className="text-emerald-300">Top {duoTeamsList.length} Duo-Core</strong> Anti-Meta Teams for{' '}
                             <strong className="text-white">{currentResult.league}</strong>
                             {currentResult.featuredPokemon.length > 0
                               ? ` featuring ${currentResult.featuredPokemon.join(' + ')}`
@@ -5091,7 +5248,7 @@ export default function App() {
                         </div>
 
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                          {/* Column 1: Best 5 ABB Teams */}
+                          {/* Section 1: Best 5 ABB Teams */}
                           <div className="space-y-3">
                             <div className="flex items-center justify-between border-b border-amber-500/30 pb-2">
                               <h4 className="text-sm font-extrabold text-amber-300 flex items-center gap-2">
@@ -5104,7 +5261,7 @@ export default function App() {
                             {currentResult.top5AbbTeams.map((opt) => renderOptionCard(opt))}
                           </div>
 
-                          {/* Column 2: Best 5 ABC Teams */}
+                          {/* Section 2: Best 5 ABC Teams */}
                           <div className="space-y-3">
                             <div className="flex items-center justify-between border-b border-sky-500/30 pb-2">
                               <h4 className="text-sm font-extrabold text-sky-300 flex items-center gap-2">
@@ -5117,6 +5274,23 @@ export default function App() {
                             {currentResult.top5AbcTeams.map((opt) => renderOptionCard(opt))}
                           </div>
                         </div>
+
+                        {/* Section 3: Best 5 Duo-Core Teams */}
+                        {duoTeamsList.length > 0 && (
+                          <div className="space-y-3 pt-2">
+                            <div className="flex flex-wrap items-center justify-between border-b border-emerald-500/30 pb-2 gap-2">
+                              <h4 className="text-sm font-extrabold text-emerald-300 flex items-center gap-2">
+                                <span>☯️ Best 5 Duo-Core Anti-Meta Lineups (Symmetric Yin &amp; Yang Core + Safe Swap Pivot)</span>
+                              </h4>
+                              <span className="text-[10px] text-slate-400">
+                                Slot 1 &amp; Slot 3 cover each other&apos;s weaknesses (interchangeable Lead/Co-Core) + Slot 2 Safe Switch
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                              {duoTeamsList.map((opt) => renderOptionCard(opt))}
+                            </div>
+                          </div>
+                        )}
 
                         {/* Bottom Card: Top 50 Meta Determined by SilphScope with Meta BR in Parentheses */}
                         <div className="bg-slate-950/85 border border-slate-800 rounded-xl p-4 space-y-2.5">
@@ -5239,10 +5413,12 @@ export default function App() {
                             className={`px-2 py-0.5 rounded text-[10px] font-black uppercase border ${
                               arch === 'ABB'
                                 ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                                : arch === 'DUO'
+                                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
                                 : 'bg-sky-500/20 text-sky-300 border-sky-500/40'
                             }`}
                           >
-                            #{presetIdx + 1} {arch}
+                            #{presetIdx + 1} {arch === 'DUO' ? 'DUO-CORE' : arch}
                           </span>
                           <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${machTierInfo.badgeClass}`}>
                             Core BR {machBr}
@@ -5293,10 +5469,20 @@ export default function App() {
                             type="button"
                             onClick={() => handleAutoDetectSavedPreset(preset.id)}
                             className="text-[11px] text-amber-300 hover:text-slate-950 font-bold px-2 py-0.5 rounded bg-amber-500/15 hover:bg-amber-400 border border-amber-500/40 transition"
-                            title="Auto-Detect Style (ABB/ABC), move Safe Swap to Slot 2, and refresh Key Wins / Threats / Core Breakers summary"
+                            title="Auto-Detect Style (ABB/ABC/DUO), move Safe Swap to Slot 2, and refresh Key Wins / Threats / Core Breakers summary"
                           >
                             ⚡ Auto-Detect
                           </button>
+                          {arch === 'DUO' && (
+                            <button
+                              type="button"
+                              onClick={() => handleSwapSavedPresetSlots(preset.id, 0, 2)}
+                              className="text-[11px] text-emerald-300 hover:text-slate-950 font-bold px-2 py-0.5 rounded bg-emerald-500/15 hover:bg-emerald-400 border border-emerald-500/40 transition"
+                              title="Duo-Core Yin & Yang Swap: Swap Slot 1 (Core 1 Lead) and Slot 3 (Core 2 Co-Core) to adapt to meta changes"
+                            >
+                              ☯️ Swap 1⇄3
+                            </button>
+                          )}
                           <button
                             onClick={() => openEditPresetModal(preset)}
                             className="text-xs text-white font-bold px-2.5 py-0.5 rounded bg-emerald-600 hover:bg-emerald-500 transition"
@@ -5335,6 +5521,12 @@ export default function App() {
                                 : index === 1
                                 ? '[B1] Bait Swap'
                                 : '[B2] Sweeper'
+                              : arch === 'DUO'
+                              ? index === 0
+                                ? '[Core 1] Lead'
+                                : index === 1
+                                ? '[Pivot] Safe Swap'
+                                : '[Core 2] Co-Core'
                               : index === 0
                               ? '[Lead]'
                               : index === 1
@@ -5516,10 +5708,12 @@ export default function App() {
                                 className={`text-[10px] font-black px-2 py-0.5 rounded border uppercase ${
                                   modalLiveEvaluation.archetype === 'ABB'
                                     ? 'bg-amber-500/20 text-amber-300 border-amber-400/50'
+                                    : modalLiveEvaluation.archetype === 'DUO'
+                                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/50'
                                     : 'bg-sky-500/20 text-sky-300 border-sky-400/50'
                                 }`}
                               >
-                                Style: [{modalLiveEvaluation.archetype}]
+                                Style: [{modalLiveEvaluation.archetype === 'DUO' ? 'DUO-CORE' : modalLiveEvaluation.archetype}]
                               </span>
                               <span
                                 className={`text-[10px] font-mono font-extrabold px-2 py-0.5 rounded border ${mMachTier.colorClass}`}
@@ -5543,7 +5737,7 @@ export default function App() {
                             </div>
                             <div className="flex items-center gap-1 text-[10px]">
                               <span className="text-slate-400">Style Mode:</span>
-                              {(['AUTO', 'ABB', 'ABC'] as const).map((mode) => {
+                              {(['AUTO', 'ABB', 'ABC', 'DUO'] as const).map((mode) => {
                                 const isActiveMode =
                                   (mode === 'AUTO' && !manualArchetypeOverride) ||
                                   manualArchetypeOverride === mode;
@@ -5593,6 +5787,15 @@ export default function App() {
                             >
                               <ArrowLeftRight className="w-3 h-3" />
                               <span>Slot 2 ⇄ 3</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleSwapModalSlots(1, 3)}
+                              className="px-2.5 py-1.5 rounded-lg bg-emerald-950/60 hover:bg-emerald-900/70 border border-emerald-500/40 text-emerald-200 font-mono font-bold text-[11px] flex items-center gap-1 transition"
+                              title="Duo-Core Yin & Yang Swap: Swap Slot 1 (Core 1 Lead) and Slot 3 (Core 2 Co-Core)"
+                            >
+                              <ArrowLeftRight className="w-3 h-3" />
+                              <span>☯️ Slot 1 ⇄ 3</span>
                             </button>
                             <button
                               type="button"
@@ -5736,7 +5939,7 @@ export default function App() {
                       <div className="flex items-center justify-between flex-wrap gap-1">
                         <div className="flex items-center gap-1.5">
                           <span className="text-xs font-bold text-sky-400">
-                            Slot 1 ({modalLiveEvaluation.archetype === 'ABB' ? 'Lead A' : 'Lead'}, IVs &amp; Moveset)
+                            Slot 1 ({modalLiveEvaluation.archetype === 'ABB' ? 'Lead A' : modalLiveEvaluation.archetype === 'DUO' ? 'Core 1 Lead' : 'Lead'}, IVs &amp; Moveset)
                           </span>
                           <span
                             className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border ${
@@ -5977,7 +6180,7 @@ export default function App() {
                       <div className="flex items-center justify-between flex-wrap gap-1">
                         <div className="flex items-center gap-1.5">
                           <span className="text-xs font-bold text-purple-400">
-                            Slot 2 ({modalLiveEvaluation.archetype === 'ABB' ? 'Bait Swap B1' : 'Safe Swap'}, IVs &amp; Moveset)
+                            Slot 2 ({modalLiveEvaluation.archetype === 'ABB' ? 'Bait Swap B1' : modalLiveEvaluation.archetype === 'DUO' ? 'Pivot Safe Swap' : 'Safe Swap'}, IVs &amp; Moveset)
                           </span>
                           <span
                             className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border ${
@@ -6218,7 +6421,7 @@ export default function App() {
                       <div className="flex items-center justify-between flex-wrap gap-1">
                         <div className="flex items-center gap-1.5">
                           <span className="text-xs font-bold text-amber-400">
-                            Slot 3 ({modalLiveEvaluation.archetype === 'ABB' ? 'Sweeper B2' : 'Closer'}, IVs &amp; Moveset)
+                            Slot 3 ({modalLiveEvaluation.archetype === 'ABB' ? 'Sweeper B2' : modalLiveEvaluation.archetype === 'DUO' ? 'Core 2 Co-Core' : 'Closer'}, IVs &amp; Moveset)
                           </span>
                           <span
                             className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border ${
@@ -6793,6 +6996,46 @@ export default function App() {
                   }`}
                 >
                   Toasts Off
+                </button>
+              </div>
+            </div>
+
+            {/* Lead & Swap Tactical Recommendations GUI Toggle Card */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-sm font-bold text-emerald-400 flex items-center gap-2">
+                  <Swords className="w-4 h-4" />
+                  <span>🧠 Lead &amp; Swap Tactical Recommendation Row (Overlay GUI)</span>
+                </h3>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/40 text-emerald-300">
+                  {showTacticalRec ? 'Enabled (Default)' : 'Disabled'}
+                </span>
+              </div>
+              <p className="text-xs text-slate-400">
+                Displays an ultra-compact 1-line tactical recommendation badge between the Overlay Header Row and Start/Stop Battle Row with <strong>Action (Stay / Swap / Counter-Swap)</strong>, <strong>Shield Plan (0S / 1S / 2S)</strong>, and <strong>Matchup Goal</strong> tailored to your team archetype (<strong>ABB</strong>, <strong>ABC</strong>, or <strong>Duo-Core</strong>) and predetermined 9x9 shield matrix data.
+              </p>
+              <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-950 rounded-xl border border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => handleSetShowTacticalRec(true)}
+                  className={`py-2 px-2 rounded-lg text-xs font-bold transition ${
+                    showTacticalRec
+                      ? 'bg-emerald-500/25 border border-emerald-400/70 text-emerald-200'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  Recommendations On (Default)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSetShowTacticalRec(false)}
+                  className={`py-2 px-2 rounded-lg text-xs font-bold transition ${
+                    !showTacticalRec
+                      ? 'bg-slate-800 border border-slate-600 text-slate-200'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  Recommendations Off
                 </button>
               </div>
             </div>
@@ -10241,7 +10484,7 @@ export default function App() {
                 <div>
                   <h3 className="font-bold text-base text-white flex items-center gap-2">
                     <Info className="w-4 h-4 text-sky-400" />
-                    <span>Help &amp; Metric Guide (v3.20 Analytics Reference)</span>
+                    <span>Help &amp; Metric Guide (v3.30 Analytics Reference)</span>
                   </h3>
                   <p className="text-xs text-slate-400 mt-0.5">
                     How SilphScope PvP separates micro-execution skill from matchmaking alignment RNG
@@ -10496,7 +10739,7 @@ export default function App() {
               <div className="flex items-center justify-between border-b border-slate-800 pb-3 shrink-0">
                 <div>
                   <h3 className="font-bold text-base text-white flex items-center gap-2">
-                    <span>🎯 Overlay HUD &amp; Battle Flow Guide (v3.20)</span>
+                    <span>🎯 Overlay HUD &amp; Battle Flow Guide (v3.30)</span>
                   </h3>
                   <p className="text-xs text-slate-400 mt-0.5">
                     How to interact with the floating overlay, read 3x3 damage % &amp; shield dots, track 50s swap clocks, and log battles
@@ -10639,7 +10882,7 @@ export default function App() {
           color: activeTheme.textSecondaryHex
         }}
       >
-        SilphScope PvP v3.20 Overlay • Built with Kotlin, WindowManager TYPE_APPLICATION_OVERLAY, MediaProjection in-memory frame capture, and ML Kit Text Recognition.
+        SilphScope PvP v3.30 Overlay • Built with Kotlin, WindowManager TYPE_APPLICATION_OVERLAY, MediaProjection in-memory frame capture, and ML Kit Text Recognition.
       </footer>
     </div>
   );

@@ -6402,7 +6402,7 @@ export function evaluateSingleSlotAgainstBlendedMeta(
 
 export interface TeamDetectionResult {
   orderedPokemon: TeamMember[];
-  archetype: "ABB" | "ABC";
+  archetype: "ABB" | "ABC" | "DUO";
   sharedWeaknesses: string[];
   leadAggBr: number;
   machineAggBr: number;
@@ -6431,15 +6431,15 @@ export interface TeamDetectionResult {
 
 /**
  * Evaluates a 3-Pokémon team (either in its current order or with Auto-Detect & Order):
- * - When `reorderSlots = true`:
- *   - Runs the 18-type defensive vulnerability audit across all 3 pairs.
- *   - If any pair (U_i, U_j) shares >= 2 weaknesses (or >= 1 double weakness) AND the 3rd Pokémon U_k
- *     resists all those shared weaknesses, classifies as ABB (unless manualArchetypeOverride === "ABC"):
- *     - Moves U_k (Lead A) to Slot 1.
- *     - Places the higher bait/safe-swap B Pokémon in Slot 2 (B1 Bait) and the stronger closer in Slot 3 (B2 Sweeper).
- *   - Otherwise classifies as ABC:
- *     - Keeps Slot 1 fixed as Lead.
- *     - Places the backline member with the higher volatility-adjusted Swap BR in Slot 2 (Safe Swap) and the other in Slot 3 (Closer).
+ * - Supports ABB, ABC, and Duo-Core (DUO) competitive archetypes:
+ *   - ABB: Two backline meta counters (B1 Bait Swap & B2 Sweeper) share >= 2 weaknesses (or >= 1 double weakness)
+ *     that Slot 1 (Lead A Protector) resists.
+ *   - DUO (Duo-Core): Slot 1 ([Core 1] Lead) and Slot 3 ([Core 2] Co-Core) act as symmetric Yin & Yang opposite
+ *     attackers that reciprocally cover each other's weaknesses (Slot 1 counters what Slot 3 loses to, and Slot 3
+ *     counters what Slot 1 loses to, allowing 1st and 3rd to be swapped to adapt to daily micro-meta shifts), while
+ *     Slot 2 ([Pivot] Safe Swap) is a high-consistency Safe Switch that covers Lead's losses and avoids hard losses
+ *     so Core 1 or Core 2 can return to farm down for an energy advantage.
+ *   - ABC: Slot 1 counters most common leads, Slot 2 is the Safe Switch, and Slot 3 hard-counters what Lead loses to.
  */
 export function evaluateOrAutoOrderTeam(
   members: TeamMember[],
@@ -6447,7 +6447,7 @@ export function evaluateOrAutoOrderTeam(
   optionsOrLogs?:
     | {
         reorderSlots?: boolean;
-        manualArchetypeOverride?: "ABB" | "ABC";
+        manualArchetypeOverride?: "ABB" | "ABC" | "DUO";
         seasonBattleLogs?: Array<{ timestampMs: number; league: string; opponents: string[] }>;
         currentSeason?: { startMs: number; endMs: number };
         cachedBlendedMeta?: BlendedSeasonMetaDistribution;
@@ -6456,7 +6456,7 @@ export function evaluateOrAutoOrderTeam(
   seasonStartMs?: number,
   seasonEndMs?: number,
   reorderSlotsArg?: boolean,
-  manualArchetypeOverrideArg?: "ABB" | "ABC"
+  manualArchetypeOverrideArg?: "ABB" | "ABC" | "DUO"
 ): TeamDetectionResult {
   const isArrayArg = Array.isArray(optionsOrLogs);
   const options = isArrayArg
@@ -6514,48 +6514,94 @@ export function evaluateOrAutoOrderTeam(
     score: number;
   }> = [];
 
+  // Audit all 3 pairs for DUO-CORE (Yin & Yang symmetric pair i, j with k as Safe Swap Pivot in Slot 2)
+  const duoCandidates: Array<{
+    pivotIdx: number;
+    corePairIndices: [number, number];
+    recipPct: number;
+    score: number;
+  }> = [];
+
   const indexTriples: Array<[number, number, number]> = [
-    [0, 1, 2], // Lead = 0, Backline = (1, 2)
-    [1, 0, 2], // Lead = 1, Backline = (0, 2)
-    [2, 0, 1]  // Lead = 2, Backline = (0, 1)
+    [0, 1, 2], // k = 0, pair = (1, 2)
+    [1, 0, 2], // k = 1, pair = (0, 2)
+    [2, 0, 1]  // k = 2, pair = (0, 1)
   ];
 
   for (const [k, i, j] of indexTriples) {
     const wI = new Set(evals[i].weaknesses);
+    const wJ = new Set(evals[j].weaknesses);
+    const rI = new Set(evals[i].resistances);
+    const rJ = new Set(evals[j].resistances);
     const shared = evals[j].weaknesses.filter((w) => wI.has(w));
-    if (shared.length === 0) continue;
 
-    const hasSharedDouble = shared.some(
-      (w) => evals[i].doubleWeaknesses.includes(w) || evals[j].doubleWeaknesses.includes(w)
-    );
-    const qualifiesWeaknessOverlap = shared.length >= 2 || (shared.length >= 1 && hasSharedDouble);
-    if (!qualifiesWeaknessOverlap) continue;
+    // 1. Check ABB qualification (k = Lead A, i & j = B1/B2 backline)
+    if (shared.length > 0) {
+      const hasSharedDouble = shared.some(
+        (w) => evals[i].doubleWeaknesses.includes(w) || evals[j].doubleWeaknesses.includes(w)
+      );
+      const qualifiesWeaknessOverlap = shared.length >= 2 || (shared.length >= 1 && hasSharedDouble);
+      if (qualifiesWeaknessOverlap) {
+        const leadResists = new Set(evals[k].resistances);
+        const leadWeaks = new Set(evals[k].weaknesses);
+        const resistedByLead = shared.filter((w) => leadResists.has(w));
+        const leadNotWeakToAny = shared.every((w) => !leadWeaks.has(w));
+        const allResisted =
+          resistedByLead.length === shared.length ||
+          (resistedByLead.length >= 1 && leadNotWeakToAny && shared.length >= 2);
 
-    const leadResists = new Set(evals[k].resistances);
-    const leadWeaks = new Set(evals[k].weaknesses);
-    const resistedByLead = shared.filter((w) => leadResists.has(w));
-    const leadNotWeakToAny = shared.every((w) => !leadWeaks.has(w));
-    const allResisted = resistedByLead.length === shared.length || (resistedByLead.length >= 1 && leadNotWeakToAny && shared.length >= 2);
+        if (allResisted) {
+          const score = shared.length * 100 + resistedByLead.length * 50 + (k === 0 ? 15 : 0);
+          pairCandidates.push({
+            leadIdx: k,
+            bPairIndices: [i, j],
+            sharedWeaknesses: shared,
+            resistedCount: resistedByLead.length,
+            allResisted: true,
+            score
+          });
+        }
+      }
+    }
 
-    if (allResisted) {
-      // Prefer keeping current Slot 0 as Lead if tied
-      const score = shared.length * 100 + resistedByLead.length * 50 + (k === 0 ? 15 : 0);
-      pairCandidates.push({
-        leadIdx: k,
-        bPairIndices: [i, j],
-        sharedWeaknesses: shared,
-        resistedCount: resistedByLead.length,
-        allResisted: true,
-        score
+    // 2. Check DUO-CORE qualification (i & j = symmetric Yin & Yang Core 1/Core 2, k = Safe Swap Pivot in Slot 2)
+    const iCoversJCount = evals[j].weaknesses.filter((w) => rI.has(w)).length;
+    const jCoversICount = evals[i].weaknesses.filter((w) => rJ.has(w)).length;
+    const iCoversJRatio = evals[j].weaknesses.length > 0 ? iCoversJCount / evals[j].weaknesses.length : 0;
+    const jCoversIRatio = evals[i].weaknesses.length > 0 ? jCoversICount / evals[i].weaknesses.length : 0;
+    const avgRecipRatio = (iCoversJRatio + jCoversIRatio) / 2;
+    const recipPct = Math.round(avgRecipRatio * 100);
+
+    // Yin & Yang opposite attackers: low weakness overlap (<= 1), strong two-way reciprocal coverage, and solid Pivot Safe Swap
+    if (
+      shared.length <= 1 &&
+      iCoversJRatio >= 0.45 &&
+      jCoversIRatio >= 0.45 &&
+      avgRecipRatio >= 0.58 &&
+      evals[k].swapBr >= 485
+    ) {
+      const duoScore =
+        recipPct * 2.2 +
+        evals[k].swapBr * 0.45 +
+        (evals[i].leadBr + evals[j].leadBr + evals[i].closerBr + evals[j].closerBr) * 0.15 +
+        (k === 1 ? 18 : 0);
+      duoCandidates.push({
+        pivotIdx: k,
+        corePairIndices: [i, j],
+        recipPct,
+        score: duoScore
       });
     }
   }
 
   pairCandidates.sort((a, b) => b.score - a.score);
+  duoCandidates.sort((a, b) => b.score - a.score);
   const bestAbbCandidate = pairCandidates[0];
+  const bestDuoCandidate = duoCandidates[0];
 
-  const resolvedArchetype: "ABB" | "ABC" =
-    options?.manualArchetypeOverride || (bestAbbCandidate ? "ABB" : "ABC");
+  const resolvedArchetype: "ABB" | "ABC" | "DUO" =
+    options?.manualArchetypeOverride ||
+    (bestAbbCandidate ? "ABB" : bestDuoCandidate ? "DUO" : "ABC");
 
   let finalOrderIndices: [number, number, number] = [0, 1, 2];
   let detectedSharedWeaknesses: string[] = bestAbbCandidate?.sharedWeaknesses || [];
@@ -6575,6 +6621,30 @@ export function evaluateOrAutoOrderTeam(
         finalOrderIndices = [leadIdx, bA, bB];
       } else {
         finalOrderIndices = [leadIdx, bB, bA];
+      }
+    } else if (resolvedArchetype === "DUO") {
+      if (bestDuoCandidate) {
+        const pivotIdx = bestDuoCandidate.pivotIdx;
+        const [cA, cB] = bestDuoCandidate.corePairIndices;
+        // Put the core partner with higher Lead BR in Slot 1 (or keep Slot 0 if nearly tied)
+        const cALeadScore = evals[cA].leadBr + (cA === 0 ? 8 : 0);
+        const cBLeadScore = evals[cB].leadBr + (cB === 0 ? 8 : 0);
+        if (cALeadScore >= cBLeadScore) {
+          finalOrderIndices = [cA, pivotIdx, cB];
+        } else {
+          finalOrderIndices = [cB, pivotIdx, cA];
+        }
+      } else {
+        // Fallback DUO ordering: highest Swap BR in Slot 2 (Pivot), remaining two as Core 1 & Core 2
+        let bestPivot = 1;
+        if (evals[2].swapBr > evals[1].swapBr && evals[2].swapBr >= evals[0].swapBr) bestPivot = 2;
+        else if (evals[0].swapBr > evals[1].swapBr + 18) bestPivot = 0;
+        const cores = [0, 1, 2].filter((idx) => idx !== bestPivot) as [number, number];
+        if (evals[cores[0]].leadBr >= evals[cores[1]].leadBr) {
+          finalOrderIndices = [cores[0], bestPivot, cores[1]];
+        } else {
+          finalOrderIndices = [cores[1], bestPivot, cores[0]];
+        }
       }
     } else {
       // ABC: Keep Slot 1 (index 0) fixed as Lead; put higher Swap BR in Slot 2
@@ -6680,6 +6750,8 @@ export function evaluateOrAutoOrderTeam(
   const roleLabels =
     resolvedArchetype === "ABB"
       ? ["Lead (A)", "Bait Swap (B1)", "Sweeper (B2)"]
+      : resolvedArchetype === "DUO"
+      ? ["Core 1 (Lead)", "Pivot (Safe Swap)", "Core 2 (Co-Core)"]
       : ["Lead", "Safe Swap", "Closer"];
 
   const altMovesetSlots: AntiMetaAltMovesetInfo[] = orderedPokemon.map((m, sIdx) => {
@@ -6728,24 +6800,50 @@ export function evaluateOrAutoOrderTeam(
       leadBr: orderedEvals[0].leadBr,
       swapBr: orderedEvals[0].swapBr,
       closerBr: orderedEvals[0].closerBr,
-      roleCode: resolvedArchetype === "ABB" ? "A" : "Lead",
-      roleLabel: resolvedArchetype === "ABB" ? "[A] Lead" : "[Lead] Starter"
+      roleCode: resolvedArchetype === "ABB" ? "A" : resolvedArchetype === "DUO" ? "Core 1" : "Lead",
+      roleLabel:
+        resolvedArchetype === "ABB"
+          ? "[A] Lead"
+          : resolvedArchetype === "DUO"
+          ? "[Core 1] Lead"
+          : "[Lead] Starter"
     },
     {
       leadBr: orderedEvals[1].leadBr,
       swapBr: orderedEvals[1].swapBr,
       closerBr: orderedEvals[1].closerBr,
-      roleCode: resolvedArchetype === "ABB" ? "B1" : "Swap",
-      roleLabel: resolvedArchetype === "ABB" ? "[B1] Bait Swap" : "[Swap] Safe Swap"
+      roleCode: resolvedArchetype === "ABB" ? "B1" : resolvedArchetype === "DUO" ? "Pivot" : "Swap",
+      roleLabel:
+        resolvedArchetype === "ABB"
+          ? "[B1] Bait Swap"
+          : resolvedArchetype === "DUO"
+          ? "[Pivot] Safe Swap"
+          : "[Swap] Safe Swap"
     },
     {
       leadBr: orderedEvals[2].leadBr,
       swapBr: orderedEvals[2].swapBr,
       closerBr: orderedEvals[2].closerBr,
-      roleCode: resolvedArchetype === "ABB" ? "B2" : "Closer",
-      roleLabel: resolvedArchetype === "ABB" ? "[B2] Sweeper" : "[Closer] Anchor"
+      roleCode: resolvedArchetype === "ABB" ? "B2" : resolvedArchetype === "DUO" ? "Core 2" : "Closer",
+      roleLabel:
+        resolvedArchetype === "ABB"
+          ? "[B2] Sweeper"
+          : resolvedArchetype === "DUO"
+          ? "[Core 2] Co-Core"
+          : "[Closer] Anchor"
     }
   ];
+
+  // Compute Yin & Yang reciprocal coverage % between Slot 1 and Slot 3 for DUO summary
+  const r0Set = new Set(orderedEvals[0].resistances);
+  const r2Set = new Set(orderedEvals[2].resistances);
+  const c0Cov2 = orderedEvals[2].weaknesses.length > 0
+    ? orderedEvals[2].weaknesses.filter((w) => r0Set.has(w)).length / orderedEvals[2].weaknesses.length
+    : 0.5;
+  const c2Cov0 = orderedEvals[0].weaknesses.length > 0
+    ? orderedEvals[0].weaknesses.filter((w) => r2Set.has(w)).length / orderedEvals[0].weaknesses.length
+    : 0.5;
+  const duoRecipPct = Math.round(((c0Cov2 + c2Cov0) / 2) * 100);
 
   const winsPreview = beatenTargets.slice(0, 5).join(", ") || "Broad neutral coverage";
   const threatsPreview = keyThreats.slice(0, 4).join(", ") || "None prominent";
@@ -6764,8 +6862,10 @@ export function evaluateOrAutoOrderTeam(
           detectedSharedWeaknesses.length > 0
             ? detectedSharedWeaknesses.map((w) => w.toUpperCase()).join("/") + " weakness for "
             : ""
-        }${orderedPokemon[1].name} (Bait B1) & ${orderedPokemon[2].name} (Sweeper B2). Beats ${beatenTargets.length}/${targetAuditTotal} Top Meta. Key Wins: ${winsPreview}. Key Threats: ${threatsPreview}. Core Breakers: ${breakersPreview}.${altSuffix}`
-      : `ABC Balanced Core: ${orderedPokemon[0].name} Lead (${leadAggBr} BR) + ${orderedPokemon[1].name} Safe Swap (${safeSwapBr} BR) + ${orderedPokemon[2].name} Closer (${closerBr} BR). Beats ${beatenTargets.length}/${targetAuditTotal} Top Meta. Key Wins: ${winsPreview}. Key Threats: ${threatsPreview}. Core Breakers: ${breakersPreview}.${altSuffix}`;
+        }${orderedPokemon[1].name} (Bait B1) & ${orderedPokemon[2].name} (Sweeper B2). Playbook: Stay in vs backline threats; on neutral/bad leads soften & swap to ${orderedPokemon[1].name} to bait their counter. Beats ${beatenTargets.length}/${targetAuditTotal} Top Meta. Key Wins: ${winsPreview}. Key Threats: ${threatsPreview}. Core Breakers: ${breakersPreview}.${altSuffix}`
+      : resolvedArchetype === "DUO"
+      ? `Duo-Core (Yin & Yang): #1 ${orderedPokemon[0].name} (${leadAggBr} BR) & #3 ${orderedPokemon[2].name} (${closerBr} BR) reciprocally cover each other's weaknesses (${duoRecipPct}% Yin-Yang synergy — swappable 1st/3rd to adapt to meta) with #2 ${orderedPokemon[1].name} (${safeSwapBr} Swap BR) as Safe Switch to flip switch, win shield advantage, or soft-lose for a farm-down. Beats ${beatenTargets.length}/${targetAuditTotal} Top Meta. Key Wins: ${winsPreview}. Key Threats: ${threatsPreview}. Core Breakers: ${breakersPreview}.${altSuffix}`
+      : `ABC Balanced Core: ${orderedPokemon[0].name} Lead (${leadAggBr} BR) + ${orderedPokemon[1].name} Safe Swap (${safeSwapBr} BR) + ${orderedPokemon[2].name} Closer (${closerBr} BR). Playbook: On lost leads pivot to ${orderedPokemon[1].name} to fight for switch/shield advantage while ${orderedPokemon[2].name} hard-counters Lead threats. Beats ${beatenTargets.length}/${targetAuditTotal} Top Meta. Key Wins: ${winsPreview}. Key Threats: ${threatsPreview}. Core Breakers: ${breakersPreview}.${altSuffix}`;
 
   const reasonSummary = synergySummary;
 
@@ -6897,7 +6997,7 @@ export const INITIAL_PRESETS: TeamPreset[] = recalculateAllPresetsMetrics([
   }
 ]);
 
-export type TeamArchetype = "ABB" | "ABC";
+export type TeamArchetype = "ABB" | "ABC" | "DUO";
 
 export interface RoleUpgradeSuggestion {
   roleIndex: 0 | 1 | 2;
@@ -6910,7 +7010,7 @@ export interface RoleUpgradeSuggestion {
   newRoleBr: number;
   deltaRoleBr: number;
   compositeUpgradeScore: number;
-  newArchetype: "ABB" | "ABC";
+  newArchetype: "ABB" | "ABC" | "DUO";
   synergyNote: string;
   summaryBadge: string;
 }
@@ -7058,14 +7158,14 @@ export function recommendTop3UpgradesPerRole(
   league: string,
   optionsOrLogs?:
     | {
-        manualArchetypeOverride?: "ABB" | "ABC";
+        manualArchetypeOverride?: "ABB" | "ABC" | "DUO";
         seasonBattleLogs?: Array<{ timestampMs: number; league: string; opponents: string[] }>;
         currentSeason?: { startMs: number; endMs: number };
       }
     | Array<{ timestampMs: number; league: string; opponents: string[] }>,
   seasonStartMs?: number,
   seasonEndMs?: number,
-  manualArchetypeOverrideArg?: "ABB" | "ABC"
+  manualArchetypeOverrideArg?: "ABB" | "ABC" | "DUO"
 ): TeamRoleRecommendationsResult {
   const options = Array.isArray(optionsOrLogs)
     ? {
@@ -7251,8 +7351,11 @@ export function recommendTop3UpgradesPerRole(
 
       const backShared = m1.weaknesses.filter((w) => w2.has(w));
       const leadCoversBack = backShared.length >= 2 && backShared.every((w) => r0.has(w) || !w0.has(w));
-      const newArchetype: "ABB" | "ABC" =
-        options?.manualArchetypeOverride || (leadCoversBack ? "ABB" : "ABC");
+      const c0Cov2 = m2.weaknesses.length > 0 ? m2.weaknesses.filter((w) => r0.has(w)).length / m2.weaknesses.length : 0;
+      const c2Cov0 = m0.weaknesses.length > 0 ? m0.weaknesses.filter((w) => r2.has(w)).length / m0.weaknesses.length : 0;
+      const isDuoPair = c0Cov2 >= 0.45 && c2Cov0 >= 0.45 && (c0Cov2 + c2Cov0) / 2 >= 0.58;
+      const newArchetype: "ABB" | "ABC" | "DUO" =
+        options?.manualArchetypeOverride || (leadCoversBack ? "ABB" : isDuoPair ? "DUO" : "ABC");
 
       const coverageBonus = coveredWeaknessesCount * 1.5 - uncoveredTripleOrDoubleWeaknesses * 6.0;
       const compositeUpgradeScore = Number(
@@ -7398,14 +7501,14 @@ export function recommendTop3AlternateMovesetsForTeam(
   league: string,
   optionsOrLogs?:
     | {
-        manualArchetypeOverride?: "ABB" | "ABC";
+        manualArchetypeOverride?: "ABB" | "ABC" | "DUO";
         seasonBattleLogs?: Array<{ timestampMs: number; league: string; opponents: string[] }>;
         currentSeason?: { startMs: number; endMs: number };
       }
     | Array<{ timestampMs: number; league: string; opponents: string[] }>,
   seasonStartMs?: number,
   seasonEndMs?: number,
-  manualArchetypeOverrideArg?: "ABB" | "ABC"
+  manualArchetypeOverrideArg?: "ABB" | "ABC" | "DUO"
 ): TeamMovesetOptimizationResult {
   const options = Array.isArray(optionsOrLogs)
     ? {
@@ -8079,7 +8182,7 @@ export interface AntiMetaAltMovesetInfo {
 
 export interface AntiMetaTeamOption {
   id: string;
-  archetype: "ABB" | "ABC";
+  archetype: "ABB" | "ABC" | "DUO";
   rank: number;
   league: string;
   pokemon: [TeamMember, TeamMember, TeamMember];
@@ -8174,6 +8277,7 @@ export interface AntiMetaTeamBuilderResult {
   featuredPokemon: string[];
   top5AbbTeams: AntiMetaTeamOption[];
   top5AbcTeams: AntiMetaTeamOption[];
+  top5DuoTeams: AntiMetaTeamOption[];
   candidatesEvaluated: number;
   movesetCombosSimulated: number;
   metaTargetCount: number;
@@ -8682,7 +8786,7 @@ export function generateAntiMetaTeamOptions(
     m0: SlotCandidateEval,
     m1: SlotCandidateEval,
     m2: SlotCandidateEval,
-    archetype: "ABB" | "ABC",
+    archetype: "ABB" | "ABC" | "DUO",
     sharedWeaks: string[],
     idPrefix: string,
     sig: string,
@@ -8760,16 +8864,31 @@ export function generateAntiMetaTeamOptions(
       }
     }
 
+    // Compute Yin & Yang reciprocal weakness coverage between Slot 1 (m0) and Slot 3 (m2) for DUO-CORE
+    const r0Set = new Set(m0.resistances);
+    const r2Set = new Set(m2.resistances);
+    const m0CoversM2Ratio =
+      m2.weaknesses.length > 0
+        ? m2.weaknesses.filter((w) => r0Set.has(w)).length / m2.weaknesses.length
+        : 0.5;
+    const m2CoversM0Ratio =
+      m0.weaknesses.length > 0
+        ? m0.weaknesses.filter((w) => r2Set.has(w)).length / m0.weaknesses.length
+        : 0.5;
+    const duoRecipPct = Math.round(((m0CoversM2Ratio + m2CoversM0Ratio) / 2) * 100);
+    const duoSynergyBonus = archetype === "DUO" ? (duoRecipPct - 50) * 0.35 : 0;
+
     const compositeAntiMetaScore = Number(
       (
         0.48 * machineAggBr +
         0.20 * m0.leadBr +
         0.16 * m1.swapBr +
         0.16 * m2.closerBr +
-        beatenTargets.length * 1.65 -
+        beatenTargets.length * 1.65 +
+        duoSynergyBonus -
         coreBreakers.length * 7.5 -
         keyThreats.length * 1.8 -
-        (archetype === "ABC" ? unresistedTripleWeakPenalty : 0)
+        (archetype !== "ABB" ? unresistedTripleWeakPenalty : 0)
       ).toFixed(1)
     );
 
@@ -8802,6 +8921,8 @@ export function generateAntiMetaTeamOptions(
     const synergySummary =
       archetype === "ABB"
         ? `ABB Lineup: ${m0.member.name} (Lead A) covers backline ${sharedWeaks.map((w) => w.toUpperCase()).join("/")} weakness for ${m1.member.name} (Bait B1) & ${m2.member.name} (Sweeper B2). Beats ${beatenTargets.length}/${targetAuditTotal} Top Meta. Key Wins: ${winsPreview}. Key Threats: ${threatsPreview}. Core Breakers: ${breakersPreview}.${altSuffix}`
+        : archetype === "DUO"
+        ? `Duo-Core (Yin & Yang): #1 ${m0.member.name} (${m0.leadBr} BR) & #3 ${m2.member.name} (${m2.closerBr} BR) reciprocally cover each other's weaknesses (${duoRecipPct}% Yin-Yang synergy — swappable 1st/3rd) with #2 ${m1.member.name} (${m1.swapBr} Swap BR) as Safe Switch to flip switch, win shield advantage, or soft-lose for a farm-down. Beats ${beatenTargets.length}/${targetAuditTotal} Top Meta. Key Wins: ${winsPreview}. Key Threats: ${threatsPreview}. Core Breakers: ${breakersPreview}.${altSuffix}`
         : `ABC Balanced Core: ${m0.member.name} Lead (${m0.leadBr} BR) + ${m1.member.name} Safe Swap (${m1.swapBr} BR) + ${m2.member.name} Closer (${m2.closerBr} BR). Beats ${beatenTargets.length}/${targetAuditTotal} Top Meta. Key Wins: ${winsPreview}. Key Threats: ${threatsPreview}. Core Breakers: ${breakersPreview}.${altSuffix}`;
 
     return {
@@ -8831,6 +8952,7 @@ export function generateAntiMetaTeamOptions(
 
   const abbCandidates: AntiMetaTeamOption[] = [];
   const abcCandidates: AntiMetaTeamOption[] = [];
+  const duoCandidates: AntiMetaTeamOption[] = [];
   const seenTrios = new Set<string>();
   let candidatesEvaluated = 0;
 
@@ -8925,37 +9047,76 @@ export function generateAntiMetaTeamOptions(
     let bestAbbShared: string[] = [];
     let bestAbbStructureScore = -Infinity;
 
-    for (const [leadIdx, bI, bJ] of indexPermutations) {
-      const wI = new Set(evals[bI].weaknesses);
-      const shared = evals[bJ].weaknesses.filter((w) => wI.has(w));
-      if (shared.length === 0) continue;
+    let bestDuoOrder: [number, number, number] | null = null;
+    let bestDuoStructureScore = -Infinity;
 
-      const hasSharedDouble = shared.some(
-        (w) => evals[bI].doubleWeaknesses.includes(w) || evals[bJ].doubleWeaknesses.includes(w)
-      );
-      const qualifiesOverlap = shared.length >= 2 || (shared.length >= 1 && hasSharedDouble);
-      if (!qualifiesOverlap) continue;
+    for (const [kIdx, iIdx, jIdx] of indexPermutations) {
+      const wI = new Set(evals[iIdx].weaknesses);
+      const rI = new Set(evals[iIdx].resistances);
+      const rJ = new Set(evals[jIdx].resistances);
+      const shared = evals[jIdx].weaknesses.filter((w) => wI.has(w));
 
-      const leadResists = new Set(evals[leadIdx].resistances);
-      const leadWeaks = new Set(evals[leadIdx].weaknesses);
-      const resistedByLead = shared.filter((w) => leadResists.has(w));
-      const leadNotWeak = shared.every((w) => !leadWeaks.has(w));
+      // 1. Check ABB: kIdx = Lead A, (iIdx, jIdx) = B1/B2 backline
+      if (shared.length > 0) {
+        const hasSharedDouble = shared.some(
+          (w) => evals[iIdx].doubleWeaknesses.includes(w) || evals[jIdx].doubleWeaknesses.includes(w)
+        );
+        const qualifiesOverlap = shared.length >= 2 || (shared.length >= 1 && hasSharedDouble);
+        if (qualifiesOverlap) {
+          const leadResists = new Set(evals[kIdx].resistances);
+          const leadWeaks = new Set(evals[kIdx].weaknesses);
+          const resistedByLead = shared.filter((w) => leadResists.has(w));
+          const leadNotWeak = shared.every((w) => !leadWeaks.has(w));
 
-      if (resistedByLead.length >= 1 && leadNotWeak) {
-        const b1First = evals[bI].swapBr >= evals[bJ].swapBr;
-        const ordered: [number, number, number] = b1First
-          ? [leadIdx, bI, bJ]
-          : [leadIdx, bJ, bI];
-        const sScore =
-          resistedByLead.length * 40 +
-          shared.length * 25 +
-          evals[ordered[0]].leadBr * 0.4 +
-          evals[ordered[1]].swapBr * 0.35 +
-          evals[ordered[2]].closerBr * 0.25;
-        if (sScore > bestAbbStructureScore) {
-          bestAbbStructureScore = sScore;
-          bestAbbOrder = ordered;
-          bestAbbShared = shared;
+          if (resistedByLead.length >= 1 && leadNotWeak) {
+            const b1First = evals[iIdx].swapBr >= evals[jIdx].swapBr;
+            const ordered: [number, number, number] = b1First
+              ? [kIdx, iIdx, jIdx]
+              : [kIdx, jIdx, iIdx];
+            const sScore =
+              resistedByLead.length * 40 +
+              shared.length * 25 +
+              evals[ordered[0]].leadBr * 0.4 +
+              evals[ordered[1]].swapBr * 0.35 +
+              evals[ordered[2]].closerBr * 0.25;
+            if (sScore > bestAbbStructureScore) {
+              bestAbbStructureScore = sScore;
+              bestAbbOrder = ordered;
+              bestAbbShared = shared;
+            }
+          }
+        }
+      }
+
+      // 2. Check DUO-CORE: (iIdx, jIdx) = Yin & Yang Core 1/Core 2, kIdx = Safe Swap Pivot in Slot 2
+      const iCoversJ =
+        evals[jIdx].weaknesses.length > 0
+          ? evals[jIdx].weaknesses.filter((w) => rI.has(w)).length / evals[jIdx].weaknesses.length
+          : 0;
+      const jCoversI =
+        evals[iIdx].weaknesses.length > 0
+          ? evals[iIdx].weaknesses.filter((w) => rJ.has(w)).length / evals[iIdx].weaknesses.length
+          : 0;
+      const avgRecip = (iCoversJ + jCoversI) / 2;
+      if (
+        shared.length <= 1 &&
+        iCoversJ >= 0.45 &&
+        jCoversI >= 0.45 &&
+        avgRecip >= 0.56 &&
+        evals[kIdx].swapBr >= 485
+      ) {
+        const c1First = evals[iIdx].leadBr + evals[jIdx].closerBr >= evals[jIdx].leadBr + evals[iIdx].closerBr;
+        const orderedDuo: [number, number, number] = c1First
+          ? [iIdx, kIdx, jIdx]
+          : [jIdx, kIdx, iIdx];
+        const dScore =
+          avgRecip * 180 +
+          evals[kIdx].swapBr * 0.42 +
+          evals[orderedDuo[0]].leadBr * 0.30 +
+          evals[orderedDuo[2]].closerBr * 0.28;
+        if (dScore > bestDuoStructureScore) {
+          bestDuoStructureScore = dScore;
+          bestDuoOrder = orderedDuo;
         }
       }
     }
@@ -8971,6 +9132,20 @@ export function generateAntiMetaTeamOptions(
         bestAbcRoleSum = roleSum;
         bestAbcOrder = [lIdx, sIdx, cIdx];
       }
+    }
+
+    if (bestDuoOrder) {
+      duoCandidates.push(
+        buildTeamOptionFromEvals(
+          evals[bestDuoOrder[0]],
+          evals[bestDuoOrder[1]],
+          evals[bestDuoOrder[2]],
+          "DUO",
+          [],
+          "anti-meta-duo",
+          sig
+        )
+      );
     }
 
     if (bestAbbOrder) {
@@ -9000,9 +9175,9 @@ export function generateAntiMetaTeamOptions(
     }
   }
 
-  // Ensure both ABB and ABC buckets have plenty of candidates before moveset optimization
-  if (abbCandidates.length < 8 || abcCandidates.length < 8) {
-    for (const trio of triosToEvaluate.slice(0, 80)) {
+  // Ensure ABB, ABC, and DUO buckets have plenty of candidates before moveset optimization
+  if (abbCandidates.length < 8 || abcCandidates.length < 8 || duoCandidates.length < 8) {
+    for (const trio of triosToEvaluate.slice(0, 90)) {
       const e0 = slotEvalCache.get(trio[0].name.toLowerCase());
       const e1 = slotEvalCache.get(trio[1].name.toLowerCase());
       const e2 = slotEvalCache.get(trio[2].name.toLowerCase());
@@ -9033,6 +9208,29 @@ export function generateAntiMetaTeamOptions(
         }
       }
 
+      if (duoCandidates.length < 8 && !duoCandidates.some((c) => c.id.endsWith(sig))) {
+        let bestPivot = 0;
+        for (let idx = 1; idx < 3; idx++) {
+          if (evals[idx].swapBr > evals[bestPivot].swapBr) bestPivot = idx;
+        }
+        const cores = [0, 1, 2].filter((idx) => idx !== bestPivot) as [number, number];
+        const orderedDuo: [number, number, number] =
+          evals[cores[0]].leadBr >= evals[cores[1]].leadBr
+            ? [cores[0], bestPivot, cores[1]]
+            : [cores[1], bestPivot, cores[0]];
+        duoCandidates.push(
+          buildTeamOptionFromEvals(
+            evals[orderedDuo[0]],
+            evals[orderedDuo[1]],
+            evals[orderedDuo[2]],
+            "DUO",
+            [],
+            "anti-meta-duo-fallback",
+            sig
+          )
+        );
+      }
+
       if (abcCandidates.length < 8 && !abcCandidates.some((c) => c.id.endsWith(sig))) {
         const m0 = e0;
         const m1 = e1.swapBr >= e2.swapBr ? e1 : e2;
@@ -9046,6 +9244,7 @@ export function generateAntiMetaTeamOptions(
 
   abbCandidates.sort((a, b) => b.compositeAntiMetaScore - a.compositeAntiMetaScore);
   abcCandidates.sort((a, b) => b.compositeAntiMetaScore - a.compositeAntiMetaScore);
+  duoCandidates.sort((a, b) => b.compositeAntiMetaScore - a.compositeAntiMetaScore);
 
   const pickTopDiverseFinalists = (list: AntiMetaTeamOption[], maxCount: number): AntiMetaTeamOption[] => {
     const picked: AntiMetaTeamOption[] = [];
@@ -9141,6 +9340,8 @@ export function generateAntiMetaTeamOptions(
     const roleLabels =
       option.archetype === "ABB"
         ? ["Lead (A)", "Bait Swap (B1)", "Sweeper (B2)"]
+        : option.archetype === "DUO"
+        ? ["Core 1 (Lead)", "Pivot (Safe Swap)", "Core 2 (Co-Core)"]
         : ["Lead", "Safe Swap", "Closer"];
 
     for (let slotIdx = 0; slotIdx < 3; slotIdx++) {
@@ -9279,12 +9480,17 @@ export function generateAntiMetaTeamOptions(
   const abcFinalists = pickTopDiverseFinalists(abcCandidates, 7).map((opt) =>
     optimizeTeamOptionMovesets(opt)
   );
+  const duoFinalists = pickTopDiverseFinalists(duoCandidates, 7).map((opt) =>
+    optimizeTeamOptionMovesets(opt)
+  );
 
   abbFinalists.sort((a, b) => b.compositeAntiMetaScore - a.compositeAntiMetaScore);
   abcFinalists.sort((a, b) => b.compositeAntiMetaScore - a.compositeAntiMetaScore);
+  duoFinalists.sort((a, b) => b.compositeAntiMetaScore - a.compositeAntiMetaScore);
 
   const top5AbbTeams = abbFinalists.slice(0, 5).map((item, idx) => ({ ...item, rank: idx + 1 }));
   const top5AbcTeams = abcFinalists.slice(0, 5).map((item, idx) => ({ ...item, rank: idx + 1 }));
+  const top5DuoTeams = duoFinalists.slice(0, 5).map((item, idx) => ({ ...item, rank: idx + 1 }));
   const t1 = typeof performance !== "undefined" ? performance.now() : Date.now();
 
   return {
@@ -9293,6 +9499,7 @@ export function generateAntiMetaTeamOptions(
     featuredPokemon: featuredConstraints.map((fc) => fc.displayLabel),
     top5AbbTeams,
     top5AbcTeams,
+    top5DuoTeams,
     candidatesEvaluated,
     movesetCombosSimulated,
     metaTargetCount: targetAuditTotal,
@@ -9303,6 +9510,381 @@ export function generateAntiMetaTeamOptions(
     elapsedMs: Math.max(1, Math.round(t1 - t0))
   };
 }
+
+export interface CompetitiveArchetypePlaybook {
+  code: "ABB" | "ABC" | "DUO";
+  title: string;
+  subtitle: string;
+  slotRoles: [string, string, string];
+  howToPlay: string;
+  proTactics: string[];
+}
+
+export const COMPETITIVE_ARCHETYPE_PLAYBOOKS: Record<"ABB" | "ABC" | "DUO", CompetitiveArchetypePlaybook> = {
+  DUO: {
+    code: "DUO",
+    title: "Duo-Core Teams (Symmetric Yin & Yang Core + Safe Switch)",
+    subtitle: "Classic symmetric synergy (e.g., Swampert/Skarmory) where #1 & #3 cover each other's weaknesses perfectly and can be swapped to adapt to the meta.",
+    slotRoles: ["[Core 1] Lead", "[Pivot] Safe Switch", "[Core 2] Co-Core"],
+    howToPlay:
+      "These teams recreate the symmetric synergy of classic duo-cores like Swampert/Skarmory. The 1st Pokémon is your Lead. The 1st and 3rd Pokémon are selected to cover each other's weaknesses perfectly — think of them as Yin & Yang opposite attackers (1st counters whatever 3rd loses to; 3rd counters whatever 1st loses to). Because of this symmetry, you can swap your 1st and 3rd Pokémon to adapt to daily micro-meta shifts while keeping the exact same team. The 2nd Pokémon is your Safe Switch: it does okay against whatever your Lead loses to and avoids hard losses across the meta. If you win lead, stay in and maintain alignment. When you lose lead, switch to your 2nd (Safe Switch) to fight for Switch Advantage or exit with a Shield Advantage, then return with your 1st or 3rd to farm down for an Energy Advantage.",
+    proTactics: [
+      "Win Lead: Stay in and preserve alignment so your Co-Core (#3) sweeps their backline.",
+      "Lose Lead: Pivot immediately to #2 Safe Switch. Fight to flip Switch Advantage (1S) or force a +1 Shield Advantage (0S).",
+      "Soft Loss & Farm-Down: If #2 cannot flip switch, let it faint without burning your 2nd shield so #1 or #3 can return and farm down for loaded energy.",
+      "Meta Adaptation: If you see a streak of leads that beat #1, swap #1 and #3 in the editor while keeping #2 as your Pivot."
+    ]
+  },
+  ABC: {
+    code: "ABC",
+    title: "ABC Teams (Balanced Directional Triangle)",
+    subtitle: "Dedicated anti-meta Lead (#1), high-consistency Safe Switch (#2), and hard-counter Closer (#3).",
+    slotRoles: ["[Lead] Starter", "[Swap] Safe Switch", "[Closer] Anchor"],
+    howToPlay:
+      "The 1st Pokémon is your Lead, chosen to counter the most common leads in the league. The 2nd is your Safe Switch, which holds its own against your Lead's losses and avoids hard losses against the field. The 3rd hard-counters whatever your Lead loses to. If you win lead, stay in. When you lose lead, switch to your 2nd (Safe Switch) and try to win Switch Advantage; if that isn't possible, exit the matchup with a Shield Advantage, then bring back your 1st or 3rd after your 2nd faints to farm down for an Energy Advantage.",
+    proTactics: [
+      "Win Lead: Maintain switch alignment and match shields up to 1S.",
+      "Lose Lead: Pivot to #2 Safe Switch to absorb damage, pressure shields, and avoid giving up both switch and shields.",
+      "Opp Counter-Swaps vs Your Lead: Answer with #3 Closer if it hard-walls their swap, or #2 Safe Switch to preserve your Closer's alignment."
+    ]
+  },
+  ABB: {
+    code: "ABB",
+    title: "ABB Teams (Backline Protector Lead + Bait Swap & Sweeper)",
+    subtitle: "Two shared-weakness meta counters in the back (#2 Bait & #3 Sweeper) protected by #1 Lead.",
+    slotRoles: ["[A] Lead Protector", "[B1] Bait Swap", "[B2] Sweeper"],
+    howToPlay:
+      "ABB teams put two meta counters in the back (B1 & B2) and use their strongest protector as the Lead (A). Because your two meta counters are in the back, you will lose or pivot out of lead more often, requiring advanced finesse. Whenever your Lead faces a Pokémon that beats your backline, stay in to eliminate it at all costs! If your Lead faces any Pokémon it does not hard-counter, soften it up (or pivot immediately) and switch to your 2nd (B1 Bait Swap) to lure out your opponent's backline counter. Defeat their lured counter with your Lead (A), then clean up the endgame with your 3rd (B2 Sweeper) using spammy charged moves and shield/energy advantage.",
+    proTactics: [
+      "Lead Faces Backline Threat: Stay in at all costs (commit up to 2S) — your Lead A is the only answer to your backline's shared weakness.",
+      "Neutral or Bad Lead: Chip/soften and pivot to #2 (B1 Bait Swap) to draw out their counter to your B-pair.",
+      "After B1 Lures Their Counter: Take a controlled Soft Loss (0S) on B1, return with #1 Lead A to farm down, and sweep with #3 (B2)."
+    ]
+  }
+};
+
+export interface TacticalRecommendationResult {
+  visible: boolean;
+  phaseBadge: string;
+  actionText: string;
+  shieldPlan: string;
+  goalText: string;
+  oneLineBadge: string;
+  tone: "emerald" | "amber" | "sky" | "rose";
+}
+
+/**
+ * Real-time Lead & Swap Tactical Recommendation Engine:
+ * Uses your Lead, Active Pokémon, Opponent Lead/Active Pokémon, predetermined 9x9 shield matrix ratings,
+ * current shield counts, and Team Archetype (ABB / ABC / DUO) to recommend:
+ * 1. Action on Lead reveal or Opponent/Own Swap (Stay In, Swap to [Mon], Chip & Swap, Counter-Swap)
+ * 2. Shield Plan (0S / 1S / 2S)
+ * 3. Matchup Goal (Flip Switch Adv, Win +1 Shield, Soft Lose -> Farm w/ [Mon], Eliminate Backline Threat, Sweep)
+ */
+export function computeTacticalLeadAndSwapRecommendation(params: {
+  team: TeamMember[];
+  archetype: "ABB" | "ABC" | "DUO";
+  sharedWeaknesses?: string[];
+  activeUserIdx: number;
+  scannedOpponents: string[];
+  activeOppName: string;
+  userShields: number;
+  oppShields: number;
+  userFaintedSlots?: boolean[];
+  league: string;
+}): TacticalRecommendationResult {
+  const {
+    team,
+    archetype,
+    sharedWeaknesses = [],
+    activeUserIdx,
+    scannedOpponents,
+    activeOppName,
+    userShields,
+    oppShields,
+    userFaintedSlots = [false, false, false],
+    league
+  } = params;
+
+  if (!team || team.length < 3 || !activeOppName || activeOppName === "Waiting...") {
+    return {
+      visible: false,
+      phaseBadge: "",
+      actionText: "",
+      shieldPlan: "",
+      goalText: "",
+      oneLineBadge: "",
+      tone: "sky"
+    };
+  }
+
+  const uS = Math.max(0, Math.min(2, userShields));
+  const oS = Math.max(0, Math.min(2, oppShields));
+  const curIdx = Math.max(0, Math.min(2, activeUserIdx));
+  const curMember = team[curIdx];
+
+  // Compute 9x9 shield matrix for all 3 team members against the active opponent
+  const matrices = team.map((m) =>
+    calculateMatchupShieldMatrix(
+      m.name,
+      activeOppName,
+      league,
+      m.fastMove,
+      m.chargedMove1,
+      m.chargedMove2,
+      m.cp,
+      m.ivs
+    )
+  );
+
+  const getBr = (slotIdx: number, myS: number, theirS: number): number => {
+    const mat = matrices[slotIdx]?.matrix;
+    if (!mat) return 500;
+    const key = `${Math.max(0, Math.min(2, myS))}-${Math.max(0, Math.min(2, theirS))}` as keyof typeof mat;
+    return mat[key]?.rating ?? 500;
+  };
+
+  const curBrNow = getBr(curIdx, uS, oS);
+  const curBr00 = getBr(curIdx, 0, 0);
+  const curBr11 = getBr(curIdx, Math.min(1, uS), Math.min(1, oS));
+  const curBr22 = getBr(curIdx, uS, oS);
+  const curBrDownShield = oS > 0 ? getBr(curIdx, Math.max(0, uS - 1), oS) : curBr00;
+
+  // Check if active opponent threatens ABB backline (B1 & B2)
+  const b1Br = getBr(1, Math.min(1, uS), Math.min(1, oS));
+  const b2Br = getBr(2, Math.min(1, uS), Math.min(1, oS));
+  const oppBeatsBackline = b1Br < 475 && b2Br < 475;
+
+  const isLeadPhase = scannedOpponents.length <= 1 && curIdx === 0;
+  const isOppSwapped = scannedOpponents.length > 1 && activeOppName.toLowerCase() !== (scannedOpponents[0] || "").toLowerCase();
+
+  // Best available alive bench options
+  const benchIndices = [0, 1, 2].filter((idx) => idx !== curIdx && !userFaintedSlots[idx]);
+  const bestBenchIdx =
+    benchIndices.length > 0
+      ? benchIndices.reduce((best, idx) => (getBr(idx, uS, oS) > getBr(best, uS, oS) ? idx : best), benchIndices[0])
+      : curIdx;
+  const bestBenchBr = getBr(bestBenchIdx, uS, oS);
+  const bestBenchName = team[bestBenchIdx]?.name || "Swap";
+
+  // Helper to choose best farm-down partner after a soft loss
+  const farmPartnerIdx =
+    curIdx === 1
+      ? getBr(0, Math.min(1, uS), 0) >= getBr(2, Math.min(1, uS), 0) && !userFaintedSlots[0]
+        ? 0
+        : !userFaintedSlots[2]
+        ? 2
+        : 0
+      : !userFaintedSlots[0]
+      ? 0
+      : 2;
+  const farmPartnerName = team[farmPartnerIdx]?.name || team[0].name;
+
+  // =========================================================================
+  // CASE 1: LEAD REVEAL PHASE (Slot 1 Lead vs Opponent Lead)
+  // =========================================================================
+  if (isLeadPhase) {
+    if (archetype === "ABB") {
+      if (oppBeatsBackline && curBrNow >= 460) {
+        return {
+          visible: true,
+          phaseBadge: "ABB LEAD",
+          actionText: `STAY IN (${curMember.name})`,
+          shieldPlan: uS >= 2 ? "Commit 1S–2S" : `${uS}S`,
+          goalText: `Eliminate Backline Threat for ${team[2].name}`,
+          oneLineBadge: `ABB LEAD: STAY IN • ${uS >= 2 ? "Commit 1S–2S" : `${uS}S`} • Goal: Eliminate Backline Threat`,
+          tone: "emerald"
+        };
+      }
+      if (curBrNow >= 560) {
+        return {
+          visible: true,
+          phaseBadge: "ABB LEAD",
+          actionText: `STAY IN (${curMember.name})`,
+          shieldPlan: "Match 1S",
+          goalText: "Win Lead & Preserve Alignment",
+          oneLineBadge: `ABB LEAD: STAY IN • Match 1S • Goal: Win Lead & Alignment`,
+          tone: "emerald"
+        };
+      }
+      if (curBrNow >= 465) {
+        return {
+          visible: true,
+          phaseBadge: "ABB LEAD",
+          actionText: `CHIP & SWAP → ${team[1].name}`,
+          shieldPlan: "0S on Lead",
+          goalText: `Soften Lead & Bait Backline Counter`,
+          oneLineBadge: `ABB LEAD: CHIP & SWAP → ${team[1].name} • 0S • Goal: Lure Backline Threat`,
+          tone: "amber"
+        };
+      }
+      return {
+        visible: true,
+        phaseBadge: "ABB LEAD",
+        actionText: `SWAP → ${team[1].name} (B1)`,
+        shieldPlan: "0S (Save Lead)",
+        goalText: `Bait Counter -> Farm w/ ${team[0].name}`,
+        oneLineBadge: `ABB LEAD: SWAP → ${team[1].name} • 0S • Goal: Bait Counter -> Farm w/ ${team[0].name}`,
+        tone: "rose"
+      };
+    }
+
+    // DUO-CORE or ABC Lead Reveal
+    const tag = archetype === "DUO" ? "DUO LEAD" : "ABC LEAD";
+    if (curBrNow >= 550) {
+      const shieldAdvice = curBr00 >= 535 ? "0S–1S (Wins 0S)" : "Match 1S";
+      return {
+        visible: true,
+        phaseBadge: tag,
+        actionText: `STAY IN (${curMember.name})`,
+        shieldPlan: shieldAdvice,
+        goalText: "Win Lead & Hold Switch Adv",
+        oneLineBadge: `${tag}: STAY IN • ${shieldAdvice} • Goal: Win Lead & Switch Adv`,
+        tone: "emerald"
+      };
+    }
+    if (curBrNow >= 475) {
+      if (curBrDownShield >= 455) {
+        return {
+          visible: true,
+          phaseBadge: tag,
+          actionText: `STAY IN (Soft Lose)`,
+          shieldPlan: "0S (Force Opp 1S)",
+          goalText: `Win +1 Shield -> Farm w/ ${team[1].name}`,
+          oneLineBadge: `${tag}: STAY (Soft Lose) • 0S • Goal: Win +1 Shield -> Farm`,
+          tone: "sky"
+        };
+      }
+      const flip1S = getBr(1, Math.min(1, uS), Math.min(1, oS)) >= 520;
+      return {
+        visible: true,
+        phaseBadge: tag,
+        actionText: `CHIP & SWAP → ${team[1].name}`,
+        shieldPlan: flip1S ? "1S on Swap" : "0S Absorb",
+        goalText: flip1S ? "Flip Switch Adv" : `Win Shield Adv -> Farm w/ ${team[0].name}`,
+        oneLineBadge: `${tag}: CHIP & SWAP → ${team[1].name} • ${flip1S ? "1S" : "0S"} • Goal: ${flip1S ? "Flip Switch Adv" : "Win Shield Adv"}`,
+        tone: "amber"
+      };
+    }
+
+    // Hard Negative Lead (< 475): Pivot immediately to Slot 2 Safe Switch
+    const swapIdx = !userFaintedSlots[1] ? 1 : bestBenchIdx;
+    const swapMon = team[swapIdx]?.name || bestBenchName;
+    const swapBr1S = getBr(swapIdx, Math.min(1, uS), Math.min(1, oS));
+    const canFlipSwitch = swapBr1S >= 520;
+    const farmMon = getBr(0, 1, 0) >= getBr(2, 1, 0) ? team[0].name : team[2].name;
+    return {
+      visible: true,
+      phaseBadge: tag,
+      actionText: `SWAP → ${swapMon}`,
+      shieldPlan: canFlipSwitch ? "1S to Flip" : "0S Soft Lose",
+      goalText: canFlipSwitch ? "Flip Switch Adv" : `Burn Shields -> Farm w/ ${farmMon}`,
+      oneLineBadge: `${tag}: SWAP → ${swapMon} • ${canFlipSwitch ? "1S" : "0S"} • Goal: ${canFlipSwitch ? "Flip Switch Adv" : `Soft Lose -> Farm w/ ${farmMon}`}`,
+      tone: "rose"
+    };
+  }
+
+  // =========================================================================
+  // CASE 2: OPPONENT SWAPPED OR USER IS ON SAFE SWAP / COUNTER-SWAP
+  // =========================================================================
+  if (curBrNow < 475 && bestBenchBr >= curBrNow + 45 && benchIndices.length > 0) {
+    const swapShield = getBr(bestBenchIdx, 0, oS) >= 525 ? "0S–1S" : "1S";
+    const goal =
+      bestBenchIdx === 0 && archetype === "ABB"
+        ? `Eliminate Threat & Farm Energy`
+        : bestBenchBr >= 560
+        ? `Wall & Farm Down w/ ${bestBenchName}`
+        : `Win Alignment w/ ${bestBenchName}`;
+    return {
+      visible: true,
+      phaseBadge: isOppSwapped ? "OPP SWAP" : "SWAP REC",
+      actionText: `COUNTER-SWAP → ${bestBenchName}`,
+      shieldPlan: swapShield,
+      goalText: goal,
+      oneLineBadge: `${isOppSwapped ? "OPP SWAP" : "SWAP REC"}: SWAP → ${bestBenchName} • ${swapShield} • Goal: ${goal}`,
+      tone: "amber"
+    };
+  }
+
+  // User is currently in with Slot 2 (Safe Swap / Bait Swap)
+  if (curIdx === 1) {
+    if (archetype === "ABB") {
+      const canFlip = curBr11 >= 530;
+      return {
+        visible: true,
+        phaseBadge: "B1 BAIT SWAP",
+        actionText: `STAY IN (${curMember.name})`,
+        shieldPlan: canFlip ? "1S Pressure" : "0S Soft Lose",
+        goalText: canFlip
+          ? `Flip Switch or Force Shields for ${team[2].name}`
+          : `Soft Lose -> Farm Down w/ ${team[0].name}`,
+        oneLineBadge: `B1 SWAP: STAY IN • ${canFlip ? "1S" : "0S Soft Lose"} • Goal: ${
+          canFlip ? `Flip Switch / Strip Shields` : `Soft Lose -> Farm w/ ${team[0].name}`
+        }`,
+        tone: canFlip ? "emerald" : "sky"
+      };
+    }
+
+    // DUO or ABC Safe Switch in Slot 2
+    if (curBrNow >= 520) {
+      return {
+        visible: true,
+        phaseBadge: "SAFE SWAP",
+        actionText: `STAY IN (${curMember.name})`,
+        shieldPlan: curBr00 >= 515 ? "0S–1S" : "1S",
+        goalText: "Win Switch Advantage",
+        oneLineBadge: `SAFE SWAP: STAY IN • ${curBr00 >= 515 ? "0S–1S" : "1S"} • Goal: Win Switch Advantage`,
+        tone: "emerald"
+      };
+    }
+    return {
+      visible: true,
+      phaseBadge: "SAFE SWAP",
+      actionText: `STAY IN (${curMember.name})`,
+      shieldPlan: "0S (Don't Burn 2S)",
+      goalText: `Win Shield Adv / Soft Lose -> Farm w/ ${farmPartnerName}`,
+      oneLineBadge: `SAFE SWAP: STAY IN • 0S • Goal: Soft Lose -> Farm w/ ${farmPartnerName}`,
+      tone: "sky"
+    };
+  }
+
+  // User is in with Slot 1 or Slot 3 in mid/late game
+  const roleTag =
+    curIdx === 2
+      ? archetype === "ABB"
+        ? "B2 SWEEPER"
+        : archetype === "DUO"
+        ? "CORE 2"
+        : "CLOSER"
+      : archetype === "DUO"
+      ? "CORE 1"
+      : "ACTIVE";
+  const shieldPlan =
+    curBr00 >= 525
+      ? "0S (Save Shields)"
+      : curBr11 >= 515 && uS >= 1
+      ? "1S to Secure"
+      : curBr22 >= 515 && uS >= 2
+      ? "Commit 2S"
+      : "0S Soft Lose";
+  const goalText =
+    curBrNow >= 520
+      ? curIdx === 2
+        ? "Close Out & Sweep Endgame"
+        : "Farm Energy & Hold Alignment"
+      : `Chip Damage -> Set Up ${bestBenchName}`;
+
+  return {
+    visible: true,
+    phaseBadge: roleTag,
+    actionText: `STAY IN (${curMember.name})`,
+    shieldPlan,
+    goalText,
+    oneLineBadge: `${roleTag}: STAY IN • ${shieldPlan} • Goal: ${goalText}`,
+    tone: curBrNow >= 520 ? "emerald" : "sky"
+  };
+}
+
 
 
 

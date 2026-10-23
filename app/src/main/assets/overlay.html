@@ -238,6 +238,87 @@
             line-height: 1;
         }
 
+        /* v3.30: Ultra-Compact 1-Line Lead & Swap Tactical Recommendation Row */
+        .tactical-rec-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 3px;
+            padding: 2px 4px;
+            border-radius: 4px;
+            font-size: 7.5px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            line-height: 1.15;
+            white-space: nowrap;
+            overflow: hidden;
+            border: 1px solid rgba(56, 189, 248, 0.45);
+            background: rgba(8, 47, 73, 0.72);
+            color: #e0f2fe;
+        }
+        .tactical-rec-row.hidden {
+            display: none !important;
+        }
+        .tactical-rec-row.rec-emerald {
+            border-color: rgba(52, 211, 153, 0.65);
+            background: rgba(6, 78, 59, 0.78);
+            color: #d1fae5;
+        }
+        .tactical-rec-row.rec-sky {
+            border-color: rgba(56, 189, 248, 0.65);
+            background: rgba(12, 74, 110, 0.78);
+            color: #e0f2fe;
+        }
+        .tactical-rec-row.rec-amber {
+            border-color: rgba(251, 191, 36, 0.65);
+            background: rgba(120, 53, 15, 0.78);
+            color: #fef3c7;
+        }
+        .tactical-rec-row.rec-rose {
+            border-color: rgba(251, 113, 133, 0.65);
+            background: rgba(136, 19, 55, 0.78);
+            color: #ffe4e6;
+        }
+        .tactical-rec-left {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .tactical-rec-action {
+            font-weight: 900;
+            text-transform: uppercase;
+            padding: 1px 3px;
+            border-radius: 3px;
+            background: rgba(0, 0, 0, 0.45);
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            color: #ffffff;
+            flex-shrink: 0;
+        }
+        .tactical-rec-shield {
+            font-weight: 800;
+            color: #fcd34d;
+            flex-shrink: 0;
+        }
+        .tactical-rec-goal {
+            font-weight: 700;
+            color: #f8fafc;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .tactical-rec-swap-btn {
+            background: rgba(255, 255, 255, 0.16);
+            border: 1px solid rgba(255, 255, 255, 0.32);
+            color: #ffffff;
+            font-size: 7px;
+            font-weight: 800;
+            border-radius: 3px;
+            padding: 1px 3.5px;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+
         /* Quick Action Toolbar & Active Team Chips */
         .action-toolbar {
             display: flex;
@@ -922,6 +1003,16 @@
                 </button>
                 <span class="swap-clock-badge opp-swap-badge" id="sky-opp-swap-clock" title="Opponent Switch/Swap Cooldown Timer">Opp Swap: 0s</span>
             </div>
+        </div>
+
+        <!-- v3.30: Ultra-Compact 1-Line Lead & Swap Tactical Recommendation Row -->
+        <div id="sky-tactical-rec-row" class="tactical-rec-row hidden">
+            <div class="tactical-rec-left">
+                <span id="sky-rec-action" class="tactical-rec-action">STAY IN</span>
+                <span id="sky-rec-shield" class="tactical-rec-shield">[1S]</span>
+                <span id="sky-rec-goal" class="tactical-rec-goal">Goal: Hold Switch Adv</span>
+            </div>
+            <button id="sky-rec-swap-btn" type="button" class="tactical-rec-swap-btn hidden" onclick="applyRecommendedSwap()">Swap ➔</button>
         </div>
 
         <!-- Toolbar: Start/Stop Battle Trigger, Shadow Toggle, Form Cycler, and Active Team Chips -->
@@ -1831,6 +1922,16 @@
             }
         }
 
+        function applyRecommendedSwap() {
+            const swBtn = document.getElementById("sky-rec-swap-btn");
+            if (!swBtn) return;
+            const slotStr = swBtn.getAttribute("data-swap-slot");
+            const idx = parseInt(slotStr || "-1", 10);
+            if (!isNaN(idx) && idx >= 0 && idx <= 2) {
+                selectUserPokemonByIndex(idx);
+            }
+        }
+
         function swapOpponentByIndex(idx) {
             if (!battleData.scannedOpponents || !battleData.scannedOpponents[idx]) return;
             const pokemonName = battleData.scannedOpponents[idx].name || battleData.scannedOpponents[idx].code;
@@ -1979,6 +2080,8 @@
                 if (myDmgHeadersEl) myDmgHeadersEl.innerHTML = "";
                 if (timingRowsEl) timingRowsEl.innerHTML = "";
                 if (myTimingRowsEl) myTimingRowsEl.innerHTML = "";
+                const recRowWait = document.getElementById("sky-tactical-rec-row");
+                if (recRowWait) recRowWait.classList.add("hidden");
 
                 if (matrixBody) {
                     matrixBody.innerHTML = `
@@ -2001,6 +2104,37 @@
                     cmpBadgeEl.textContent = winsCmp ? "CMP WIN ✓" : "CMP LOSS";
                     cmpBadgeEl.className = "cmp-pill " + (winsCmp ? "win" : "loss");
                 }
+
+                // Render v3.30 Lead & Swap Tactical Recommendation Row (between header-row and action-toolbar)
+                try {
+                    const recRowEl = document.getElementById("sky-tactical-rec-row");
+                    const showRec = battleData.showTacticalRec !== false;
+                    const recObj = battleData.tacticalRec;
+                    if (recRowEl) {
+                        if (showRec && recObj && recObj.actionLabel) {
+                            const urg = recObj.urgencyColor || "sky";
+                            recRowEl.className = `tactical-rec-row rec-${urg}`;
+                            const actEl = document.getElementById("sky-rec-action");
+                            const shEl = document.getElementById("sky-rec-shield");
+                            const goalEl = document.getElementById("sky-rec-goal");
+                            const swBtn = document.getElementById("sky-rec-swap-btn");
+                            if (actEl) actEl.textContent = recObj.actionLabel;
+                            if (shEl) shEl.textContent = `[${recObj.shieldPlan || "1S"}]`;
+                            if (goalEl) goalEl.textContent = `Goal: ${recObj.goalText || "Hold Alignment"}`;
+                            if (swBtn) {
+                                const recSlot = typeof recObj.recommendedSwapSlotIndex === "number" ? recObj.recommendedSwapSlotIndex : -1;
+                                if (recSlot >= 0 && recSlot <= 2 && recSlot !== activeSlotIdx) {
+                                    swBtn.classList.remove("hidden");
+                                    swBtn.setAttribute("data-swap-slot", String(recSlot));
+                                } else {
+                                    swBtn.classList.add("hidden");
+                                }
+                            }
+                        } else {
+                            recRowEl.classList.add("hidden");
+                        }
+                    }
+                } catch (e) {}
 
                 // 1. Render 3v3 Battle Matrix FIRST in FIXED [1st seen, 2nd seen, 3rd seen] order
                 const activeOppSlotIdx = typeof battleData.activeOpponentSlotIndex === "number" ? battleData.activeOpponentSlotIndex : 0;

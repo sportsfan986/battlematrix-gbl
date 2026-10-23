@@ -198,6 +198,21 @@
                         android:textSize="9.5sp"
                         android:textStyle="bold"
                         android:backgroundTint="#334155"
+                        android:textColor="#cbd5e1"
+                        android:layout_marginEnd="4dp" />
+
+                    <Button
+                        android:id="@+id/btn_mode_duo"
+                        android:layout_width="wrap_content"
+                        android:layout_height="28dp"
+                        android:minWidth="0dp"
+                        android:minHeight="0dp"
+                        android:paddingHorizontal="10dp"
+                        android:paddingVertical="0dp"
+                        android:text="DUO"
+                        android:textSize="9.5sp"
+                        android:textStyle="bold"
+                        android:backgroundTint="#334155"
                         android:textColor="#cbd5e1" />
                 </LinearLayout>
 
@@ -213,11 +228,11 @@
                         android:id="@+id/btn_dialog_auto_detect_style"
                         android:layout_width="0dp"
                         android:layout_height="36dp"
-                        android:layout_weight="1.6"
+                        android:layout_weight="1.5"
                         android:minWidth="0dp"
                         android:paddingHorizontal="6dp"
-                        android:text="⚡ Auto-Detect Style &amp; Move Safe Swap"
-                        android:textSize="10sp"
+                        android:text="⚡ Auto-Detect Style"
+                        android:textSize="9.5sp"
                         android:textStyle="bold"
                         android:backgroundTint="#d97706"
                         android:textColor="#ffffff"
@@ -228,9 +243,9 @@
                         android:layout_width="wrap_content"
                         android:layout_height="36dp"
                         android:minWidth="0dp"
-                        android:paddingHorizontal="8dp"
-                        android:text="Slot 1 ⇄ 2"
-                        android:textSize="10sp"
+                        android:paddingHorizontal="7dp"
+                        android:text="1 ⇄ 2"
+                        android:textSize="9.5sp"
                         android:textStyle="bold"
                         android:backgroundTint="#334155"
                         android:textColor="#e2e8f0"
@@ -241,12 +256,25 @@
                         android:layout_width="wrap_content"
                         android:layout_height="36dp"
                         android:minWidth="0dp"
-                        android:paddingHorizontal="8dp"
-                        android:text="Slot 2 ⇄ 3"
-                        android:textSize="10sp"
+                        android:paddingHorizontal="7dp"
+                        android:text="2 ⇄ 3"
+                        android:textSize="9.5sp"
                         android:textStyle="bold"
                         android:backgroundTint="#334155"
-                        android:textColor="#e2e8f0" />
+                        android:textColor="#e2e8f0"
+                        android:layout_marginEnd="4dp" />
+
+                    <Button
+                        android:id="@+id/btn_swap_slot_1_3"
+                        android:layout_width="wrap_content"
+                        android:layout_height="36dp"
+                        android:minWidth="0dp"
+                        android:paddingHorizontal="7dp"
+                        android:text="☯️ 1 ⇄ 3"
+                        android:textSize="9.5sp"
+                        android:textStyle="bold"
+                        android:backgroundTint="#065f46"
+                        android:textColor="#d1fae5" />
                 </LinearLayout>
 
                 <!-- Top-200 Role Upgrade Recommendations Button (5 Per Role) -->

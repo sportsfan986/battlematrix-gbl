@@ -120,9 +120,11 @@ class OverlayService : LifecycleService() {
         const val EXTRA_APP_THEME_ID = "extra_app_theme_id"
         const val EXTRA_ENABLE_4_CHARGED_MOVES = "extra_enable_4_charged_moves"
         const val EXTRA_DISABLE_BATTLE_TOASTS = "extra_disable_battle_toasts"
+        const val EXTRA_SHOW_TACTICAL_RECOMMENDATIONS = "extra_show_tactical_recommendations"
 
         const val PREFS_KEY_ENABLE_4_CHARGED_MOVES = "enable_4_charged_moves"
         const val PREFS_KEY_DISABLE_BATTLE_TOASTS = "disable_battle_toasts"
+        const val PREFS_KEY_SHOW_TACTICAL_RECOMMENDATIONS = "show_tactical_recommendations"
         const val PREFS_KEY_OVERLAY_TRANSPARENCY_PCT = "overlay_transparency_pct"
         const val PREFS_KEY_APP_THEME_ID = "gbl_app_theme_id"
         const val PREFS_KEY_SHOW_THEME_WATERMARK = "gbl_show_theme_watermark"
@@ -4651,15 +4653,68 @@ class OverlayService : LifecycleService() {
                 }
             }
 
+            // Detect Symmetric Yin-Yang Duo-Core: Core 1 and Core 2 cover each other's weaknesses while Pivot acts as Safe Swap
+            fun countCoveredWeaknesses(defenderTypes: List<String>, partnerWeaknesses: Set<String>): Int {
+                return partnerWeaknesses.count { wType ->
+                    getTypeEffectivenessStatic(wType, defenderTypes) < 0.95
+                }
+            }
+
+            fun hasSharedUnresistedWeakness(typesA: List<String>, typesB: List<String>): Boolean {
+                val wA = getWeaknesses(typesA)
+                val wB = getWeaknesses(typesB)
+                return wA.intersect(wB).isNotEmpty()
+            }
+
             val swapScores = (0 until 3).map { computeSwapStatsForIndex(it).first }
             val closerMeans = (0 until 3).map { computeCloserStatsForIndex(it) }
 
-            val cleanOverride = manualArchetypeOverride?.trim()?.uppercase()?.takeIf { it == "ABB" || it == "ABC" }
-            val archetype: String = cleanOverride ?: if (detectedAbbTriplet != null) "ABB" else "ABC"
+            var detectedDuoTriplet: Triple<Int, Int, Int>? = null // (core1Idx, pivotIdx, core2Idx)
+            var detectedDuoCoveredTypes: List<String> = emptyList()
+            var bestDuoScore = -1.0
+
+            val duoPairs = listOf(
+                Triple(0, 1, 2), // Core (0, 2) + Pivot 1
+                Triple(0, 2, 1), // Core (0, 1) + Pivot 2
+                Triple(1, 0, 2)  // Core (1, 2) + Pivot 0
+            )
+            for ((cA, piv, cB) in duoPairs) {
+                if (hasSharedUnresistedWeakness(typesList[cA], typesList[cB])) continue
+                val aCoversB = countCoveredWeaknesses(typesList[cA], weakList[cB])
+                val bCoversA = countCoveredWeaknesses(typesList[cB], weakList[cA])
+                if (aCoversB >= 1 && bCoversA >= 1 && (aCoversB + bCoversA) >= 3) {
+                    val symScore = (aCoversB + bCoversA) * 18.0 + swapScores[piv] * 0.12 + (if (piv == 1) 8.0 else 0.0)
+                    if (symScore > bestDuoScore) {
+                        bestDuoScore = symScore
+                        detectedDuoTriplet = Triple(cA, piv, cB)
+                        val mutCovered = (weakList[cB].filter { getTypeEffectivenessStatic(it, typesList[cA]) < 0.95 } +
+                            weakList[cA].filter { getTypeEffectivenessStatic(it, typesList[cB]) < 0.95 })
+                            .distinct()
+                            .map { it.replaceFirstChar { c -> c.uppercase() } }
+                        detectedDuoCoveredTypes = mutCovered
+                    }
+                }
+            }
+
+            val cleanOverride = manualArchetypeOverride?.trim()?.uppercase()?.takeIf { it == "ABB" || it == "ABC" || it == "DUO" }
+            val archetype: String = cleanOverride ?: when {
+                detectedAbbTriplet != null -> "ABB"
+                detectedDuoTriplet != null -> "DUO"
+                else -> "ABC"
+            }
 
             if (archetype == "ABB" && detectedSharedWeaknesses.isEmpty()) {
                 val backShared = weakList[1].intersect(weakList[2])
                 detectedSharedWeaknesses = backShared.map { it.replaceFirstChar { c -> c.uppercase() } }
+            } else if (archetype == "DUO") {
+                if (detectedDuoCoveredTypes.isEmpty()) {
+                    val mutCovered = (weakList[2].filter { getTypeEffectivenessStatic(it, typesList[0]) < 0.95 } +
+                        weakList[0].filter { getTypeEffectivenessStatic(it, typesList[2]) < 0.95 })
+                        .distinct()
+                        .map { it.replaceFirstChar { c -> c.uppercase() } }
+                    detectedDuoCoveredTypes = mutCovered
+                }
+                detectedSharedWeaknesses = detectedDuoCoveredTypes
             }
 
             val finalOrderIndices: List<Int>
@@ -4670,6 +4725,25 @@ class OverlayService : LifecycleService() {
                     val (baitB, sweepB) = computeBaitVsSweeperScore(padded[bB], swapScores[bB], closerMeans[bB])
                     val b1First = (baitA + sweepB) >= (baitB + sweepA)
                     finalOrderIndices = if (b1First) listOf(aIdx, bA, bB) else listOf(aIdx, bB, bA)
+                } else {
+                    finalOrderIndices = listOf(0, 1, 2)
+                }
+            } else if (archetype == "DUO") {
+                if (autoReorder) {
+                    val (cA, piv, cB) = detectedDuoTriplet ?: run {
+                        // Pick highest Swap BR member as Pivot (Slot 2) and place the 2 core partners at Slots 1 & 3
+                        val bestPiv = (0..2).maxByOrNull { swapScores[it] } ?: 1
+                        val others = (0..2).filter { it != bestPiv }
+                        Triple(others[0], bestPiv, others[1])
+                    }
+                    var leadA = 0.0
+                    var leadB = 0.0
+                    for ((opp, prob) in dist.leadWeights) {
+                        if (prob <= 0.0) continue
+                        leadA += prob * (slotLeadBrMap[cA][opp] ?: 500.0)
+                        leadB += prob * (slotLeadBrMap[cB][opp] ?: 500.0)
+                    }
+                    finalOrderIndices = if (leadA >= leadB) listOf(cA, piv, cB) else listOf(cB, piv, cA)
                 } else {
                     finalOrderIndices = listOf(0, 1, 2)
                 }
@@ -4769,10 +4843,10 @@ class OverlayService : LifecycleService() {
             val keyThreatsFormatted = keyThreatsRaw.take(5).map { formatThreatWithMemberBrs(it) }
             val coreBreakersFormatted = coreBreakersRaw.take(5).map { formatThreatWithMemberBrs(it) }
 
-            val roleLabels = if (archetype == "ABB") {
-                listOf("Lead (A)", "Bait Swap (B1)", "Sweeper (B2)")
-            } else {
-                listOf("Lead", "Safe Swap", "Closer")
+            val roleLabels = when (archetype) {
+                "ABB" -> listOf("Lead (A)", "Bait Swap (B1)", "Sweeper (B2)")
+                "DUO" -> listOf("Lead (Core 1)", "Pivot (Swap)", "Co-Core (Core 2)")
+                else -> listOf("Lead", "Safe Swap", "Closer")
             }
 
             val altMovesetSlots = ordered.mapIndexed { sIdx, m ->
@@ -4811,18 +4885,31 @@ class OverlayService : LifecycleService() {
                 .map { "${it.pokemonName} (${it.fastMove} + ${it.chargedMove1}/${it.chargedMove2})" }
             val altSuffix = if (altNotes.isNotEmpty()) " • Alt Moveset Tech: ${altNotes.joinToString("; ")}." else ""
 
-            val synergySummary = if (archetype == "ABB") {
-                val sharedStr = if (detectedSharedWeaknesses.isNotEmpty()) detectedSharedWeaknesses.joinToString("/").uppercase() else "BACKLINE"
-                "ABB Lineup: ${slot1.name} (Lead A) covers backline $sharedStr weakness for ${slot2.name} (Bait B1) & ${slot3.name} (Sweeper B2). Beats ${beatenTargets.size}/$targetAuditTotal Top Meta. Key Wins: $winsPreview. Key Threats: $threatsPreview. Core Breakers: $breakersPreview.$altSuffix"
-            } else {
-                "ABC Balanced Core: ${slot1.name} Lead ($leadAggVal BR) + ${slot2.name} Safe Swap ($safeSwapBrVal BR) + ${slot3.name} Closer ($closerBrVal BR). Beats ${beatenTargets.size}/$targetAuditTotal Top Meta. Key Wins: $winsPreview. Key Threats: $threatsPreview. Core Breakers: $breakersPreview.$altSuffix"
+            val synergySummary = when (archetype) {
+                "ABB" -> {
+                    val sharedStr = if (detectedSharedWeaknesses.isNotEmpty()) detectedSharedWeaknesses.joinToString("/").uppercase() else "BACKLINE"
+                    "ABB Lineup: ${slot1.name} (Lead A) covers backline $sharedStr weakness for ${slot2.name} (Bait B1) & ${slot3.name} (Sweeper B2). Beats ${beatenTargets.size}/$targetAuditTotal Top Meta. Key Wins: $winsPreview. Key Threats: $threatsPreview. Core Breakers: $breakersPreview.$altSuffix"
+                }
+                "DUO" -> {
+                    val covStr = if (detectedSharedWeaknesses.isNotEmpty()) " (${detectedSharedWeaknesses.joinToString("/")} covered)" else ""
+                    "Duo-Core (Yin-Yang 1⇄3): ${slot1.name} (Core 1 Lead, $leadAggVal BR) & ${slot3.name} (Core 2 Co-Core, $closerBrVal BR) mutually cover each other's weaknesses$covStr, with ${slot2.name} ($safeSwapBrVal BR) as the Safe Swap Pivot. Beats ${beatenTargets.size}/$targetAuditTotal Top Meta. Key Wins: $winsPreview. Key Threats: $threatsPreview. Core Breakers: $breakersPreview.$altSuffix"
+                }
+                else -> {
+                    "ABC Balanced Core: ${slot1.name} Lead ($leadAggVal BR) + ${slot2.name} Safe Swap ($safeSwapBrVal BR) + ${slot3.name} Closer ($closerBrVal BR). Beats ${beatenTargets.size}/$targetAuditTotal Top Meta. Key Wins: $winsPreview. Key Threats: $threatsPreview. Core Breakers: $breakersPreview.$altSuffix"
+                }
             }
 
-            val reasonSummary = if (archetype == "ABB") {
-                val sharedStr = if (detectedSharedWeaknesses.isNotEmpty()) detectedSharedWeaknesses.joinToString("/") else "Backline"
-                "⚡ Auto-Detected ABB Lineup (Shared $sharedStr weakness covered by ${slot1.name}) → #1 Lead (A): ${slot1.name} (Lead BR $leadAggVal) • #2 Bait Swap (B1): ${slot2.name} (Swap BR $safeSwapBrVal) • #3 Sweeper (B2): ${slot3.name} (Closer BR $closerBrVal) • $synergySummary"
-            } else {
-                "⚡ Auto-Detected ABC Balanced Core → #1 Lead kept: ${slot1.name} (Lead BR $leadAggVal) • #2 Safe Swap moved to Slot 2: ${slot2.name} (Swap BR $safeSwapBrVal) • #3 Closer: ${slot3.name} (Closer BR $closerBrVal) • $synergySummary"
+            val reasonSummary = when (archetype) {
+                "ABB" -> {
+                    val sharedStr = if (detectedSharedWeaknesses.isNotEmpty()) detectedSharedWeaknesses.joinToString("/") else "Backline"
+                    "⚡ Auto-Detected ABB Lineup (Shared $sharedStr weakness covered by ${slot1.name}) → #1 Lead (A): ${slot1.name} (Lead BR $leadAggVal) • #2 Bait Swap (B1): ${slot2.name} (Swap BR $safeSwapBrVal) • #3 Sweeper (B2): ${slot3.name} (Closer BR $closerBrVal) • $synergySummary"
+                }
+                "DUO" -> {
+                    "☯️ Auto-Detected Duo-Core Lineup (Yin-Yang 1st & 3rd Core) → #1 Core 1 Lead: ${slot1.name} (Lead BR $leadAggVal) • #2 Safe Swap Pivot: ${slot2.name} (Swap BR $safeSwapBrVal) • #3 Core 2 Co-Core: ${slot3.name} (Closer BR $closerBrVal) • $synergySummary"
+                }
+                else -> {
+                    "⚡ Auto-Detected ABC Balanced Core → #1 Lead kept: ${slot1.name} (Lead BR $leadAggVal) • #2 Safe Swap moved to Slot 2: ${slot2.name} (Swap BR $safeSwapBrVal) • #3 Closer: ${slot3.name} (Closer BR $closerBrVal) • $synergySummary"
+                }
             }
 
             return TeamArchetypeEvaluationResult(
@@ -5574,7 +5661,7 @@ class OverlayService : LifecycleService() {
 
         data class AntiMetaTeamOption(
             val id: String,
-            val archetype: String, // "ABB" or "ABC"
+            val archetype: String, // "ABB", "ABC", or "DUO"
             val rank: Int,
             val league: String,
             val pokemon: List<TeamMember>,
@@ -5602,6 +5689,7 @@ class OverlayService : LifecycleService() {
             val featuredPokemon: List<String>,
             val top5AbbTeams: List<AntiMetaTeamOption>,
             val top5AbcTeams: List<AntiMetaTeamOption>,
+            val top5DuoTeams: List<AntiMetaTeamOption> = emptyList(),
             val candidatesEvaluated: Int,
             val movesetCombosSimulated: Int = 0,
             val metaTargetCount: Int = 25,
@@ -6167,14 +6255,16 @@ class OverlayService : LifecycleService() {
                     }
                 }
 
+                val duoSymmetryBonus = if (archetype == "DUO") sharedWeaks.size * 4.5 else 0.0
                 val rawComposite = 0.48 * machineAggBr.toDouble() +
                     0.20 * m0.leadBr.toDouble() +
                     0.16 * m1.swapBr.toDouble() +
                     0.16 * m2.closerBr.toDouble() +
-                    beatenTargets.size * 1.65 -
+                    beatenTargets.size * 1.65 +
+                    duoSymmetryBonus -
                     coreBreakers.size * 7.5 -
                     keyThreats.size * 1.8 -
-                    (if (archetype == "ABC") unresistedTripleWeakPenalty else 0.0)
+                    (if (archetype == "ABC" || archetype == "DUO") unresistedTripleWeakPenalty else 0.0)
                 val compositeAntiMetaScore = (rawComposite * 10.0).roundToInt() / 10.0
 
                 val winsPreview = beatenTargets.take(5).joinToString(", ").ifEmpty { "Broad neutral coverage" }
@@ -6209,10 +6299,13 @@ class OverlayService : LifecycleService() {
                     }
                 }
 
-                val synergySummary = if (archetype == "ABB") {
-                    "ABB Lineup: ${m0.member.name} (Lead A) covers backline ${sharedWeaks.joinToString("/") { it.uppercase() }} weakness for ${m1.member.name} (Bait B1) & ${m2.member.name} (Sweeper B2). Beats ${beatenTargets.size}/$targetAuditTotal Top Meta. Key Wins: $winsPreview. Key Threats: $threatsPreview. Core Breakers: $breakersPreview.$altSuffix"
-                } else {
-                    "ABC Balanced Core: ${m0.member.name} Lead (${m0.leadBr} BR) + ${m1.member.name} Safe Swap (${m1.swapBr} BR) + ${m2.member.name} Closer (${m2.closerBr} BR). Beats ${beatenTargets.size}/$targetAuditTotal Top Meta. Key Wins: $winsPreview. Key Threats: $threatsPreview. Core Breakers: $breakersPreview.$altSuffix"
+                val synergySummary = when (archetype) {
+                    "ABB" -> "ABB Lineup: ${m0.member.name} (Lead A) covers backline ${sharedWeaks.joinToString("/") { it.uppercase() }} weakness for ${m1.member.name} (Bait B1) & ${m2.member.name} (Sweeper B2). Beats ${beatenTargets.size}/$targetAuditTotal Top Meta. Key Wins: $winsPreview. Key Threats: $threatsPreview. Core Breakers: $breakersPreview.$altSuffix"
+                    "DUO" -> {
+                        val covStr = if (sharedWeaks.isNotEmpty()) " (${sharedWeaks.joinToString("/") { it.uppercase() }} covered)" else ""
+                        "Duo-Core (Yin-Yang 1⇄3): ${m0.member.name} (Core 1 Lead, ${m0.leadBr} BR) & ${m2.member.name} (Core 2 Co-Core, ${m2.closerBr} BR) mutually cover each other's weaknesses$covStr, with ${m1.member.name} (${m1.swapBr} BR) as the Safe Swap Pivot. Beats ${beatenTargets.size}/$targetAuditTotal Top Meta. Key Wins: $winsPreview. Key Threats: $threatsPreview. Core Breakers: $breakersPreview.$altSuffix"
+                    }
+                    else -> "ABC Balanced Core: ${m0.member.name} Lead (${m0.leadBr} BR) + ${m1.member.name} Safe Swap (${m1.swapBr} BR) + ${m2.member.name} Closer (${m2.closerBr} BR). Beats ${beatenTargets.size}/$targetAuditTotal Top Meta. Key Wins: $winsPreview. Key Threats: $threatsPreview. Core Breakers: $breakersPreview.$altSuffix"
                 }
 
                 return AntiMetaTeamOption(
@@ -6242,6 +6335,7 @@ class OverlayService : LifecycleService() {
 
             val abbCandidates = ArrayList<AntiMetaTeamOption>()
             val abcCandidates = ArrayList<AntiMetaTeamOption>()
+            val duoCandidates = ArrayList<AntiMetaTeamOption>()
             val seenTrios = HashSet<String>()
             var candidatesEvaluated = 0
 
@@ -6374,6 +6468,48 @@ class OverlayService : LifecycleService() {
                     }
                 }
 
+                // Evaluate Symmetric Yin-Yang Duo-Core (1st & 3rd cover each other's weaknesses; 2nd is Safe Swap Pivot)
+                var bestDuoOrder: Triple<Int, Int, Int>? = null
+                var bestDuoCovered: List<String> = emptyList()
+                var bestDuoStructureScore = Double.NEGATIVE_INFINITY
+
+                for ((pivotIdx, cI, cJ) in indexPermutations) {
+                    val wI = evals[cI].weaknesses.toSet()
+                    val wJ = evals[cJ].weaknesses.toSet()
+                    if (wI.intersect(wJ).isNotEmpty()) continue // Core partners cannot share an unresisted weakness
+                    val rI = evals[cI].resistances.toSet()
+                    val rJ = evals[cJ].resistances.toSet()
+                    val coveredByI = wJ.filter { it in rI }
+                    val coveredByJ = wI.filter { it in rJ }
+                    if (coveredByI.isNotEmpty() && coveredByJ.isNotEmpty() && (coveredByI.size + coveredByJ.size) >= 3) {
+                        val c1First = (evals[cI].leadBr + evals[cJ].closerBr) >= (evals[cJ].leadBr + evals[cI].closerBr)
+                        val ordered = if (c1First) Triple(cI, pivotIdx, cJ) else Triple(cJ, pivotIdx, cI)
+                        val dScore = (coveredByI.size + coveredByJ.size) * 32.0 +
+                            evals[ordered.first].leadBr * 0.35 +
+                            evals[ordered.second].swapBr * 0.38 +
+                            evals[ordered.third].closerBr * 0.27
+                        if (dScore > bestDuoStructureScore) {
+                            bestDuoStructureScore = dScore
+                            bestDuoOrder = ordered
+                            bestDuoCovered = (coveredByI + coveredByJ).distinct()
+                        }
+                    }
+                }
+
+                if (bestDuoOrder != null) {
+                    duoCandidates.add(
+                        buildTeamOptionFromEvals(
+                            evals[bestDuoOrder.first],
+                            evals[bestDuoOrder.second],
+                            evals[bestDuoOrder.third],
+                            "DUO",
+                            bestDuoCovered,
+                            "anti-meta-duo",
+                            sig
+                        )
+                    )
+                }
+
                 if (bestAbbOrder != null) {
                     abbCandidates.add(
                         buildTeamOptionFromEvals(
@@ -6401,8 +6537,8 @@ class OverlayService : LifecycleService() {
                 }
             }
 
-            if (abbCandidates.size < 8 || abcCandidates.size < 8) {
-                for (trio in triosToEvaluate.take(80)) {
+            if (abbCandidates.size < 8 || abcCandidates.size < 8 || duoCandidates.size < 8) {
+                for (trio in triosToEvaluate.take(90)) {
                     val list3 = listOf(trio.first, trio.second, trio.third)
                     val e0 = slotEvalCache[list3[0].name.lowercase()] ?: continue
                     val e1 = slotEvalCache[list3[1].name.lowercase()] ?: continue
@@ -6432,6 +6568,31 @@ class OverlayService : LifecycleService() {
                         }
                     }
 
+                    if (duoCandidates.size < 8 && duoCandidates.none { it.id.endsWith(sig) }) {
+                        for ((pivotIdx, cI, cJ) in indexPermutations) {
+                            val wI = evals[cI].weaknesses.toSet()
+                            val wJ = evals[cJ].weaknesses.toSet()
+                            val rI = evals[cI].resistances.toSet()
+                            val rJ = evals[cJ].resistances.toSet()
+                            val covered = (wJ.filter { it in rI } + wI.filter { it in rJ }).distinct()
+                            if (covered.size >= 2 && wI.intersect(wJ).size <= 1) {
+                                val ordered = if (evals[cI].leadBr >= evals[cJ].leadBr) Triple(cI, pivotIdx, cJ) else Triple(cJ, pivotIdx, cI)
+                                duoCandidates.add(
+                                    buildTeamOptionFromEvals(
+                                        evals[ordered.first],
+                                        evals[ordered.second],
+                                        evals[ordered.third],
+                                        "DUO",
+                                        covered,
+                                        "anti-meta-duo-fallback",
+                                        sig
+                                    )
+                                )
+                                break
+                            }
+                        }
+                    }
+
                     if (abcCandidates.size < 8 && abcCandidates.none { it.id.endsWith(sig) }) {
                         val m0 = e0
                         val m1 = if (e1.swapBr >= e2.swapBr) e1 else e2
@@ -6445,6 +6606,7 @@ class OverlayService : LifecycleService() {
 
             abbCandidates.sortByDescending { it.compositeAntiMetaScore }
             abcCandidates.sortByDescending { it.compositeAntiMetaScore }
+            duoCandidates.sortByDescending { it.compositeAntiMetaScore }
 
             fun pickTopDiverseFinalists(list: List<AntiMetaTeamOption>, maxCount: Int): List<AntiMetaTeamOption> {
                 val picked = ArrayList<AntiMetaTeamOption>(maxCount)
@@ -6519,10 +6681,10 @@ class OverlayService : LifecycleService() {
                 val b2 = slotEvalCache[option.pokemon.getOrNull(2)?.name?.lowercase() ?: ""] ?: return option
                 val baseEvals = listOf(b0, b1, b2)
                 val curEvals = mutableListOf(b0, b1, b2)
-                val roleLabels = if (option.archetype == "ABB") {
-                    listOf("Lead (A)", "Bait Swap (B1)", "Sweeper (B2)")
-                } else {
-                    listOf("Lead", "Safe Swap", "Closer")
+                val roleLabels = when (option.archetype) {
+                    "ABB" -> listOf("Lead (A)", "Bait Swap (B1)", "Sweeper (B2)")
+                    "DUO" -> listOf("Lead (Core 1)", "Pivot (Swap)", "Co-Core (Core 2)")
+                    else -> listOf("Lead", "Safe Swap", "Closer")
                 }
 
                 for (slotIdx in 0..2) {
@@ -6658,9 +6820,12 @@ class OverlayService : LifecycleService() {
                 .sortedByDescending { it.compositeAntiMetaScore }
             val abcFinalists = pickTopDiverseFinalists(abcCandidates, 6).map { optimizeTeamOptionMovesets(it) }
                 .sortedByDescending { it.compositeAntiMetaScore }
+            val duoFinalists = pickTopDiverseFinalists(duoCandidates, 6).map { optimizeTeamOptionMovesets(it) }
+                .sortedByDescending { it.compositeAntiMetaScore }
 
             val top5Abb = abbFinalists.take(5).mapIndexed { idx, item -> item.copy(rank = idx + 1) }
             val top5Abc = abcFinalists.take(5).mapIndexed { idx, item -> item.copy(rank = idx + 1) }
+            val top5Duo = duoFinalists.take(5).mapIndexed { idx, item -> item.copy(rank = idx + 1) }
             val elapsed = max(1L, System.currentTimeMillis() - t0)
 
             return AntiMetaTeamBuilderResult(
@@ -6669,6 +6834,7 @@ class OverlayService : LifecycleService() {
                 featuredPokemon = slotConstraints.map { it.displayLabel },
                 top5AbbTeams = top5Abb,
                 top5AbcTeams = top5Abc,
+                top5DuoTeams = top5Duo,
                 candidatesEvaluated = candidatesEvaluated,
                 movesetCombosSimulated = movesetCombosSimulated,
                 metaTargetCount = targetAuditTotal,
@@ -6733,6 +6899,7 @@ class OverlayService : LifecycleService() {
     private var oppCountMode = "my_fasts"
     private var enable4ChargedMoves = false
     private var disableBattleToasts = false
+    private var showTacticalRecommendations = true
     private var overlayScalePct = 78
     private var overlayTransparencyPct = 72
     private var appThemeId = "dialga_shiny_midnight"
@@ -6785,6 +6952,8 @@ class OverlayService : LifecycleService() {
     private var oppSwitchAliveFrames: Int = 0
     private var playerShieldDropFrames: Int = 0
     private var oppShieldDropFrames: Int = 0
+    private var playerShieldRestoreFrames: Int = 0
+    private var oppShieldRestoreFrames: Int = 0
 
     // Phase 2: Battle Clock Synchronization (t0) & Live Timeline Event Logger
     private var battleClockAnchorMs: Long = 0L
@@ -6942,6 +7111,7 @@ class OverlayService : LifecycleService() {
         oppCountMode = prefs.getString("opp_count_mode", "my_fasts") ?: "my_fasts"
         enable4ChargedMoves = prefs.getBoolean(PREFS_KEY_ENABLE_4_CHARGED_MOVES, false)
         disableBattleToasts = prefs.getBoolean(PREFS_KEY_DISABLE_BATTLE_TOASTS, false)
+        showTacticalRecommendations = prefs.getBoolean(PREFS_KEY_SHOW_TACTICAL_RECOMMENDATIONS, true)
         overlayScalePct = prefs.getInt("overlay_scale_pct", 78).coerceIn(50, 100)
         overlayTransparencyPct = prefs.getInt(PREFS_KEY_OVERLAY_TRANSPARENCY_PCT, 72).coerceIn(0, 100)
         val rawSavedThemeId = prefs.getString(PREFS_KEY_APP_THEME_ID, "dialga_shiny_midnight") ?: "dialga_shiny_midnight"
@@ -7449,6 +7619,13 @@ class OverlayService : LifecycleService() {
                 }
                 overlayView?.evaluateJavascript("if (window.setDisableBattleToasts) setDisableBattleToasts($disableBattleToasts);", null)
 
+                showTacticalRecommendations = if (intent?.hasExtra(EXTRA_SHOW_TACTICAL_RECOMMENDATIONS) == true) {
+                    intent.getBooleanExtra(EXTRA_SHOW_TACTICAL_RECOMMENDATIONS, true)
+                } else {
+                    prefs.getBoolean(PREFS_KEY_SHOW_TACTICAL_RECOMMENDATIONS, showTacticalRecommendations)
+                }
+                overlayView?.evaluateJavascript("if (window.setShowTacticalRecs) setShowTacticalRecs($showTacticalRecommendations);", null)
+
                 val requestedTeamName = intent?.getStringExtra(EXTRA_TEAM_NAME)
                     ?: intent?.getStringExtra("preset")
                 if (!requestedTeamName.isNullOrBlank()) {
@@ -7518,6 +7695,12 @@ class OverlayService : LifecycleService() {
                     disableBattleToasts = prefs.getBoolean(PREFS_KEY_DISABLE_BATTLE_TOASTS, disableBattleToasts)
                 }
                 overlayView?.evaluateJavascript("if (window.setDisableBattleToasts) setDisableBattleToasts($disableBattleToasts);", null)
+                if (intent?.hasExtra(EXTRA_SHOW_TACTICAL_RECOMMENDATIONS) == true) {
+                    showTacticalRecommendations = intent.getBooleanExtra(EXTRA_SHOW_TACTICAL_RECOMMENDATIONS, true)
+                } else {
+                    showTacticalRecommendations = prefs.getBoolean(PREFS_KEY_SHOW_TACTICAL_RECOMMENDATIONS, showTacticalRecommendations)
+                }
+                overlayView?.evaluateJavascript("if (window.setShowTacticalRecs) setShowTacticalRecs($showTacticalRecommendations);", null)
                 syncTierThresholdsFromPrefs(prefs)
                 val updatedScalePct = intent?.getIntExtra(
                     EXTRA_OVERLAY_SCALE_PCT,
@@ -8767,8 +8950,9 @@ class OverlayService : LifecycleService() {
         val frameTimeMs = currentFrameTimestampMs.takeIf { it > 0L } ?: System.currentTimeMillis()
         val eventT = getElapsedBattleSeconds(frameTimeMs)
 
-        // Shield count transitions (verified across 2 visible HUD frames so Charged Move camera zooms never false-drop shields)
+        // Shield count transitions + 2-frame continual self-healing restoration (if a shield was not actually used)
         if (sampledPlayerShields in 0..1 && sampledPlayerShields < playerShieldsRemaining) {
+            playerShieldRestoreFrames = 0
             playerShieldDropFrames++
             if (playerShieldDropFrames >= 2) {
                 val prevShields = playerShieldsRemaining
@@ -8793,11 +8977,32 @@ class OverlayService : LifecycleService() {
                 changed = true
                 showBattleToast("🛡️ Player Shield Used ($playerShieldsRemaining left)")
             }
-        } else if (sampledPlayerShields >= playerShieldsRemaining) {
+        } else if (sampledPlayerShields in 1..2 && sampledPlayerShields > playerShieldsRemaining) {
             playerShieldDropFrames = 0
+            playerShieldRestoreFrames++
+            if (playerShieldRestoreFrames >= 2) {
+                val restoredTo = sampledPlayerShields.coerceIn(1, 2)
+                val shieldsRestoredCount = (restoredTo - playerShieldsRemaining).coerceAtLeast(1)
+                repeat(shieldsRestoredCount) {
+                    val lastUserShieldIdx = battleTimelineEvents.indexOfLast {
+                        it.type.equals("SHIELD", ignoreCase = true) && it.actor.equals("user", ignoreCase = true)
+                    }
+                    if (lastUserShieldIdx >= 0) {
+                        battleTimelineEvents.removeAt(lastUserShieldIdx)
+                    }
+                }
+                playerShieldsRemaining = restoredTo
+                playerShieldRestoreFrames = 0
+                changed = true
+                showBattleToast("🛡️ Player Shield Restored ($playerShieldsRemaining left)")
+            }
+        } else if (sampledPlayerShields == playerShieldsRemaining) {
+            playerShieldDropFrames = 0
+            playerShieldRestoreFrames = 0
         }
 
         if (sampledOppShields in 0..1 && sampledOppShields < oppShieldsRemaining) {
+            oppShieldRestoreFrames = 0
             oppShieldDropFrames++
             if (oppShieldDropFrames >= 2) {
                 val prevShields = oppShieldsRemaining
@@ -8822,8 +9027,28 @@ class OverlayService : LifecycleService() {
                 changed = true
                 showBattleToast("🛡️ Opponent Shield Used ($oppShieldsRemaining left)")
             }
-        } else if (sampledOppShields >= oppShieldsRemaining) {
+        } else if (sampledOppShields in 1..2 && sampledOppShields > oppShieldsRemaining) {
             oppShieldDropFrames = 0
+            oppShieldRestoreFrames++
+            if (oppShieldRestoreFrames >= 2) {
+                val restoredTo = sampledOppShields.coerceIn(1, 2)
+                val shieldsRestoredCount = (restoredTo - oppShieldsRemaining).coerceAtLeast(1)
+                repeat(shieldsRestoredCount) {
+                    val lastOppShieldIdx = battleTimelineEvents.indexOfLast {
+                        it.type.equals("SHIELD", ignoreCase = true) && it.actor.equals("opp", ignoreCase = true)
+                    }
+                    if (lastOppShieldIdx >= 0) {
+                        battleTimelineEvents.removeAt(lastOppShieldIdx)
+                    }
+                }
+                oppShieldsRemaining = restoredTo
+                oppShieldRestoreFrames = 0
+                changed = true
+                showBattleToast("🛡️ Opponent Shield Restored ($oppShieldsRemaining left)")
+            }
+        } else if (sampledOppShields == oppShieldsRemaining) {
+            oppShieldDropFrames = 0
+            oppShieldRestoreFrames = 0
         }
 
         // Player Pokéball self-healing & post-switch verification
@@ -9298,6 +9523,8 @@ class OverlayService : LifecycleService() {
         oppSwitchAliveFrames = 0
         playerShieldDropFrames = 0
         oppShieldDropFrames = 0
+        playerShieldRestoreFrames = 0
+        oppShieldRestoreFrames = 0
 
         stopBattleOcrLoop()
         startBattleOcrLoop()
@@ -10468,6 +10695,16 @@ class OverlayService : LifecycleService() {
                 "opponent_shields_remaining" to oppShieldsRemaining,
                 "playerFaintedSlots" to playerFaintedSlots.toList(),
                 "oppFaintedSlots" to oppFaintedSlots.toList(),
+                "teamArchetype" to (currentPreset?.archetype ?: "ABC"),
+                "showTacticalRecommendations" to showTacticalRecommendations,
+                "tacticalRecommendation" to mapOf(
+                    "phase" to "WAITING",
+                    "archetype" to (currentPreset?.archetype ?: "ABC"),
+                    "action" to "AWAITING LEAD",
+                    "shieldPlan" to "2S",
+                    "goal" to "Scan opponent lead to compute plan",
+                    "tone" to "neutral"
+                ),
                 "team" to teamData,
                 "scannedOpponents" to emptyList<Map<String, Any>>(),
                 "oppMoveTimingRows" to emptyList<Map<String, Any>>(),
@@ -11000,6 +11237,145 @@ class OverlayService : LifecycleService() {
             )
         }
 
+        // Compute Real-Time Tactical Lead & Swap Recommendation (Action, Shield Plan, Matchup Goal)
+        val teamArchetype = (currentPreset?.archetype ?: "ABC").uppercase()
+        val oppFullNameForMatrix = if (isOpponentShadow && !oppMeta.name.startsWith("Shadow ", ignoreCase = true)) {
+            "Shadow ${oppMeta.name}"
+        } else {
+            oppMeta.name
+        }
+        val teamSlotsList = listOf(p1, p2, p3)
+        fun slotBr(slotIdx: Int, uS: Int, oS: Int): Int {
+            val s = teamSlotsList.getOrNull(slotIdx)
+            val sName = s?.name ?: teamNames.getOrElse(slotIdx) { "Dialga (Origin)" }
+            return getOverlayRealtimeMatchupRatingStatic(
+                myName = sName,
+                oppName = oppFullNameForMatrix,
+                userShields = uS.coerceIn(0, 2),
+                oppShields = oS.coerceIn(0, 2),
+                league = activeLeague,
+                myFastMove = s?.fastMove,
+                myCharged1 = s?.chargedMove1,
+                myCharged2 = s?.chargedMove2,
+                myCp = s?.cp,
+                myIvs = s?.ivs
+            )
+        }
+        val activeSlotIdxSafe = activeUserSlotIndex.coerceIn(0, 2)
+        val curEqS = min(playerShieldsRemaining, oppShieldsRemaining).coerceIn(0, 2)
+        val curBr = slotBr(activeSlotIdxSafe, playerShieldsRemaining, oppShieldsRemaining)
+        val br0s = slotBr(activeSlotIdxSafe, 0, 0)
+        val br1s = slotBr(activeSlotIdxSafe, 1, 1)
+        val br2s = slotBr(activeSlotIdxSafe, 2, 2)
+
+        val shieldPlanStr = when {
+            playerShieldsRemaining == 0 -> "0S"
+            br0s >= activeTierWMin && br0s >= br1s - 25 -> "0S"
+            playerShieldsRemaining >= 2 && br2s >= activeTierWMin && br2s > br1s + 35 -> "2S"
+            br1s >= activeTierLMax -> "1S"
+            br0s >= 445 -> "0S"
+            else -> "1S->0S"
+        }
+
+        val canPlayerSwap = playerSwapRemainingSec <= 0
+        val aliveBenchIndices = (0..2).filter { it != activeSlotIdxSafe && !playerFaintedSlots[it] }
+        val isLeadPhase = activeOpponentSlotIndex == 0 && activeSlotIdxSafe == 0 && oppSwapRemainingSec <= 0 && detectedOpponents.size <= 1
+
+        var recAction = "STAY IN"
+        var recGoal = "Hold Switch Adv"
+        var recTone = "stay"
+
+        if (isLeadPhase) {
+            val pivotIdx = if (1 in aliveBenchIndices) 1 else aliveBenchIndices.firstOrNull()
+            val pivotCode = if (pivotIdx != null) abbrPokemon3(teamNames[pivotIdx]) else "SWAP"
+            val corePartnerCode = abbrPokemon3(teamNames.getOrElse(2) { p1Name })
+            val backlineWeakToLead = (1..2).any { bIdx -> slotBr(bIdx, curEqS, curEqS) <= activeTierLMax }
+
+            if (curBr >= activeTierSwMin) {
+                recAction = "STAY IN"
+                recGoal = "Dominate Lead & Hold Switch"
+                recTone = "stay"
+            } else if (curBr >= activeTierWMin) {
+                recAction = "STAY IN"
+                recGoal = if (br0s >= activeTierWMin) "Win 0S & Bank Energy" else "Commit $shieldPlanStr for Switch"
+                recTone = "stay"
+            } else if (teamArchetype == "ABB" && backlineWeakToLead && curBr >= activeTierSlMax) {
+                recAction = "STAY IN (ABB)"
+                recGoal = "Eliminate Backline Threat"
+                recTone = "stay"
+            } else if (curBr > activeTierLMax) {
+                if (teamArchetype == "ABB" && pivotIdx != null && canPlayerSwap) {
+                    recAction = "CHIP -> SWAP $pivotCode"
+                    recGoal = "Soft Chip & Lure Backline Counter"
+                    recTone = "bait"
+                } else {
+                    recAction = "STAY / SOFT LOSE"
+                    recGoal = if (br0s >= 450) "Soft Lose 0S -> Farm Down" else "Play +1 Shield Adv"
+                    recTone = "bait"
+                }
+            } else {
+                // Lead Loss (L or SL)
+                if (canPlayerSwap && pivotIdx != null) {
+                    recAction = if (teamArchetype == "ABB") "BAIT -> $pivotCode" else "SWAP -> $pivotCode"
+                    recGoal = when (teamArchetype) {
+                        "ABB" -> "Lure Threat & Farm w/ ${abbrPokemon3(p1Name)}"
+                        "DUO" -> "Push Shield/Switch -> Farm w/ $corePartnerCode"
+                        else -> "Fight for Switch or +1 Shield Adv"
+                    }
+                    recTone = "swap"
+                } else {
+                    recAction = "SOFT LOSE 0S"
+                    recGoal = "No Shields -> Farm w/ Backline"
+                    recTone = "bait"
+                }
+            }
+        } else if (activeOpponentSlotIndex > 0 && canPlayerSwap && curBr <= activeTierLMax && aliveBenchIndices.isNotEmpty()) {
+            // Opponent swapped or brought in a counter and our switch clock is ready
+            val bestCounterIdx = aliveBenchIndices.maxByOrNull { idx -> slotBr(idx, playerShieldsRemaining, oppShieldsRemaining) } ?: aliveBenchIndices.first()
+            val bestCounterBr = slotBr(bestCounterIdx, playerShieldsRemaining, oppShieldsRemaining)
+            val bestCounterCode = abbrPokemon3(teamNames[bestCounterIdx])
+            if (bestCounterBr > curBr + 45) {
+                recAction = "COUNTER -> $bestCounterCode"
+                recGoal = if (bestCounterBr >= activeTierWMin) "Punish Swap & Farm Energy" else "Neutralize Swap & Take Shields"
+                recTone = "counter"
+            } else {
+                recAction = "STAY / CHIP"
+                recGoal = "Chip & Soft Lose 0S -> Farm Down"
+                recTone = "bait"
+            }
+        } else if (activeSlotIdxSafe > 0) {
+            // Player is currently on their Safe Swap / Pivot / Sweeper
+            val leadAlive = !playerFaintedSlots[0]
+            val farmPartnerCode = if (leadAlive) abbrPokemon3(p1Name) else abbrPokemon3(teamNames.getOrElse(2) { p1Name })
+            if (activeSlotIdxSafe == 1 && teamArchetype == "ABB") {
+                recAction = if (curBr >= activeTierWMin) "PRESSURE (B1)" else "BAIT SHIELDS"
+                recGoal = if (curBr >= activeTierWMin) "Flip Switch or Force 2S" else "Draw Threat -> Farm w/ $farmPartnerCode"
+                recTone = if (curBr >= activeTierWMin) "stay" else "bait"
+            } else if (activeSlotIdxSafe == 1) {
+                recAction = if (curBr >= activeTierWMin) "FIGHT SWITCH" else "SOFT LOSE (PIVOT)"
+                recGoal = if (curBr >= activeTierWMin) "Win Switch Advantage" else "Force Shield Adv -> Farm w/ $farmPartnerCode"
+                recTone = if (curBr >= activeTierWMin) "stay" else "bait"
+            } else {
+                recAction = if (curBr >= activeTierWMin) "SWEEP / CLOSE" else "OUTPACE / CHIP"
+                recGoal = if (curBr >= activeTierWMin) "Close Match w/ Energy" else "Land Heavy Charge Move"
+                recTone = if (curBr >= activeTierWMin) "stay" else "bait"
+            }
+        } else {
+            recAction = if (curBr >= activeTierWMin) "STAY IN" else "SOFT LOSE 0S"
+            recGoal = if (curBr >= activeTierWMin) "Maintain Alignment" else "Save Shields for Backline"
+            recTone = if (curBr >= activeTierWMin) "stay" else "bait"
+        }
+
+        val tacticalRecommendation = mapOf(
+            "phase" to if (isLeadPhase) "LEAD" else "MIDGAME",
+            "archetype" to teamArchetype,
+            "action" to recAction,
+            "shieldPlan" to shieldPlanStr,
+            "goal" to recGoal,
+            "tone" to recTone,
+            "activeBr" to curBr
+        )
+
         val battlePayload = mapOf(
             "activeOpponent" to oppMeta.name,
             "activeOpponentFastMove" to oppMeta.defaultFastMove,
@@ -11040,6 +11416,9 @@ class OverlayService : LifecycleService() {
             "opponent_shields_remaining" to oppShieldsRemaining,
             "playerFaintedSlots" to playerFaintedSlots.toList(),
             "oppFaintedSlots" to oppFaintedSlots.toList(),
+            "teamArchetype" to teamArchetype,
+            "showTacticalRecommendations" to showTacticalRecommendations,
+            "tacticalRecommendation" to tacticalRecommendation,
             "team" to teamData,
             "scannedOpponents" to scannedOpponentsData,
             "oppMoveTimingRows" to oppMoveTimingRows,

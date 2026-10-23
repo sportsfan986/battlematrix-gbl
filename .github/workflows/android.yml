@@ -123,18 +123,19 @@ jobs:
           tag_name: ${{ steps.version.outputs.tag }}
           name: "SilphScope PvP ${{ steps.version.outputs.tag }}"
           body: |
-            ## SilphScope PvP ${{ steps.version.outputs.tag }} — Official v3.23 Release (Key Threats/Core Breakers Per-Slot BRs, Anti-Meta Summary on Existing Teams & Editor, Top-50 Meta List with Meta BR, and Featured Rank Range Queries)
+            ## SilphScope PvP ${{ steps.version.outputs.tag }} — Official v3.30 Release (Duo-Core Team Builder & Auto-Detection, Lead & Swap Tactical Recommendations Module, and 2-Frame Shield Restoration Fix)
             
-            ### What's New in v3.23
-            - **Key Threats & Core Breakers with Per-Slot BRs in Parentheses (`OverlayService.kt`, `gblData.ts`, `MainActivity.kt`, `App.tsx`)**:
-              - Every entry in **Key Threats** and **Core Breakers** now displays that threat's Battle Rating against each of your 3 team members in parentheses — e.g. `Key Threats: Corviknight(700/500/400), ...` (`Slot 1 Lead / Slot 2 Safe Swap / Slot 3 Closer`).
-            - **Anti-Meta Generator Look & Feel + Team Summary on Existing Teams (Viewer & Editor) & Auto-Detect Refresh**:
-              - Existing teams in the **Team Presets Viewer** and the **Edit Team Screen/Modal** now feature the same Anti-Meta Generator card look and feel (`Core BR`, `Lead BR`, `Swap BR`, `Closer BR`, `Beats X/25 Top Meta`, `⚡ Alt Moveset` badges, and the 3-part `✅ Key Wins` / `⚠️ Key Threats (Slot 1/2/3 BR)` / `🚨 Core Breakers (Slot 1/2/3 BR)` breakdown + full `synergySummary`) while maintaining all controls to edit Pokémon, moves, IVs, and CP.
-              - Automatically creates the summary for existing teams and updates it whenever you tap **`⚡ Auto-Detect Style & Move Safe Swap`**.
-            - **Expanded Bottom SilphScope Meta List from Top 25 to Top 50 with Meta Battle Ranking in Parentheses**:
-              - Expanded the SilphScope meta list at the bottom of the Anti-Meta Team Builder card to **50 Pokémon** (`#1` to `#50`) and included each Pokémon's **Meta Battle Ranking (`BR`)** in parentheses alongside its field share (e.g. `#1 Clodsire (548 BR • 3.2%)`).
-            - **Rank Range Option in Featured Pokémon Slots (`200-`, `-10`, `100-200`)**:
-              - Type `200-` in a Featured Pokémon slot to require a Pokémon ranked **`#200` or lower**, `-10` to require a Pokémon in the **Top 10 (`#1–#10`)**, or `100-200` to require a Pokémon ranked **between `#100` and `#200`**.
+            ### What's New in v3.30
+            - **Duo-Core (`DUO`) Team Creation, Auto-Detection & Competitive Playbooks (`OverlayService.kt`, `gblData.ts`, `MainActivity.kt`, `App.tsx`)**:
+              - **Duo-Core Archetype**: Recreates the symmetric Yin & Yang synergy of classic duo-cores (like Swampert/Skarmory or Clodsire/Feraligatr) where the **1st (`[Core 1] Lead`)** and **3rd (`[Core 2] Co-Core`)** Pokémon cover each other's weaknesses reciprocally (allowing you to swap 1st and 3rd with 1 tap to adapt to micro-meta shifts), while the **2nd (`[Pivot] Safe Swap`)** absorbs pressure, burns opponent shields, or fights for switch/shield advantage so Slot 1 or 3 can farm down for energy.
+              - **Anti-Meta Team Builder**: Now generates and displays **Best 5 ABB**, **Best 5 ABC**, and **Best 5 Duo-Core** sections, plus competitive strategy playbooks for **Duo-Core**, **ABC**, and **ABB** teams.
+              - **Team Viewer & Editor**: Added `DUO` style mode (`AUTO | ABB | ABC | DUO`) and 1-tap `☯️ 1 ⇄ 3` Core Swap button.
+            - **Lead & Swap Tactical Recommendations Module (`OverlayService.kt`, `overlay.html`, `gblData.ts`, `MainActivity.kt`, `App.tsx`)**:
+              - Added an **ultra-compact 1-line tactical recommendation badge** in the overlay between the **Header Row** and **Start/Stop Battle Row** showing **Action**, **Shield Plan (`0S` / `1S` / `2S`)**, and **Matchup Goal** based on your active Pokémon, opponent Pokémon, predetermined 9x9 shield matrix data, and team style (`ABB`, `ABC`, `DUO`).
+              - Recommends whether to **Stay In**, **Swap / Pivot** (and who to swap to), **Counter-Swap** when the opponent swaps, and the specific **Goal of the Matchup** (*Hold Switch Adv*, *Win +1 Shield & Let Go*, *Soft Lose -> Farm w/ [Mon]*, *Eliminate Backline Threat*).
+              - Enabled by default with a toggle in the **Settings** tab (`Recs On` / `Recs Off`).
+            - **Continual Shield Monitoring & 2-Frame Shield Restoration Fix (`OverlayService.kt`)**:
+              - Continually monitors player and opponent shield counts during battle; if for **2 consecutive steady HUD frames** a shield was not used (`sampledShields > shieldsRemaining`), automatically restores the shield to the shield counter and removes the false `SHIELD` timeline event.
             
             ### Live Web Simulator & Download
             - **Live Web Simulator**: [https://sportsfan986.github.io/silphscope-pvp/](https://sportsfan986.github.io/silphscope-pvp/)
