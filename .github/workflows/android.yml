@@ -123,17 +123,22 @@ jobs:
           tag_name: ${{ steps.version.outputs.tag }}
           name: "SilphScope PvP ${{ steps.version.outputs.tag }}"
           body: |
-            ## SilphScope PvP ${{ steps.version.outputs.tag }} — Official v3.32 Release (Dynamic Resizing & Intelligent 2-Line Wrapping for Battle Recommendations)
+            ## SilphScope PvP ${{ steps.version.outputs.tag }} — Official v3.34 Release (Post-Faint Switch Recommendations, Counter-Swap Minimax, Midpoint Swap Clock & AI Training Export)
             
-            ### What's New in v3.32
-            - **Dynamic Resizing & Intelligent 2-Line Text Wrapping for Battle Recommendations (`overlay.html`, `OverlayService.kt`, `App.tsx`)**:
-              - Upgraded the **Lead & Swap Tactical Recommendation Row** (`[Archetype] Action · [Shield Plan] · Goal`) to support **intelligent 2-line text wrapping** and **dynamic font/height resizing** instead of single-line ellipsis truncation.
-              - Keeps `[Archetype] Action` and `[Shield Plan]` badges grouped together on Line 1 while allowing `Goal: ...` to either stay on Line 1 when short or wrap cleanly onto Line 2 in full without cropping (`Goal: Soft Lose 0S -> Farm Down`, etc.).
-              - Automatically scales font size (`7.5px` down to `6.8px` for extra-long recommendations) and triggers immediate `WindowManager` height recalculation (`notifyHeight()` / `updateContentHeight`) so the floating overlay dynamically adjusts its height whenever the recommendation row wraps to two lines.
-            - **Includes All v3.31 & v3.30 Upgrades**:
-              - **Top-50 Meta Depth** for **Key Wins**, **Key Threats**, and **Core Breakers** in Team Builder & Team Editor.
-              - **Streamlined Team Summary Cards** showing Pokémon names, IVs/CP, roles, Key Wins, Key Threats, and Core Breakers.
-              - **Duo-Core (`DUO`)** team creation & auto-detection (`Best 5 ABB`, `Best 5 ABC`, `Best 5 Duo-Core`) and **2-Frame Continual Shield Monitoring & Restoration**.
+            ### What's New in v3.34
+            - **Post-Faint `"Switch in a new Pokémon?"` Modal Detection & Replacement Scorer**:
+              - Expanded bottom OCR vertical capture (`srcMoves`: `0.70f..0.95f`) to detect `"Switch in a new Pokémon?"` / `"Choose a Pokémon"` after your Pokémon faints.
+              - Scores your remaining alive bench Pokémon across **Active Opponent Matchup (45%)**, **Both Teams' Swap Clocks (25%)**, **Known Bench Opponent Matchup (20%)**, and **Expected Unseen Meta Threats (10%)**, with a 1-tap **"Send In ➔"** confirmation button in the HUD.
+            - **Counter-Swap Minimax & Faint vs. Manual Swap Clock Differentiation**:
+              - Differentiates post-faint entries (which do **not** reset the 50s swap clock) from manual switches (50s swap clock reset).
+              - Evaluates both `playerSwapRemainingSec` and `oppSwapRemainingSec` before recommending swaps: penalizes aggressive alignment swaps when the opponent's swap clock is unlocked (`0s`) and recommends **Stay In & Chip / Soft Lose** or **Safe Swap**, while recommending **Punish Locked Switch** when the opponent is swap-locked (`> 15s`).
+            - **Full Shield & Fainted Pokémon Picture for Endgame / Backline Advice**:
+              - Replaces front-line alignment advice (`"Maintain Alignment"`) once Pokémon have fainted with dedicated **1v1 Closer**, **2v1 Advantage**, and **1v2 Comeback** recommendations factoring in `playerAliveCount`, `oppAliveCount`, `playerShieldsRemaining`, and `oppShieldsRemaining`.
+            - **1st-Frame Immediate Swap Detection, Midpoint Swap Clock & 2nd-Frame Validity Bit Latch**:
+              - Updates the HUD, active matchup column, and tactical recommendations immediately on **Frame 1** (`[1F]` provisional badge on the swap clock) while anchoring the swap clock start time **halfway between the last frame with the old Pokémon and the first frame with the new Pokémon**.
+              - Latches on **Frame 2** when confirmed by successive OCR, or automatically reverts the swap clock if Frame 2 fails to confirm or a Pokéball faint drop confirms a post-faint entry.
+            - **Decision-Tree AI Training Telemetry & Detailed JSONL Log Export**:
+              - Tracks recommended actions, candidate scores, swap clocks, shield/alive states, actual player/opponent actions, and recommendation adherence (`adherenceRatePct`) across battle timelines, with **🤖 AI Training Detailed Log (JSONL Dataset)** export in both Android and Web.
             
             ### Live Web Simulator & Download
             - **Live Web Simulator**: [https://sportsfan986.github.io/silphscope-pvp/](https://sportsfan986.github.io/silphscope-pvp/)

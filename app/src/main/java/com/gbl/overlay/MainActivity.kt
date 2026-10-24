@@ -3741,8 +3741,8 @@ class MainActivity : AppCompatActivity() {
         val filtered = filterBattleLogs(allLogs, leagueFilter, teamFilter, timeframeFilter)
         val gson = com.google.gson.Gson()
         return filtered.joinToString("\n") { log ->
-            val recEvents = log.timelineEvents.filter { !it.recommendedActionCode.isNullOrBlank() }
-            val followed = recEvents.count { it.adheredToRecommendation == true }
+            val recEvents = log.timelineEvents.filter { !it.recommendedAction.isNullOrBlank() }
+            val followed = recEvents.count { it.followedRecommendation == true }
             val adherencePct = log.adherenceRatePct ?: if (recEvents.isNotEmpty()) ((followed * 100.0) / recEvents.size).toInt() else null
             val record = mapOf(
                 "schemaVersion" to "3.34",
