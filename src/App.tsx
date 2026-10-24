@@ -193,6 +193,9 @@ export interface WebBattleLogEntry {
   oppFaints?: number;
   userShieldsRemaining?: number;
   oppShieldsRemaining?: number;
+  adherenceRatePct?: number | null;
+  recommendationsIssuedCount?: number | null;
+  recommendationsFollowedCount?: number | null;
   deviceId?: string;
   updatedAt?: number;
 }
@@ -1093,7 +1096,7 @@ export default function App() {
   const [userShields, setUserShields] = useState<number>(2);
   const [oppShields, setOppShields] = useState<number>(2);
 
-  // v2.33: Dual 50s Countdown State Machines, Dynamic Color Coding & Pokéball Faint Tracking
+  // v2.33 & v3.34: Dual 50s Countdown State Machines, Midpoint Swap Clock, 1st-Frame Provisional / 2nd-Frame Validity Bit & Post-Faint Prompt
   const [playerSwapEndTimeMs, setPlayerSwapEndTimeMs] = useState<number>(0);
   const [oppSwapEndTimeMs, setOppSwapEndTimeMs] = useState<number>(0);
   const [playerPokeballCount, setPlayerPokeballCount] = useState<number>(3);
@@ -1102,6 +1105,19 @@ export default function App() {
   const [oppFaintedSlots, setOppFaintedSlots] = useState<boolean[]>([false, false, false]);
   const [isPlayerTurnOne, setIsPlayerTurnOne] = useState<boolean>(true);
   const [isOppTurnOne, setIsOppTurnOne] = useState<boolean>(true);
+  const [isPostFaintPromptActive, setIsPostFaintPromptActive] = useState<boolean>(false);
+  const [lastOppSwitchWasFaint, setLastOppSwitchWasFaint] = useState<boolean>(false);
+  const [lastPlayerSwitchWasFaint, setLastPlayerSwitchWasFaint] = useState<boolean>(false);
+  const [oppSwitchValidityLatched, setOppSwitchValidityLatched] = useState<boolean>(true);
+  const [playerSwitchValidityLatched, setPlayerSwitchValidityLatched] = useState<boolean>(true);
+  const [lastConfirmedOppFrameTimeMs, setLastConfirmedOppFrameTimeMs] = useState<number>(() => Date.now());
+  const [lastConfirmedPlayerFrameTimeMs, setLastConfirmedPlayerFrameTimeMs] = useState<number>(() => Date.now());
+  const [provisionalOppPrevState, setProvisionalOppPrevState] = useState<{
+    prevOppName: string;
+    prevSlotIdx: number;
+    prevSwapEndTimeMs: number;
+    prevLastOppSwitchWasFaint: boolean;
+  } | null>(null);
   const [nowMs, setNowMs] = useState<number>(() => Date.now());
   // Phase 2: Clock Synchronization (t_0) & Live Timeline Event Logger
   const [battleClockAnchorMs, setBattleClockAnchorMs] = useState<number>(() => Date.now());
@@ -1113,6 +1129,13 @@ export default function App() {
     const t0 = anchorOverrideMs ?? battleClockAnchorMs;
     if (!t0 || t0 <= 0) return 0.0;
     return Number((Math.max(0, Date.now() - t0) / 1000.0).toFixed(2));
+  };
+
+  const getMidpointSwapStartTimeMs = (lastOldFrameMs: number, firstNewFrameMs: number) => {
+    if (lastOldFrameMs <= 0 || firstNewFrameMs <= lastOldFrameMs || firstNewFrameMs - lastOldFrameMs > 6000) {
+      return firstNewFrameMs;
+    }
+    return Math.round((lastOldFrameMs + firstNewFrameMs) / 2);
   };
 
   useEffect(() => {
@@ -1343,6 +1366,14 @@ export default function App() {
     setOppFaintedSlots([false, false, false]);
     setIsPlayerTurnOne(true);
     setIsOppTurnOne(true);
+    setIsPostFaintPromptActive(false);
+    setLastOppSwitchWasFaint(false);
+    setLastPlayerSwitchWasFaint(false);
+    setOppSwitchValidityLatched(true);
+    setPlayerSwitchValidityLatched(true);
+    setProvisionalOppPrevState(null);
+    setLastConfirmedOppFrameTimeMs(Date.now());
+    setLastConfirmedPlayerFrameTimeMs(Date.now());
   };
 
   // Stop Battle: pauses battle & opens the Win/Loss log option bar
@@ -1385,16 +1416,23 @@ export default function App() {
     setOppShields(2);
     setPlayerFaintedSlots([false, false, false]);
     setOppFaintedSlots([false, false, false]);
+    setIsPostFaintPromptActive(false);
+    setLastOppSwitchWasFaint(false);
+    setLastPlayerSwitchWasFaint(false);
+    setOppSwitchValidityLatched(true);
+    setPlayerSwitchValidityLatched(true);
+    setProvisionalOppPrevState(null);
   };
 
   // Fixed Opponent Discovery Order: [1st seen, 2nd seen, 3rd seen] NEVER reorders when swapping active opponent!
-  const handleSwapActiveOpponent = (rawInputName: string) => {
+  const handleSwapActiveOpponent = (rawInputName: string, markProvisionalFrame1: boolean = false) => {
     const currentLeagueForDefault: LeagueType =
       selectedOpponentLeague === 'AUTO' ? (activePreset?.league || 'MASTER LEAGUE') : selectedOpponentLeague;
     const resolvedDefault = resolveBestDefaultFormAndShadow(rawInputName, currentLeagueForDefault);
     const name = resolvedDefault.formName;
     setIsOpponentShadow(resolvedDefault.isShadow);
 
+    const nowFrameMs = Date.now();
     const wasWaiting = isWaitingOpponent;
     const prevBase = getBaseSpeciesKey(activeOpponentKey);
     const targetBase = getBaseSpeciesKey(name);
@@ -1410,19 +1448,38 @@ export default function App() {
 
     // State Machine:
     // Turn 1 lead spawn (wasWaiting) starts at 0s Ready and initializes Clock Anchor t_0 = 0.00s.
-    // Subsequent True Tactical Swap (!wasWaiting && species changed && prior slot not fainted) resets to 50s.
+    // Subsequent True Tactical Swap (!wasWaiting && species changed && prior slot not fainted) starts at Midpoint(lastOldFrameMs, firstNewFrameMs) + 50s.
     if (wasWaiting) {
-      setBattleClockAnchorMs(Date.now());
+      setBattleClockAnchorMs(nowFrameMs);
       setBattleTimelineEvents([]);
       setOppSwapEndTimeMs(0);
       setOppPokeballCount(3);
       setOppFaintedSlots([false, false, false]);
+      setLastOppSwitchWasFaint(false);
+      setOppSwitchValidityLatched(true);
+      setProvisionalOppPrevState(null);
+      setLastConfirmedOppFrameTimeMs(nowFrameMs);
     } else if (targetBase !== prevBase) {
       const prevOppMon = scannedOpponents[activeOpponentSlotIndex] || activeOpponentKey;
       const isFaintSwitch = !!oppFaintedSlots[activeOpponentSlotIndex];
       const relT = getRelativeBattleSeconds();
+      const midpointStartMs = getMidpointSwapStartTimeMs(lastConfirmedOppFrameTimeMs, nowFrameMs);
+      const userAliveCount = Math.max(1, 3 - playerFaintedSlots.filter(Boolean).length);
+      const oppAliveCount = Math.max(1, 3 - oppFaintedSlots.filter(Boolean).length);
+
+      setProvisionalOppPrevState({
+        prevOppName: prevOppMon,
+        prevSlotIdx: activeOpponentSlotIndex,
+        prevSwapEndTimeMs: oppSwapEndTimeMs,
+        prevLastOppSwitchWasFaint: lastOppSwitchWasFaint
+      });
+      setOppSwitchValidityLatched(!markProvisionalFrame1);
+
       if (!isFaintSwitch) {
-        setOppSwapEndTimeMs(Date.now() + 50000);
+        const nextEndMs = midpointStartMs + 50000;
+        const nextOppRemSec = Math.max(0, Math.ceil((nextEndMs - nowFrameMs) / 1000));
+        setOppSwapEndTimeMs(nextEndMs);
+        setLastOppSwitchWasFaint(false);
         setBattleTimelineEvents((prevEv) => [
           ...prevEv,
           {
@@ -1432,10 +1489,23 @@ export default function App() {
             pokemonIn: name,
             pokemonOut: prevOppMon,
             userShieldsRemaining: userShields,
-            oppShieldsRemaining: oppShields
+            oppShieldsRemaining: oppShields,
+            recommendedAction: activeTacticalRec?.actionLabel || null,
+            recommendedGoal: activeTacticalRec?.goalText || null,
+            decisionPhase: activeTacticalRec?.phaseBadge || 'OPP_SWAP',
+            recommendedTargetPokemon: activeTacticalRec?.recommendedSwapPokemon || null,
+            playerSwapRemainingSec,
+            oppSwapRemainingSec: nextOppRemSec,
+            userAliveCount,
+            oppAliveCount,
+            lastPlayerSwitchWasFaint,
+            lastOppSwitchWasFaint: false,
+            candidateScores: activeTacticalRec?.candidateScores || null,
+            validityLatched: !markProvisionalFrame1
           }
         ]);
       } else {
+        setLastOppSwitchWasFaint(true);
         setBattleTimelineEvents((prevEv) => [
           ...prevEv,
           {
@@ -1446,10 +1516,26 @@ export default function App() {
             pokemonIn: name,
             pokemonOut: prevOppMon,
             userShieldsRemaining: userShields,
-            oppShieldsRemaining: oppShields
+            oppShieldsRemaining: oppShields,
+            recommendedAction: activeTacticalRec?.actionLabel || null,
+            recommendedGoal: activeTacticalRec?.goalText || null,
+            decisionPhase: 'OPP_FAINT_ENTRY',
+            recommendedTargetPokemon: activeTacticalRec?.recommendedSwapPokemon || null,
+            playerSwapRemainingSec,
+            oppSwapRemainingSec,
+            userAliveCount,
+            oppAliveCount,
+            lastPlayerSwitchWasFaint,
+            lastOppSwitchWasFaint: true,
+            candidateScores: activeTacticalRec?.candidateScores || null,
+            validityLatched: !markProvisionalFrame1
           }
         ]);
       }
+      setLastConfirmedOppFrameTimeMs(nowFrameMs);
+    } else {
+      setOppSwitchValidityLatched(true);
+      setLastConfirmedOppFrameTimeMs(nowFrameMs);
     }
     setIsOppTurnOne(false);
 
@@ -1467,7 +1553,6 @@ export default function App() {
         resolvedSlot = appended.length - 1;
         nextList = appended;
       } else {
-        // Replace currently active slot in-place without shifting the other slots
         const replaced = [...prev];
         const targetSlot = Math.max(0, Math.min(activeOpponentSlotIndex, 2));
         replaced[targetSlot] = name;
@@ -1475,7 +1560,6 @@ export default function App() {
         nextList = replaced;
       }
       setActiveOpponentSlotIndex(resolvedSlot);
-      // Resurrection Guard: Any Pokémon entering the field is alive
       setOppFaintedSlots((prevFainted) => {
         if (!prevFainted[resolvedSlot]) return prevFainted;
         const nextFainted = [...prevFainted];
@@ -1487,8 +1571,38 @@ export default function App() {
     });
   };
 
-  // Player Lead/Roster Switch with Resurrection Guard
+  // Latch or Revert a 1st-Frame Provisional Opponent Swap (Frame 2 OCR validation)
+  const handleLatchOrRevertProvisionalOppSwap = (confirmLatch: boolean) => {
+    if (confirmLatch) {
+      setOppSwitchValidityLatched(true);
+      setProvisionalOppPrevState(null);
+      setBattleTimelineEvents((prevEv) => {
+        if (prevEv.length === 0) return prevEv;
+        const updated = [...prevEv];
+        updated[updated.length - 1] = {
+          ...updated[updated.length - 1],
+          validityLatched: true
+        };
+        return updated;
+      });
+      setStartBattleToast('✓ Frame 2 OCR Confirmed: Swap Validity Latched');
+      setTimeout(() => setStartBattleToast(null), 1600);
+    } else if (provisionalOppPrevState) {
+      setActiveOpponentKey(provisionalOppPrevState.prevOppName);
+      setActiveOpponentSlotIndex(provisionalOppPrevState.prevSlotIdx);
+      setOppSwapEndTimeMs(provisionalOppPrevState.prevSwapEndTimeMs);
+      setLastOppSwitchWasFaint(provisionalOppPrevState.prevLastOppSwitchWasFaint);
+      setOppSwitchValidityLatched(true);
+      setProvisionalOppPrevState(null);
+      setBattleTimelineEvents((prevEv) => prevEv.slice(0, -1));
+      setStartBattleToast('↩ Frame 2 OCR Reverted 1-Frame Glitch (Timer Restored)');
+      setTimeout(() => setStartBattleToast(null), 1800);
+    }
+  };
+
+  // Player Lead/Roster Switch with Resurrection Guard & Recommendation Adherence Tracking
   const handleSelectUserSlot = (slotIdx: number) => {
+    const nowFrameMs = Date.now();
     if (playerFaintedSlots[slotIdx]) {
       setPlayerFaintedSlots((prev) => {
         const next = [...prev];
@@ -1497,14 +1611,29 @@ export default function App() {
         return next;
       });
     }
-    if (slotIdx === activeUserSlotIndex) return;
-    const isPrevFainted = !!playerFaintedSlots[activeUserSlotIndex];
+    if (slotIdx === activeUserSlotIndex && !isPostFaintPromptActive) return;
+    const isPrevFainted = isPostFaintPromptActive || !!playerFaintedSlots[activeUserSlotIndex];
     const prevUserMon = activePreset?.pokemon[activeUserSlotIndex]?.name || '';
     const nextUserMon = activePreset?.pokemon[slotIdx]?.name || '';
+    const recSlot = activeTacticalRec?.recommendedSwapSlotIndex;
+    const followedRec =
+      recSlot !== null && recSlot !== undefined
+        ? recSlot === slotIdx
+        : activeTacticalRec?.actionLabel?.toUpperCase().includes('SWAP') ||
+          activeTacticalRec?.actionLabel?.toUpperCase().includes('SEND IN')
+        ? true
+        : false;
+    const userAliveCount = Math.max(1, 3 - playerFaintedSlots.filter(Boolean).length);
+    const oppAliveCount = Math.max(1, 3 - oppFaintedSlots.filter(Boolean).length);
+
     if (!isWaitingOpponent) {
       const relT = getRelativeBattleSeconds();
       if (!isPrevFainted) {
-        setPlayerSwapEndTimeMs(Date.now() + 50000);
+        const midpointStartMs = getMidpointSwapStartTimeMs(lastConfirmedPlayerFrameTimeMs, nowFrameMs);
+        const nextEndMs = midpointStartMs + 50000;
+        const nextPlayerRemSec = Math.max(0, Math.ceil((nextEndMs - nowFrameMs) / 1000));
+        setPlayerSwapEndTimeMs(nextEndMs);
+        setLastPlayerSwitchWasFaint(false);
         setBattleTimelineEvents((prevEv) => [
           ...prevEv,
           {
@@ -1514,10 +1643,24 @@ export default function App() {
             pokemonIn: nextUserMon,
             pokemonOut: prevUserMon,
             userShieldsRemaining: userShields,
-            oppShieldsRemaining: oppShields
+            oppShieldsRemaining: oppShields,
+            recommendedAction: activeTacticalRec?.actionLabel || null,
+            recommendedGoal: activeTacticalRec?.goalText || null,
+            decisionPhase: activeTacticalRec?.phaseBadge || 'MID_GAME',
+            recommendedTargetPokemon: activeTacticalRec?.recommendedSwapPokemon || null,
+            playerSwapRemainingSec: nextPlayerRemSec,
+            oppSwapRemainingSec,
+            userAliveCount,
+            oppAliveCount,
+            lastPlayerSwitchWasFaint: false,
+            lastOppSwitchWasFaint,
+            candidateScores: activeTacticalRec?.candidateScores || null,
+            followedRecommendation: followedRec,
+            validityLatched: true
           }
         ]);
       } else {
+        setLastPlayerSwitchWasFaint(true);
         setBattleTimelineEvents((prevEv) => [
           ...prevEv,
           {
@@ -1528,20 +1671,41 @@ export default function App() {
             pokemonIn: nextUserMon,
             pokemonOut: prevUserMon,
             userShieldsRemaining: userShields,
-            oppShieldsRemaining: oppShields
+            oppShieldsRemaining: oppShields,
+            recommendedAction: activeTacticalRec?.actionLabel || null,
+            recommendedGoal: activeTacticalRec?.goalText || null,
+            decisionPhase: isPostFaintPromptActive ? 'POST_FAINT_SWAP' : activeTacticalRec?.phaseBadge || 'POST_FAINT_SWAP',
+            recommendedTargetPokemon: activeTacticalRec?.recommendedSwapPokemon || null,
+            playerSwapRemainingSec,
+            oppSwapRemainingSec,
+            userAliveCount,
+            oppAliveCount,
+            lastPlayerSwitchWasFaint: true,
+            lastOppSwitchWasFaint,
+            candidateScores: activeTacticalRec?.candidateScores || null,
+            followedRecommendation: followedRec,
+            validityLatched: true
           }
         ]);
       }
     }
+    setLastConfirmedPlayerFrameTimeMs(nowFrameMs);
+    setPlayerSwitchValidityLatched(true);
+    setIsPostFaintPromptActive(false);
     setIsPlayerTurnOne(false);
     setActiveUserSlotIndex(slotIdx);
   };
 
   const handleSimulatePlayerSwap = () => {
+    const nowFrameMs = Date.now();
     const liveNext = [1, 2].map((offset) => (activeUserSlotIndex + offset) % 3).find((idx) => !playerFaintedSlots[idx]);
     const nextSlot = liveNext !== undefined ? liveNext : (activeUserSlotIndex + 1) % 3;
     const prevUserMon = activePreset?.pokemon[activeUserSlotIndex]?.name || 'Lead';
     const nextUserMon = activePreset?.pokemon[nextSlot]?.name || 'Swap';
+    const midpointStartMs = getMidpointSwapStartTimeMs(lastConfirmedPlayerFrameTimeMs, nowFrameMs);
+    const nextEndMs = midpointStartMs + 50000;
+    const followedRec = activeTacticalRec?.recommendedSwapSlotIndex === nextSlot;
+
     setPlayerFaintedSlots((prev) => {
       if (!prev[nextSlot] && !prev[activeUserSlotIndex]) return prev;
       const next = [...prev];
@@ -1561,18 +1725,37 @@ export default function App() {
           pokemonIn: nextUserMon,
           pokemonOut: prevUserMon,
           userShieldsRemaining: userShields,
-          oppShieldsRemaining: oppShields
+          oppShieldsRemaining: oppShields,
+          recommendedAction: activeTacticalRec?.actionLabel || null,
+          recommendedGoal: activeTacticalRec?.goalText || null,
+          decisionPhase: activeTacticalRec?.phaseBadge || 'MID_GAME',
+          recommendedTargetPokemon: activeTacticalRec?.recommendedSwapPokemon || null,
+          playerSwapRemainingSec: 50,
+          oppSwapRemainingSec,
+          userAliveCount: Math.max(1, 3 - playerFaintedSlots.filter(Boolean).length),
+          oppAliveCount: Math.max(1, 3 - oppFaintedSlots.filter(Boolean).length),
+          lastPlayerSwitchWasFaint: false,
+          lastOppSwitchWasFaint,
+          candidateScores: activeTacticalRec?.candidateScores || null,
+          followedRecommendation: followedRec,
+          validityLatched: true
         }
       ]);
     }
-    setPlayerSwapEndTimeMs(Date.now() + 50000);
+    setPlayerSwapEndTimeMs(nextEndMs);
+    setLastConfirmedPlayerFrameTimeMs(nowFrameMs);
+    setLastPlayerSwitchWasFaint(false);
+    setIsPostFaintPromptActive(false);
     setIsPlayerTurnOne(false);
     setActiveUserSlotIndex(nextSlot);
-    setStartBattleToast(`Player Tactical Swap -> ${nextUserMon} (50s timer)`);
+    setStartBattleToast(`Player Tactical Swap -> ${nextUserMon} (Midpoint 50s timer)`);
     setTimeout(() => setStartBattleToast(null), 1800);
   };
 
-  const handleSimulateOpponentSwap = () => {
+  const handleSimulateOpponentSwap = (provisionalFrame1Only: boolean = false) => {
+    const nowFrameMs = Date.now();
+    const midpointStartMs = getMidpointSwapStartTimeMs(lastConfirmedOppFrameTimeMs, nowFrameMs);
+    const nextEndMs = midpointStartMs + 50000;
     if (scannedOpponents.length > 1) {
       const len = scannedOpponents.length;
       const liveNext = [1, 2]
@@ -1581,6 +1764,13 @@ export default function App() {
       const nextSlot = liveNext !== undefined ? liveNext : (activeOpponentSlotIndex + 1) % len;
       const prevOppMon = scannedOpponents[activeOpponentSlotIndex] || activeOpponentKey;
       const nextOppMon = scannedOpponents[nextSlot];
+      setProvisionalOppPrevState({
+        prevOppName: prevOppMon,
+        prevSlotIdx: activeOpponentSlotIndex,
+        prevSwapEndTimeMs: oppSwapEndTimeMs,
+        prevLastOppSwitchWasFaint: lastOppSwitchWasFaint
+      });
+      setOppSwitchValidityLatched(!provisionalFrame1Only);
       setOppFaintedSlots((prev) => {
         if (!prev[nextSlot] && !prev[activeOpponentSlotIndex]) return prev;
         const next = [...prev];
@@ -1600,62 +1790,115 @@ export default function App() {
             pokemonIn: nextOppMon,
             pokemonOut: prevOppMon,
             userShieldsRemaining: userShields,
-            oppShieldsRemaining: oppShields
+            oppShieldsRemaining: oppShields,
+            recommendedAction: activeTacticalRec?.actionLabel || null,
+            recommendedGoal: activeTacticalRec?.goalText || null,
+            decisionPhase: activeTacticalRec?.phaseBadge || 'OPP_SWAP',
+            recommendedTargetPokemon: activeTacticalRec?.recommendedSwapPokemon || null,
+            playerSwapRemainingSec,
+            oppSwapRemainingSec: 50,
+            userAliveCount: Math.max(1, 3 - playerFaintedSlots.filter(Boolean).length),
+            oppAliveCount: Math.max(1, 3 - oppFaintedSlots.filter(Boolean).length),
+            lastPlayerSwitchWasFaint,
+            lastOppSwitchWasFaint: false,
+            candidateScores: activeTacticalRec?.candidateScores || null,
+            validityLatched: !provisionalFrame1Only
           }
         ]);
       }
       setActiveOpponentSlotIndex(nextSlot);
       setActiveOpponentKey(nextOppMon);
     }
-    setOppSwapEndTimeMs(Date.now() + 50000);
+    setOppSwapEndTimeMs(nextEndMs);
+    setLastConfirmedOppFrameTimeMs(nowFrameMs);
+    setLastOppSwitchWasFaint(false);
     setIsOppTurnOne(false);
-    setStartBattleToast(`Opponent Tactical Swap (50s timer reset)`);
+    setStartBattleToast(
+      provisionalFrame1Only
+        ? `Frame 1 Provisional Swap Detected ([1F] Midpoint Clock Started)`
+        : `Opponent Tactical Swap (50s Midpoint Timer Reset)`
+    );
     setTimeout(() => setStartBattleToast(null), 1800);
   };
 
+  // Trigger "Switch in a new Pokémon?" Post-Faint Prompt so user can see the multi-factor replacement recommendation
   const handleSimulatePlayerFaint = () => {
     const faintedMon = activePreset?.pokemon[activeUserSlotIndex]?.name || 'Lead';
-    setPlayerFaintedSlots((prev) => {
-      const updated = [...prev];
-      updated[activeUserSlotIndex] = true;
-      return updated;
-    });
-    setPlayerPokeballCount((prev) => Math.max(0, prev - 1));
-    const nextLiveIdx = [0, 1, 2].find((idx) => idx !== activeUserSlotIndex && !playerFaintedSlots[idx]);
-    const nextMon = nextLiveIdx !== undefined ? activePreset?.pokemon[nextLiveIdx]?.name || null : null;
-    if (nextLiveIdx !== undefined) {
-      setActiveUserSlotIndex(nextLiveIdx);
+    const nextFainted = [...playerFaintedSlots];
+    nextFainted[activeUserSlotIndex] = true;
+    const aliveRemaining = [0, 1, 2].filter((idx) => !nextFainted[idx]);
+    setPlayerFaintedSlots(nextFainted);
+    setPlayerPokeballCount(Math.max(1, aliveRemaining.length));
+    setLastPlayerSwitchWasFaint(true);
+
+    if (aliveRemaining.length >= 2) {
+      // Open "Switch in a new Pokémon?" prompt mode so the recommendation banner ranks the 2 remaining bench options!
+      setIsPostFaintPromptActive(true);
+      if (!isWaitingOpponent) {
+        const relT = getRelativeBattleSeconds();
+        setBattleTimelineEvents((prevEv) => [
+          ...prevEv,
+          {
+            type: 'POST_FAINT_PROMPT',
+            actor: 'user',
+            t: relT,
+            pokemonFainted: faintedMon,
+            pokemonOut: faintedMon,
+            userShieldsRemaining: userShields,
+            oppShieldsRemaining: oppShields,
+            decisionPhase: 'POST_FAINT_SWAP',
+            playerSwapRemainingSec,
+            oppSwapRemainingSec,
+            userAliveCount: aliveRemaining.length,
+            oppAliveCount: Math.max(1, 3 - oppFaintedSlots.filter(Boolean).length),
+            lastPlayerSwitchWasFaint: true,
+            lastOppSwitchWasFaint
+          }
+        ]);
+      }
+      setStartBattleToast(`"Switch in a new Pokémon?" Active — See SEND IN Recommendation!`);
+      setTimeout(() => setStartBattleToast(null), 2400);
+    } else {
+      const lastIdx = aliveRemaining[0] ?? 0;
+      const nextMon = activePreset?.pokemon[lastIdx]?.name || null;
+      setIsPostFaintPromptActive(false);
+      setActiveUserSlotIndex(lastIdx);
+      if (!isWaitingOpponent) {
+        const relT = getRelativeBattleSeconds();
+        setBattleTimelineEvents((prevEv) => [
+          ...prevEv,
+          {
+            type: 'FAINT',
+            actor: 'user',
+            t: relT,
+            pokemonFainted: faintedMon,
+            pokemonIn: nextMon,
+            pokemonOut: faintedMon,
+            userShieldsRemaining: userShields,
+            oppShieldsRemaining: oppShields,
+            decisionPhase: 'END_GAME',
+            playerSwapRemainingSec,
+            oppSwapRemainingSec,
+            userAliveCount: 1,
+            oppAliveCount: Math.max(1, 3 - oppFaintedSlots.filter(Boolean).length),
+            lastPlayerSwitchWasFaint: true,
+            lastOppSwitchWasFaint
+          }
+        ]);
+      }
+      setStartBattleToast(`Player Faint -> Last Pokémon ${nextMon} Sent In (Timer Preserved)`);
+      setTimeout(() => setStartBattleToast(null), 2000);
     }
-    if (!isWaitingOpponent) {
-      const relT = getRelativeBattleSeconds();
-      setBattleTimelineEvents((prevEv) => [
-        ...prevEv,
-        {
-          type: 'FAINT',
-          actor: 'user',
-          t: relT,
-          pokemonFainted: faintedMon,
-          pokemonIn: nextMon,
-          pokemonOut: faintedMon,
-          userShieldsRemaining: userShields,
-          oppShieldsRemaining: oppShields
-        }
-      ]);
-    }
-    // Faint Replacement: Do NOT reset swap clock (preserve existing timer)
-    setStartBattleToast(`Player Faint Replacement (-1 Pokéball, Timer Preserved)`);
-    setTimeout(() => setStartBattleToast(null), 2000);
   };
 
   const handleSimulateOpponentFaint = () => {
     const faintedOpp = scannedOpponents[activeOpponentSlotIndex] || activeOpponentKey;
-    setOppFaintedSlots((prev) => {
-      const updated = [...prev];
-      updated[activeOpponentSlotIndex] = true;
-      return updated;
-    });
-    setOppPokeballCount((prev) => Math.max(0, prev - 1));
-    const nextLiveIdx = scannedOpponents.findIndex((_, idx) => idx !== activeOpponentSlotIndex && !oppFaintedSlots[idx]);
+    const nextFainted = [...oppFaintedSlots];
+    nextFainted[activeOpponentSlotIndex] = true;
+    setOppFaintedSlots(nextFainted);
+    setOppPokeballCount(Math.max(1, 3 - nextFainted.filter(Boolean).length));
+    setLastOppSwitchWasFaint(true);
+    const nextLiveIdx = scannedOpponents.findIndex((_, idx) => idx !== activeOpponentSlotIndex && !nextFainted[idx]);
     const nextOpp = nextLiveIdx >= 0 ? scannedOpponents[nextLiveIdx] : null;
     if (nextLiveIdx >= 0) {
       setActiveOpponentSlotIndex(nextLiveIdx);
@@ -1673,20 +1916,35 @@ export default function App() {
           pokemonIn: nextOpp,
           pokemonOut: faintedOpp,
           userShieldsRemaining: userShields,
-          oppShieldsRemaining: oppShields
+          oppShieldsRemaining: oppShields,
+          recommendedAction: activeTacticalRec?.actionLabel || null,
+          recommendedGoal: activeTacticalRec?.goalText || null,
+          decisionPhase: 'OPP_FAINT_ENTRY',
+          playerSwapRemainingSec,
+          oppSwapRemainingSec,
+          userAliveCount: Math.max(1, 3 - playerFaintedSlots.filter(Boolean).length),
+          oppAliveCount: Math.max(1, 3 - nextFainted.filter(Boolean).length),
+          lastPlayerSwitchWasFaint,
+          lastOppSwitchWasFaint: true
         }
       ]);
     }
     // Faint Replacement: Do NOT reset swap clock (preserve existing timer)
-    setStartBattleToast(`Opponent Faint Replacement (-1 Pokéball, Timer Preserved)`);
+    setStartBattleToast(`Opponent Faint Replacement (-1 Pokéball, Opp Swap Clock Preserved)`);
     setTimeout(() => setStartBattleToast(null), 2000);
   };
 
   const handleUsePlayerShield = () => {
-    // Species Changed = NO: Shield Used updates shield state, NEVER alters life or swap clocks
     const nextShields = Math.max(0, userShields - 1);
     const shieldNum = userShields >= 2 ? 1 : 2;
     const activeMon = activePreset?.pokemon[activeUserSlotIndex]?.name || 'Lead';
+    const recPlan = (activeTacticalRec?.shieldPlan || '').toUpperCase();
+    const followedShieldPlan =
+      recPlan.includes('0S') || recPlan.includes('DO NOT') || recPlan.includes('NEVER')
+        ? false
+        : recPlan.includes('1S') || recPlan.includes('2S') || recPlan.includes('SHIELD') || recPlan.includes('COMMIT')
+        ? true
+        : null;
     if (!isWaitingOpponent && userShields > 0) {
       const relT = getRelativeBattleSeconds();
       setBattleTimelineEvents((prevEv) => [
@@ -1699,7 +1957,17 @@ export default function App() {
           activePokemon: activeMon,
           pokemonShielded: activeMon,
           userShieldsRemaining: nextShields,
-          oppShieldsRemaining: oppShields
+          oppShieldsRemaining: oppShields,
+          recommendedAction: activeTacticalRec?.actionLabel || null,
+          recommendedGoal: activeTacticalRec?.goalText || null,
+          decisionPhase: activeTacticalRec?.phaseBadge || 'MID_GAME',
+          playerSwapRemainingSec,
+          oppSwapRemainingSec,
+          userAliveCount: Math.max(1, 3 - playerFaintedSlots.filter(Boolean).length),
+          oppAliveCount: Math.max(1, 3 - oppFaintedSlots.filter(Boolean).length),
+          lastPlayerSwitchWasFaint,
+          lastOppSwitchWasFaint,
+          followedRecommendation: followedShieldPlan
         }
       ]);
     }
@@ -1709,7 +1977,6 @@ export default function App() {
   };
 
   const handleUseOpponentShield = () => {
-    // Species Changed = NO: Shield Used updates shield state, NEVER alters life or swap clocks
     const nextShields = Math.max(0, oppShields - 1);
     const shieldNum = oppShields >= 2 ? 1 : 2;
     const activeOppMon = scannedOpponents[activeOpponentSlotIndex] || activeOpponentKey;
@@ -1725,7 +1992,16 @@ export default function App() {
           activePokemon: activeOppMon,
           pokemonShielded: activeOppMon,
           userShieldsRemaining: userShields,
-          oppShieldsRemaining: nextShields
+          oppShieldsRemaining: nextShields,
+          recommendedAction: activeTacticalRec?.actionLabel || null,
+          recommendedGoal: activeTacticalRec?.goalText || null,
+          decisionPhase: activeTacticalRec?.phaseBadge || 'MID_GAME',
+          playerSwapRemainingSec,
+          oppSwapRemainingSec,
+          userAliveCount: Math.max(1, 3 - playerFaintedSlots.filter(Boolean).length),
+          oppAliveCount: Math.max(1, 3 - oppFaintedSlots.filter(Boolean).length),
+          lastPlayerSwitchWasFaint,
+          lastOppSwitchWasFaint
         }
       ]);
     }
@@ -1735,7 +2011,8 @@ export default function App() {
   };
 
   const handleResetTimersAndBalls = () => {
-    setBattleClockAnchorMs(Date.now());
+    const nowFrameMs = Date.now();
+    setBattleClockAnchorMs(nowFrameMs);
     setBattleTimelineEvents([]);
     setPlayerSwapEndTimeMs(0);
     setOppSwapEndTimeMs(0);
@@ -1747,6 +2024,14 @@ export default function App() {
     setOppFaintedSlots([false, false, false]);
     setIsPlayerTurnOne(true);
     setIsOppTurnOne(true);
+    setIsPostFaintPromptActive(false);
+    setLastOppSwitchWasFaint(false);
+    setLastPlayerSwitchWasFaint(false);
+    setOppSwitchValidityLatched(true);
+    setPlayerSwitchValidityLatched(true);
+    setProvisionalOppPrevState(null);
+    setLastConfirmedOppFrameTimeMs(nowFrameMs);
+    setLastConfirmedPlayerFrameTimeMs(nowFrameMs);
     setStartBattleToast(`Match Reset (3 Balls, 2 Shields, t_0 = 0.00s)`);
     setTimeout(() => setStartBattleToast(null), 1800);
   };
@@ -1798,33 +2083,28 @@ export default function App() {
     );
   }, [activeOpponentName, activePreset, isOpponentShadow, precomputed9x9State]);
 
-  // Lead & Swap Tactical Recommendation computed from active matchup, 9x9 matrix, and team archetype (ABB / ABC / DUO)
+  // Lead, Swap, Post-Faint & Endgame Tactical Recommendation (v3.34)
   const activeTacticalRec: TacticalRecommendationResult | null = useMemo(() => {
     if (isWaitingOpponent || scannedOpponents.length === 0 || !activePreset?.pokemon?.length) {
       return null;
     }
-    const isLeadPhase =
-      scannedOpponents.length === 1 &&
-      activeUserSlotIndex === 0 &&
-      safeActiveOppSlot === 0 &&
-      !playerFaintedSlots.some(Boolean) &&
-      !oppFaintedSlots.some(Boolean);
-    const lastEv = battleTimelineEvents.length > 0 ? battleTimelineEvents[battleTimelineEvents.length - 1] : null;
-    const isOpponentSwapPhase = !isLeadPhase && (lastEv?.type === 'SWAP' && lastEv?.actor === 'opp' || safeActiveOppSlot > 0 && activeUserSlotIndex === 0);
-    return computeTacticalLeadAndSwapRecommendation(
-      activePreset.pokemon,
-      activeUserSlotIndex,
-      activeOpponentName,
-      isOpponentShadow,
-      activePreset.league,
-      activePreset.archetype || 'ABC',
+    const rec = computeTacticalLeadAndSwapRecommendation({
+      team: activePreset.pokemon,
+      archetype: activePreset.archetype || 'ABC',
+      activeUserIdx: activeUserSlotIndex,
+      scannedOpponents,
+      activeOppName: activeOpponentName,
       userShields,
       oppShields,
-      playerFaintedSlots,
-      isLeadPhase,
-      isOpponentSwapPhase,
-      playerSwapRemainingSec
-    );
+      userFaintedSlots: playerFaintedSlots,
+      oppFaintedSlots,
+      playerSwapRemainingSec,
+      oppSwapRemainingSec,
+      lastOppSwitchWasFaint,
+      isPostFaintPrompt: isPostFaintPromptActive,
+      league: activePreset.league
+    });
+    return rec && rec.visible ? rec : null;
   }, [
     isWaitingOpponent,
     scannedOpponents,
@@ -1838,7 +2118,10 @@ export default function App() {
     isOpponentShadow,
     userShields,
     oppShields,
-    playerSwapRemainingSec
+    playerSwapRemainingSec,
+    oppSwapRemainingSec,
+    lastOppSwitchWasFaint,
+    isPostFaintPromptActive
   ]);
 
   // Auto-calculated Lead Matchup (Slot 0 1st-seen opponent vs Your Lead p1)
@@ -1907,6 +2190,13 @@ export default function App() {
           }
         : undefined
     );
+    const evalEvents = eventsToLog.filter(
+      (e) => e.followedRecommendation === true || e.followedRecommendation === false
+    );
+    const recsIssued = evalEvents.length;
+    const recsFollowed = evalEvents.filter((e) => e.followedRecommendation === true).length;
+    const adherencePct = recsIssued > 0 ? Math.round((recsFollowed * 100) / recsIssued) : null;
+
     const newEntry: WebBattleLogEntry = {
       id: `log-${now}-${Math.random().toString(36).slice(2, 7)}`,
       timestampMs: now,
@@ -1928,6 +2218,9 @@ export default function App() {
       oppFaints: oppFaintsCount,
       userShieldsRemaining: userShields,
       oppShieldsRemaining: oppShields,
+      adherenceRatePct: adherencePct,
+      recommendationsIssuedCount: recsIssued,
+      recommendationsFollowedCount: recsFollowed,
       deviceId,
       updatedAt: now
     };
@@ -1941,6 +2234,66 @@ export default function App() {
       setTimeout(() => setStartBattleToast(null), 1100);
     }
     handleSkipLoggingStoppedBattle();
+  };
+
+  const buildAiTrainingDatasetJsonl = (timeframe: 'CURRENT_SEASON' | 'PREVIOUS_SEASON' | 'ALL') => {
+    const filtered = battleLogs.filter((b) => {
+      if (timeframe === 'ALL') return true;
+      if (timeframe === 'CURRENT_SEASON') {
+        return b.timestampMs >= currentSeason.startMs && b.timestampMs <= currentSeason.endMs;
+      }
+      return b.timestampMs >= prevSeason.startMs && b.timestampMs <= prevSeason.endMs;
+    });
+    return filtered
+      .map((b) => {
+        const events = (b.timelineEvents || []).map((ev) => ({
+          t: ev.t,
+          actor: ev.actor,
+          type: ev.type,
+          pokemonIn: ev.pokemonIn || null,
+          pokemonOut: ev.pokemonOut || null,
+          pokemonFainted: ev.pokemonFainted || null,
+          shieldNumber: ev.shieldNumber ?? null,
+          userShieldsRemaining: ev.userShieldsRemaining,
+          oppShieldsRemaining: ev.oppShieldsRemaining,
+          decisionPhase: ev.decisionPhase || null,
+          recommendedAction: ev.recommendedAction || null,
+          recommendedGoal: ev.recommendedGoal || null,
+          recommendedTargetPokemon: ev.recommendedTargetPokemon || null,
+          playerSwapRemainingSec: ev.playerSwapRemainingSec ?? null,
+          oppSwapRemainingSec: ev.oppSwapRemainingSec ?? null,
+          userAliveCount: ev.userAliveCount ?? null,
+          oppAliveCount: ev.oppAliveCount ?? null,
+          lastPlayerSwitchWasFaint: ev.lastPlayerSwitchWasFaint ?? null,
+          lastOppSwitchWasFaint: ev.lastOppSwitchWasFaint ?? null,
+          candidateScores: ev.candidateScores || null,
+          followedRecommendation: ev.followedRecommendation ?? null,
+          validityLatched: ev.validityLatched ?? true
+        }));
+        return JSON.stringify({
+          schemaVersion: '3.34-ai-decision-tree',
+          battleId: b.id,
+          timestampMs: b.timestampMs,
+          league: b.league,
+          userTeamName: b.userTeamName,
+          userTeam: b.userPokemon,
+          opponentsRevealed: b.opponents,
+          leadMatchup: b.leadMatchup,
+          outcome: b.result,
+          bmfScore: b.bmfScore ?? null,
+          execWae: b.execWae ?? null,
+          battleDurationSec: b.battleDurationSec ?? null,
+          userFaints: b.userFaints ?? null,
+          oppFaints: b.oppFaints ?? null,
+          userShieldsRemaining: b.userShieldsRemaining ?? null,
+          oppShieldsRemaining: b.oppShieldsRemaining ?? null,
+          recommendationsIssuedCount: b.recommendationsIssuedCount ?? 0,
+          recommendationsFollowedCount: b.recommendationsFollowedCount ?? 0,
+          adherenceRatePct: b.adherenceRatePct ?? null,
+          decisionNodes: events
+        });
+      })
+      .join('\n');
   };
 
   const activeUserSlot = activePreset?.pokemon[activeUserSlotIndex] || activePreset?.pokemon[0];
@@ -2961,7 +3314,7 @@ export default function App() {
                     backgroundColor: `${activeTheme.accentHex}1A`
                   }}
                 >
-                  v3.33 • Android Native Overlay
+                  v3.34 • Android Native Overlay
                 </span>
               </div>
               <p className="text-xs hidden sm:block" style={{ color: activeTheme.textSecondaryHex }}>
@@ -3495,36 +3848,42 @@ export default function App() {
                             <span>{oppShields}</span>
                           </button>
 
-                          {/* v2.33: Opponent Swap Clock (Top-Right Header badge replacing redundant fast-move telemetry) */}
+                          {/* v3.34: Opponent Swap Clock with 1st-Frame Provisional [1F] Validity Indicator */}
                           {!isWaitingOpponent && scannedOpponents.length > 0 && (
                             <span
                               className={`font-mono font-extrabold text-[8px] px-1.5 py-0.5 rounded border leading-none transition-colors shrink-0 ${
-                                oppSwapRemainingSec <= 0
+                                !oppSwitchValidityLatched
+                                  ? 'text-cyan-300 bg-cyan-950/70 border-cyan-400/80 animate-pulse'
+                                  : oppSwapRemainingSec <= 0
                                   ? 'text-[#FF3B30] bg-red-950/60 border-red-500/60 shadow-[0_0_6px_rgba(255,59,48,0.35)]'
                                   : oppSwapRemainingSec < 10
                                   ? 'text-[#FFD700] bg-amber-950/60 border-amber-400/60'
                                   : 'text-white bg-black/45 border-white/40'
                               }`}
-                              title="Opponent Swap Countdown (50s countdown, resets on True Swap)"
+                              title={
+                                !oppSwitchValidityLatched
+                                  ? 'Frame 1 Provisional Swap Detected — Awaiting Frame 2 OCR Validity Latch'
+                                  : 'Opponent Swap Countdown (50s midpoint countdown, resets on Manual Swap)'
+                              }
                             >
-                              Opp Swap: {oppSwapRemainingSec}s
+                              Opp Swap: {oppSwapRemainingSec}s{!oppSwitchValidityLatched ? ' [1F]' : ''}
                             </span>
                           )}
                         </div>
                       </div>
 
-                      {/* v3.32: Dynamic Resizing & Intelligent 2-Line Wrapping Lead & Swap Tactical Recommendation Row */}
+                      {/* v3.34: Lead, Counter-Swap Minimax, Post-Faint Replacement & Endgame Tactical Recommendation Row */}
                       {showTacticalRec && activeTacticalRec && (
                         <div
                           className={`flex items-center justify-between gap-1.5 px-1.5 py-1 rounded border my-0.5 font-mono leading-snug transition-all ${
-                            (activeTacticalRec.actionLabel.length +
-                              activeTacticalRec.shieldPlan.length +
-                              activeTacticalRec.goalText.length) >
+                            ((activeTacticalRec.actionLabel || activeTacticalRec.actionText || '').length +
+                              (activeTacticalRec.shieldPlan || '').length +
+                              (activeTacticalRec.goalText || '').length) >
                             54
                               ? 'text-[6.8px]'
-                              : (activeTacticalRec.actionLabel.length +
-                                  activeTacticalRec.shieldPlan.length +
-                                  activeTacticalRec.goalText.length) >
+                              : ((activeTacticalRec.actionLabel || activeTacticalRec.actionText || '').length +
+                                  (activeTacticalRec.shieldPlan || '').length +
+                                  (activeTacticalRec.goalText || '').length) >
                                 42
                               ? 'text-[7.1px]'
                               : 'text-[7.5px]'
@@ -3537,12 +3896,12 @@ export default function App() {
                               ? 'bg-rose-950/75 border-rose-400/60 text-rose-200'
                               : 'bg-amber-950/75 border-amber-400/60 text-amber-200'
                           }`}
-                          title={`${activeTacticalRec.oneLineBadgeText} (Team Style: ${activePreset.archetype || 'ABC'})`}
+                          title={`${activeTacticalRec.oneLineBadgeText || activeTacticalRec.oneLineBadge} (Team Style: ${activePreset.archetype || 'ABC'})`}
                         >
                           <div className="flex flex-wrap items-center gap-x-1 gap-y-0.5 min-w-0 flex-1">
                             <span className="inline-flex items-center gap-1 shrink-0 max-w-full">
                               <span className="font-black uppercase px-1 py-0.2 rounded bg-black/40 border border-white/15 text-white shrink-0 whitespace-nowrap">
-                                {activeTacticalRec.actionLabel}
+                                {activeTacticalRec.actionLabel || activeTacticalRec.actionText}
                               </span>
                               <span className="font-bold text-amber-300 shrink-0 whitespace-nowrap">
                                 [{activeTacticalRec.shieldPlan}]
@@ -3553,14 +3912,16 @@ export default function App() {
                             </span>
                           </div>
                           {activeTacticalRec.recommendedSwapSlotIndex !== null &&
-                            activeTacticalRec.recommendedSwapSlotIndex !== activeUserSlotIndex && (
+                            activeTacticalRec.recommendedSwapSlotIndex !== undefined &&
+                            (isPostFaintPromptActive ||
+                              activeTacticalRec.recommendedSwapSlotIndex !== activeUserSlotIndex) && (
                               <button
                                 type="button"
                                 onClick={() => handleSelectUserSlot(activeTacticalRec.recommendedSwapSlotIndex!)}
                                 className="px-1.5 py-0.5 rounded bg-white/15 hover:bg-white/25 text-white font-extrabold text-[7px] shrink-0 border border-white/25 self-center whitespace-nowrap"
-                                title={`Apply recommended swap to ${activeTacticalRec.recommendedSwapPokemon || 'Bench'}`}
+                                title={`Apply recommended ${isPostFaintPromptActive ? 'post-faint replacement' : 'swap'} to ${activeTacticalRec.recommendedSwapPokemon || 'Bench'}`}
                               >
-                                Swap ➔
+                                {isPostFaintPromptActive ? 'Send In ➔' : 'Swap ➔'}
                               </button>
                             )}
                         </div>
@@ -3933,8 +4294,8 @@ export default function App() {
 
                           {/* Opponent Attack Rows (Turn-Aligned Proportional Bars + Multi-Cycle Support) */}
                           <div className="flex flex-col gap-[2px]">
-                            {oppMoveTimingInfo.rows.map((row, rIdx) => {
-                              const isLastRow = rIdx === oppMoveTimingInfo.rows.length - 1;
+                            {(oppMoveTimingInfo?.rows || []).map((row, rIdx, rowArr) => {
+                              const isLastRow = rIdx === rowArr.length - 1;
                               const threatLevel =
                                 row.activeDmgPct >= 60 || row.activeEff >= 1.5
                                   ? 'high'
@@ -3966,7 +4327,7 @@ export default function App() {
                                   {/* Center: Turn-Aligned Proportional Multi-Cycle Segmented Bar */}
                                   <div className="flex items-center justify-start min-w-0 w-full bg-slate-900/45 rounded p-[1px]">
                                     <div className="flex items-center justify-start w-full">
-                                      {row.cycles.map((cycle) => (
+                                      {(row.cycles || []).map((cycle) => (
                                         <div
                                           key={cycle.cycleIndex}
                                           style={{ width: `${cycle.widthPct}%` }}
@@ -4002,7 +4363,7 @@ export default function App() {
 
                                   {/* Right: 3-Pokemon Team Damage % Columns with Vertical Active Highlight & Faint Column Dimming */}
                                   <div className="grid grid-cols-3 w-[84px] items-center text-center font-mono shrink-0">
-                                    {row.teamDamages.map((cell, cIdx) => {
+                                    {(row.teamDamages || []).map((cell, cIdx) => {
                                       const isActv = cIdx === activeUserSlotIndex;
                                       const isFainted = !isActv && !!playerFaintedSlots[cIdx];
                                       const textCls =
@@ -4044,15 +4405,17 @@ export default function App() {
                                 <span>My Attacks</span>
                                 <span
                                   className={`font-mono font-extrabold text-[7px] px-1 py-0.2 rounded border leading-none transition-colors shrink-0 ${
-                                    playerSwapRemainingSec <= 0
+                                    !playerSwitchValidityLatched
+                                      ? 'text-cyan-300 bg-cyan-950/70 border-cyan-400/80 animate-pulse'
+                                      : playerSwapRemainingSec <= 0
                                       ? 'text-[#00FF00] bg-emerald-950/60 border-emerald-500/60 shadow-[0_0_6px_rgba(0,255,0,0.35)]'
                                       : playerSwapRemainingSec < 10
                                       ? 'text-[#FFD700] bg-amber-950/60 border-amber-400/60'
                                       : 'text-white bg-black/45 border-white/40'
                                   }`}
-                                  title="Player Swap Countdown (50s countdown, resets on True Swap)"
+                                  title="Player Swap Countdown (50s midpoint countdown, resets on Manual Swap)"
                                 >
-                                  Swap: {playerSwapRemainingSec}s
+                                  Swap: {playerSwapRemainingSec}s{!playerSwitchValidityLatched ? ' [1F]' : ''}
                                 </span>
                               </span>
                               <span className="text-sky-300 font-extrabold text-[7.5px] font-mono">
@@ -4089,8 +4452,8 @@ export default function App() {
 
                           {/* My Attack Rows (Turn-Aligned Proportional Bars + Multi-Cycle & Safe Throw Numbers) */}
                           <div className="flex flex-col gap-[2px]">
-                            {myMoveTimingInfo.map((row, rIdx) => {
-                              const isLastRow = rIdx === myMoveTimingInfo.length - 1;
+                            {(myMoveTimingInfo || []).map((row, rIdx, rowArr) => {
+                              const isLastRow = rIdx === rowArr.length - 1;
                               const threatLevel =
                                 row.dmgPct >= 60 || row.eff >= 1.5
                                   ? 'high'
@@ -4122,7 +4485,7 @@ export default function App() {
                                   {/* Center: Turn-Aligned Proportional Multi-Cycle Bar with Leak-Free Safe Throw Numbers */}
                                   <div className="flex items-center justify-start min-w-0 w-full bg-slate-900/45 rounded p-[1px]">
                                     <div className="flex items-center justify-start w-full">
-                                      {row.cycles.map((cycle) => (
+                                      {(row.cycles || []).map((cycle) => (
                                         <div
                                           key={cycle.cycleIndex}
                                           style={{ width: `${cycle.widthPct}%` }}
@@ -4173,7 +4536,7 @@ export default function App() {
 
                                   {/* Right: 3-Opponent Outgoing Damage % Columns with Vertical Active Highlight & Faint Dimming */}
                                   <div className="grid grid-cols-3 w-[84px] items-center text-center font-mono shrink-0">
-                                    {row.oppDamages.map((cell, cIdx) => {
+                                    {(row.oppDamages || []).map((cell, cIdx) => {
                                       const isActv = cIdx === safeActiveOppSlot;
                                       const isFainted = !isActv && !!oppFaintedSlots[cIdx];
                                       const textCls = isFainted
@@ -4304,6 +4667,70 @@ export default function App() {
                     <Shield className="w-3.5 h-3.5 text-red-400" />
                     <span>Opp Shields: {oppShields}</span>
                   </button>
+                </div>
+
+                {/* v3.34: Post-Faint Prompt, Counter-Swap Minimax & 1st-Frame / 2nd-Frame Validity Simulator */}
+                <div className="mb-3 p-3 rounded-xl bg-slate-950/75 border border-slate-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-200">
+                      v3.34 Swap Clock, Faint &amp; 2-Frame Validity Simulator
+                    </span>
+                    <span className="text-[10px] font-mono text-emerald-400">
+                      Midpoint Clock + Minimax
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5 text-[11px] font-bold">
+                    <button
+                      type="button"
+                      onClick={handleSimulatePlayerFaint}
+                      className="py-1.5 px-2 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-200 transition"
+                      title="Simulate your active Pokémon fainting to trigger the 'Switch in a new Pokémon?' multi-factor recommendation"
+                    >
+                      💀 My Mon Faints (Prompt)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSimulateOpponentFaint}
+                      className="py-1.5 px-2 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-200 transition"
+                      title="Simulate opponent faint replacement (Opp Swap Clock does NOT reset — triggers Counter-Swap Minimax)"
+                    >
+                      💀 Opp Faints (No Clock Reset)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSimulateOpponentSwap(true)}
+                      className="py-1.5 px-2 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-200 transition"
+                      title="Simulate Frame 1 OCR Opponent Swap (updates HUD immediately with [1F] validity bit & midpoint swap clock)"
+                    >
+                      ⚡ Opp Swap (Frame 1 [1F])
+                    </button>
+                    {!oppSwitchValidityLatched ? (
+                      <div className="grid grid-cols-2 gap-1">
+                        <button
+                          type="button"
+                          onClick={() => handleLatchOrRevertProvisionalOppSwap(true)}
+                          className="py-1.5 px-1.5 rounded-lg bg-emerald-500/25 hover:bg-emerald-500/35 border border-emerald-400/60 text-emerald-200 text-[10px] transition"
+                        >
+                          ✓ Latch F2
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleLatchOrRevertProvisionalOppSwap(false)}
+                          className="py-1.5 px-1.5 rounded-lg bg-red-500/25 hover:bg-red-500/35 border border-red-400/60 text-red-200 text-[10px] transition"
+                        >
+                          ↩ Revert F2
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleResetTimersAndBalls}
+                        className="py-1.5 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 transition"
+                      >
+                        🔄 Reset Clocks &amp; Balls
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* App Setting (Not on Overlay): Opponent Fast Move Count Basis */}
@@ -8032,6 +8459,26 @@ export default function App() {
                       className="px-3 py-1.5 rounded-xl bg-emerald-600/25 hover:bg-emerald-600/40 border border-emerald-400/50 text-emerald-200 text-xs font-bold transition"
                     >
                       📤 Share Log Summary
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const jsonl = buildAiTrainingDatasetJsonl(logFilterTimeframe);
+                        navigator.clipboard.writeText(jsonl);
+                        const blob = new Blob([jsonl], { type: 'application/x-ndjson' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `silphscope-ai-training-logs-${logFilterTimeframe.toLowerCase()}.jsonl`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                        setStartBattleToast('🤖 Exported & Copied AI Training Logs (JSONL)!');
+                        setTimeout(() => setStartBattleToast(null), 2200);
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-amber-500/25 hover:bg-amber-500/40 border border-amber-400/50 text-amber-200 text-xs font-bold transition"
+                      title="Export detailed battle logs with all player/opponent actions, recommendations, swap clocks, and outcomes in JSONL format for decision-tree AI training"
+                    >
+                      🤖 Export AI Training Logs (JSONL)
                     </button>
                     <button
                       type="button"

@@ -57,7 +57,7 @@ export type ContextualEventFlag =
 
 export type TimelineEventActor = 'user' | 'opp';
 
-export type TimelineEventType = 'SWAP' | 'SHIELD' | 'FAINT';
+export type TimelineEventType = 'SWAP' | 'SHIELD' | 'FAINT' | 'POST_FAINT_PROMPT' | 'DECISION_SNAPSHOT';
 
 export interface BattleTimelineEvent {
   type: TimelineEventType;
@@ -71,6 +71,20 @@ export interface BattleTimelineEvent {
   pokemonShielded?: string | null;
   userShieldsRemaining: number;
   oppShieldsRemaining: number;
+  recommendedAction?: string | null;
+  recommendedGoal?: string | null;
+  decisionPhase?: string | null;
+  recommendedTargetPokemon?: string | null;
+  playerSwapRemainingSec?: number | null;
+  oppSwapRemainingSec?: number | null;
+  userAliveCount?: number | null;
+  oppAliveCount?: number | null;
+  lastPlayerSwitchWasFaint?: boolean | null;
+  lastOppSwitchWasFaint?: boolean | null;
+  activeMatchupBr?: number | null;
+  candidateScores?: Record<string, number> | null;
+  followedRecommendation?: boolean | null;
+  validityLatched?: boolean | null;
 }
 
 export interface ExecutionIntervalSegment {

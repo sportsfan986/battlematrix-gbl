@@ -10049,19 +10049,28 @@ export interface TacticalRecommendationResult {
   visible: boolean;
   phaseBadge: string;
   actionText: string;
+  actionLabel: string;
   shieldPlan: string;
   goalText: string;
   oneLineBadge: string;
+  oneLineBadgeText: string;
   tone: "emerald" | "amber" | "sky" | "rose";
+  urgencyColor: "emerald" | "amber" | "sky" | "rose";
+  recommendedSwapSlotIndex: number | null;
+  recommendedSwapPokemon: string | null;
+  candidateScores?: Record<string, number>;
 }
 
 /**
- * Real-time Lead & Swap Tactical Recommendation Engine:
- * Uses your Lead, Active Pokémon, Opponent Lead/Active Pokémon, predetermined 9x9 shield matrix ratings,
- * current shield counts, and Team Archetype (ABB / ABC / DUO) to recommend:
- * 1. Action on Lead reveal or Opponent/Own Swap (Stay In, Swap to [Mon], Chip & Swap, Counter-Swap)
- * 2. Shield Plan (0S / 1S / 2S)
- * 3. Matchup Goal (Flip Switch Adv, Win +1 Shield, Soft Lose -> Farm w/ [Mon], Eliminate Backline Threat, Sweep)
+ * Real-time Lead, Swap, Post-Faint & Endgame Tactical Recommendation Engine (v3.34):
+ * - Evaluates Post-Faint "Switch in a new Pokémon?" replacement options across:
+ *   1. Active Opponent Matchup & Farm Potential (45%)
+ *   2. Both Swap Clocks (playerSwapRemainingSec & oppSwapRemainingSec) (25%)
+ *   3. Known Revealed Bench Opponent(s) (20%)
+ *   4. Expected Unseen Meta Threats (10%)
+ * - Differentiates Opponent Faint Replacement (swap clock stays ready) vs. Manual Swap (swap clock locked 50s)
+ *   using Counter-Swap Minimax before recommending any swap.
+ * - Reads the full shield & fainted Pokémon picture (1v1, 2v1, 1v2) for accurate backline/endgame advice.
  */
 export function computeTacticalLeadAndSwapRecommendation(params: {
   team: TeamMember[];
@@ -10073,37 +10082,71 @@ export function computeTacticalLeadAndSwapRecommendation(params: {
   userShields: number;
   oppShields: number;
   userFaintedSlots?: boolean[];
+  oppFaintedSlots?: boolean[];
+  playerSwapRemainingSec?: number;
+  oppSwapRemainingSec?: number;
+  lastOppSwitchWasFaint?: boolean;
+  isPostFaintPrompt?: boolean;
   league: string;
 }): TacticalRecommendationResult {
   const {
     team,
     archetype,
-    sharedWeaknesses = [],
     activeUserIdx,
     scannedOpponents,
     activeOppName,
     userShields,
     oppShields,
     userFaintedSlots = [false, false, false],
+    oppFaintedSlots = [false, false, false],
+    playerSwapRemainingSec = 0,
+    oppSwapRemainingSec = 0,
+    lastOppSwitchWasFaint = false,
+    isPostFaintPrompt = false,
     league
   } = params;
 
-  if (!team || team.length < 3 || !activeOppName || activeOppName === "Waiting...") {
+  const makeRec = (
+    visible: boolean,
+    phaseBadge: string,
+    actionText: string,
+    shieldPlan: string,
+    goalText: string,
+    tone: "emerald" | "amber" | "sky" | "rose",
+    recommendedSwapSlotIndex: number | null = null,
+    recommendedSwapPokemon: string | null = null,
+    candidateScores: Record<string, number> = {}
+  ): TacticalRecommendationResult => {
+    const labelWithPhase = phaseBadge ? `[${phaseBadge}] ${actionText}` : actionText;
+    const oneLine = `${phaseBadge}: ${actionText} • ${shieldPlan} • Goal: ${goalText}`;
     return {
-      visible: false,
-      phaseBadge: "",
-      actionText: "",
-      shieldPlan: "",
-      goalText: "",
-      oneLineBadge: "",
-      tone: "sky"
+      visible,
+      phaseBadge,
+      actionText,
+      actionLabel: labelWithPhase,
+      shieldPlan,
+      goalText,
+      oneLineBadge: oneLine,
+      oneLineBadgeText: oneLine,
+      tone,
+      urgencyColor: tone,
+      recommendedSwapSlotIndex,
+      recommendedSwapPokemon,
+      candidateScores
     };
+  };
+
+  if (!team || team.length < 3 || !activeOppName || activeOppName === "Waiting...") {
+    return makeRec(false, "", "", "", "", "sky", null, null, {});
   }
 
   const uS = Math.max(0, Math.min(2, userShields));
   const oS = Math.max(0, Math.min(2, oppShields));
   const curIdx = Math.max(0, Math.min(2, activeUserIdx));
-  const curMember = team[curIdx];
+  const curMember = team[curIdx] || team[0];
+
+  const userAliveCount = Math.max(1, Math.min(3, 3 - userFaintedSlots.filter(Boolean).length));
+  const oppAliveCount = Math.max(1, Math.min(3, 3 - oppFaintedSlots.filter(Boolean).length));
 
   // Compute 9x9 shield matrix for all 3 team members against the active opponent
   const matrices = team.map((m) =>
@@ -10126,6 +10169,15 @@ export function computeTacticalLeadAndSwapRecommendation(params: {
     return mat[key]?.rating ?? 500;
   };
 
+  const getPairBr = (attackerName: string, defenderName: string, myS: number, theirS: number): number => {
+    const prof = getDynamicThreeShieldRatings(attackerName, defenderName, league);
+    if (myS === 0 && theirS === 0) return prof.r0;
+    if (myS === 1 && theirS === 1) return prof.r1;
+    if (myS === 2 && theirS === 2) return prof.r2;
+    const baseBr = myS === 2 ? prof.r2 : myS === 1 ? prof.r1 : prof.r0;
+    return Math.max(150, Math.min(850, baseBr + (myS - theirS) * 115));
+  };
+
   const curBrNow = getBr(curIdx, uS, oS);
   const curBr00 = getBr(curIdx, 0, 0);
   const curBr11 = getBr(curIdx, Math.min(1, uS), Math.min(1, oS));
@@ -10137,8 +10189,67 @@ export function computeTacticalLeadAndSwapRecommendation(params: {
   const b2Br = getBr(2, Math.min(1, uS), Math.min(1, oS));
   const oppBeatsBackline = b1Br < 475 && b2Br < 475;
 
-  const isLeadPhase = scannedOpponents.length <= 1 && curIdx === 0;
+  const isLeadPhase = scannedOpponents.length <= 1 && curIdx === 0 && userAliveCount === 3 && oppAliveCount === 3;
   const isOppSwapped = scannedOpponents.length > 1 && activeOppName.toLowerCase() !== (scannedOpponents[0] || "").toLowerCase();
+
+  // Known alive bench opponents (excluding current active opponent)
+  const revealedBenchOpps = scannedOpponents.filter((oppName, idx) => {
+    if (!oppName || oppName.toLowerCase() === activeOppName.toLowerCase()) return false;
+    return !oppFaintedSlots[idx];
+  });
+
+  // Unseen meta pool for backline risk estimation when < 3 opponents revealed
+  const unseenMetaPool = (DEFAULT_META_BY_LEAGUE[league] || DEFAULT_META_BY_LEAGUE["great"] || [])
+    .slice(0, 6)
+    .map((p) => p.name);
+
+  // Score alive candidate slots for both Post-Faint replacement and Counter-Swap Minimax
+  const candidateScores: Record<string, number> = {};
+  const candidateDetails = [0, 1, 2]
+    .filter((idx) => !userFaintedSlots[idx] && (isPostFaintPrompt || idx !== curIdx))
+    .map((idx) => {
+      const mName = team[idx]?.name || `Slot ${idx + 1}`;
+      const activeBr = getBr(idx, uS, oS);
+      const zeroBr = getBr(idx, 0, 0);
+      const oneBr = getBr(idx, Math.min(1, uS), Math.min(1, oS));
+
+      let worstResponseBr = 500;
+      if (revealedBenchOpps.length > 0) {
+        worstResponseBr = Math.min(...revealedBenchOpps.map((bOpp) => getPairBr(mName, bOpp, uS, oS)));
+      } else if (oppAliveCount > 1 && unseenMetaPool.length > 0) {
+        const sortedMetaBrs = unseenMetaPool.map((uOpp) => getPairBr(mName, uOpp, 1, 1)).sort((a, b) => a - b);
+        worstResponseBr = sortedMetaBrs[Math.min(1, sortedMetaBrs.length - 1)] ?? 465;
+      }
+
+      const activeFactor = activeBr * 0.65 + zeroBr * 0.35;
+      const clockFactor =
+        oppSwapRemainingSec >= 12 || oppAliveCount === 1
+          ? activeBr * 1.18
+          : activeBr * 0.55 + worstResponseBr * 0.45;
+      const knownBenchFactor =
+        revealedBenchOpps.length > 0
+          ? revealedBenchOpps.reduce((acc, bOpp) => acc + getPairBr(mName, bOpp, uS, oS), 0) / revealedBenchOpps.length
+          : oneBr;
+      const unseenMetaFactor =
+        unseenMetaPool.length > 0
+          ? unseenMetaPool.reduce((acc, uOpp) => acc + getPairBr(mName, uOpp, 1, 1), 0) / unseenMetaPool.length
+          : 500;
+
+      const compositeScore = Math.round(
+        activeFactor * 0.45 + clockFactor * 0.25 + knownBenchFactor * 0.20 + unseenMetaFactor * 0.10
+      );
+      candidateScores[mName] = compositeScore;
+
+      return {
+        idx,
+        name: mName,
+        activeBr,
+        zeroBr,
+        oneBr,
+        worstResponseBr,
+        compositeScore
+      };
+    });
 
   // Best available alive bench options
   const benchIndices = [0, 1, 2].filter((idx) => idx !== curIdx && !userFaintedSlots[idx]);
@@ -10148,6 +10259,126 @@ export function computeTacticalLeadAndSwapRecommendation(params: {
       : curIdx;
   const bestBenchBr = getBr(bestBenchIdx, uS, oS);
   const bestBenchName = team[bestBenchIdx]?.name || "Swap";
+
+  const canPlayerSwap = playerSwapRemainingSec <= 0 && benchIndices.length > 0;
+  const oppSwitchLockActive = !lastOppSwitchWasFaint && oppSwapRemainingSec >= 12;
+  const oppCanCounterSwap = lastOppSwitchWasFaint || oppSwapRemainingSec <= 8;
+
+  // =========================================================================
+  // CASE 0: POST-FAINT "SWITCH IN A NEW POKÉMON?" MODAL RECOMMENDATION
+  // =========================================================================
+  if (isPostFaintPrompt && candidateDetails.length > 0) {
+    const sortedPostFaint = [...candidateDetails].sort((a, b) => b.compositeScore - a.compositeScore);
+    const bestPick = sortedPostFaint[0];
+    const altPick = sortedPostFaint[1] || null;
+    const holdSuffix = altPick ? ` (Hold ${altPick.name})` : "";
+    const actionText = `SEND IN ➔ ${bestPick.name}${holdSuffix}`;
+    const shieldPlan = uS > 0 ? `Keep ${uS}S Ready` : "0S Farm/Close";
+    let goalText = `Punish ${activeOppName} (${bestPick.activeBr} BR)`;
+    let tone: "emerald" | "amber" | "sky" | "rose" = "emerald";
+
+    if (oppSwapRemainingSec >= 12) {
+      goalText = `Punish ${oppSwapRemainingSec}s Opp Swap Lock (${bestPick.activeBr} BR)`;
+      tone = "emerald";
+    } else if (oppAliveCount === 1) {
+      goalText = `Close Out Last Opponent (${bestPick.activeBr} BR)`;
+      tone = "emerald";
+    } else if (revealedBenchOpps.length > 0 && altPick) {
+      goalText = `Save ${altPick.name} for ${revealedBenchOpps[0]} (Opp Swap ${oppSwapRemainingSec}s)`;
+      tone = "sky";
+    } else {
+      goalText = `Best vs ${activeOppName} + Unseen Backline (Opp Swap ${oppSwapRemainingSec}s)`;
+      tone = bestPick.activeBr >= 510 ? "emerald" : "sky";
+    }
+
+    return makeRec(true, "POST-FAINT PICK", actionText, shieldPlan, goalText, tone, bestPick.idx, bestPick.name, candidateScores);
+  }
+
+  // =========================================================================
+  // CASE 1: ENDGAME AWARENESS (1v1, 2v1, 1v2) — FULL SHIELD & FAINTED PICTURE
+  // =========================================================================
+  if (userAliveCount === 1 && oppAliveCount === 1) {
+    if (uS > 0 && oS === 0) {
+      return makeRec(
+        true,
+        "1v1 CLOSER",
+        `CLOSE 1v1 (BURN ${uS}S)`,
+        "Shield First Charged",
+        `Guarantee 1v1 Win (${curBrNow} BR)`,
+        curBrNow >= 500 ? "emerald" : "amber",
+        null,
+        null,
+        candidateScores
+      );
+    }
+    if (uS > 0 && oS > 0) {
+      const needBait = curBr00 < 480 && curBr11 >= 500;
+      return makeRec(
+        true,
+        "1v1 CLOSER",
+        needBait ? `CLOSE 1v1 (BAIT ➔ NUKE)` : `CLOSE 1v1 (COMMIT ${uS}S)`,
+        `Commit ${uS}S on Nuke`,
+        needBait ? `Strip Last Opp Shield to Close` : `Out-Pace 1v1 (${curBrNow} BR)`,
+        curBrNow >= 500 ? "emerald" : "amber",
+        null,
+        null,
+        candidateScores
+      );
+    }
+    return makeRec(
+      true,
+      "1v1 CLOSER",
+      `CLOSE 1v1 (0S RACE)`,
+      "0S Remaining",
+      curBr00 >= 500 ? `Throw on CMP / Win 0S (${curBr00} BR)` : `Catch or Sneak Fast Move to Steal`,
+      curBr00 >= 500 ? "emerald" : "rose",
+      null,
+      null,
+      candidateScores
+    );
+  }
+
+  if (userAliveCount >= 2 && oppAliveCount === 1) {
+    if (canPlayerSwap && bestBenchBr >= curBrNow + 75 && curBrNow < 475) {
+      return makeRec(
+        true,
+        `${userAliveCount}v1 ENDGAME`,
+        `SWAP ➔ ${bestBenchName} TO CLOSE`,
+        uS > 0 ? `Commit ${uS}S` : `0S Close`,
+        `Last Opponent Mon (No Opp Bench Left)`,
+        "emerald",
+        bestBenchIdx,
+        bestBenchName,
+        candidateScores
+      );
+    }
+    return makeRec(
+      true,
+      `${userAliveCount}v1 ENDGAME`,
+      curBrNow >= 515 ? `2v1 PRESS ➔ FINISH` : `2v1 CHIP FOR ${bestBenchName}`,
+      uS > 0 ? (curBrNow >= 515 ? `Burn ${uS}S to Finish` : `Save ${uS}S for ${bestBenchName}`) : `0S Chip`,
+      `Opp Last Mon (${userAliveCount}v1 Advantage)`,
+      "emerald",
+      null,
+      null,
+      candidateScores
+    );
+  }
+
+  if (userAliveCount === 1 && oppAliveCount >= 2) {
+    const backOppLabel = revealedBenchOpps[0] || "Unseen Back";
+    return makeRec(
+      true,
+      `1v${oppAliveCount} CLUTCH`,
+      uS > 0 ? `1v2 WIN CON: FARM FOR ${backOppLabel}` : `1v2 WIN CON: OVERFARM & NUKE`,
+      uS > 0 ? `Hold 1S for ${backOppLabel}` : `0S Left`,
+      `Bank Energy on ${curMember.name} before ${backOppLabel} Enters`,
+      curBrNow >= 500 ? "amber" : "rose",
+      null,
+      null,
+      candidateScores
+    );
+  }
 
   // Helper to choose best farm-down partner after a soft loss
   const farmPartnerIdx =
@@ -10163,90 +10394,104 @@ export function computeTacticalLeadAndSwapRecommendation(params: {
   const farmPartnerName = team[farmPartnerIdx]?.name || team[0].name;
 
   // =========================================================================
-  // CASE 1: LEAD REVEAL PHASE (Slot 1 Lead vs Opponent Lead)
+  // CASE 2: LEAD REVEAL PHASE (Slot 1 Lead vs Opponent Lead)
   // =========================================================================
   if (isLeadPhase) {
     if (archetype === "ABB") {
       if (oppBeatsBackline && curBrNow >= 460) {
-        return {
-          visible: true,
-          phaseBadge: "ABB LEAD",
-          actionText: `STAY IN (${curMember.name})`,
-          shieldPlan: uS >= 2 ? "Commit 1S–2S" : `${uS}S`,
-          goalText: `Eliminate Backline Threat for ${team[2].name}`,
-          oneLineBadge: `ABB LEAD: STAY IN • ${uS >= 2 ? "Commit 1S–2S" : `${uS}S`} • Goal: Eliminate Backline Threat`,
-          tone: "emerald"
-        };
+        return makeRec(
+          true,
+          "ABB LEAD",
+          `STAY IN (${curMember.name})`,
+          uS >= 2 ? "Commit 1S–2S" : `${uS}S`,
+          `Eliminate Backline Threat for ${team[2].name}`,
+          "emerald",
+          null,
+          null,
+          candidateScores
+        );
       }
       if (curBrNow >= 560) {
-        return {
-          visible: true,
-          phaseBadge: "ABB LEAD",
-          actionText: `STAY IN (${curMember.name})`,
-          shieldPlan: "Match 1S",
-          goalText: "Win Lead & Preserve Alignment",
-          oneLineBadge: `ABB LEAD: STAY IN • Match 1S • Goal: Win Lead & Alignment`,
-          tone: "emerald"
-        };
+        return makeRec(
+          true,
+          "ABB LEAD",
+          `STAY IN (${curMember.name})`,
+          "Match 1S",
+          "Win Lead & Preserve Alignment",
+          "emerald",
+          null,
+          null,
+          candidateScores
+        );
       }
       if (curBrNow >= 465) {
-        return {
-          visible: true,
-          phaseBadge: "ABB LEAD",
-          actionText: `CHIP & SWAP → ${team[1].name}`,
-          shieldPlan: "0S on Lead",
-          goalText: `Soften Lead & Bait Backline Counter`,
-          oneLineBadge: `ABB LEAD: CHIP & SWAP → ${team[1].name} • 0S • Goal: Lure Backline Threat`,
-          tone: "amber"
-        };
+        return makeRec(
+          true,
+          "ABB LEAD",
+          canPlayerSwap ? `CHIP & SWAP → ${team[1].name}` : `STAY & CHIP (Swap ${playerSwapRemainingSec}s)`,
+          "0S on Lead",
+          `Soften Lead & Bait Backline Counter`,
+          "amber",
+          canPlayerSwap ? 1 : null,
+          canPlayerSwap ? team[1].name : null,
+          candidateScores
+        );
       }
-      return {
-        visible: true,
-        phaseBadge: "ABB LEAD",
-        actionText: `SWAP → ${team[1].name} (B1)`,
-        shieldPlan: "0S (Save Lead)",
-        goalText: `Bait Counter -> Farm w/ ${team[0].name}`,
-        oneLineBadge: `ABB LEAD: SWAP → ${team[1].name} • 0S • Goal: Bait Counter -> Farm w/ ${team[0].name}`,
-        tone: "rose"
-      };
+      return makeRec(
+        true,
+        "ABB LEAD",
+        canPlayerSwap ? `SWAP → ${team[1].name} (B1)` : `LOCKED (${playerSwapRemainingSec}s) • 0S`,
+        "0S (Save Lead)",
+        `Bait Counter -> Farm w/ ${team[0].name}`,
+        "rose",
+        canPlayerSwap ? 1 : null,
+        canPlayerSwap ? team[1].name : null,
+        candidateScores
+      );
     }
 
     // DUO-CORE or ABC Lead Reveal
     const tag = archetype === "DUO" ? "DUO LEAD" : "ABC LEAD";
     if (curBrNow >= 550) {
       const shieldAdvice = curBr00 >= 535 ? "0S–1S (Wins 0S)" : "Match 1S";
-      return {
-        visible: true,
-        phaseBadge: tag,
-        actionText: `STAY IN (${curMember.name})`,
-        shieldPlan: shieldAdvice,
-        goalText: "Win Lead & Hold Switch Adv",
-        oneLineBadge: `${tag}: STAY IN • ${shieldAdvice} • Goal: Win Lead & Switch Adv`,
-        tone: "emerald"
-      };
+      return makeRec(
+        true,
+        tag,
+        `STAY IN (${curMember.name})`,
+        shieldAdvice,
+        "Win Lead & Hold Switch Adv",
+        "emerald",
+        null,
+        null,
+        candidateScores
+      );
     }
     if (curBrNow >= 475) {
       if (curBrDownShield >= 455) {
-        return {
-          visible: true,
-          phaseBadge: tag,
-          actionText: `STAY IN (Soft Lose)`,
-          shieldPlan: "0S (Force Opp 1S)",
-          goalText: `Win +1 Shield -> Farm w/ ${team[1].name}`,
-          oneLineBadge: `${tag}: STAY (Soft Lose) • 0S • Goal: Win +1 Shield -> Farm`,
-          tone: "sky"
-        };
+        return makeRec(
+          true,
+          tag,
+          `STAY IN (Soft Lose)`,
+          "0S (Force Opp 1S)",
+          `Win +1 Shield -> Farm w/ ${team[1].name}`,
+          "sky",
+          null,
+          null,
+          candidateScores
+        );
       }
       const flip1S = getBr(1, Math.min(1, uS), Math.min(1, oS)) >= 520;
-      return {
-        visible: true,
-        phaseBadge: tag,
-        actionText: `CHIP & SWAP → ${team[1].name}`,
-        shieldPlan: flip1S ? "1S on Swap" : "0S Absorb",
-        goalText: flip1S ? "Flip Switch Adv" : `Win Shield Adv -> Farm w/ ${team[0].name}`,
-        oneLineBadge: `${tag}: CHIP & SWAP → ${team[1].name} • ${flip1S ? "1S" : "0S"} • Goal: ${flip1S ? "Flip Switch Adv" : "Win Shield Adv"}`,
-        tone: "amber"
-      };
+      return makeRec(
+        true,
+        tag,
+        canPlayerSwap ? `CHIP & SWAP → ${team[1].name}` : `STAY & CHIP (Swap ${playerSwapRemainingSec}s)`,
+        flip1S ? "1S on Swap" : "0S Absorb",
+        flip1S ? "Flip Switch Adv" : `Win Shield Adv -> Farm w/ ${team[0].name}`,
+        "amber",
+        canPlayerSwap ? 1 : null,
+        canPlayerSwap ? team[1].name : null,
+        candidateScores
+      );
     }
 
     // Hard Negative Lead (< 475): Pivot immediately to Slot 2 Safe Switch
@@ -10255,79 +10500,130 @@ export function computeTacticalLeadAndSwapRecommendation(params: {
     const swapBr1S = getBr(swapIdx, Math.min(1, uS), Math.min(1, oS));
     const canFlipSwitch = swapBr1S >= 520;
     const farmMon = getBr(0, 1, 0) >= getBr(2, 1, 0) ? team[0].name : team[2].name;
-    return {
-      visible: true,
-      phaseBadge: tag,
-      actionText: `SWAP → ${swapMon}`,
-      shieldPlan: canFlipSwitch ? "1S to Flip" : "0S Soft Lose",
-      goalText: canFlipSwitch ? "Flip Switch Adv" : `Burn Shields -> Farm w/ ${farmMon}`,
-      oneLineBadge: `${tag}: SWAP → ${swapMon} • ${canFlipSwitch ? "1S" : "0S"} • Goal: ${canFlipSwitch ? "Flip Switch Adv" : `Soft Lose -> Farm w/ ${farmMon}`}`,
-      tone: "rose"
-    };
+    return makeRec(
+      true,
+      tag,
+      canPlayerSwap ? `SWAP → ${swapMon}` : `LOCKED (${playerSwapRemainingSec}s) • 0S`,
+      canFlipSwitch ? "1S to Flip" : "0S Soft Lose",
+      canFlipSwitch ? "Flip Switch Adv" : `Burn Shields -> Farm w/ ${farmMon}`,
+      "rose",
+      canPlayerSwap ? swapIdx : null,
+      canPlayerSwap ? swapMon : null,
+      candidateScores
+    );
   }
 
   // =========================================================================
-  // CASE 2: OPPONENT SWAPPED OR USER IS ON SAFE SWAP / COUNTER-SWAP
+  // CASE 3: COUNTER-SWAP MINIMAX (FAINT REPLACEMENT VS. MANUAL SWAP CLOCK)
   // =========================================================================
   if (curBrNow < 475 && bestBenchBr >= curBrNow + 45 && benchIndices.length > 0) {
+    if (!canPlayerSwap && playerSwapRemainingSec > 0) {
+      return makeRec(
+        true,
+        `LOCKED ${playerSwapRemainingSec}s`,
+        `STAY & CHIP (Swap ${playerSwapRemainingSec}s)`,
+        "0S Absorb",
+        `Wait Out ${playerSwapRemainingSec}s Clock or Faint -> Bring ${bestBenchName}`,
+        "rose",
+        null,
+        null,
+        candidateScores
+      );
+    }
+
+    if (oppCanCounterSwap && oppAliveCount > 1) {
+      const bestCand = candidateDetails.find((c) => c.idx === bestBenchIdx) || candidateDetails[0];
+      const worstRespBr = bestCand ? bestCand.worstResponseBr : 440;
+      const branchAScore = Math.round(bestBenchBr * 0.35 + worstRespBr * 0.65 - 45);
+      const branchBScore = Math.round(curBr00 * 0.45 + bestBenchBr * 0.55);
+
+      if (branchBScore >= branchAScore && curBrNow >= 360) {
+        return makeRec(
+          true,
+          lastOppSwitchWasFaint ? "FAINT ENTRY" : "OPP SWAP READY",
+          `STAY & CHIP (HOLD SWAP)`,
+          "0S (Deny Counter-Swap)",
+          `Opp Swap Ready (${oppSwapRemainingSec}s) -> Faint & Free-Send ${bestBenchName}`,
+          "amber",
+          null,
+          null,
+          candidateScores
+        );
+      }
+    }
+
     const swapShield = getBr(bestBenchIdx, 0, oS) >= 525 ? "0S–1S" : "1S";
-    const goal =
-      bestBenchIdx === 0 && archetype === "ABB"
-        ? `Eliminate Threat & Farm Energy`
-        : bestBenchBr >= 560
-        ? `Wall & Farm Down w/ ${bestBenchName}`
-        : `Win Alignment w/ ${bestBenchName}`;
-    return {
-      visible: true,
-      phaseBadge: isOppSwapped ? "OPP SWAP" : "SWAP REC",
-      actionText: `COUNTER-SWAP → ${bestBenchName}`,
-      shieldPlan: swapShield,
-      goalText: goal,
-      oneLineBadge: `${isOppSwapped ? "OPP SWAP" : "SWAP REC"}: SWAP → ${bestBenchName} • ${swapShield} • Goal: ${goal}`,
-      tone: "amber"
-    };
+    const phaseLabel = oppSwitchLockActive
+      ? `PUNISH ${oppSwapRemainingSec}s LOCK`
+      : isOppSwapped
+      ? "OPP SWAP"
+      : "SWAP REC";
+    const actionVerb = oppSwitchLockActive ? "PUNISH LOCK →" : "COUNTER-SWAP →";
+    const goal = oppSwitchLockActive
+      ? `Opp Locked ${oppSwapRemainingSec}s -> Farm w/ ${bestBenchName}`
+      : bestBenchIdx === 0 && archetype === "ABB"
+      ? `Eliminate Threat & Farm Energy`
+      : bestBenchBr >= 560
+      ? `Wall & Farm Down w/ ${bestBenchName}`
+      : `Win Alignment w/ ${bestBenchName}`;
+    return makeRec(
+      true,
+      phaseLabel,
+      `${actionVerb} ${bestBenchName}`,
+      swapShield,
+      goal,
+      oppSwitchLockActive ? "emerald" : "amber",
+      bestBenchIdx,
+      bestBenchName,
+      candidateScores
+    );
   }
 
   // User is currently in with Slot 2 (Safe Swap / Bait Swap)
   if (curIdx === 1) {
     if (archetype === "ABB") {
       const canFlip = curBr11 >= 530;
-      return {
-        visible: true,
-        phaseBadge: "B1 BAIT SWAP",
-        actionText: `STAY IN (${curMember.name})`,
-        shieldPlan: canFlip ? "1S Pressure" : "0S Soft Lose",
-        goalText: canFlip
+      return makeRec(
+        true,
+        "B1 BAIT SWAP",
+        `STAY IN (${curMember.name})`,
+        canFlip ? "1S Pressure" : "0S Soft Lose",
+        canFlip
           ? `Flip Switch or Force Shields for ${team[2].name}`
           : `Soft Lose -> Farm Down w/ ${team[0].name}`,
-        oneLineBadge: `B1 SWAP: STAY IN • ${canFlip ? "1S" : "0S Soft Lose"} • Goal: ${
-          canFlip ? `Flip Switch / Strip Shields` : `Soft Lose -> Farm w/ ${team[0].name}`
-        }`,
-        tone: canFlip ? "emerald" : "sky"
-      };
+        canFlip ? "emerald" : "sky",
+        null,
+        null,
+        candidateScores
+      );
     }
 
-    // DUO or ABC Safe Switch in Slot 2
     if (curBrNow >= 520) {
-      return {
-        visible: true,
-        phaseBadge: "SAFE SWAP",
-        actionText: `STAY IN (${curMember.name})`,
-        shieldPlan: curBr00 >= 515 ? "0S–1S" : "1S",
-        goalText: "Win Switch Advantage",
-        oneLineBadge: `SAFE SWAP: STAY IN • ${curBr00 >= 515 ? "0S–1S" : "1S"} • Goal: Win Switch Advantage`,
-        tone: "emerald"
-      };
+      return makeRec(
+        true,
+        "SAFE SWAP",
+        `STAY IN (${curMember.name})`,
+        curBr00 >= 515 ? "0S–1S" : "1S",
+        oppSwitchLockActive
+          ? `Exploit ${oppSwapRemainingSec}s Lock & Win Switch`
+          : "Win Switch Advantage",
+        "emerald",
+        null,
+        null,
+        candidateScores
+      );
     }
-    return {
-      visible: true,
-      phaseBadge: "SAFE SWAP",
-      actionText: `STAY IN (${curMember.name})`,
-      shieldPlan: "0S (Don't Burn 2S)",
-      goalText: `Win Shield Adv / Soft Lose -> Farm w/ ${farmPartnerName}`,
-      oneLineBadge: `SAFE SWAP: STAY IN • 0S • Goal: Soft Lose -> Farm w/ ${farmPartnerName}`,
-      tone: "sky"
-    };
+    return makeRec(
+      true,
+      "SAFE SWAP",
+      `STAY IN (${curMember.name})`,
+      "0S (Don't Burn 2S)",
+      `Win Shield Adv / Soft Lose -> Farm w/ ${farmPartnerName}`,
+      "sky",
+      null,
+      null,
+      candidateScores
+    );
   }
 
   // User is in with Slot 1 or Slot 3 in mid/late game
@@ -10351,20 +10647,22 @@ export function computeTacticalLeadAndSwapRecommendation(params: {
       : "0S Soft Lose";
   const goalText =
     curBrNow >= 520
-      ? curIdx === 2
-        ? "Close Out & Sweep Endgame"
-        : "Farm Energy & Hold Alignment"
+      ? curIdx === 2 || oppAliveCount <= 2
+        ? "Close Out & Sweep Backline"
+        : "Farm Energy & Hold Tempo"
       : `Chip Damage -> Set Up ${bestBenchName}`;
 
-  return {
-    visible: true,
-    phaseBadge: roleTag,
-    actionText: `STAY IN (${curMember.name})`,
+  return makeRec(
+    true,
+    roleTag,
+    `STAY IN (${curMember.name})`,
     shieldPlan,
     goalText,
-    oneLineBadge: `${roleTag}: STAY IN • ${shieldPlan} • Goal: ${goalText}`,
-    tone: curBrNow >= 520 ? "emerald" : "sky"
-  };
+    curBrNow >= 520 ? "emerald" : "sky",
+    null,
+    null,
+    candidateScores
+  );
 }
 
 

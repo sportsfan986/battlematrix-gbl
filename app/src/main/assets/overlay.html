@@ -1668,12 +1668,18 @@
             render();
         };
 
-        // v2.33: Dynamic Color-Coded Swap Countdown Timers
-        function updateSwapClockBadge(element, prefix, seconds, isOpponent) {
+        // v3.34: Dynamic Color-Coded Swap Countdown Timers with 1st-Frame Provisional [1F] Validity Bit
+        function updateSwapClockBadge(element, prefix, seconds, isOpponent, isLatched) {
             if (!element) return;
-            const text = seconds <= 0 ? `${prefix}: 0s` : `${prefix}: ${seconds}s`;
+            const latchTag = (isLatched === false) ? " [1F]" : "";
+            const text = seconds <= 0 ? `${prefix}: 0s${latchTag}` : `${prefix}: ${seconds}s${latchTag}`;
             element.textContent = text;
-            if (seconds <= 0) {
+            if (isLatched === false) {
+                element.style.color = "#67E8F9";
+                element.style.borderColor = "rgba(56, 189, 248, 0.85)";
+                element.style.backgroundColor = "rgba(8, 51, 68, 0.72)";
+                element.style.boxShadow = "0 0 6px rgba(56, 189, 248, 0.55)";
+            } else if (seconds <= 0) {
                 if (isOpponent) {
                     // Opponent Ready (0s): Alert Red (#FF3B30)
                     element.style.color = "#FF3B30";
@@ -1718,10 +1724,13 @@
                 oppSec = Math.max(0, battleData.oppSwapRemainingSec);
             }
 
+            const oppLatched = battleData.oppSwitchValidityLatched !== false;
+            const playerLatched = battleData.playerSwitchValidityLatched !== false;
+
             const oppClockEl = document.getElementById("sky-opp-swap-clock");
             const playerClockEl = document.getElementById("sky-player-swap-clock");
-            updateSwapClockBadge(oppClockEl, "Opp Swap", oppSec, true);
-            updateSwapClockBadge(playerClockEl, "Swap", playerSec, false);
+            updateSwapClockBadge(oppClockEl, "Opp Swap", oppSec, true, oppLatched);
+            updateSwapClockBadge(playerClockEl, "Swap", playerSec, false, playerLatched);
         }
 
         setInterval(refreshSwapClocks, 250);
@@ -2258,9 +2267,11 @@
                             if (shEl) shEl.textContent = `[${shieldPlan}]`;
                             if (goalEl) goalEl.textContent = `Goal: ${goalText}`;
                             if (swBtn) {
-                                if (recSlot >= 0 && recSlot <= 2 && recSlot !== activeSlotIdx) {
+                                const isPostFaint = !!(battleData.isPostFaintSwitchPromptActive || (rawRec && rawRec.phase === "POST_FAINT_SWAP"));
+                                if (recSlot >= 0 && recSlot <= 2 && (isPostFaint || recSlot !== activeSlotIdx)) {
                                     swBtn.classList.remove("hidden");
                                     swBtn.setAttribute("data-swap-slot", String(recSlot));
+                                    swBtn.textContent = isPostFaint ? "Send In ➔" : "Swap ➔";
                                 } else {
                                     swBtn.classList.add("hidden");
                                 }

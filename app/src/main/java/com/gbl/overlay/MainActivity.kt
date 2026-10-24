@@ -89,7 +89,10 @@ data class BattleLogEntry(
     val userFaints: Int? = null,
     val oppFaints: Int? = null,
     val userShieldsRemaining: Int? = null,
-    val oppShieldsRemaining: Int? = null
+    val oppShieldsRemaining: Int? = null,
+    val adherenceRatePct: Int? = null,
+    val recommendationsIssuedCount: Int? = null,
+    val recommendationsFollowedCount: Int? = null
 )
 
 data class GblSeasonInfo(
@@ -3680,40 +3683,89 @@ class MainActivity : AppCompatActivity() {
         val (currSeason, prevSeason) = getCurrentAndPreviousSeason()
         val dateFmt = java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.US)
         val options = arrayOf(
-            "Today (Day)",
-            "Yesterday",
-            "This Week (Last 7 Days)",
-            "Current Season (${currSeason.name} • Since ${dateFmt.format(java.util.Date(currSeason.startMs))})",
-            "Previous Season (${dateFmt.format(java.util.Date(prevSeason.startMs))} – ${dateFmt.format(java.util.Date(prevSeason.endMs))})",
-            "All Time"
+            "Today (Day) — Summary",
+            "Yesterday — Summary",
+            "This Week (Last 7 Days) — Summary",
+            "Current Season (${currSeason.name} • Since ${dateFmt.format(java.util.Date(currSeason.startMs))}) — Summary",
+            "Previous Season (${dateFmt.format(java.util.Date(prevSeason.startMs))} – ${dateFmt.format(java.util.Date(prevSeason.endMs))}) — Summary",
+            "All Time — Summary",
+            "🤖 AI Training Detailed Log (JSONL Dataset • Today)",
+            "🤖 AI Training Detailed Log (JSONL Dataset • All Time)"
         )
-        val keys = arrayOf("DAY", "YESTERDAY", "WEEK", "CURRENT_SEASON", "PREVIOUS_SEASON", "ALL_TIME")
+        val keys = arrayOf("DAY", "YESTERDAY", "WEEK", "CURRENT_SEASON", "PREVIOUS_SEASON", "ALL_TIME", "AI_TRAIN_DAY", "AI_TRAIN_ALL")
 
         AlertDialog.Builder(this)
-            .setTitle(if (isShareIntent) "📤 Share Battle Log Summary — Range" else "📋 Copy Battle Log Summary — Range")
+            .setTitle(if (isShareIntent) "📤 Share Battle Log / AI Training Data" else "📋 Copy Battle Log / AI Training Data")
             .setItems(options) { _, which ->
                 val chosenKey = keys.getOrElse(which) { "ALL_TIME" }
-                val exportText = buildPlainTextExport(
-                    allLogs,
-                    selectedLogLeagueFilter,
-                    selectedLogTeamFilter,
-                    chosenKey
-                )
+                val isAiDataset = chosenKey.startsWith("AI_TRAIN_")
+                val timeKey = if (chosenKey == "AI_TRAIN_DAY") "DAY" else if (chosenKey == "AI_TRAIN_ALL") "ALL_TIME" else chosenKey
+                val exportText = if (isAiDataset) {
+                    buildAiTrainingDatasetExport(
+                        allLogs,
+                        selectedLogLeagueFilter,
+                        selectedLogTeamFilter,
+                        timeKey
+                    )
+                } else {
+                    buildPlainTextExport(
+                        allLogs,
+                        selectedLogLeagueFilter,
+                        selectedLogTeamFilter,
+                        timeKey
+                    )
+                }
                 if (isShareIntent) {
                     val sendIntent = Intent(Intent.ACTION_SEND).apply {
                         type = "text/plain"
-                        putExtra(Intent.EXTRA_SUBJECT, "SilphScope PvP Battle Log")
+                        putExtra(Intent.EXTRA_SUBJECT, if (isAiDataset) "SilphScope PvP AI Training Dataset (JSONL)" else "SilphScope PvP Battle Log")
                         putExtra(Intent.EXTRA_TEXT, exportText)
                     }
-                    startActivity(Intent.createChooser(sendIntent, "Share SilphScope PvP Battle Log"))
+                    startActivity(Intent.createChooser(sendIntent, if (isAiDataset) "Share SilphScope AI Training Log" else "Share SilphScope PvP Battle Log"))
                 } else {
                     val cm = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                    cm.setPrimaryClip(android.content.ClipData.newPlainText("SilphScope PvP Battle Log", exportText))
-                    Toast.makeText(this, "Copied Battle Log Summary (${options[which]}) to clipboard!", Toast.LENGTH_SHORT).show()
+                    cm.setPrimaryClip(android.content.ClipData.newPlainText("SilphScope PvP Export", exportText))
+                    Toast.makeText(this, "Copied ${options[which]} to clipboard!", Toast.LENGTH_SHORT).show()
                 }
             }
             .setNegativeButton("Cancel", null)
             .show()
+    }
+
+    private fun buildAiTrainingDatasetExport(
+        allLogs: List<BattleLogEntry>,
+        leagueFilter: String,
+        teamFilter: String,
+        timeframeFilter: String
+    ): String {
+        val filtered = filterBattleLogs(allLogs, leagueFilter, teamFilter, timeframeFilter)
+        val gson = com.google.gson.Gson()
+        return filtered.joinToString("\n") { log ->
+            val recEvents = log.timelineEvents.filter { !it.recommendedActionCode.isNullOrBlank() }
+            val followed = recEvents.count { it.adheredToRecommendation == true }
+            val adherencePct = log.adherenceRatePct ?: if (recEvents.isNotEmpty()) ((followed * 100.0) / recEvents.size).toInt() else null
+            val record = mapOf(
+                "schemaVersion" to "3.34",
+                "battleId" to log.id,
+                "timestampMs" to log.timestampMs,
+                "league" to log.league,
+                "userTeamName" to log.userTeamName,
+                "userPokemon" to log.userPokemon,
+                "opponents" to log.opponents,
+                "leadMatchup" to log.leadMatchup,
+                "result" to log.result,
+                "battleDurationSec" to log.battleDurationSec,
+                "userFaints" to log.userFaints,
+                "oppFaints" to log.oppFaints,
+                "userShieldsRemaining" to log.userShieldsRemaining,
+                "oppShieldsRemaining" to log.oppShieldsRemaining,
+                "adherenceRatePct" to adherencePct,
+                "recommendationsIssuedCount" to (log.recommendationsIssuedCount ?: recEvents.size),
+                "recommendationsFollowedCount" to (log.recommendationsFollowedCount ?: followed),
+                "timelineEvents" to log.timelineEvents
+            )
+            gson.toJson(record)
+        }
     }
 
     private fun renderBattleLogPage() {

@@ -215,7 +215,10 @@ class OverlayService : LifecycleService() {
             val userFaints: Int? = null,
             val oppFaints: Int? = null,
             val userShieldsRemaining: Int? = null,
-            val oppShieldsRemaining: Int? = null
+            val oppShieldsRemaining: Int? = null,
+            val adherenceRatePct: Int? = null,
+            val recommendationsIssuedCount: Int? = null,
+            val recommendationsFollowedCount: Int? = null
         )
 
         data class SyncTeamSlot(
@@ -7328,6 +7331,24 @@ class OverlayService : LifecycleService() {
     private var playerShieldRestoreFrames: Int = 0
     private var oppShieldRestoreFrames: Int = 0
 
+    // v3.34: 1st-Frame Immediate Swap Detection, Midpoint Swap Clock, 2nd-Frame Validity Bit & Post-Faint Prompt
+    private var lastConfirmedPlayerFrameTimeMs: Long = 0L
+    private var lastConfirmedOppFrameTimeMs: Long = 0L
+    private var playerSwitchValidityLatched: Boolean = true
+    private var oppSwitchValidityLatched: Boolean = true
+    private var provisionalOppPrevName: String = ""
+    private var provisionalOppPrevSpecies: String = ""
+    private var provisionalOppPrevWasAddedToDetected: Boolean = false
+    private var provisionalPlayerPrevName: String = ""
+    private var isPostFaintSwitchPromptActive: Boolean = false
+    private var lastRecommendedAction: String = ""
+    private var lastRecommendedGoal: String = ""
+    private var lastRecommendedPhase: String = "LEAD"
+    private var lastRecommendedSwapSlotIdx: Int = -1
+    private var lastRecommendedCandidateScores: Map<String, Int> = emptyMap()
+    private var recommendationsIssuedInBattle: Int = 0
+    private var recommendationsFollowedInBattle: Int = 0
+
     // Phase 2: Battle Clock Synchronization (t0) & Live Timeline Event Logger
     private var battleClockAnchorMs: Long = 0L
     private val battleTimelineEvents = mutableListOf<BattleTimelineEvent>()
@@ -7357,7 +7378,7 @@ class OverlayService : LifecycleService() {
     }
 
     data class BattleTimelineEvent(
-        val type: String = "SWAP", // "SWAP" | "SHIELD" | "FAINT"
+        val type: String = "SWAP", // "SWAP" | "SHIELD" | "FAINT" | "POST_FAINT_PROMPT" | "DECISION_SNAPSHOT"
         val actor: String = "user", // "user" | "opp"
         val t: Double = 0.0, // Relative elapsed seconds (Date.now() - t0) / 1000
         val pokemonIn: String? = null,
@@ -7367,7 +7388,21 @@ class OverlayService : LifecycleService() {
         val activePokemon: String? = null,
         val pokemonShielded: String? = null,
         val userShieldsRemaining: Int = 2,
-        val oppShieldsRemaining: Int = 2
+        val oppShieldsRemaining: Int = 2,
+        val recommendedAction: String? = null,
+        val recommendedGoal: String? = null,
+        val decisionPhase: String? = null,
+        val recommendedTargetPokemon: String? = null,
+        val playerSwapRemainingSec: Int? = null,
+        val oppSwapRemainingSec: Int? = null,
+        val userAliveCount: Int? = null,
+        val oppAliveCount: Int? = null,
+        val lastPlayerSwitchWasFaint: Boolean? = null,
+        val lastOppSwitchWasFaint: Boolean? = null,
+        val activeMatchupBr: Int? = null,
+        val candidateScores: Map<String, Int>? = null,
+        val followedRecommendation: Boolean? = null,
+        val validityLatched: Boolean? = null
     )
 
     data class ExecutionIntervalSegment(
@@ -8339,7 +8374,7 @@ class OverlayService : LifecycleService() {
         )
         val srcMoves = Rect(
             (w * 0.08f).toInt().coerceIn(0, w - 1),
-            (h * 0.80f).toInt().coerceIn(0, h - 1),
+            (h * 0.70f).toInt().coerceIn(0, h - 1),
             (w * 0.92f).toInt().coerceIn(1, w),
             (h * 0.95f).toInt().coerceIn(1, h)
         )
@@ -8516,9 +8551,16 @@ class OverlayService : LifecycleService() {
     }
 
     /**
-     * Interpolates T_swap midway between frame F_prev and detection frame F_detect
-     * to eliminate capture interval latency, anchoring the timer to calculated animation start.
+     * Interpolates T_swap midway between the last frame where the old Pokémon was seen
+     * and the first frame where the new Pokémon is seen (with fallback to prevFrameTimestampMs).
      */
+    private fun getMidpointSwapStartTimeMs(lastOldPokemonFrameMs: Long, firstNewPokemonFrameMs: Long = currentFrameTimestampMs): Long {
+        if (lastOldPokemonFrameMs > 0L && firstNewPokemonFrameMs > lastOldPokemonFrameMs && (firstNewPokemonFrameMs - lastOldPokemonFrameMs) <= 8000L) {
+            return (lastOldPokemonFrameMs + firstNewPokemonFrameMs) / 2L
+        }
+        return getInterpolatedSwapStartTimeMs()
+    }
+
     private fun getInterpolatedSwapStartTimeMs(): Long {
         return if (prevFrameTimestampMs > 0L && currentFrameTimestampMs > prevFrameTimestampMs) {
             (prevFrameTimestampMs + currentFrameTimestampMs) / 2L
@@ -9006,10 +9048,41 @@ class OverlayService : LifecycleService() {
             val anyLineHasShadow = rawMatchedLine.contains("shadow", ignoreCase = true) ||
                 sortedLines.any { it.text.contains("shadow", ignoreCase = true) }
 
-            // Trigger immediately when opponent spawns or switches/faints into a different species
             if (System.currentTimeMillis() - lastBattleResetTimeMs < 600L) return
             val speciesChanged = isWaitingForOpponent || !newBaseSpecies.equals(activeOpponentSpecies, ignoreCase = true)
+
+            // v3.34: 2nd-Frame Validity Check — If Frame 1 was an unlatched provisional swap and Frame 2 immediately
+            // re-detects the OLD opponent species (meaning Frame 1 was a 1-frame OCR glitch), revert the swap & clock!
+            if (!oppSwitchValidityLatched &&
+                speciesChanged &&
+                provisionalOppPrevSpecies.isNotEmpty() &&
+                newBaseSpecies.equals(provisionalOppPrevSpecies, ignoreCase = true) &&
+                (currentFrameTimestampMs - lastOppSwitchFrameMs) <= 2600L
+            ) {
+                if (provisionalOppPrevWasAddedToDetected && detectedOpponents.isNotEmpty()) {
+                    val badBase = activeOpponentSpecies
+                    detectedOpponents.removeAll { FormResolver.extractBaseSpecies(it).equals(badBase, ignoreCase = true) }
+                }
+                activeOpponentName = provisionalOppPrevName
+                activeOpponentSpecies = provisionalOppPrevSpecies
+                availableOpponentForms = FormResolver.getVariantsForSpecies(provisionalOppPrevSpecies, activeLeague)
+                currentFormIndex = availableOpponentForms.indexOfFirst { it.name == provisionalOppPrevName }.coerceAtLeast(0)
+                oppSwapEndTimeMs = oppSwapEndTimeBeforeSwitch
+                oppSwitchValidityLatched = true
+                provisionalOppPrevName = ""
+                provisionalOppPrevSpecies = ""
+                provisionalOppPrevWasAddedToDetected = false
+                lastConfirmedOppFrameTimeMs = currentFrameTimestampMs
+                if (battleTimelineEvents.isNotEmpty() && battleTimelineEvents.last().actor == "opp" && battleTimelineEvents.last().validityLatched == false) {
+                    battleTimelineEvents.removeAt(battleTimelineEvents.lastIndex)
+                }
+                recalculateAndPushBattleData()
+                return
+            }
+
             if (speciesChanged) {
+                val prevOppRawName = activeOpponentName
+                val prevOppRawSpecies = activeOpponentSpecies
                 val prevOppFormattedName = if (!isWaitingForOpponent && activeOpponentName != "Waiting...") {
                     formatOpponentNameWithShadow(activeOpponentName)
                 } else ""
@@ -9019,6 +9092,7 @@ class OverlayService : LifecycleService() {
                 } else -1
 
                 val wasWaitingForOpponent = isWaitingForOpponent
+                val preDetectedSize = detectedOpponents.size
                 isWaitingForOpponent = false
                 isBattleActive = true
                 lastClearedOpponentsSnapshot = emptyList()
@@ -9044,28 +9118,31 @@ class OverlayService : LifecycleService() {
 
                 // 1-per-species deduplication on opponent team (maintaining fixed 1st/2nd/3rd seen order)
                 upsertDetectedOpponentBySpecies(matched.name, newBaseSpecies)
+                val wasAddedNewToDetected = detectedOpponents.size > preDetectedSize
                 val newOppFormattedName = formatOpponentNameWithShadow(matched.name)
 
                 val newOppSlotIdx = detectedOpponents.indexOfFirst {
                     FormResolver.extractBaseSpecies(it).equals(newBaseSpecies, ignoreCase = true)
                 }
-                // Resurrection Guard: Any Pokémon entering the field is 100% alive (never stays greyed out when swapped back in!)
+                // Resurrection Guard: Any Pokémon entering the field is 100% alive
                 if (newOppSlotIdx in 0..2 && oppFaintedSlots[newOppSlotIdx]) {
                     oppFaintedSlots[newOppSlotIdx] = false
                     oppPokeballCount = (3 - oppFaintedSlots.count { it }).coerceIn(1, 3)
                 }
 
                 if (wasWaitingForOpponent) {
-                    // Phase 2 Clock Anchor: Initialize t_0 = 0.00s at the exact millisecond the opponent's lead Pokémon is recognized
                     battleClockAnchorMs = System.currentTimeMillis()
                     battleTimelineEvents.clear()
-
-                    // Turn 1 Lead Spawn: all 3 Pokémon are alive, swap clock is 0s Ready
                     oppPokeballCount = 3
                     oppFaintedSlots.fill(false)
                     oppSwapEndTimeMs = 0L
                     lastOppSwitchWasFaint = false
                     oppSwitchConfirmedAlive = true
+                    oppSwitchValidityLatched = true
+                    provisionalOppPrevName = ""
+                    provisionalOppPrevSpecies = ""
+                    provisionalOppPrevWasAddedToDetected = false
+                    lastConfirmedOppFrameTimeMs = currentFrameTimestampMs
                     oppSwitchAliveFrames = 0
                     oppPostSwitchLowBallFrames = 0
                     lastObservedLowOppBalls = 3
@@ -9073,7 +9150,8 @@ class OverlayService : LifecycleService() {
                     recalculateAndPushBattleData()
                     showBattleToast("⚔️ Opponent: ${matched.name} (${matched.fastTurns}t ${matched.defaultFastMove})")
                 } else {
-                    val swapStartMs = getInterpolatedSwapStartTimeMs()
+                    // v3.34: Start Swap Clock halfway between last frame with old Pokémon and first frame with new Pokémon
+                    val swapStartMs = getMidpointSwapStartTimeMs(lastConfirmedOppFrameTimeMs, currentFrameTimestampMs)
                     val elapsedSec = getElapsedBattleSeconds(swapStartMs)
                     val priorFaintsExcludingPrev = (0..2).count {
                         it != prevOppSlotIdx && it != newOppSlotIdx && oppFaintedSlots[it]
@@ -9088,10 +9166,17 @@ class OverlayService : LifecycleService() {
                         effectiveOppBalls < aliveBeforeSwitch &&
                         (prevOppSlotIdx !in 0..2 || !oppFaintedSlots[prevOppSlotIdx])
 
+                    // Record pre-switch snapshot for 2nd-frame validity bit revert if Frame 2 disproves Frame 1
+                    provisionalOppPrevName = prevOppRawName
+                    provisionalOppPrevSpecies = prevOppRawSpecies
+                    provisionalOppPrevWasAddedToDetected = wasAddedNewToDetected
+                    oppSwitchValidityLatched = false
+
+                    val nowRemPlayerSec = if (playerSwapEndTimeMs > currentFrameTimestampMs) ceil((playerSwapEndTimeMs - currentFrameTimestampMs) / 1000.0).toInt() else 0
+                    val userAliveNow = (3 - playerFaintedSlots.count { it }).coerceIn(1, 3)
+
                     if (isFaintReplacement) {
-                        // Faint Replacement (verified by Pokéball drop vs prior alive count):
-                        // 1. Do NOT reset Swap Clock (preserve existing cooldown/ready timer).
-                        // 2. Mark prior species as FAINTED (grey out / dim column in attacks table).
+                        oppSwapEndTimeBeforeSwitch = oppSwapEndTimeMs
                         oppPreSwitchBallCount = aliveBeforeSwitch
                         lastOppPrevSlotIdx = prevOppSlotIdx
                         lastOppSwitchTimeMs = swapStartMs
@@ -9109,6 +9194,7 @@ class OverlayService : LifecycleService() {
                             }
                         }
                         oppPokeballCount = (3 - oppFaintedSlots.count { it }).coerceIn(1, 3)
+                        val oppRemSec = if (oppSwapEndTimeMs > currentFrameTimestampMs) ceil((oppSwapEndTimeMs - currentFrameTimestampMs) / 1000.0).toInt() else 0
                         battleTimelineEvents.add(
                             BattleTimelineEvent(
                                 type = "FAINT",
@@ -9118,17 +9204,27 @@ class OverlayService : LifecycleService() {
                                 pokemonIn = newOppFormattedName,
                                 pokemonOut = prevOppFormattedName.ifEmpty { null },
                                 userShieldsRemaining = playerShieldsRemaining,
-                                oppShieldsRemaining = oppShieldsRemaining
+                                oppShieldsRemaining = oppShieldsRemaining,
+                                recommendedAction = lastRecommendedAction.ifEmpty { null },
+                                recommendedGoal = lastRecommendedGoal.ifEmpty { null },
+                                decisionPhase = "OPP_FAINT_ENTRY",
+                                playerSwapRemainingSec = nowRemPlayerSec,
+                                oppSwapRemainingSec = oppRemSec,
+                                userAliveCount = userAliveNow,
+                                oppAliveCount = oppPokeballCount,
+                                lastPlayerSwitchWasFaint = lastPlayerSwitchWasFaint,
+                                lastOppSwitchWasFaint = true,
+                                candidateScores = lastRecommendedCandidateScores.takeIf { it.isNotEmpty() },
+                                validityLatched = false
                             )
                         )
+                        lastConfirmedOppFrameTimeMs = currentFrameTimestampMs
                         isOppTurnOne = false
                         recalculateAndPushBattleData()
                         val faintedLabel = prevOppFormattedName.ifEmpty { "Opponent" }
                         showBattleToast("💀 Opp Faint Swap: $faintedLabel → ${matched.name} (${matched.fastTurns}t ${matched.defaultFastMove})")
                     } else {
-                        // True Tactical Swap (or HUD still sliding in on switch frame):
-                        // 1. Reset Swap Clock to 50s (will roll back if HUD reveals fainted ball on subsequent frames).
-                        // 2. Prior species remains alive (do NOT grey out column).
+                        // True Manual Swap (Frame 1 Provisional with Midpoint Swap Clock; latches on Frame 2 or reverts to Faint if ball drops)
                         oppSwapEndTimeBeforeSwitch = oppSwapEndTimeMs
                         oppPreSwitchBallCount = aliveBeforeSwitch
                         lastOppPrevSlotIdx = prevOppSlotIdx
@@ -9142,6 +9238,7 @@ class OverlayService : LifecycleService() {
                             oppFaintedSlots[prevOppSlotIdx] = false
                         }
                         oppSwapEndTimeMs = swapStartMs + 50000L
+                        val oppRemSec = ceil((oppSwapEndTimeMs - currentFrameTimestampMs).coerceAtLeast(0L) / 1000.0).toInt()
                         battleTimelineEvents.add(
                             BattleTimelineEvent(
                                 type = "SWAP",
@@ -9150,34 +9247,75 @@ class OverlayService : LifecycleService() {
                                 pokemonIn = newOppFormattedName,
                                 pokemonOut = prevOppFormattedName.ifEmpty { null },
                                 userShieldsRemaining = playerShieldsRemaining,
-                                oppShieldsRemaining = oppShieldsRemaining
+                                oppShieldsRemaining = oppShieldsRemaining,
+                                recommendedAction = lastRecommendedAction.ifEmpty { null },
+                                recommendedGoal = lastRecommendedGoal.ifEmpty { null },
+                                decisionPhase = "OPP_SWAP",
+                                playerSwapRemainingSec = nowRemPlayerSec,
+                                oppSwapRemainingSec = oppRemSec,
+                                userAliveCount = userAliveNow,
+                                oppAliveCount = (3 - oppFaintedSlots.count { it }).coerceIn(1, 3),
+                                lastPlayerSwitchWasFaint = lastPlayerSwitchWasFaint,
+                                lastOppSwitchWasFaint = false,
+                                candidateScores = lastRecommendedCandidateScores.takeIf { it.isNotEmpty() },
+                                validityLatched = false
                             )
                         )
+                        lastConfirmedOppFrameTimeMs = currentFrameTimestampMs
                         isOppTurnOne = false
                         recalculateAndPushBattleData()
                         showBattleToast("⚔️ Opponent: ${matched.name} (${matched.fastTurns}t ${matched.defaultFastMove})")
                     }
                 }
             } else {
-                // Species Changed = NO:
+                // Species Changed = NO: Frame 2+ confirms the active opponent species -> Latch Validity Bit!
+                lastConfirmedOppFrameTimeMs = currentFrameTimestampMs
+                if (!oppSwitchValidityLatched) {
+                    oppSwitchValidityLatched = true
+                    provisionalOppPrevName = ""
+                    provisionalOppPrevSpecies = ""
+                    provisionalOppPrevWasAddedToDetected = false
+                    val lastEvIdx = battleTimelineEvents.indexOfLast { it.actor == "opp" && it.validityLatched == false }
+                    if (lastEvIdx >= 0) {
+                        battleTimelineEvents[lastEvIdx] = battleTimelineEvents[lastEvIdx].copy(validityLatched = true)
+                    }
+                    recalculateAndPushBattleData()
+                }
                 if (anyLineHasShadow && !manualShadowOverrides.containsKey(newBaseSpecies) && !isOpponentShadow) {
                     isOpponentShadow = true
                     manualShadowOverrides[newBaseSpecies] = true
                     recalculateAndPushBattleData()
                 }
             }
+        } else if (!oppSwitchValidityLatched && (currentFrameTimestampMs - lastOppSwitchFrameMs) >= 1400L) {
+            // If Frame 2 had no conflicting old-species OCR text, latch the provisional swap
+            oppSwitchValidityLatched = true
+            provisionalOppPrevName = ""
+            provisionalOppPrevSpecies = ""
+            provisionalOppPrevWasAddedToDetected = false
+            recalculateAndPushBattleData()
         }
     }
 
     /**
      * Executes a player switch, applying Faint vs. True Swap classification,
-     * resurrection guard for returning Pokémon, timestamp interpolation, and 50s cooldown management (v2.94).
+     * resurrection guard, midpoint timestamp interpolation, 2nd-frame validity bit, and recommendation adherence tracking (v3.34).
      */
-    private fun executePlayerSwitch(newSlotName: String) {
+    private fun executePlayerSwitch(newSlotName: String, fromOcrFrame: Boolean = false) {
         val preset = currentPreset ?: return
         val newSlotIdx = preset.pokemon.indexOfFirst { it.name.equals(newSlotName, ignoreCase = true) }
 
-        if (newSlotName.equals(activeUserPokemonName, ignoreCase = true)) {
+        if (newSlotName.equals(activeUserPokemonName, ignoreCase = true) && !isPostFaintSwitchPromptActive) {
+            lastConfirmedPlayerFrameTimeMs = currentFrameTimestampMs.takeIf { it > 0L } ?: System.currentTimeMillis()
+            if (!playerSwitchValidityLatched) {
+                playerSwitchValidityLatched = true
+                provisionalPlayerPrevName = ""
+                val lastEvIdx = battleTimelineEvents.indexOfLast { it.actor == "user" && it.validityLatched == false }
+                if (lastEvIdx >= 0) {
+                    battleTimelineEvents[lastEvIdx] = battleTimelineEvents[lastEvIdx].copy(validityLatched = true)
+                }
+                recalculateAndPushBattleData()
+            }
             if (newSlotIdx in 0..2 && playerFaintedSlots[newSlotIdx]) {
                 playerFaintedSlots[newSlotIdx] = false
                 playerPokeballCount = (3 - playerFaintedSlots.count { it }).coerceIn(1, 3)
@@ -9186,25 +9324,49 @@ class OverlayService : LifecycleService() {
             return
         }
 
-        // Resurrection Guard: Any Pokémon entering the field is 100% alive (never stays greyed out when swapped back in!)
+        // v3.34: 2nd-Frame Validity Revert for Player OCR Switch — if Frame 1 was a provisional OCR switch
+        // and Frame 2 immediately re-detects the previous player Pokémon, revert the switch & restore the swap clock!
+        if (fromOcrFrame &&
+            !playerSwitchValidityLatched &&
+            provisionalPlayerPrevName.isNotEmpty() &&
+            newSlotName.equals(provisionalPlayerPrevName, ignoreCase = true) &&
+            (currentFrameTimestampMs - lastPlayerSwitchFrameMs) <= 2600L
+        ) {
+            activeUserPokemonName = provisionalPlayerPrevName
+            playerSwapEndTimeMs = playerSwapEndTimeBeforeSwitch
+            playerSwitchValidityLatched = true
+            provisionalPlayerPrevName = ""
+            lastConfirmedPlayerFrameTimeMs = currentFrameTimestampMs
+            if (battleTimelineEvents.isNotEmpty() && battleTimelineEvents.last().actor == "user" && battleTimelineEvents.last().validityLatched == false) {
+                battleTimelineEvents.removeAt(battleTimelineEvents.lastIndex)
+            }
+            recalculateAndPushBattleData()
+            return
+        }
+
+        // Resurrection Guard: Any Pokémon entering the field is 100% alive
         if (newSlotIdx in 0..2 && playerFaintedSlots[newSlotIdx]) {
             playerFaintedSlots[newSlotIdx] = false
             playerPokeballCount = (3 - playerFaintedSlots.count { it }).coerceIn(1, 3)
         }
 
-        // If the battle hasn't started yet (waiting for opponent lead spawn), update active lead without triggering swap cooldown
         if (isWaitingForOpponent) {
             activeUserPokemonName = newSlotName
             playerFaintedSlots.fill(false)
             playerPokeballCount = 3
             playerSwapEndTimeMs = 0L
+            isPostFaintSwitchPromptActive = false
+            playerSwitchValidityLatched = true
+            lastConfirmedPlayerFrameTimeMs = System.currentTimeMillis()
             recalculateAndPushBattleData()
             return
         }
 
+        val nowMs = currentFrameTimestampMs.takeIf { it > 0L } ?: System.currentTimeMillis()
         val prevPlayerPokemon = activeUserPokemonName ?: preset.pokemon.firstOrNull()?.name ?: ""
         val prevSlotIdx = preset.pokemon.indexOfFirst { it.name.equals(activeUserPokemonName, ignoreCase = true) }.let { if (it >= 0) it else 0 }
-        val swapStartMs = getInterpolatedSwapStartTimeMs()
+        // v3.34: Start Swap Clock halfway between last frame with old Pokémon and first frame with new Pokémon
+        val swapStartMs = getMidpointSwapStartTimeMs(lastConfirmedPlayerFrameTimeMs, nowMs)
         val elapsedSec = getElapsedBattleSeconds(swapStartMs)
         val priorFaintsExcludingPrev = (0..2).count {
             it != prevSlotIdx && it != newSlotIdx && playerFaintedSlots[it]
@@ -9212,24 +9374,45 @@ class OverlayService : LifecycleService() {
         val aliveBeforeSwitch = (3 - priorFaintsExcludingPrev).coerceIn(2, 3)
         val effectivePlayerBalls = when {
             sampledPlayerBalls in 1..3 -> sampledPlayerBalls
-            (currentFrameTimestampMs - lastObservedLowPlayerBallsTimeMs) <= 15000L && lastObservedLowPlayerBalls in 1..2 -> lastObservedLowPlayerBalls
+            (nowMs - lastObservedLowPlayerBallsTimeMs) <= 15000L && lastObservedLowPlayerBalls in 1..2 -> lastObservedLowPlayerBalls
             else -> -1
         }
-        val isFaintReplacement = effectivePlayerBalls in 1..2 &&
-            effectivePlayerBalls < aliveBeforeSwitch &&
-            !playerFaintedSlots[prevSlotIdx]
+        val isFaintReplacement = isPostFaintSwitchPromptActive ||
+            playerFaintedSlots[prevSlotIdx] ||
+            (effectivePlayerBalls in 1..2 && effectivePlayerBalls < aliveBeforeSwitch && !playerFaintedSlots[prevSlotIdx])
 
+        // Evaluate whether the player's switch followed the active tactical recommendation
+        val followedRec: Boolean? = if (lastRecommendedAction.isNotEmpty()) {
+            recommendationsIssuedInBattle++
+            val matchedRec = if (lastRecommendedSwapSlotIdx in 0..2) {
+                newSlotIdx == lastRecommendedSwapSlotIdx
+            } else {
+                lastRecommendedAction.contains("SWAP", ignoreCase = true) ||
+                    lastRecommendedAction.contains("SEND IN", ignoreCase = true) ||
+                    lastRecommendedAction.contains("PIVOT", ignoreCase = true) ||
+                    lastRecommendedAction.contains("PUNISH", ignoreCase = true)
+            }
+            if (matchedRec) recommendationsFollowedInBattle++
+            matchedRec
+        } else null
+
+        val recTargetName = if (lastRecommendedSwapSlotIdx in 0..2) preset.pokemon.getOrNull(lastRecommendedSwapSlotIdx)?.name else null
+        val oppRemSec = if (oppSwapEndTimeMs > nowMs) ceil((oppSwapEndTimeMs - nowMs) / 1000.0).toInt() else 0
+        val oppAliveNow = (3 - oppFaintedSlots.count { it }).coerceIn(1, 3)
+
+        provisionalPlayerPrevName = prevPlayerPokemon
+        playerSwitchValidityLatched = !fromOcrFrame
+        isPostFaintSwitchPromptActive = false
         activeUserPokemonName = newSlotName
         isPlayerTurnOne = false
+        lastConfirmedPlayerFrameTimeMs = nowMs
 
         if (isFaintReplacement) {
-            // Faint Replacement (verified by Pokéball drop vs prior alive count):
-            // 1. Do NOT reset Swap Clock (preserve existing cooldown/ready timer).
-            // 2. Mark prior species as FAINTED (grey out / dim column in attacks table).
+            playerSwapEndTimeBeforeSwitch = playerSwapEndTimeMs
             playerPreSwitchBallCount = aliveBeforeSwitch
             lastPlayerPrevSlotIdx = prevSlotIdx
             lastPlayerSwitchTimeMs = swapStartMs
-            lastPlayerSwitchFrameMs = currentFrameTimestampMs
+            lastPlayerSwitchFrameMs = nowMs
             lastPlayerSwitchWasFaint = true
             playerSwitchConfirmedAlive = true
             playerSwitchAliveFrames = 0
@@ -9243,6 +9426,7 @@ class OverlayService : LifecycleService() {
                 }
             }
             playerPokeballCount = (3 - playerFaintedSlots.count { it }).coerceIn(1, 3)
+            val playerRemSec = if (playerSwapEndTimeMs > nowMs) ceil((playerSwapEndTimeMs - nowMs) / 1000.0).toInt() else 0
             battleTimelineEvents.add(
                 BattleTimelineEvent(
                     type = "FAINT",
@@ -9252,21 +9436,32 @@ class OverlayService : LifecycleService() {
                     pokemonIn = newSlotName,
                     pokemonOut = prevPlayerPokemon.ifEmpty { null },
                     userShieldsRemaining = playerShieldsRemaining,
-                    oppShieldsRemaining = oppShieldsRemaining
+                    oppShieldsRemaining = oppShieldsRemaining,
+                    recommendedAction = lastRecommendedAction.ifEmpty { null },
+                    recommendedGoal = lastRecommendedGoal.ifEmpty { null },
+                    decisionPhase = "POST_FAINT_SWAP",
+                    recommendedTargetPokemon = recTargetName,
+                    playerSwapRemainingSec = playerRemSec,
+                    oppSwapRemainingSec = oppRemSec,
+                    userAliveCount = playerPokeballCount,
+                    oppAliveCount = oppAliveNow,
+                    lastPlayerSwitchWasFaint = true,
+                    lastOppSwitchWasFaint = lastOppSwitchWasFaint,
+                    candidateScores = lastRecommendedCandidateScores.takeIf { it.isNotEmpty() },
+                    followedRecommendation = followedRec,
+                    validityLatched = !fromOcrFrame
                 )
             )
             recalculateAndPushBattleData()
             val faintedLabel = prevPlayerPokemon.ifEmpty { "Player" }
             showBattleToast("💀 Player Faint Swap: $faintedLabel → $newSlotName")
         } else {
-            // True Tactical Swap (or HUD still sliding in on switch frame):
-            // 1. Reset Swap Clock to 50s (will roll back if HUD reveals fainted ball on subsequent frames).
-            // 2. Prior species remains alive (do NOT grey out column).
+            // True Manual Swap: start 50s Swap Clock at midpoint between last old-mon frame and first new-mon frame
             playerSwapEndTimeBeforeSwitch = playerSwapEndTimeMs
             playerPreSwitchBallCount = aliveBeforeSwitch
             lastPlayerPrevSlotIdx = prevSlotIdx
             lastPlayerSwitchTimeMs = swapStartMs
-            lastPlayerSwitchFrameMs = currentFrameTimestampMs
+            lastPlayerSwitchFrameMs = nowMs
             lastPlayerSwitchWasFaint = false
             playerSwitchConfirmedAlive = false
             playerSwitchAliveFrames = 0
@@ -9275,6 +9470,7 @@ class OverlayService : LifecycleService() {
                 playerFaintedSlots[prevSlotIdx] = false
             }
             playerSwapEndTimeMs = swapStartMs + 50000L
+            val playerRemSec = ceil((playerSwapEndTimeMs - nowMs).coerceAtLeast(0L) / 1000.0).toInt()
             battleTimelineEvents.add(
                 BattleTimelineEvent(
                     type = "SWAP",
@@ -9283,7 +9479,20 @@ class OverlayService : LifecycleService() {
                     pokemonIn = newSlotName,
                     pokemonOut = prevPlayerPokemon.ifEmpty { null },
                     userShieldsRemaining = playerShieldsRemaining,
-                    oppShieldsRemaining = oppShieldsRemaining
+                    oppShieldsRemaining = oppShieldsRemaining,
+                    recommendedAction = lastRecommendedAction.ifEmpty { null },
+                    recommendedGoal = lastRecommendedGoal.ifEmpty { null },
+                    decisionPhase = lastRecommendedPhase.ifEmpty { "MIDGAME" },
+                    recommendedTargetPokemon = recTargetName,
+                    playerSwapRemainingSec = playerRemSec,
+                    oppSwapRemainingSec = oppRemSec,
+                    userAliveCount = (3 - playerFaintedSlots.count { it }).coerceIn(1, 3),
+                    oppAliveCount = oppAliveNow,
+                    lastPlayerSwitchWasFaint = false,
+                    lastOppSwitchWasFaint = lastOppSwitchWasFaint,
+                    candidateScores = lastRecommendedCandidateScores.takeIf { it.isNotEmpty() },
+                    followedRecommendation = followedRec,
+                    validityLatched = !fromOcrFrame
                 )
             )
             recalculateAndPushBattleData()
@@ -9671,6 +9880,70 @@ class OverlayService : LifecycleService() {
         val preset = currentPreset ?: return
         if (preset.pokemon.isEmpty()) return
 
+        // 0. v3.34: Detect "Switch in a new Pokémon?" Post-Faint Prompt in bottom region (0.70h..0.95h)
+        if (!isWaitingForOpponent && playerMoveLines.isNotEmpty()) {
+            val combinedBottomLower = playerMoveLines.joinToString(" ") { it.text.lowercase() }
+            val hasSwitchPromptHeader = combinedBottomLower.contains("switch in a new") ||
+                combinedBottomLower.contains("switch in a") ||
+                combinedBottomLower.contains("new pokemon") ||
+                combinedBottomLower.contains("new pokémon")
+
+            // Also check if 2 distinct alive bench species names appear simultaneously in the bottom card area
+            val curActiveIdx = preset.pokemon.indexOfFirst { it.name.equals(activeUserPokemonName, ignoreCase = true) }.coerceAtLeast(0)
+            val benchMatchedSlots = mutableSetOf<Int>()
+            for (line in playerMoveLines) {
+                val text = line.text.trim()
+                if (text.length < 3) continue
+                for ((slotIdx, slot) in preset.pokemon.withIndex()) {
+                    if (slotIdx == curActiveIdx || playerFaintedSlots[slotIdx]) continue
+                    val score = scoreTeamMemberOnLine(text, slot)
+                    if (score != null && score <= 1) {
+                        benchMatchedSlots.add(slotIdx)
+                    }
+                }
+            }
+
+            if (hasSwitchPromptHeader || benchMatchedSlots.size >= 2) {
+                if (!isPostFaintSwitchPromptActive) {
+                    isPostFaintSwitchPromptActive = true
+                    if (curActiveIdx in 0..2 && !playerFaintedSlots[curActiveIdx]) {
+                        playerFaintedSlots[curActiveIdx] = true
+                        playerPokeballCount = (3 - playerFaintedSlots.count { it }).coerceIn(1, 3)
+                    }
+                    lastPlayerSwitchWasFaint = true
+                    val faintedMon = preset.pokemon.getOrNull(curActiveIdx)?.name ?: activeUserPokemonName
+                    val nowMs = currentFrameTimestampMs.takeIf { it > 0L } ?: System.currentTimeMillis()
+                    val playerRemSec = if (playerSwapEndTimeMs > nowMs) ceil((playerSwapEndTimeMs - nowMs) / 1000.0).toInt() else 0
+                    val oppRemSec = if (oppSwapEndTimeMs > nowMs) ceil((oppSwapEndTimeMs - nowMs) / 1000.0).toInt() else 0
+                    recalculateAndPushBattleData()
+                    battleTimelineEvents.add(
+                        BattleTimelineEvent(
+                            type = "POST_FAINT_PROMPT",
+                            actor = "user",
+                            t = getElapsedBattleSeconds(nowMs),
+                            pokemonFainted = faintedMon,
+                            pokemonOut = faintedMon,
+                            userShieldsRemaining = playerShieldsRemaining,
+                            oppShieldsRemaining = oppShieldsRemaining,
+                            recommendedAction = lastRecommendedAction.ifEmpty { null },
+                            recommendedGoal = lastRecommendedGoal.ifEmpty { null },
+                            decisionPhase = "POST_FAINT_SWAP",
+                            recommendedTargetPokemon = if (lastRecommendedSwapSlotIdx in 0..2) preset.pokemon.getOrNull(lastRecommendedSwapSlotIdx)?.name else null,
+                            playerSwapRemainingSec = playerRemSec,
+                            oppSwapRemainingSec = oppRemSec,
+                            userAliveCount = playerPokeballCount,
+                            oppAliveCount = (3 - oppFaintedSlots.count { it }).coerceIn(1, 3),
+                            lastPlayerSwitchWasFaint = true,
+                            lastOppSwitchWasFaint = lastOppSwitchWasFaint,
+                            candidateScores = lastRecommendedCandidateScores.takeIf { it.isNotEmpty() }
+                        )
+                    )
+                    showBattleToast("⚡ Switch Prompt Detected — See SEND IN Recommendation!")
+                }
+                return
+            }
+        }
+
         // 1. Evaluate Top-Left Player Nameplate lines across ALL 3 team slots simultaneously
         val candidateTopLines = playerTopLines
             .filter { line ->
@@ -9694,7 +9967,6 @@ class OverlayService : LifecycleService() {
                     lineScores[slotIdx] = score
                 }
             }
-            // If a single line matched multiple distinct slots at the same fuzzy level, ignore unless one is strictly better
             if (lineScores.isNotEmpty()) {
                 val minLineScore = lineScores.values.minOrNull()!!
                 val bestOnLine = lineScores.filterValues { it == minLineScore }.keys
@@ -9705,7 +9977,6 @@ class OverlayService : LifecycleService() {
                         slotBestScores[winIdx] = minLineScore
                     }
                 } else if (minLineScore == 0) {
-                    // Disambiguate substring species names (e.g. Porygon2 vs Porygon) by longest base species
                     val longestIdx = bestOnLine.maxByOrNull { idx ->
                         FormResolver.extractBaseSpecies(preset.pokemon[idx].name).length
                     }
@@ -9724,25 +9995,23 @@ class OverlayService : LifecycleService() {
             val winningSlots = slotBestScores.filterValues { it == bestScore }.keys.toList()
             if (winningSlots.size == 1) {
                 val winningSlot = preset.pokemon[winningSlots[0]]
-                executePlayerSwitch(winningSlot.name)
+                executePlayerSwitch(winningSlot.name, fromOcrFrame = true)
                 return
             }
         }
 
         // Unique-CP fallback ONLY if no species name matched above AND the detected CP belongs to exactly 1 slot on the team
-        // (prevents shared CPs like Tinkaton 2499 & Swampert 2499 from ever defaulting to Slot 0 Lead)
         for (line in candidateTopLines) {
             val cpMatch = Regex("(?i)\\bcp\\s*(\\d{3,4})\\b").find(line.text)
             val detectedCp = cpMatch?.groupValues?.getOrNull(1)?.toIntOrNull() ?: continue
             val matchingSlots = preset.pokemon.filter { it.cp == detectedCp }
             if (matchingSlots.size == 1) {
-                executePlayerSwitch(matchingSlots[0].name)
+                executePlayerSwitch(matchingSlots[0].name, fromOcrFrame = true)
                 return
             }
         }
 
         // 2. Check Bottom Charged Move Buttons across all bottom move lines
-        // Evaluates all 3 slots and requires a strictly unique best score (ties never default to Slot 0)
         val validMoveLines = playerMoveLines.filter { it.text.trim().length >= 3 }
         if (validMoveLines.isNotEmpty()) {
             val combinedBottomNorm = validMoveLines.joinToString(" ") { normalizeOcrToken(it.text, rnAsM = true) }
@@ -9795,8 +10064,15 @@ class OverlayService : LifecycleService() {
             }
 
             if (bestSlot != null && bestScore >= 3 && bestScore > secondBestScore) {
-                executePlayerSwitch(bestSlot.name)
+                executePlayerSwitch(bestSlot.name, fromOcrFrame = true)
+                return
             }
+        }
+
+        if (!playerSwitchValidityLatched && (currentFrameTimestampMs - lastPlayerSwitchFrameMs) >= 1400L) {
+            playerSwitchValidityLatched = true
+            provisionalPlayerPrevName = ""
+            recalculateAndPushBattleData()
         }
     }
 
@@ -9898,6 +10174,22 @@ class OverlayService : LifecycleService() {
         oppShieldDropFrames = 0
         playerShieldRestoreFrames = 0
         oppShieldRestoreFrames = 0
+        lastConfirmedPlayerFrameTimeMs = 0L
+        lastConfirmedOppFrameTimeMs = 0L
+        playerSwitchValidityLatched = true
+        oppSwitchValidityLatched = true
+        provisionalOppPrevName = ""
+        provisionalOppPrevSpecies = ""
+        provisionalOppPrevWasAddedToDetected = false
+        provisionalPlayerPrevName = ""
+        isPostFaintSwitchPromptActive = false
+        lastRecommendedAction = ""
+        lastRecommendedGoal = ""
+        lastRecommendedPhase = "LEAD"
+        lastRecommendedSwapSlotIdx = -1
+        lastRecommendedCandidateScores = emptyMap()
+        recommendationsIssuedInBattle = 0
+        recommendationsFollowedInBattle = 0
 
         stopBattleOcrLoop()
         startBattleOcrLoop()
@@ -10041,6 +10333,11 @@ class OverlayService : LifecycleService() {
             explicitOppShieldsRemaining = if (formattedOpponents.isNotEmpty()) endOppShields else null
         )
 
+        val evalEvents = finalTimelineEvents.filter { it.followedRecommendation != null }
+        val recsIssued = max(recommendationsIssuedInBattle, evalEvents.size)
+        val recsFollowed = max(recommendationsFollowedInBattle, evalEvents.count { it.followedRecommendation == true })
+        val adherencePct = if (recsIssued > 0) ((recsFollowed * 100.0) / recsIssued.toDouble()).roundToInt().coerceIn(0, 100) else null
+
         val nowMs = System.currentTimeMillis()
         val newEntry = SyncBattleLogRecord(
             id = "log-$nowMs-${(100..999).random()}",
@@ -10065,7 +10362,10 @@ class OverlayService : LifecycleService() {
             userFaints = finalUserFaints,
             oppFaints = finalOppFaints,
             userShieldsRemaining = endUserShields,
-            oppShieldsRemaining = endOppShields
+            oppShieldsRemaining = endOppShields,
+            adherenceRatePct = adherencePct,
+            recommendationsIssuedCount = recsIssued,
+            recommendationsFollowedCount = recsFollowed
         )
 
         val logsType = object : TypeToken<List<SyncBattleLogRecord>>() {}.type
@@ -11627,7 +11927,7 @@ class OverlayService : LifecycleService() {
             )
         }
 
-        // Compute Real-Time Tactical Lead & Swap Recommendation (Action, Shield Plan, Matchup Goal)
+        // v3.34: Compute Real-Time Tactical Lead, Counter-Swap Minimax, Post-Faint & Endgame Recommendation
         val teamArchetype = (currentPreset?.archetype ?: "ABC").uppercase()
         val oppFullNameForMatrix = if (isOpponentShadow && !oppMeta.name.startsWith("Shadow ", ignoreCase = true)) {
             "Shadow ${oppMeta.name}"
@@ -11635,12 +11935,12 @@ class OverlayService : LifecycleService() {
             oppMeta.name
         }
         val teamSlotsList = listOf(p1, p2, p3)
-        fun slotBr(slotIdx: Int, uS: Int, oS: Int): Int {
+        fun slotBrAgainst(slotIdx: Int, targetOppName: String, uS: Int, oS: Int): Int {
             val s = teamSlotsList.getOrNull(slotIdx)
             val sName = s?.name ?: teamNames.getOrElse(slotIdx) { "Dialga (Origin)" }
             return getOverlayRealtimeMatchupRatingStatic(
                 myName = sName,
-                oppName = oppFullNameForMatrix,
+                oppName = targetOppName,
                 userShields = uS.coerceIn(0, 2),
                 oppShields = oS.coerceIn(0, 2),
                 league = activeLeague,
@@ -11651,6 +11951,8 @@ class OverlayService : LifecycleService() {
                 myIvs = s?.ivs
             )
         }
+        fun slotBr(slotIdx: Int, uS: Int, oS: Int): Int = slotBrAgainst(slotIdx, oppFullNameForMatrix, uS, oS)
+
         val activeSlotIdxSafe = activeUserSlotIndex.coerceIn(0, 2)
         val curEqS = min(playerShieldsRemaining, oppShieldsRemaining).coerceIn(0, 2)
         val curBr = slotBr(activeSlotIdxSafe, playerShieldsRemaining, oppShieldsRemaining)
@@ -11658,7 +11960,10 @@ class OverlayService : LifecycleService() {
         val br1s = slotBr(activeSlotIdxSafe, 1, 1)
         val br2s = slotBr(activeSlotIdxSafe, 2, 2)
 
-        val shieldPlanStr = when {
+        val playerAliveCount = (3 - playerFaintedSlots.count { it }).coerceIn(1, 3)
+        val oppAliveCount = (3 - oppFaintedSlots.count { it }).coerceIn(1, 3)
+
+        var shieldPlanStr = when {
             playerShieldsRemaining == 0 -> "0S"
             br0s >= activeTierWMin && br0s >= br1s - 25 -> "0S"
             playerShieldsRemaining >= 2 && br2s >= activeTierWMin && br2s > br1s + 35 -> "2S"
@@ -11668,15 +11973,127 @@ class OverlayService : LifecycleService() {
         }
 
         val canPlayerSwap = playerSwapRemainingSec <= 0
-        val aliveBenchIndices = (0..2).filter { it != activeSlotIdxSafe && !playerFaintedSlots[it] }
-        val isLeadPhase = activeOpponentSlotIndex == 0 && activeSlotIdxSafe == 0 && oppSwapRemainingSec <= 0 && detectedOpponents.size <= 1
+        val aliveBenchIndices = (0..2).filter { !playerFaintedSlots[it] && (isPostFaintSwitchPromptActive || it != activeSlotIdxSafe) }
+        val isLeadPhase = activeOpponentSlotIndex == 0 &&
+            activeSlotIdxSafe == 0 &&
+            oppSwapRemainingSec <= 0 &&
+            detectedOpponents.size <= 1 &&
+            playerAliveCount == 3 &&
+            oppAliveCount == 3 &&
+            !isPostFaintSwitchPromptActive
 
+        // Known alive bench opponents (excluding current active opponent)
+        val revealedBenchOpponents = detectedOpponents.mapIndexedNotNull { idx, oName ->
+            val oBase = FormResolver.extractBaseSpecies(oName)
+            if (oBase.equals(oppMeta.baseSpecies, ignoreCase = true) || (idx in 0..2 && oppFaintedSlots[idx])) null else oName
+        }
+
+        // Score alive bench candidates across Active Opp (45%), Swap Clocks (25%), Known Bench (20%), Unseen Meta (10%)
+        val candidateScoreMap = mutableMapOf<String, Int>()
+        val candidateWorstRespMap = mutableMapOf<Int, Int>()
+        for (bIdx in aliveBenchIndices) {
+            val bName = teamNames.getOrElse(bIdx) { "Slot ${bIdx + 1}" }
+            val actBr = slotBr(bIdx, playerShieldsRemaining, oppShieldsRemaining)
+            val zeroBr = slotBr(bIdx, 0, 0)
+            val oneBr = slotBr(bIdx, 1, 1)
+            val worstResp = if (revealedBenchOpponents.isNotEmpty()) {
+                revealedBenchOpponents.minOf { bOpp -> slotBrAgainst(bIdx, bOpp, playerShieldsRemaining, oppShieldsRemaining) }
+            } else {
+                min(actBr, oneBr)
+            }
+            candidateWorstRespMap[bIdx] = worstResp
+            val activeFactor = actBr * 0.65 + zeroBr * 0.35
+            val clockFactor = if (oppSwapRemainingSec >= 12 || oppAliveCount == 1) {
+                actBr * 1.18
+            } else {
+                actBr * 0.55 + worstResp * 0.45
+            }
+            val knownBenchFactor = if (revealedBenchOpponents.isNotEmpty()) {
+                revealedBenchOpponents.map { bOpp -> slotBrAgainst(bIdx, bOpp, playerShieldsRemaining, oppShieldsRemaining) }.average()
+            } else {
+                oneBr.toDouble()
+            }
+            val unseenMetaFactor = ((actBr + oneBr) / 2.0)
+            val compScore = (activeFactor * 0.45 + clockFactor * 0.25 + knownBenchFactor * 0.20 + unseenMetaFactor * 0.10).roundToInt()
+            candidateScoreMap[bName] = compScore
+        }
+
+        var recPhase = if (isLeadPhase) "LEAD" else "MIDGAME"
         var recAction = "STAY IN"
         var recGoal = "Hold Switch Adv"
         var recTone = "stay"
         var recSwapIdx = -1
 
-        if (isLeadPhase) {
+        val oppSwitchLockActive = !lastOppSwitchWasFaint && oppSwapRemainingSec >= 12
+        val oppCanCounterSwap = lastOppSwitchWasFaint || oppSwapRemainingSec <= 8
+
+        if (isPostFaintSwitchPromptActive && aliveBenchIndices.isNotEmpty()) {
+            // 1. POST-FAINT "Switch in a new Pokémon?" Replacement Recommendation
+            recPhase = "POST_FAINT_SWAP"
+            val sortedBench = aliveBenchIndices.sortedByDescending { idx ->
+                candidateScoreMap[teamNames.getOrElse(idx) { "" }] ?: slotBr(idx, playerShieldsRemaining, oppShieldsRemaining)
+            }
+            val bestIdx = sortedBench.first()
+            val secondIdx = sortedBench.getOrNull(1)
+            val bestCode = abbrPokemon3(teamNames[bestIdx])
+            val bestBr = slotBr(bestIdx, playerShieldsRemaining, oppShieldsRemaining)
+            val holdText = if (secondIdx != null) " (HOLD ${abbrPokemon3(teamNames[secondIdx])})" else ""
+            recAction = "SEND IN -> $bestCode$holdText"
+            recSwapIdx = bestIdx
+            recTone = if (bestBr >= activeTierWMin) "stay" else "counter"
+            shieldPlanStr = if (playerShieldsRemaining > 0) "Keep ${playerShieldsRemaining}S" else "0S"
+            recGoal = when {
+                oppSwapRemainingSec >= 12 -> "Punish ${oppSwapRemainingSec}s Lock ($bestBr BR)"
+                oppAliveCount == 1 -> "Close Last Opp ($bestBr BR)"
+                revealedBenchOpponents.isNotEmpty() && secondIdx != null ->
+                    "Save ${abbrPokemon3(teamNames[secondIdx])} for ${abbrPokemon3(revealedBenchOpponents.first())}"
+                else -> "Best Re-Entry (Opp Swap ${oppSwapRemainingSec}s)"
+            }
+        } else if (playerAliveCount == 1 && oppAliveCount == 1) {
+            // 2A. 1v1 ENDGAME AWARENESS (Never says "Maintain Alignment" or "Save Shields for Backline")
+            recPhase = "ENDGAME"
+            if (playerShieldsRemaining > 0 && oppShieldsRemaining == 0) {
+                recAction = "CLOSE 1v1 (BURN ${playerShieldsRemaining}S)"
+                shieldPlanStr = "${playerShieldsRemaining}S"
+                recGoal = "Shield 1st Charged to Close ($curBr BR)"
+                recTone = if (curBr >= 500) "stay" else "bait"
+            } else if (playerShieldsRemaining > 0 && oppShieldsRemaining > 0) {
+                val needBait = br0s < 480 && br1s >= 500
+                recAction = if (needBait) "CLOSE 1v1 (BAIT->NUKE)" else "CLOSE 1v1 (COMMIT ${playerShieldsRemaining}S)"
+                shieldPlanStr = "${playerShieldsRemaining}S"
+                recGoal = if (needBait) "Strip Last Opp Shield to Close" else "Out-Pace 1v1 ($curBr BR)"
+                recTone = if (curBr >= 500) "stay" else "bait"
+            } else {
+                recAction = "CLOSE 1v1 (0S RACE)"
+                shieldPlanStr = "0S"
+                recGoal = if (br0s >= 500) "Throw on CMP / Win 0S ($br0s BR)" else "Catch or Sneak Fast Move to Steal"
+                recTone = if (br0s >= 500) "stay" else "swap"
+            }
+        } else if (playerAliveCount >= 2 && oppAliveCount == 1) {
+            // 2B. 2v1 ENDGAME AWARENESS (Opponent has 2 fainted)
+            recPhase = "ENDGAME"
+            val bestBenchIdx = aliveBenchIndices.maxByOrNull { slotBr(it, playerShieldsRemaining, oppShieldsRemaining) }
+            val bestBenchBr = if (bestBenchIdx != null) slotBr(bestBenchIdx, playerShieldsRemaining, oppShieldsRemaining) else curBr
+            val bestBenchCode = if (bestBenchIdx != null) abbrPokemon3(teamNames[bestBenchIdx]) else "BACK"
+            if (canPlayerSwap && bestBenchIdx != null && bestBenchBr >= curBr + 75 && curBr < 475) {
+                recAction = "SWAP -> $bestBenchCode TO CLOSE"
+                recSwapIdx = bestBenchIdx
+                recTone = "stay"
+                recGoal = "Last Opp Mon (No Opp Bench Left)"
+            } else {
+                recAction = if (curBr >= activeTierWMin) "2v1 PRESS -> FINISH" else "2v1 CHIP FOR $bestBenchCode"
+                recTone = "stay"
+                recGoal = "Opp Last Mon (${playerAliveCount}v1 Advantage)"
+            }
+        } else if (playerAliveCount == 1 && oppAliveCount >= 2) {
+            // 2C. 1v2 ENDGAME AWARENESS (Player has 2 fainted)
+            recPhase = "ENDGAME"
+            val backOppCode = revealedBenchOpponents.firstOrNull()?.let { abbrPokemon3(it) } ?: "BACK"
+            recAction = if (playerShieldsRemaining > 0) "1v2 FARM FOR $backOppCode" else "1v2 OVERFARM & NUKE"
+            shieldPlanStr = if (playerShieldsRemaining > 0) "Hold 1S" else "0S"
+            recGoal = "Bank Energy Before $backOppCode Enters"
+            recTone = if (curBr >= 500) "bait" else "swap"
+        } else if (isLeadPhase) {
             val pivotIdx = if (1 in aliveBenchIndices) 1 else aliveBenchIndices.firstOrNull()
             val pivotCode = if (pivotIdx != null) abbrPokemon3(teamNames[pivotIdx]) else "SWAP"
             val corePartnerCode = abbrPokemon3(teamNames.getOrElse(2) { p1Name })
@@ -11706,7 +12123,6 @@ class OverlayService : LifecycleService() {
                     recTone = "bait"
                 }
             } else {
-                // Lead Loss (L or SL)
                 if (canPlayerSwap && pivotIdx != null) {
                     recAction = if (teamArchetype == "ABB") "BAIT -> $pivotCode" else "SWAP -> $pivotCode"
                     recGoal = when (teamArchetype) {
@@ -11722,14 +12138,45 @@ class OverlayService : LifecycleService() {
                     recTone = "bait"
                 }
             }
-        } else if (activeOpponentSlotIndex > 0 && canPlayerSwap && curBr <= activeTierLMax && aliveBenchIndices.isNotEmpty()) {
-            // Opponent swapped or brought in a counter and our switch clock is ready
+        } else if (curBr <= activeTierLMax && aliveBenchIndices.isNotEmpty()) {
+            // 3. COUNTER-SWAP MINIMAX (Differentiates Faint Replacement vs. Manual Swap using BOTH Swap Clocks)
             val bestCounterIdx = aliveBenchIndices.maxByOrNull { idx -> slotBr(idx, playerShieldsRemaining, oppShieldsRemaining) } ?: aliveBenchIndices.first()
             val bestCounterBr = slotBr(bestCounterIdx, playerShieldsRemaining, oppShieldsRemaining)
             val bestCounterCode = abbrPokemon3(teamNames[bestCounterIdx])
-            if (bestCounterBr > curBr + 45) {
+
+            if (!canPlayerSwap && playerSwapRemainingSec > 0) {
+                recAction = "LOCKED (${playerSwapRemainingSec}s) • CHIP"
+                shieldPlanStr = "0S"
+                recGoal = "Wait ${playerSwapRemainingSec}s or Faint -> $bestCounterCode"
+                recTone = "swap"
+            } else if (oppSwitchLockActive && bestCounterBr > curBr + 45) {
+                // Opponent manual-swapped and locked their swap timer!
+                recPhase = "OPP_SWAP"
+                recAction = "PUNISH LOCK -> $bestCounterCode"
+                recGoal = "Opp Locked ${oppSwapRemainingSec}s • Farm w/ $bestCounterCode"
+                recTone = "counter"
+                recSwapIdx = bestCounterIdx
+            } else if (oppCanCounterSwap && oppAliveCount > 1 && bestCounterBr > curBr + 45) {
+                // Opponent entered after a faint (or their swap timer is ready <= 8s): run Counter-Swap Minimax
+                val worstRespBr = candidateWorstRespMap[bestCounterIdx] ?: 440
+                val branchAScore = (bestCounterBr * 0.35 + worstRespBr * 0.65 - 45.0).roundToInt()
+                val branchBScore = (br0s * 0.45 + bestCounterBr * 0.55).roundToInt()
+                if (branchBScore >= branchAScore && curBr >= 360) {
+                    recPhase = "FAINT_ENTRY"
+                    recAction = "STAY & CHIP (HOLD SWAP)"
+                    shieldPlanStr = "0S"
+                    recGoal = "Opp Swap Ready (${oppSwapRemainingSec}s) -> Free $bestCounterCode After Faint"
+                    recTone = "bait"
+                } else {
+                    recPhase = "OPP_SWAP"
+                    recAction = "SAFE PIVOT -> $bestCounterCode"
+                    recGoal = "Flip Tempo (Opp Swap ${oppSwapRemainingSec}s)"
+                    recTone = "counter"
+                    recSwapIdx = bestCounterIdx
+                }
+            } else if (bestCounterBr > curBr + 45) {
                 recAction = "COUNTER -> $bestCounterCode"
-                recGoal = if (bestCounterBr >= activeTierWMin) "Punish Swap & Farm Energy" else "Neutralize Swap & Take Shields"
+                recGoal = if (bestCounterBr >= activeTierWMin) "Punish Swap & Farm Energy" else "Neutralize & Take Shields"
                 recTone = "counter"
                 recSwapIdx = bestCounterIdx
             } else {
@@ -11738,7 +12185,6 @@ class OverlayService : LifecycleService() {
                 recTone = "bait"
             }
         } else if (activeSlotIdxSafe > 0) {
-            // Player is currently on their Safe Swap / Pivot / Sweeper
             val leadAlive = !playerFaintedSlots[0]
             val farmPartnerCode = if (leadAlive) abbrPokemon3(p1Name) else abbrPokemon3(teamNames.getOrElse(2) { p1Name })
             if (activeSlotIdxSafe == 1 && teamArchetype == "ABB") {
@@ -11756,7 +12202,11 @@ class OverlayService : LifecycleService() {
             }
         } else {
             recAction = if (curBr >= activeTierWMin) "STAY IN" else "SOFT LOSE 0S"
-            recGoal = if (curBr >= activeTierWMin) "Maintain Alignment" else "Save Shields for Backline"
+            recGoal = if (curBr >= activeTierWMin) {
+                if (oppSwitchLockActive) "Farm Locked Opp (${oppSwapRemainingSec}s)" else "Hold Tempo & Bank Energy"
+            } else {
+                "Chip 0S -> Setup Backline"
+            }
             recTone = if (curBr >= activeTierWMin) "stay" else "bait"
         }
 
@@ -11769,8 +12219,14 @@ class OverlayService : LifecycleService() {
         }
         val recActionLabel = "[$teamArchetype] $recAction"
 
+        lastRecommendedAction = recActionLabel
+        lastRecommendedGoal = recGoal
+        lastRecommendedPhase = recPhase
+        lastRecommendedSwapSlotIdx = recSwapIdx
+        lastRecommendedCandidateScores = candidateScoreMap
+
         val tacticalRecommendation = mapOf(
-            "phase" to if (isLeadPhase) "LEAD" else "MIDGAME",
+            "phase" to recPhase,
             "archetype" to teamArchetype,
             "action" to recAction,
             "actionLabel" to recActionLabel,
@@ -11780,7 +12236,8 @@ class OverlayService : LifecycleService() {
             "tone" to recTone,
             "urgencyColor" to recUrgencyColor,
             "recommendedSwapSlotIndex" to recSwapIdx,
-            "activeBr" to curBr
+            "activeBr" to curBr,
+            "candidateScores" to candidateScoreMap
         )
 
         val battlePayload = mapOf(
@@ -11815,6 +12272,9 @@ class OverlayService : LifecycleService() {
             "playerSwapEndTimeMs" to playerSwapEndTimeMs,
             "oppSwapRemainingSec" to oppSwapRemainingSec,
             "oppSwapEndTimeMs" to oppSwapEndTimeMs,
+            "playerSwitchValidityLatched" to playerSwitchValidityLatched,
+            "oppSwitchValidityLatched" to oppSwitchValidityLatched,
+            "isPostFaintSwitchPromptActive" to isPostFaintSwitchPromptActive,
             "playerPokeballs" to playerPokeballCount,
             "oppPokeballs" to oppPokeballCount,
             "playerShields" to playerShieldsRemaining,
